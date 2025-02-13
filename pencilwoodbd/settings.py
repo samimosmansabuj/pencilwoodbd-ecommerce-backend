@@ -27,7 +27,7 @@ INSTALLED_APPS = [
     'authentication', 'order', 'product',
     
     #install apps
-    'rest_framework', 'rest_framework_simplejwt', 'rest_framework_simplejwt.token_blacklist',
+    'rest_framework', 'rest_framework_simplejwt',
     'corsheaders', 'django_extensions', 'django_filters',
 ]
 
@@ -54,7 +54,6 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=15), 
     'ROTATE_REFRESH_TOKENS': False,
     "UPDATE_LAST_LOGIN": False,
-    'BLACKLIST_AFTER_ROTATION': True,
 }
 
 CORS_ORIGIN_ALLOW_ALL = True
