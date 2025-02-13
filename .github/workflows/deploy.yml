@@ -18,5 +18,7 @@ jobs:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
+        server-dir: "/api_pencilwoodbd/" # or your desired path
+        timeout: 120000 # Increase timeout (120 seconds)
         protocol: ftps
         passive: true
