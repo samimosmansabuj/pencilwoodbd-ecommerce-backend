@@ -14,6 +14,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
 
 class AddToCartSerializer(serializers.ModelSerializer):
+    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all(), required=True)
     class Meta:
         model = AddToCart
         fields = '__all__'

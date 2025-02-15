@@ -20,14 +20,6 @@ class CustomUser(AbstractUser):
         return self.email
 
 
-class Role(models.Model):
-    name = models.CharField(max_length=255, unique=True)
-    can_read = models.BooleanField(default=False)
-    can_add = models.BooleanField(default=False)
-    can_edit = models.BooleanField(default=False)
-    can_delete = models.BooleanField(default=False)
-
-
 class Customer(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.DO_NOTHING, blank=True, null=True, related_name='customer_authentication')
     name = models.CharField(max_length=50)
@@ -39,4 +31,12 @@ class Customer(models.Model):
     
     def __str__(self):
         return self.name
+
+
+class Role(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    can_read = models.BooleanField(default=False)
+    can_add = models.BooleanField(default=False)
+    can_edit = models.BooleanField(default=False)
+    can_delete = models.BooleanField(default=False)
 

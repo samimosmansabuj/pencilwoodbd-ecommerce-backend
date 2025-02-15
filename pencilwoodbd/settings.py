@@ -91,6 +91,15 @@ TEMPLATES = [
 WSGI_APPLICATION = 'pencilwoodbd.wsgi.application'
 
 
+# SESSION_COOKIE_AGE = 60 * 60 * 24 * 7  # 7 days
+SESSION_ENGINE = "django.contrib.sessions.backends.db" # Store session in DB
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 30  # 30 days | Set session lifetime (e.g., 30 days)
+# Ensure session persists even if the user closes the browser
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_SAVE_EVERY_REQUEST = True
+
+
+
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
