@@ -2,6 +2,11 @@ from django.contrib import admin
 from .models import Customer, CustomUser, Role
 from django.contrib.sessions.models import Session
 
+admin.site.site_header = "Pencilwood BD"
+admin.site.site_title = "Pencilwood BD"
+admin.site.index_title = "Welcome to Pencilwood BD"
+# admin.site.index_template = "OK"
+
 
 admin.site.register(CustomUser)
 admin.site.register(Customer)

@@ -4,7 +4,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from .models import Category, Product, AddToCart, FreeAddToCart
 from authentication.models import Customer
-from django.contrib.sessions.models import Session
+
 
 class AdminCreationPermision(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -113,22 +113,6 @@ class AddToCartViewset(viewsets.ModelViewSet):
         else:
             return Response(cart, status=status.HTTP_200_OK)
     
-    def migrate_cart_to_user(self, user):
-        session_cart = self.request.session.get('cart', {})
-        if session_cart:
-            customer, created = Customer.objects.get_or_create(user=user, defaults={"name": user.email, "email": user.email})
-            
-            for product_id, item in session_cart.item():
-                product = Product.objects.get(id=product_id)
-                existing_cart_item = AddToCart.objects.filter(customer=customer, product=product).first()
-                if existing_cart_item:
-                    existing_cart_item.quantity == item['quantity']
-                else:
-                    AddToCart.objects.create(customer=customer, product=product, quantity=item['quantity'])
-                
-                del self.request.session['cart']
-                self.request.session.modified = True
-    
     
     def destroy(self, request, *args, **kwargs):
         if request.user.is_authenticated:
@@ -152,6 +136,13 @@ class AddToCartViewset(viewsets.ModelViewSet):
             session_cart = request.session.get('cart', {})
             if product_id in session_cart:
                 del session_cart[product_id]
+            else:
+                return Response(
+                    {
+                        'error': 'Cart not found!',
+                        'cart': session_cart
+                    }, status=status.HTTP_400_BAD_REQUEST
+                )
             
             request.session['cart'] = session_cart
             request.session.modified = True
