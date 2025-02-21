@@ -4,6 +4,40 @@ from rest_framework import permissions, viewsets, status
 from rest_framework.response import Response
 from .models import Order, OrderItem, PaymentMethod, Address
 from authentication.models import Customer
+from rest_framework.generics import CreateAPIView
+from product.models import AddToCart
+
+
+class OrderCreateViews(CreateAPIView):
+    serializer_class = OrderSerializers
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_customer(self):
+        try:
+            return self.request.user.customer_authentication
+        except Customer.DoesNotExist:
+            return None
+    
+    def create(self, request, *args, **kwargs):
+        customer = self.get_customer()
+        if not customer:
+            return Response(
+                {
+                    'error': 'Customer profile not found',
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        customer_cart = AddToCart.objects.filter(customer=customer)
+        for cart in customer_cart:
+            OrderItem.objects.create(
+                product = cart.product,
+                customer = customer,
+                quantity = cart.quantity,
+                price = cart.product.discount_price
+            )
+        
+        
+        # return super().create(request, *args, **kwargs)
 
 class OrderItemViews(viewsets.ModelViewSet):
     queryset = OrderItem.objects.all()
