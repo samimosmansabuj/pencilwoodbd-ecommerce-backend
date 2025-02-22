@@ -12,29 +12,103 @@ class OrderCreateViews(CreateAPIView):
     serializer_class = OrderSerializers
     permission_classes = [permissions.IsAuthenticated]
     
-    def get_customer(self):
-        try:
-            return self.request.user.customer_authentication
-        except Customer.DoesNotExist:
-            return None
+    def get_serializer_context(self):
+        return {'request': self.request}
     
     def create(self, request, *args, **kwargs):
-        customer = self.get_customer()
-        if not customer:
+        serializer = self.get_serializer(request.data)
+        order_items = self.create_order_items()
+        if not order_items:
+            return Response(
+                {'message': 'Cart is Empty!'},
+                status=status.HTTP_204_NO_CONTENT
+            )
+        serializer['order_items'] = self.create_order_items()
+        
+        serializer['customer'] = self.request.user.customer_authentication
+        serializer.is_valid(raise_exception=True)
+        # self.perform_create(serializer)
+        header = self.get_success_headers(serializer.data)
+        return Response(
+            {
+                'message': 'Order Create Successfully!',
+                'order': serializer.data,
+            }, status=status.HTTP_201_CREATED, headers=header
+        )
+    
+    def create_order_items(self):
+        customer = self.request.user.customer_authentication
+        order_items = []
+        if AddToCart.objects.filter(customer=customer).exists():
+            for cart in AddToCart.objects.filter(customer=customer):
+                orderitem = OrderItem.objects.create(
+                    product = cart.product,
+                    customer = customer,
+                    quantity = cart.quantity,
+                )
+                order_items.append(orderitem)
+                cart.delete()
+            return order_items
+        else:
             return Response(
                 {
-                    'error': 'Customer profile not found',
-                }, status=status.HTTP_400_BAD_REQUEST
+                    'message': 'Cart is Empty!',
+                }, status=status.HTTP_204_NO_CONTENT
             )
+    
+    # def perform_create(self, serializer):
+    #     customer = self.request.user.customer_authentication
+    #     serializer.save(customer=customer)
+    
+    # def get_address(self, serializer):
+    #     customer = self.request.user.customer_authentication
+    #     existing_addresses = serializer.get('existing_address', None)
+    #     street_01 = serializer.get('street', None)
+    #     upazila = serializer.get('upazila', None)
+    #     district = serializer.get('district', None)
         
-        customer_cart = AddToCart.objects.filter(customer=customer)
-        for cart in customer_cart:
-            OrderItem.objects.create(
-                product = cart.product,
-                customer = customer,
-                quantity = cart.quantity,
-                price = cart.product.discount_price
-            )
+    #     if existing_addresses:
+    #         address = existing_addresses
+    #     elif street_01 and upazila and district:
+    #         address = Address.objects.create(
+    #             customer = customer,
+    #             street_01 = street_01,
+    #             upazila = upazila,
+    #             district = district
+    #         )
+    
+    
+    
+    # def create_order(self, customer, order_product, total_price):
+    #     data = self.request.data
+    #     print(data)
+        
+       
+    # def create(self, request, *args, **kwargs):
+    #     customer = self.get_customer()
+    #     if not customer:
+    #         return Response(
+    #             {
+    #                 'error': 'Customer profile not found',
+    #             }, status=status.HTTP_400_BAD_REQUEST
+    #         )
+    #     order_items = self.create_order_item(customer)
+    #     order_items_copy = order_items.copy()
+    #     total_price = 0
+    #     for order_items_copy in order_items_copy:
+    #         total_price += order_items_copy.total_price
+        
+    #     order = self.create_order(customer, order_items, total_price)
+    #     return Response(
+    #         {
+    #             'message': 'Order Create Successfully!'
+    #         }
+    #     )
+        
+        
+        
+        
+        
         
         
         # return super().create(request, *args, **kwargs)

@@ -40,6 +40,8 @@ class Product(models.Model):
     
     def save(self, *args, **kwargs):
         self.slug = generate_unique_slug(Product, self.name)
+        if self.discount_price is None:
+            self.discount_price = self.current_price
         super().save(*args, **kwargs)
     
     def __str__(self):
