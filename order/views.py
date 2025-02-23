@@ -1,13 +1,12 @@
-from django.shortcuts import render
-from .serializers import OrderSerializers, OrderItemSerializers, AddressSerializers, PaymentMethodSerializers
+from .serializers import OrderSerializers, OrderItemSerializer, AddressSerializers, PaymentMethodSerializers, OrderListSerializers
 from rest_framework import permissions, viewsets, status
 from rest_framework.response import Response
 from .models import Order, OrderItem, PaymentMethod, Address
 from authentication.models import Customer
-from rest_framework.generics import CreateAPIView
+from rest_framework.generics import CreateAPIView, ListAPIView, UpdateAPIView, RetrieveAPIView
 from product.models import AddToCart
 
-
+# ================================Order Create View Start================================
 class OrderCreateViews(CreateAPIView):
     serializer_class = OrderSerializers
     permission_classes = [permissions.IsAuthenticated]
@@ -16,106 +15,135 @@ class OrderCreateViews(CreateAPIView):
         return {'request': self.request}
     
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(request.data)
-        order_items = self.create_order_items()
-        if not order_items:
+        customer = request.user.customer_authentication
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        carts = AddToCart.objects.filter(customer=customer)
+        if not carts.exists():
             return Response(
-                {'message': 'Cart is Empty!'},
+                {'error': 'Cart is Empty!'},
                 status=status.HTTP_204_NO_CONTENT
             )
-        serializer['order_items'] = self.create_order_items()
+        address = self.get_address(serializer, customer)
+        if address is None:
+            return Response(
+                {'error': 'Provide either a new address or select an existing one.'},
+                status=status.HTTP_204_NO_CONTENT
+            )
+        order_items = self.create_order_items(customer, carts)
+        if not order_items:
+            return Response(
+                {'error': 'Order Items is Empty!'},
+                status=status.HTTP_204_NO_CONTENT
+            )
         
-        serializer['customer'] = self.request.user.customer_authentication
-        serializer.is_valid(raise_exception=True)
-        # self.perform_create(serializer)
+        order = serializer.save(customer=customer, order_items=order_items, address=address)
+        order.total_cost = sum(item.total_price for item in order_items)
+        order.save()
+        
         header = self.get_success_headers(serializer.data)
         return Response(
             {
                 'message': 'Order Create Successfully!',
-                'order': serializer.data,
+                'order': OrderListSerializers(order).data,
             }, status=status.HTTP_201_CREATED, headers=header
         )
     
-    def create_order_items(self):
-        customer = self.request.user.customer_authentication
-        order_items = []
-        if AddToCart.objects.filter(customer=customer).exists():
-            for cart in AddToCart.objects.filter(customer=customer):
-                orderitem = OrderItem.objects.create(
-                    product = cart.product,
-                    customer = customer,
-                    quantity = cart.quantity,
-                )
-                order_items.append(orderitem)
-                cart.delete()
-            return order_items
-        else:
-            return Response(
-                {
-                    'message': 'Cart is Empty!',
-                }, status=status.HTTP_204_NO_CONTENT
+    def get_address(self, serializer, customer):
+        existing_addresses = serializer.validated_data.pop('existing_address', None)
+        street_01 = serializer.validated_data.pop('street', None)
+        upazila = serializer.validated_data.pop('upazila', None)
+        district = serializer.validated_data.pop('district', None)
+
+        if existing_addresses:
+            return existing_addresses
+        elif street_01 and upazila and district:
+            return Address.objects.create(
+                customer=customer,
+                street_01=street_01,
+                upazila=upazila,
+                district=district
             )
+        else:
+            return None
     
-    # def perform_create(self, serializer):
-    #     customer = self.request.user.customer_authentication
-    #     serializer.save(customer=customer)
+    def create_order_items(self, customer, carts):
+        order_items = []
+        for cart in carts:
+            orderitem = OrderItem.objects.create(
+                product = cart.product,
+                customer = customer,
+                quantity = cart.quantity,
+            )
+            order_items.append(orderitem)
+            cart.delete()
+        return order_items
+
+# ================================Order Create View End================================
+
+
+# ================================Order List, View Start================================
+class OrderListViews(viewsets.ModelViewSet):
+    queryset = Order.objects.all()
+    serializer_class = OrderListSerializers
+    permission_classes = [permissions.IsAuthenticated]
     
-    # def get_address(self, serializer):
-    #     customer = self.request.user.customer_authentication
-    #     existing_addresses = serializer.get('existing_address', None)
-    #     street_01 = serializer.get('street', None)
-    #     upazila = serializer.get('upazila', None)
-    #     district = serializer.get('district', None)
+    def get_queryset(self):
+        return Order.objects.filter(customer=self.request.user.customer_authentication)
+    
+    def list(self, request, *args, **kwargs):
+        orders = self.paginate_queryset(self.get_queryset())
+        serializer = self.get_serializer(orders, many=True)
+        if not orders:
+            return Response({
+                'message': 'No order items found!',
+                'data': serializer.data
+            },  status=status.HTTP_204_NO_CONTENT)
+        else:
+            return self.get_paginated_response({
+                'message': 'Order Items Fetched Successfully!',
+                'data': serializer.data
+            })
+    
+    
+    # def update(self, request, *args, **kwargs):
+    #     data = request.data
+    #     address = data['address']
+    #     instance = self.get_object()
+    #     serializer = self.get_serializer(instance, data=request.data, partial=True)
         
-    #     if existing_addresses:
-    #         address = existing_addresses
-    #     elif street_01 and upazila and district:
-    #         address = Address.objects.create(
-    #             customer = customer,
-    #             street_01 = street_01,
-    #             upazila = upazila,
-    #             district = district
-    #         )
-    
-    
-    
-    # def create_order(self, customer, order_product, total_price):
-    #     data = self.request.data
-    #     print(data)
+    #     print(instance.address)
+    #     print(address)
         
-       
-    # def create(self, request, *args, **kwargs):
-    #     customer = self.get_customer()
-    #     if not customer:
+    #     if serializer.is_valid():
+    #         serializer.save()
     #         return Response(
     #             {
-    #                 'error': 'Customer profile not found',
-    #             }, status=status.HTTP_400_BAD_REQUEST
+    #                 'message': 'Order Updated Successfully!',
+    #                 'order': request.data
+    #             }, status=status.HTTP_200_OK
     #         )
-    #     order_items = self.create_order_item(customer)
-    #     order_items_copy = order_items.copy()
-    #     total_price = 0
-    #     for order_items_copy in order_items_copy:
-    #         total_price += order_items_copy.total_price
-        
-    #     order = self.create_order(customer, order_items, total_price)
-    #     return Response(
-    #         {
-    #             'message': 'Order Create Successfully!'
-    #         }
-    #     )
-        
-        
-        
-        
-        
-        
-        
-        # return super().create(request, *args, **kwargs)
+    #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+#     def get(self, request, *args, **kwargs):
+#         if 'pk' in kwargs:
+#             return self.retrieve(request, *args, **kwargs)
+#         return self.list(request, *args, **kwargs)
+    
+#     # def put(self, request, *args, **kwargs):
+#     #     return self.update(request, *args, **kwargs)
+    
+#     # def patch(self, request, *args, **kwargs):
+#     #     return self.update(request, *args, **kwargs)
+# ================================Order List, View End================================
+
+
+
 
 class OrderItemViews(viewsets.ModelViewSet):
     queryset = OrderItem.objects.all()
-    serializer_class = OrderItemSerializers
+    serializer_class = OrderItemSerializer
     permission_classes = [permissions.IsAuthenticated]
     
     def list(self, request, *args, **kwargs):
@@ -145,14 +173,7 @@ class OrderItemViews(viewsets.ModelViewSet):
             return OrderItem.objects.filter(customer=customer)
         except Customer.DoesNotExist:
             return OrderItem.objects.none
-    
-    
 
-
-class OrderViews(viewsets.ModelViewSet):
-    queryset = Order.objects.all()
-    serializer_class = OrderSerializers
-    permission_classes = [permissions.IsAuthenticated]
 
 class PaymentMethodViews(viewsets.ModelViewSet):
     queryset = PaymentMethod.objects.all()
