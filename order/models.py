@@ -1,25 +1,7 @@
 from django.db import models
 from authentication.models import Customer
 from product.models import Product
-
-# Order Item Model
-class OrderItem(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.SET_NULL, related_name='product_orderitem', null=True, blank=True)
-    customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, related_name='customer_orderitem', null=True, blank=True)
-    quantity = models.PositiveIntegerField()
-    price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    total_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    
-    def save(self, *args, **kwargs):
-        self.price = self.product.discount_price
-        self.total_price = self.product.discount_price * self.quantity
-        super().save(*args, **kwargs)
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    def __str__(self):
-        return f'{self.customer.name} - Order Item - {self.product.name}'
+import uuid
 
 # Payment Method Model
 class PaymentMethod(models.Model):
@@ -35,6 +17,29 @@ class PaymentMethod(models.Model):
     
     def __str__(self):
         return f'{self.payment_option} | {self.transaction_id}'
+
+# Order Item Model
+class OrderItem(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, related_name='product_orderitem', null=True, blank=True)
+    customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, related_name='customer_orderitem', null=True, blank=True)
+    quantity = models.PositiveIntegerField()
+    price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    
+    def save(self, *args, **kwargs):
+        if not self.price:
+            self.price = self.product.discount_price
+        if not self.total_price:
+            self.total_price = self.product.discount_price * self.quantity
+        super().save(*args, **kwargs)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f'{self.customer.name} - Order Item - {self.product.name}'
+
+
 
 # Address Model
 class Address(models.Model):
@@ -77,20 +82,29 @@ class Order(models.Model):
         ('Partial', 'Partial'),
     )
     customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, related_name='customer_order', null=True, blank=True)
-    order_items = models.ManyToManyField(OrderItem)
+    order_items = models.ManyToManyField(OrderItem, blank=True, null=True)
     total_cost = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    payment_type = models.CharField(max_length=50, choices=PAYMENT_TYPE)
+    payment_type = models.CharField(max_length=50, choices=PAYMENT_TYPE, default='COD')
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS, default='Unpaid')
     payment_partial = models.BooleanField(default=False)
     status = models.CharField(max_length=50, choices=STATUS, default='Pending')
     tracking_id = models.CharField(max_length=255, unique=True, blank=True, null=True)
-    delivery_by = models.CharField(max_length=255)
+    delivery_by = models.CharField(max_length=255, blank=True, null=True)
     
     payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True, related_name='order_payment_method')
     address = models.ForeignKey(Address, on_delete=models.SET_NULL, null=True, blank=True, related_name='order_address')
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        self.total_cost = 0
+        for i in self.order_items.all():
+            self.total_cost += i.total_price
+        if not self.tracking_id:
+            self.tracking_id = str(uuid.uuid4()).replace("-", "").upper()[:12]  # Generate a unique 12-char tracking ID
+        super().save(*args, **kwargs)
+
     
     def __str__(self):
         return f'{self.customer} - Order {self.tracking_id} - {self.id}'
