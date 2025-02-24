@@ -26,11 +26,12 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     
     #Custom Apps
-    'authentication', 'order', 'product',
+    'authentication', 'order', 'product','live_chat',
     
     #install apps
     'rest_framework', 'rest_framework_simplejwt',
     'corsheaders', 'django_extensions', 'django_filters',
+    'channels',
 ]
 
 REST_FRAMEWORK = {
@@ -79,7 +80,7 @@ ROOT_URLCONF = 'pencilwoodbd.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': ['templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -93,6 +94,19 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'pencilwoodbd.wsgi.application'
+
+
+ASGI_APPLICATION = 'pencilwoodbd.asgi.application'
+
+# Redis settings (for channel layers) – make sure Redis is installed and running
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],  # Change as per your Redis configuration
+        },
+    },
+}
 
 
 # SESSION_COOKIE_AGE = 60 * 60 * 24 * 7  # 7 days
