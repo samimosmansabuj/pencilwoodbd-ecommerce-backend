@@ -25,13 +25,13 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     
-    #Custom Apps
-    'authentication', 'order', 'product','live_chat',
-    
     #install apps
     'rest_framework', 'rest_framework_simplejwt',
     'corsheaders', 'django_extensions', 'django_filters',
     'channels',
+    
+    #Custom Apps
+    'authentication', 'order', 'product','live_chat',
 ]
 
 REST_FRAMEWORK = {
