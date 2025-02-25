@@ -1,39 +1,34 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Live Chat</title>
+    <meta charset="UTF-8">
+    <title>WebSocket Test</title>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // Replace ws://127.0.0.1:8000/ws/some_path/ with your WebSocket URL
+            var ws = new WebSocket("ws://127.0.0.1:8000/ws/chat/");
+
+            ws.onopen = function(e) {
+                console.log("Connection open...", e);
+                ws.send("Hello Server!");
+            };
+
+            ws.onerror = function(e) {
+                console.error("WebSocket error:", e);
+            };
+
+            ws.onmessage = function(e) {
+                console.log("Message from server:", e.data);
+            };
+
+            ws.onclose = function(e) {
+                console.log("Connection closed:", e);
+            };
+        });
+    </script>
 </head>
 <body>
-    <h1>Live Chat</h1>
-    <textarea id="chat-log" cols="100" rows="20" readonly></textarea><br>
-    <input id="chat-message-input" type="text" size="100"><br>
-    <input id="chat-message-submit" type="button" value="Send">
-    
-    <script>
-        const chatSocket = new WebSocket('ws://' + window.location.host + '/ws/chat/');
-
-        chatSocket.onmessage = function(e) {
-            const data = JSON.parse(e.data);
-            document.querySelector('#chat-log').value += data.message + '\n';
-        };
-
-        chatSocket.onclose = function(e) {
-            console.error('Chat socket closed unexpectedly');
-        };
-
-        document.querySelector('#chat-message-input').focus();
-        document.querySelector('#chat-message-input').onkeyup = function(e) {
-            if (e.keyCode === 13) {
-                document.querySelector('#chat-message-submit').click();
-            }
-        };
-
-        document.querySelector('#chat-message-submit').onclick = function(e) {
-            const messageInputDom = document.querySelector('#chat-message-input');
-            const message = messageInputDom.value;
-            chatSocket.send(JSON.stringify({'message': message}));
-            messageInputDom.value = '';
-        };
-    </script>
+    <h2>WebSocket Test</h2>
+    <p>Check the browser console for messages.</p>
 </body>
 </html>

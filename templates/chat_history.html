@@ -1,0 +1,62 @@
+<h2>Chat with {{ user_id }}</h2>
+<ul id="message-history">
+    {% for message in chat_history %}
+    <li>{{ message.timestamp }} - {{ message.sender.email }}: {{ message.message }}</li>
+    {% endfor %}
+</ul>
+
+<form method="POST" action="{% url 'send_message' user_id %}">
+    {% csrf_token %}
+    <textarea name="message" placeholder="Type a message..."></textarea>
+    <button type="submit">Send</button>
+</form>
+
+<!-- <h2>Chat with {{ user_id }}</h2>
+    <ul id="message-history">
+        {% for message in chat_history %}
+            <li>{{ message.timestamp }} - {{ message.sender.email }}: {{ message.message }}</li>
+        {% endfor %}
+    </ul>
+
+    <input id="message-input" type="text" placeholder="Type a message...">
+    <button id="send-button">Send</button> -->
+
+<!-- chat_history.html -->
+<!-- <script>
+    // Example of getting the JWT token from localStorage or cookies
+    const token = localStorage.getItem('auth_token');
+    
+    // Adding the JWT token to the WebSocket connection URL
+    const chatSocket = new WebSocket(
+        'ws://' + window.location.host + '/ws/chat/{{ user_id }}/?token=' + token
+    );
+
+    chatSocket.onopen = function() {
+        console.log('WebSocket connection established');
+    };
+
+    // When a message is received from WebSocket
+    chatSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        const message = data['message'];
+        const chatHistory = document.getElementById('message-history');
+        const newMessage = document.createElement('li');
+        newMessage.textContent = message;
+        chatHistory.appendChild(newMessage);
+    };
+
+    // Send message to the WebSocket server
+    function sendMessage() {
+        const messageInput = document.getElementById('message-input');
+        const message = messageInput.value;
+        chatSocket.send(JSON.stringify({'message': message}));
+        messageInput.value = '';  // Clear input after sending
+    }
+
+    // Send message when the user clicks the "Send" button
+    document.getElementById('send-button').onclick = function() {
+        sendMessage();
+    };
+</script> -->
+
+
