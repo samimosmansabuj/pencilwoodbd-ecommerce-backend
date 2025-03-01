@@ -1,6 +1,7 @@
 from django.db import models
 from authentication.models import Customer
 from django.utils.text import slugify
+from django.core.files.storage import default_storage
 
 def generate_unique_slug(model_object, field_value):
     slug = slugify(field_value)
@@ -30,6 +31,7 @@ class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, related_name='product_category', null=True, blank=True)
     name = models.CharField(max_length=255)
     slug = models.SlugField(unique=True, blank=True, null=True)
+    short_description = models.TextField(blank=True, null=True)
     details = models.TextField(blank=True, null=True)
     variation = models.CharField(max_length=100, blank=True, null=True)
     current_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
@@ -46,6 +48,26 @@ class Product(models.Model):
     
     def __str__(self):
         return self.name
+
+class ProductImage(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='product_image')
+    image = models.ImageField(upload_to='product/')
+    
+    def save(self, *args, **kwargs):
+        if self.pk:
+            old_instance = ProductImage.objects.get(pk=self.pk)
+            if old_instance and old_instance.image and old_instance.image != self.image:
+                if default_storage.exists(old_instance.image.name):
+                    default_storage.delete(old_instance.image.name)
+        super().save(*args, **kwargs)
+    
+    def delete(self, *args, **kwargs):
+        if self.image and default_storage.exists(self.image.name):
+            default_storage.delete(self.image.name)
+        super().delete(*args, **kwargs)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
 
 class AddToCart(models.Model):
