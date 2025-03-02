@@ -9,12 +9,13 @@ admin.site.index_title = "Welcome to Pencilwood BD"
 # admin.site.index_template = "OK"
 
 
-class CustomUserAdmin(UserAdmin):
-    list_display = ('email', 'username', 'user_type', 'created_at', 'updated_at')
-    search_fields = ('email', 'username')
-    ordering = ('email',)
+# class CustomUserAdmin(UserAdmin):
+#     list_display = ('email', 'username', 'user_type', 'created_at', 'updated_at')
+#     search_fields = ('email', 'username')
+#     ordering = ('email',)
 
-admin.site.register(CustomUser, CustomUserAdmin)
+# admin.site.register(CustomUser, CustomUserAdmin)
+admin.site.register(CustomUser)
 admin.site.register(Customer)
 admin.site.register(Role)
 

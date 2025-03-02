@@ -14,14 +14,27 @@ def generate_unique_slug(model_object, field_value):
 
 class Category(models.Model):
     title = models.CharField(max_length=100)
+    image = models.ImageField(upload_to='category/', blank=True, null=True)
+    details = models.TextField(blank=True, null=True)
     slug = models.SlugField(unique=True, blank=True, null=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     def save(self, *args, **kwargs):
+        if self.pk:
+            old_instance = Category.objects.get(pk=self.pk)
+            if old_instance and old_instance.image and old_instance.image != self.image:
+                if default_storage.exists(old_instance.image.name):
+                    default_storage.delete(old_instance.image.name)
+        
         self.slug = generate_unique_slug(Category, self.title)
         super().save(*args, **kwargs)
+    
+    def delete(self, *args, **kwargs):
+        if self.image and default_storage.exists(self.image.name):
+            default_storage.delete(self.image.name)
+        super().delete(*args, **kwargs)
     
     def __str__(self):
         return self.title
@@ -68,6 +81,9 @@ class ProductImage(models.Model):
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f'Product ({self.product.name}) Image'
 
 
 class AddToCart(models.Model):
@@ -75,9 +91,18 @@ class AddToCart(models.Model):
     product = models.ForeignKey(Product, on_delete=models.SET_NULL, related_name='product_cart', null=True, blank=True)
     quantity = models.PositiveIntegerField()
     price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    discount_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    def save(self, *args, **kwargs):
+        if self.product:
+            self.price = self.product.current_price
+            self.discount_price = self.product.discount_price
+            self.total_price = self.quantity * self.discount_price
+        super().save(*args, **kwargs)
     
     def __str__(self):
         return f'{self.customer} | Cart | {self.product}'

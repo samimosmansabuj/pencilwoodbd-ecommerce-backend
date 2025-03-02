@@ -37,9 +37,8 @@ class OrderCreateViews(CreateAPIView):
                 {'error': 'Order Items is Empty!'},
                 status=status.HTTP_204_NO_CONTENT
             )
-        
-        order = serializer.save(customer=customer, order_items=order_items, address=address)
-        order.total_cost = sum(item.total_price for item in order_items)
+        order = serializer.save(customer=customer, address=address)
+        order.order_items.set(order_items)
         order.save()
         
         header = self.get_success_headers(serializer.data)

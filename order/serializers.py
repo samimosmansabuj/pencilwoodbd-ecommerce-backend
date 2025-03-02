@@ -23,9 +23,7 @@ class OrderListSerializers(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = '__all__'
-    
-    # def update(self, instance, validated_data):
-    #     print(validated_data)
+
 
 
 class OrderSerializers(serializers.ModelSerializer):
