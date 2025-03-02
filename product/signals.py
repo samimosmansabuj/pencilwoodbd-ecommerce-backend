@@ -20,7 +20,7 @@ def migrate_cart_to_user(sender, request, user, **kwargs):
             
             existing_cart_item = AddToCart.objects.filter(customer=customer, product=product).first()
             if existing_cart_item:
-                existing_cart_item.quantity = item['quantity']
+                existing_cart_item.quantity += item['quantity']
                 existing_cart_item.save()
             else:
                 AddToCart.objects.create(customer=customer, product=product, quantity=item['quantity'])

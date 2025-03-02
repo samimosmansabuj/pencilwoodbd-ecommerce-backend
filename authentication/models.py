@@ -21,7 +21,7 @@ class CustomUser(AbstractUser):
 
 
 class Customer(models.Model):
-    user = models.OneToOneField(CustomUser, on_delete=models.DO_NOTHING, blank=True, null=True, related_name='customer_authentication')
+    user = models.OneToOneField(CustomUser, on_delete=models.SET_NULL, blank=True, null=True, related_name='customer_authentication')
     name = models.CharField(max_length=50)
     phone = models.CharField(max_length=20)
     email = models.EmailField(max_length=200)

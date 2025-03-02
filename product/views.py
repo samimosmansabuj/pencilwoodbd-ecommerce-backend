@@ -4,6 +4,9 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from .models import Category, Product, AddToCart, FreeAddToCart
 from authentication.models import Customer
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework.parsers import MultiPartParser
 
 
 class AdminCreationPermision(permissions.BasePermission):
@@ -16,6 +19,9 @@ class CategoryViewset(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = [AdminCreationPermision]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ['title', 'details', 'slug']
+    parser_classes = [MultiPartParser]
     
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
@@ -49,6 +55,9 @@ class ProductViewset(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     permission_classes = [AdminCreationPermision]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ['title', 'short_description', 'slug', 'details']
+    parser_classes = [MultiPartParser]
     
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=self.request.data)
@@ -57,7 +66,7 @@ class ProductViewset(viewsets.ModelViewSet):
         return Response(
             {
                 'message': 'Product Successfully Created',
-                'product': ProductSerializer(product).data,
+                # 'product': ProductSerializer(product).data,
             }, status=status.HTTP_201_CREATED
         )
     
@@ -79,6 +88,9 @@ class ProductViewset(viewsets.ModelViewSet):
             }, status=status.HTTP_204_NO_CONTENT
         )
  
+
+
+
 
 
 class AddToCartViewset(viewsets.ModelViewSet):
@@ -111,6 +123,12 @@ class AddToCartViewset(viewsets.ModelViewSet):
                 AddToCartSerializer(cart, many=True).data, status=status.HTTP_200_OK
             )
         else:
+            if len(cart) is 0:
+                return Response(
+                    {
+                        'message': 'Cart is Empty!',
+                    }, status=status.HTTP_204_NO_CONTENT
+                )
             return Response(cart, status=status.HTTP_200_OK)
     
     
@@ -156,6 +174,12 @@ class AddToCartViewset(viewsets.ModelViewSet):
     
     def create(self, request, *args, **kwargs):
         product_id = request.data.get('product')
+        if product_id is None:
+            return Response(
+                {
+                    'message': 'Product Fields is Required!'
+                }, status=status.HTTP_204_NO_CONTENT
+            )
         product = Product.objects.get(id=product_id)
         
         if request.user.is_authenticated:
@@ -187,7 +211,7 @@ class AddToCartViewset(viewsets.ModelViewSet):
             if str(product_id) in sessoin_cart:
                 sessoin_cart[str(product_id)]["quantity"] += 1
             else:
-                sessoin_cart[str(product_id)] = {'quantity': 1, 'product_name': product.name, 'price': float(product.current_price)}
+                sessoin_cart[str(product_id)] = {'quantity': 1, 'product_name': product.name, 'current_price': float(product.current_price), 'discount_price': float(product.discount_price)}
             request.session['cart'] = sessoin_cart
             request.session.modified = True
             return Response(

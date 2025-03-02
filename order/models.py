@@ -37,7 +37,7 @@ class OrderItem(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     def __str__(self):
-        return f'{self.customer.name} - Order Item - {self.product.name}'
+        return f'{self.customer} - Order Item - {self.product}'
 
 
 
@@ -98,9 +98,9 @@ class Order(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
-        self.total_cost = 0
-        for i in self.order_items.all():
-            self.total_cost += i.total_price
+        if self.pk:
+            self.total_cost = sum(i.total_price for i in self.order_items.all())
+        
         if not self.tracking_id:
             self.tracking_id = str(uuid.uuid4()).replace("-", "").upper()[:12]  # Generate a unique 12-char tracking ID
         super().save(*args, **kwargs)
