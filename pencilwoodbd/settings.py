@@ -60,8 +60,6 @@ SIMPLE_JWT = {
     "UPDATE_LAST_LOGIN": False,
 }
 
-CORS_ORIGIN_ALLOW_ALL = True
-
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -109,12 +107,26 @@ CHANNEL_LAYERS = {
 }
 
 
+#===========================================Session========================================
 # SESSION_COOKIE_AGE = 60 * 60 * 24 * 7  # 7 days
 SESSION_ENGINE = "django.contrib.sessions.backends.db" # Store session in DB
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 30  # 30 days | Set session lifetime (e.g., 30 days)
 # Ensure session persists even if the user closes the browser
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SAVE_EVERY_REQUEST = True
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = False
+
+
+#===========================================Cors========================================
+CORS_ALLOW_ALL_ORIGINS = True
+# CORS_ALLOWED_ORIGINS = [
+#     "http://192.168.68.114:3001", # React frontend
+# ]
+CORS_ALLOW_CREDENTIALS = True  # Required for session cookies
+# CSRF_TRUSTED_ORIGINS = ["http://localhost:3000", "http://192.168.68.114:3001"]
+
+
 
 
 
@@ -174,7 +186,8 @@ MEDIA_URL = '/media/'
 # MEDIA_ROOT = [os.path.join(BASE_DIR, 'media'),]
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-CORS_ALLOW_ALL_ORIGINS = True
+
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
