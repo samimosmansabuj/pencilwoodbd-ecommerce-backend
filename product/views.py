@@ -113,6 +113,7 @@ class AddToCartViewset(viewsets.ModelViewSet):
                 return None
         else:
             session_cart = request.session.get("cart", {})
+            print(request.session.session_key)
             return session_cart
     
     
@@ -130,7 +131,6 @@ class AddToCartViewset(viewsets.ModelViewSet):
                     }, status=status.HTTP_204_NO_CONTENT
                 )
             return Response(cart, status=status.HTTP_200_OK)
-    
     
     def destroy(self, request, *args, **kwargs):
         if request.user.is_authenticated:
@@ -170,9 +170,10 @@ class AddToCartViewset(viewsets.ModelViewSet):
                     'cart': session_cart
                 }, status=status.HTTP_200_OK
             )
-                
     
     def create(self, request, *args, **kwargs):
+        print(request.session.session_key)
+        print("Before Adding:", request.session.get("cart", {}))  # Debugging line
         product_id = request.data.get('product')
         if product_id is None:
             return Response(
@@ -214,14 +215,13 @@ class AddToCartViewset(viewsets.ModelViewSet):
                 sessoin_cart[str(product_id)] = {'quantity': 1, 'product_name': product.name, 'current_price': float(product.current_price), 'discount_price': float(product.discount_price)}
             request.session['cart'] = sessoin_cart
             request.session.modified = True
+            print("After Adding:", request.session.get("cart", {}))  # Debugging line
             return Response(
                 {
                     'message': 'Product added to cart!',
                     'cart': sessoin_cart
                 }, status=status.HTTP_201_CREATED
             )
-            
-    
     
     def update(self, request, *args, **kwargs):
         action = request.data.get('action')
@@ -298,8 +298,9 @@ class AddToCartViewset(viewsets.ModelViewSet):
                     'cart': session_cart
                 }, status=status.HTTP_200_OK
             )
-            
-        
+
+
+     
         
 
 
