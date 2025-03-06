@@ -45,7 +45,7 @@ REST_FRAMEWORK = {
     ),
     
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
-    'PAGE_SIZE': 5,
+    'PAGE_SIZE': 12,
     
     'DEFAULT_FILTER_BACKENDS': (
         'django_filters.rest_framework.DjangoFilterBackend',
@@ -108,11 +108,15 @@ CHANNEL_LAYERS = {
 
 #===========================================Session========================================
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
-SESSION_COOKIE_AGE = 2592000  # 30 days
+SESSION_COOKIE_AGE = 2592000
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = False
+<<<<<<< HEAD
+SESSION_COOKIE_SAMESITE = "Lax"
+=======
 # SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SAMESITE = "None"
+>>>>>>> b463b733ab6a77fbb67318387ac24101d6f75ad3
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 # CSRF settings

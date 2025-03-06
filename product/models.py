@@ -47,6 +47,7 @@ class Product(models.Model):
     short_description = models.TextField(blank=True, null=True)
     details = models.TextField(blank=True, null=True)
     variation = models.CharField(max_length=100, blank=True, null=True)
+    stock = models.IntegerField(blank=True, null=True, default=0)
     current_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     discount_price = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
     

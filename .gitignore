@@ -5,12 +5,13 @@ __pycache__/
 
 
 # Django-specific
-# *.log
-# *.pot
-# *.py[cod]
+*.log
+*.pot
+*.py[cod]
 db.sqlite3
 media/
-# staticfiles/
+staticfiles/
+static/
 
 # Environment variables
 .env
@@ -22,3 +23,11 @@ media/
 
 # macOS files
 .DS_Store
+
+
+#Hosting important File
+passenger_wsgi.py
+
+tmp/
+restart.txt
+
