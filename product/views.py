@@ -285,11 +285,8 @@ class AddToCartViewset(viewsets.ModelViewSet):
             )
     
     def create(self, request, *args, **kwargs):
-<<<<<<< HEAD
         print(request.session.session_key)
         print("Before Adding:", request.session.get("cart", {}))
-=======
->>>>>>> b463b733ab6a77fbb67318387ac24101d6f75ad3
         product_id = request.data.get('product')
         if product_id is None:
             return Response(
