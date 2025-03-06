@@ -45,7 +45,7 @@ REST_FRAMEWORK = {
     ),
     
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
-    'PAGE_SIZE': 5,
+    'PAGE_SIZE': 12,
     
     'DEFAULT_FILTER_BACKENDS': (
         'django_filters.rest_framework.DjangoFilterBackend',
@@ -108,24 +108,15 @@ CHANNEL_LAYERS = {
 
 
 #===========================================Session========================================
-# Enable session storage in DB
-# SESSION_ENGINE = "django.contrib.sessions.backends.db"
-# SESSION_COOKIE_AGE = 2592000  # 30 days | Set session lifetime (e.g., 30 days)
-# SESSION_COOKIE_HTTPONLY = False  # Prevent JavaScript access
-# SESSION_COOKIE_SECURE = False  # Set to True if using HTTPS
-# SESSION_COOKIE_SAMESITE = "None"  # Required for cross-origin requests
-# SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Keeps session active
-# SESSION_SAVE_EVERY_REQUEST = True
-# Session settings
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
-SESSION_COOKIE_AGE = 2592000  # 30 days
+SESSION_COOKIE_AGE = 2592000
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = False  # HTTPS হলে True করুন
-SESSION_COOKIE_SAMESITE = "Lax"  # ✅ "None" এর বদলে "Lax" দিন
+SESSION_COOKIE_SECURE = False
+SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 # CSRF settings
-CSRF_COOKIE_HTTPONLY = False  # ✅ React থেকে Access করা যাবে
+CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SECURE = False
 CSRF_COOKIE_SAMESITE = "Lax"
 

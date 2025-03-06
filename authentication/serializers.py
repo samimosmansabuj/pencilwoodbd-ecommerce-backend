@@ -64,4 +64,10 @@ class UserListSerializers(serializers.ModelSerializer):
         fields = ('__all__')
 
 
+class CurrentUserProfileSerializers(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        exclude = ('password', 'last_login', 'is_superuser', 'is_staff', 'is_active', 'groups', 'user_permissions')
+
+
 
