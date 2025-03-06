@@ -219,7 +219,6 @@ class AddToCartViewset(viewsets.ModelViewSet):
                 return None
         else:
             session_cart = request.session.get("cart", {})
-            print(request.session.session_key)
             return session_cart
     
     
@@ -286,8 +285,11 @@ class AddToCartViewset(viewsets.ModelViewSet):
             )
     
     def create(self, request, *args, **kwargs):
+<<<<<<< HEAD
         print(request.session.session_key)
         print("Before Adding:", request.session.get("cart", {}))
+=======
+>>>>>>> b463b733ab6a77fbb67318387ac24101d6f75ad3
         product_id = request.data.get('product')
         if product_id is None:
             return Response(
@@ -332,7 +334,10 @@ class AddToCartViewset(viewsets.ModelViewSet):
                 sessoin_cart[str(product_id)] = {'quantity': 1, 'product_name': product.name, 'current_price': float(product.current_price), 'discount_price': float(product.discount_price)}
             request.session['cart'] = sessoin_cart
             request.session.modified = True
+            
             print("After Adding:", request.session.get("cart", {}))  # Debugging line
+            print(request.session.session_key)
+            print(request.session.items())
             return Response(
                 {
                     'status': True,

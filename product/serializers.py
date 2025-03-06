@@ -14,7 +14,6 @@ class ProductImageSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 class ProductSerializer(serializers.ModelSerializer):
-    # product_image = ProductImageSerializer(many=True, read_only=True)
     product_image = ProductImageSerializer(many=True, required=False)
     class Meta:
         model = Product
@@ -40,17 +39,13 @@ class ProductSerializer(serializers.ModelSerializer):
             ProductImage.objects.create(product=instance, image=image)
         return instance
 
-# class ProductSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = Product
-#         fields = '__all__'
-
 
 class AddToCartSerializer(serializers.ModelSerializer):
     product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all(), required=True)
     class Meta:
         model = AddToCart
         fields = '__all__'
+        read_only_fields = ('price', 'discount_price', 'total_price')
 
 
 class FreeAddToCartSerializer(serializers.ModelSerializer):

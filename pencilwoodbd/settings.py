@@ -61,6 +61,7 @@ SIMPLE_JWT = {
 }
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -68,8 +69,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    "corsheaders.middleware.CorsMiddleware",
-    "django.middleware.common.CommonMiddleware",
+    'django.middleware.common.CommonMiddleware',
     # "product.middleware.MirgateCartMiddleware",
 ]
 
@@ -93,7 +93,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'pencilwoodbd.wsgi.application'
 
-
 ASGI_APPLICATION = 'pencilwoodbd.asgi.application'
 
 # Redis settings (for channel layers) – make sure Redis is installed and running
@@ -112,26 +111,32 @@ SESSION_ENGINE = "django.contrib.sessions.backends.db"
 SESSION_COOKIE_AGE = 2592000
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = False
+<<<<<<< HEAD
 SESSION_COOKIE_SAMESITE = "Lax"
+=======
+# SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SAMESITE = "None"
+>>>>>>> b463b733ab6a77fbb67318387ac24101d6f75ad3
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 # CSRF settings
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SECURE = False
-CSRF_COOKIE_SAMESITE = "Lax"
+# CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "None"
+
 
 
 
 
 # #===========================================Cors========================================
 CORS_ALLOW_CREDENTIALS = True
-# # CORS_ALLOW_ALL_ORIGINS = True
-# # CORS_ALLOW_ALL_ORIGINS = False  # Disable for production security
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000", "http://192.168.10.105:3000"
+    "http://localhost:3000", "http://192.168.68.107:3000", "http://127.0.0.1:3000",
 ]
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000", "http://192.168.10.105:3000"
+    "http://localhost:3000", "http://192.168.68.107:3000", "http://127.0.0.1:3000",
 ]
 
 
