@@ -31,7 +31,7 @@ INSTALLED_APPS = [
     'channels',
     
     #Custom Apps
-    'authentication', 'order', 'product','live_chat',
+    'authentication', 'order', 'product','live_chat', 'site_app'
 ]
 
 REST_FRAMEWORK = {

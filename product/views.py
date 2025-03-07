@@ -35,12 +35,14 @@ class CustomPagenumberpagination(PageNumberPagination):
             }, status=status.HTTP_200_OK
         )
 
-
 class AdminCreationPermision(permissions.BasePermission):
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
             return True
         return request.user.is_authenticated and request.user.user_type in {'Admin', 'Super Admin', 'Staff'}
+
+
+
 
 class CategoryViewset(viewsets.ModelViewSet):
     queryset = Category.objects.all()
@@ -94,7 +96,6 @@ class CategoryViewset(viewsets.ModelViewSet):
                 'message': 'Category Successfully Deleted!'
             }, status=status.HTTP_204_NO_CONTENT
         )
-
 
 class ProductViewset(viewsets.ModelViewSet):
     queryset = Product.objects.all()

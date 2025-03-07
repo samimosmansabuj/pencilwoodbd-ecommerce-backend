@@ -1,12 +1,11 @@
 from .serializers import AdminCreationSerializers, UserListSerializers, CustomerRegistrationSerializers, CustomerTokenObtainPariSerializer, AdminTokenObtainPariSerializer, CurrentUserProfileSerializers
-from rest_framework.generics import CreateAPIView, ListAPIView
+from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.views import APIView
 from rest_framework import permissions
 from rest_framework.response import Response
 from .models import CustomUser, Customer
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework.generics import RetrieveAPIView
 from rest_framework.exceptions import NotAuthenticated
 
     
