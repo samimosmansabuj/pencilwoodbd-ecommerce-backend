@@ -3,7 +3,6 @@ __pycache__/
 *.pyc
 *.pyo
 
-
 # Django-specific
 *.log
 *.pot
@@ -28,6 +27,7 @@ static/
 #Hosting important File
 passenger_wsgi.py
 stderr.log
+.ftpquota
 
 public/
 tmp/
