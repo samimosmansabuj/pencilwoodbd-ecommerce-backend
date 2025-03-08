@@ -4,8 +4,8 @@ from django.contrib import admin
 from .views import (
     HomeSliderViewSet, NewsFeedViewSet, 
     SocialLinkViewSet, FooterTagLinkViewSet, AboutWhyChooseUsViewSet, 
-    ContactInformationViewSet, RefundPolicyViewSet, TermsAndConditionViewSet, 
-    PrivacyPolicyViewSet, FAQListViewSet, SiteContentView, SiteColorSectionView, AboutUsView
+    ContactInformationView, RefundPolicyView, TermsAndConditionView, 
+    PrivacyPolicyView, FAQListViewSet, SiteContentView, SiteColorSectionView, AboutUsView
 )
 
 
@@ -20,15 +20,15 @@ router.register(r'news-feed', NewsFeedViewSet)
 router.register(r'social-link', SocialLinkViewSet)
 router.register(r'footer-tag-link', FooterTagLinkViewSet)
 router.register(r'about-why-choose-us', AboutWhyChooseUsViewSet)
-router.register(r'contact-information', ContactInformationViewSet)
-router.register(r'refund-policy', RefundPolicyViewSet)
-router.register(r'terms-and-conditions', TermsAndConditionViewSet)
-router.register(r'privacy-policy', PrivacyPolicyViewSet)
 router.register(r'faq-list', FAQListViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
     path('site-content/', SiteContentView.as_view(), name='site-content'),
     path('site-color/', SiteColorSectionView.as_view(), name='site-color'),
-    path('about-us/', SiteColorSectionView.as_view(), name='about-us'),
+    path('about-us/', AboutUsView.as_view(), name='about-us'),
+    path('contact-information/', ContactInformationView.as_view(), name='contact-information'),
+    path('refund-policy/', RefundPolicyView.as_view(), name='refund-policy'),
+    path('terms-and-conditions/', TermsAndConditionView.as_view(), name='terms-and-conditions'),
+    path('privacy-policy/', PrivacyPolicyView.as_view(), name='privacy-policy'),
 ]

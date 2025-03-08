@@ -1,4 +1,4 @@
-from .serializers import AdminCreationSerializers, UserListSerializers, CustomerRegistrationSerializers, CustomerTokenObtainPariSerializer, AdminTokenObtainPariSerializer, CurrentUserProfileSerializers
+from .serializers import AdminCreationSerializers, UserListSerializers, CustomerRegistrationSerializers, CustomerTokenObtainPariSerializer, AdminTokenObtainPariSerializer, CurrentUserProfileSerializers, CustomerProfileSerializers
 from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.views import APIView
 from rest_framework import permissions
@@ -74,18 +74,21 @@ class CurrentUserDetails(RetrieveAPIView):
     
     def get(self, request, *args, **kwargs):
         user = self.get_object()
+        customer = user.customer_authentication
         order = Order.objects.filter(
-            customer=user.customer_authentication
+            customer=customer
         )
         address = Address.objects.filter(
-            customer=user.customer_authentication
+            customer=customer
         )
+        customer_data = CustomerProfileSerializers(customer).data
         order_data = OrderListSerializers(order, many=True).data
         address_data = AddressSerializers(address, many=True).data
         serializer = self.get_serializer(user)
         return Response({
             'status': True,
             'data': serializer.data,
+            'profile': customer_data,
             'user_order': order_data,
             'user_address': address_data
         }, status=status.HTTP_200_OK)
