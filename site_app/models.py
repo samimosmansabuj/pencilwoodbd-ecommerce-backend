@@ -3,8 +3,8 @@ from django.db import models
 
 
 class HomeSlider(models.Model):
-    image = models.ImageField(upload_to='slide_image/', blank=True, null=True)
-    title = models.CharField(max_length=55, blank=True, null=True)
+    image = models.ImageField(upload_to='slide_image/', null=True)
+    title = models.CharField(max_length=55)
     image_url = models.URLField(max_length=500, blank=True, null=True)
     url = models.CharField(max_length=55, blank=True, null=True)
     button_name = models.CharField(max_length=55, blank=True, null=True)
@@ -93,20 +93,24 @@ class About_WhyChooseUs(models.Model):
     def __str__(self):
         return f'{self.title} | {self.pk}'
 
+
+# =================================Contact Information Start===============================
 class ContactInformation(models.Model):
     phone = models.CharField(max_length=14, blank=True, null=True)
     secondary_phone = models.CharField(max_length=14, blank=True, null=True)
     whatspp_number = models.CharField(max_length=14, blank=True, null=True)
-    email = models.EmailField(max_length=14, blank=True, null=True)
-    location = models.CharField(max_length=14, blank=True, null=True)
+    email = models.EmailField(max_length=255, blank=True, null=True)
+    location = models.CharField(max_length=255, blank=True, null=True)
+# =================================Contact Information Start===============================
 
-
+# =================================Refund Policy Start===============================
 class RefundPolicy(models.Model):
     short_description = models.TextField(blank=True, null=True)
     descriptin = models.TextField(blank=True, null=True)
     terms_and_conditions = models.TextField(blank=True, null=True)
     exchange_policy = models.TextField(blank=True, null=True)
     refund_policy = models.TextField(blank=True, null=True)
+# =================================Refund Policy Start===============================
 
 class TermsAndCondition(models.Model):
     short_description = models.TextField(blank=True, null=True)

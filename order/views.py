@@ -125,16 +125,6 @@ class OrderListViews(viewsets.ModelViewSet):
     #         )
     #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-#     def get(self, request, *args, **kwargs):
-#         if 'pk' in kwargs:
-#             return self.retrieve(request, *args, **kwargs)
-#         return self.list(request, *args, **kwargs)
-    
-#     # def put(self, request, *args, **kwargs):
-#     #     return self.update(request, *args, **kwargs)
-    
-#     # def patch(self, request, *args, **kwargs):
-#     #     return self.update(request, *args, **kwargs)
 # ================================Order List, View End================================
 
 

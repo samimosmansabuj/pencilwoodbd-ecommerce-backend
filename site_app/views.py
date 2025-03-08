@@ -1,8 +1,11 @@
 from rest_framework import viewsets
+from django.shortcuts import get_object_or_404
+from django.http import Http404
 from rest_framework import permissions, status, generics
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser
+from django_filters.rest_framework import DjangoFilterBackend
 from .models import (
     HomeSlider, SiteContent, SiteColorSection, NewsFeed, SocialLink, FooterTagLink, 
     AboutUs, About_WhyChooseUs, ContactInformation, RefundPolicy, TermsAndCondition, 
@@ -47,13 +50,89 @@ class AdminCreationPermision(permissions.BasePermission):
 
 
 
-
-
 class HomeSliderViewSet(viewsets.ModelViewSet):
     queryset = HomeSlider.objects.all()
     serializer_class = HomeSliderSerializer
     permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
+    filter_backends = [DjangoFilterBackend]
+    search_fields = ['title', 'image_url', 'url']
+    filterset_fields = ['is_active']
+    pagination_class = None
+    
+    def list(self, request, *args, **kwargs):
+        serializer = super().list(request, *args, **kwargs)
+        return Response({
+            'status': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response({
+                'status': True,
+                'message': 'Slider Successfully Created!',
+                'data': serializer.data
+            }, status=status.HTTP_201_CREATED, headers=headers)
+        else:
+            error_dict = serializer.errors
+            error_json = {kay: str(value[0]) for kay, value in error_dict.items()}
+            return Response({
+                'status': False,
+                'message': 'Slider creation failed!',
+                'data': error_json
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        return Response({
+            'status': True,
+            'message': 'Slider Successfully Updated!',
+            'data': response.data
+        }, status=status.HTTP_200_OK)
+    
+    def handle_exception(self, exc):
+        if isinstance(exc, Http404):
+            return Response({
+                'status': False,
+                'message': 'No Slider matches the given query.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        return super().handle_exception(exc)
+    
+    def retrieve(self, request, *args, **kwargs):
+        queryset = HomeSlider.objects.all()
+        obj = get_object_or_404(queryset, pk=kwargs.get('pk'))
+        serializer = self.get_serializer(obj)
+        return Response({
+            'status': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+    
+    def destroy(self, request, *args, **kwargs):
+        response = super().destroy(request, *args, **kwargs)
+        return Response({
+            'status': True,
+            'message': 'Slider Successfully Deleted!',
+        }, status=status.HTTP_200_OK)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 class NewsFeedViewSet(viewsets.ModelViewSet):
     queryset = NewsFeed.objects.all()
@@ -73,9 +152,20 @@ class FooterTagLinkViewSet(viewsets.ModelViewSet):
     permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
 
+class FAQListViewSet(viewsets.ModelViewSet):
+    queryset = FAQ_List.objects.all()
+    serializer_class = FAQListSerializer
+    permission_classes = [AdminCreationPermision]
+    parser_classes = [MultiPartParser]
 
 
 
+
+
+
+
+
+# =================================Site Content Start===============================
 class SiteContentView(generics.RetrieveUpdateAPIView):
     serializer_class = SiteContentSerializer
     permission_classes = [AdminCreationPermision]
@@ -86,21 +176,20 @@ class SiteContentView(generics.RetrieveUpdateAPIView):
     def handle_no_content(self):
         return Response({
             'status': False,
-            'message': 'No Site Content Found!'
+            'data' : "No Site Content Found!"
         }, status=status.HTTP_404_NOT_FOUND)
     
     def get(self, request, *args, **kwargs):
-        site_content = self.get_object()
-        if not site_content:
+        data = self.get_object()
+        if not data:
             return self.handle_no_content()
-
         return Response({
-                'status': True,
-                'data': self.get_serializer(site_content).data
-            }, status=status.HTTP_200_OK)
+            'status': True,
+            'data': self.get_serializer(data).data
+        }, status=status.HTTP_200_OK)
     
-    def content_update(self, site_content, request):
-        serializer = self.get_serializer(site_content, data=request.data, partial=True)
+    def handle_object_update(self, request, data):
+        serializer = self.get_serializer(data, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response({
@@ -110,22 +199,25 @@ class SiteContentView(generics.RetrieveUpdateAPIView):
         else:
             return Response({
                 'status': False,
-                'message': serializer.errors
+                'data': serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
-        
-    
-    def patch(self, request, *args, **kwargs):
-        site_content = self.get_object()
-        if not site_content:
-            return self.handle_no_content()
-        return self.content_update(site_content, request)
     
     def put(self, request, *args, **kwargs):
-        site_content = self.get_object()
-        if not site_content:
+        data = self.get_object()
+        if not data:
             return self.handle_no_content()
-        return self.content_update(site_content, request)
+        return self.handle_object_update(request, data)
 
+    def patch(self, request, *args, **kwargs):
+        data = self.get_object()
+        if not data:
+            return self.handle_no_content()
+        return self.handle_object_update(request, data)
+
+# =================================Site Content Start===============================
+
+
+# =================================Site Color Start===============================
 class SiteColorSectionView(generics.RetrieveUpdateAPIView):
     serializer_class = SiteColorSectionSerializer
     permission_classes = [AdminCreationPermision]
@@ -136,20 +228,20 @@ class SiteColorSectionView(generics.RetrieveUpdateAPIView):
     def handle_no_content(self):
         return Response({
             'status': False,
-            'message': 'No Site Content Found!'
+            'data' : "No Site Color Content Found!"
         }, status=status.HTTP_404_NOT_FOUND)
     
     def get(self, request, *args, **kwargs):
-        site_content = self.get_object()
-        if not site_content:
+        data = self.get_object()
+        if not data:
             return self.handle_no_content()
         return Response({
-                'status': True,
-                'data': self.get_serializer(site_content).data
-            }, status=status.HTTP_200_OK)
+            'status': True,
+            'data': self.get_serializer(data).data
+        }, status=status.HTTP_200_OK)
     
-    def content_update(self, site_content, request):
-        serializer = self.get_serializer(site_content, data=request.data, partial=True)
+    def handle_object_update(self, request, data):
+        serializer = self.get_serializer(data, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response({
@@ -159,23 +251,25 @@ class SiteColorSectionView(generics.RetrieveUpdateAPIView):
         else:
             return Response({
                 'status': False,
-                'message': serializer.errors
+                'data': serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
-        
-    
-    def patch(self, request, *args, **kwargs):
-        site_content = self.get_object()
-        if not site_content:
-            return self.handle_no_content()
-        return self.content_update(site_content, request)
     
     def put(self, request, *args, **kwargs):
-        site_content = self.get_object()
-        if not site_content:
+        data = self.get_object()
+        if not data:
             return self.handle_no_content()
-        return self.content_update(site_content, request)
+        return self.handle_object_update(request, data)
+
+    def patch(self, request, *args, **kwargs):
+        data = self.get_object()
+        if not data:
+            return self.handle_no_content()
+        return self.handle_object_update(request, data)
+
+# =================================Site Color Start===============================
 
 
+# =================================About Us Start===============================
 class AboutUsView(generics.RetrieveUpdateAPIView):
     serializer_class = AboutUsSerializer
     permission_classes = [AdminCreationPermision]
@@ -186,20 +280,20 @@ class AboutUsView(generics.RetrieveUpdateAPIView):
     def handle_no_content(self):
         return Response({
             'status': False,
-            'message': 'No Site Content Found!'
+            'data' : "No About Us Content Found!"
         }, status=status.HTTP_404_NOT_FOUND)
     
     def get(self, request, *args, **kwargs):
-        site_content = self.get_object()
-        if not site_content:
+        data = self.get_object()
+        if not data:
             return self.handle_no_content()
         return Response({
-                'status': True,
-                'data': self.get_serializer(site_content).data
-            }, status=status.HTTP_200_OK)
+            'status': True,
+            'data': self.get_serializer(data).data
+        }, status=status.HTTP_200_OK)
     
-    def content_update(self, site_content, request):
-        serializer = self.get_serializer(site_content, data=request.data, partial=True)
+    def handle_object_update(self, request, data):
+        serializer = self.get_serializer(data, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response({
@@ -209,23 +303,20 @@ class AboutUsView(generics.RetrieveUpdateAPIView):
         else:
             return Response({
                 'status': False,
-                'message': serializer.errors
+                'data': serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
-        
-    
-    def patch(self, request, *args, **kwargs):
-        site_content = self.get_object()
-        if not site_content:
-            return self.handle_no_content()
-        return self.content_update(site_content, request)
     
     def put(self, request, *args, **kwargs):
-        site_content = self.get_object()
-        if not site_content:
+        data = self.get_object()
+        if not data:
             return self.handle_no_content()
-        return self.content_update(site_content, request)
+        return self.handle_object_update(request, data)
 
-
+    def patch(self, request, *args, **kwargs):
+        data = self.get_object()
+        if not data:
+            return self.handle_no_content()
+        return self.handle_object_update(request, data)
 
 
 class AboutWhyChooseUsViewSet(viewsets.ModelViewSet):
@@ -234,32 +325,214 @@ class AboutWhyChooseUsViewSet(viewsets.ModelViewSet):
     permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
 
-class ContactInformationViewSet(viewsets.ModelViewSet):
-    queryset = ContactInformation.objects.all()
+# =================================About Us Start===============================
+
+# =================================Contact Information Start===============================
+class ContactInformationView(generics.RetrieveUpdateAPIView):
     serializer_class = ContactInformationSerializer
     permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
+    
+    def get_object(self):
+        return ContactInformation.objects.all().first()
+    
+    def handle_no_content(self):
+        return Response({
+            'status': False,
+            'data' : "No Contact Information Found!"
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    def get(self, request, *args, **kwargs):
+        data = self.get_object()
+        if not data:
+            return self.handle_no_content()
+        return Response({
+            'status': True,
+            'data': self.get_serializer(data).data
+        }, status=status.HTTP_200_OK)
+    
+    def handle_object_update(self, request, data):
+        serializer = self.get_serializer(data, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'status': True,
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'status': False,
+                'data': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def put(self, request, *args, **kwargs):
+        data = self.get_object()
+        if not data:
+            return self.handle_no_content()
+        return self.handle_object_update(request, data)
 
-class RefundPolicyViewSet(viewsets.ModelViewSet):
-    queryset = RefundPolicy.objects.all()
+    def patch(self, request, *args, **kwargs):
+        data = self.get_object()
+        if not data:
+            return self.handle_no_content()
+        return self.handle_object_update(request, data)
+
+# =================================Contact Information Start===============================
+
+# =================================Refund Policy Start===============================
+class RefundPolicyView(generics.RetrieveUpdateAPIView):
     serializer_class = RefundPolicySerializer
     permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
+    
+    def get_object(self):
+        return RefundPolicy.objects.all().first()
+    
+    def handle_no_content(self):
+        return Response({
+            'status': False,
+            'data' : "No Refund Policy Content Found!"
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    def get(self, request, *args, **kwargs):
+        data = self.get_object()
+        if not data:
+            return self.handle_no_content()
+        return Response({
+            'status': True,
+            'data': self.get_serializer(data).data
+        }, status=status.HTTP_200_OK)
+    
+    def handle_object_update(self, request, data):
+        serializer = self.get_serializer(data, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'status': True,
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'status': False,
+                'data': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def put(self, request, *args, **kwargs):
+        data = self.get_object()
+        if not data:
+            return self.handle_no_content()
+        return self.handle_object_update(request, data)
 
-class TermsAndConditionViewSet(viewsets.ModelViewSet):
-    queryset = TermsAndCondition.objects.all()
+    def patch(self, request, *args, **kwargs):
+        data = self.get_object()
+        if not data:
+            return self.handle_no_content()
+        return self.handle_object_update(request, data)
+
+# =================================Refund Policy Start===============================
+
+# =================================Terms & Condition Start===============================
+class TermsAndConditionView(generics.RetrieveUpdateAPIView):
     serializer_class = TermsAndConditionSerializer
     permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
+    
+    def get_object(self):
+        return TermsAndCondition.objects.all().first()
+    
+    def handle_no_content(self):
+        return Response({
+            'status': False,
+            'data' : "No Terms & Condition Content Found!"
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    def get(self, request, *args, **kwargs):
+        data = self.get_object()
+        if not data:
+            return self.handle_no_content()
+        return Response({
+            'status': True,
+            'data': self.get_serializer(data).data
+        }, status=status.HTTP_200_OK)
+    
+    def handle_object_update(self, request, data):
+        serializer = self.get_serializer(data, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'status': True,
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'status': False,
+                'data': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def put(self, request, *args, **kwargs):
+        data = self.get_object()
+        if not data:
+            return self.handle_no_content()
+        return self.handle_object_update(request, data)
 
-class PrivacyPolicyViewSet(viewsets.ModelViewSet):
-    queryset = PrivacyPolicy.objects.all()
+    def patch(self, request, *args, **kwargs):
+        data = self.get_object()
+        if not data:
+            return self.handle_no_content()
+        return self.handle_object_update(request, data)
+
+# =================================Terms & Condition Start===============================
+
+# =================================Privacy Policy Start===============================
+class PrivacyPolicyView(generics.RetrieveUpdateAPIView):
     serializer_class = PrivacyPolicySerializer
     permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
+    
+    def get_object(self):
+        return PrivacyPolicy.objects.all().first()
+    
+    def handle_no_content(self):
+        return Response({
+            'status': False,
+            'data' : "No Privacy Policy Content Found!"
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    def get(self, request, *args, **kwargs):
+        data = self.get_object()
+        if not data:
+            return self.handle_no_content()
+        return Response({
+            'status': True,
+            'data': self.get_serializer(data).data
+        }, status=status.HTTP_200_OK)
+    
+    def handle_object_update(self, request, data):
+        serializer = self.get_serializer(data, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'status': True,
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'status': False,
+                'data': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def put(self, request, *args, **kwargs):
+        data = self.get_object()
+        if not data:
+            return self.handle_no_content()
+        return self.handle_object_update(request, data)
 
-class FAQListViewSet(viewsets.ModelViewSet):
-    queryset = FAQ_List.objects.all()
-    serializer_class = FAQListSerializer
-    permission_classes = [AdminCreationPermision]
-    parser_classes = [MultiPartParser]
+    def patch(self, request, *args, **kwargs):
+        data = self.get_object()
+        if not data:
+            return self.handle_no_content()
+        return self.handle_object_update(request, data)
+
+# =================================Privacy Policy Start===============================
+
+
