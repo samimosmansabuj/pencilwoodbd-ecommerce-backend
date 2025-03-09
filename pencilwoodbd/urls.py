@@ -9,6 +9,7 @@ urlpatterns = [
     path('', include('live_chat.urls')),
     path('product/', include('product.urls')),
     path('order/', include('order.urls')),
+    path('site/', include('site_app.urls')),
 ]
 
 if settings.DEBUG:

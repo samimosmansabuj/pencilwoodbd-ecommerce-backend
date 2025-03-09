@@ -3,11 +3,6 @@ from .models import Customer, CustomUser, Role
 from django.contrib.sessions.models import Session
 from django.contrib.auth.admin import UserAdmin
 
-admin.site.site_header = "Pencilwood BD"
-admin.site.site_title = "Pencilwood BD"
-admin.site.index_title = "Welcome to Pencilwood BD"
-# admin.site.index_template = "OK"
-
 
 # class CustomUserAdmin(UserAdmin):
 #     list_display = ('email', 'username', 'user_type', 'created_at', 'updated_at')

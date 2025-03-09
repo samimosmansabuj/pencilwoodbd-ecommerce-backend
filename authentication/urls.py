@@ -1,6 +1,6 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenVerifyView, TokenRefreshView
-from .views import AdminCreationViews, ProtectedView, UserListViews, CustomerRegistrationViews, CustomerTokenObtainPairViews, AdminTokenObtainPairViews
+from .views import AdminCreationViews, ProtectedView, UserListViews, CustomerRegistrationViews, CustomerTokenObtainPairViews, AdminTokenObtainPairViews, CurrentUserDetails
 
 urlpatterns = [
     #Admin User Authentication & Creation
@@ -18,4 +18,5 @@ urlpatterns = [
     #User List & Protect Testing
     path('auth/protect/', ProtectedView.as_view(), name='protect'),
     path('auth/user-list/', UserListViews.as_view(), name='user-list'),
+    path('auth/user/profile/', CurrentUserDetails.as_view(), name='user-profile'),
 ]

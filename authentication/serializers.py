@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
-from .models import CustomUser
+from .models import CustomUser, Customer
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework.exceptions import AuthenticationFailed
 
@@ -63,5 +63,16 @@ class UserListSerializers(serializers.ModelSerializer):
         model = CustomUser
         fields = ('__all__')
 
+
+class CurrentUserProfileSerializers(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        exclude = ('password', 'last_login', 'is_superuser', 'is_staff', 'is_active', 'groups', 'user_permissions')
+
+
+class CustomerProfileSerializers(serializers.ModelSerializer):
+    class Meta:
+        model = Customer
+        fields = ['name', 'phone', 'email']
 
 
