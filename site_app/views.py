@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import (
     HomeSlider, SiteContent, SiteColorSection, NewsFeed, SocialLink, FooterTagLink, 
     AboutUs, About_WhyChooseUs, ContactInformation, RefundPolicy, TermsAndCondition, 
@@ -55,7 +56,7 @@ class HomeSliderViewSet(viewsets.ModelViewSet):
     serializer_class = HomeSliderSerializer
     permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ['title', 'image_url', 'url']
     filterset_fields = ['is_active']
     pagination_class = None
@@ -83,7 +84,7 @@ class HomeSliderViewSet(viewsets.ModelViewSet):
             return Response({
                 'status': False,
                 'message': 'Slider creation failed!',
-                'data': error_json
+                'error': error_json
             }, status=status.HTTP_400_BAD_REQUEST)
     
     def update(self, request, *args, **kwargs):
@@ -119,32 +120,150 @@ class HomeSliderViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_200_OK)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class NewsFeedViewSet(viewsets.ModelViewSet):
     queryset = NewsFeed.objects.all()
     serializer_class = NewsFeedSerializer
     permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    pagination_class = None
+    search_fields = ['news', 'url']
+    filterset_fields = ['is_active']
+    
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        return Response({
+            'status': True,
+            'count': len(response.data),
+            'data': response.data
+        }, status=status.HTTP_200_OK)
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response({
+                'status': True,
+                'message': 'News Feed Sucessfully Created!',
+                'data': serializer.data
+            }, status=status.HTTP_201_CREATED, headers=headers)
+        else:
+            error_dict = serializer.errors
+            error_json = {kay: str(value[0]) for kay, value in error_dict.items()}
+            return Response({
+                'status': False,
+                'message': 'News Feed Creation Failed',
+                'error': error_json
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def handle_exception(self, exc):
+        if isinstance(exc, Http404):
+            return Response({
+                'status': False,
+                'message': 'No NewsFeed matches the given query.',
+            }, status=status.HTTP_404_NOT_FOUND)
+        return super().handle_exception(exc)
+    
+    def retrieve(self, request, *args, **kwargs):
+        response = super().retrieve(request, *args, **kwargs)
+        return Response({
+            'status': True,
+            'data': response.data
+        }, status=status.HTTP_200_OK)
+    
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        return Response({
+            'status': True,
+            'message': 'News Feed Successfully Updated!',
+            'data': response.data
+        }, status=status.HTTP_200_OK)
+    
+    def destroy(self, request, *args, **kwargs):
+        response = super().destroy(request, *args, **kwargs)
+        return Response({
+            'status': True,
+            'message': 'News Feed Successfully Deleted!'
+        }, status=status.HTTP_200_OK)
+
 
 class SocialLinkViewSet(viewsets.ModelViewSet):
     queryset = SocialLink.objects.all()
     serializer_class = SocialLinkSerializer
     permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fiels = ['name', 'url', 'icon']
+    filterset_fields = ['is_active']
+    pagination_class = None
+    
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        return Response({
+            'status': True,
+            'count': len(response.data),
+            'data': response.data
+        }, status=status.HTTP_200_OK)
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response({
+                'status': True,
+                'message': 'Social Link Successfully Created!',
+                'data': serializer.data
+            }, status=status.HTTP_201_CREATED, headers=headers)
+        else:
+            error_dict = serializer.errors
+            error_json = {kay: str(value[0]) for kay, value in error_dict.items()}
+            return Response({
+                'status': False,
+                'message': 'Social Link Creation Failed!',
+                'error': error_json
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def handle_exception(self, exc):
+        if isinstance(exc, Http404):
+            return Response({
+                'status': True,
+                'message': 'No Social Link matches the given query.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        return super().handle_exception(exc)
+    
+    def retrieve(self, request, *args, **kwargs):
+        response = super().retrieve(request, *args, **kwargs)
+        return Response({
+            'status': True,
+            'date': response.data
+        }, status=status.HTTP_200_OK)
+    
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        return Response({
+            'status': True,
+            'message': 'Social Link Successfully Updated!',
+            'data': response.data
+        }, status=status.HTTP_200_OK)
+    
+    def destroy(self, request, *args, **kwargs):
+        response = super().destroy(request, *args, **kwargs)
+        return Response({
+            'status': True,
+            'message': 'Social Link Successfully Deleted!'
+        }, status=status.HTTP_200_OK)
+
+
+
+
+
+
+
+
+
+
 
 class FooterTagLinkViewSet(viewsets.ModelViewSet):
     queryset = FooterTagLink.objects.all()
