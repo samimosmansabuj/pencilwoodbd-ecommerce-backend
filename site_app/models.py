@@ -1,14 +1,27 @@
 from django.db import models
+from django.core.files.storage import default_storage
 
+def image_delete_os(picture):
+    if picture and default_storage.exists(picture.name):
+        default_storage.delete(picture.name)
+        return True
+
+def previous_image_delete_os(old_picture, new_picture):
+    if old_picture and old_picture != new_picture and default_storage.exists(old_picture.name):
+        default_storage.delete(old_picture.name)
+        return True
 
 
 class HomeSlider(models.Model):
     image = models.ImageField(upload_to='slide_image/', null=True)
     title = models.CharField(max_length=55)
-    image_url = models.URLField(max_length=500, blank=True, null=True)
     url = models.CharField(max_length=55, blank=True, null=True)
     button_name = models.CharField(max_length=55, blank=True, null=True)
     is_active = models.BooleanField(default=True)
+    
+    @property
+    def display_name(self):
+        return "Slider"
     
     def __str__(self):
         return f'{self.title or None} | {self.pk}'
@@ -22,8 +35,27 @@ class SiteContent(models.Model):
     copyright = models.CharField(max_length=55, blank=True, null=True)
     copyright_year = models.CharField(max_length=4, blank=True, null=True)
     
+    def save(self, *args, **kwargs):
+        if self.pk and SiteContent.objects.filter(pk=self.pk).exists():
+            old_instance = SiteContent.objects.get(pk=self.pk)
+            previous_image_delete_os(old_instance.logo, self.logo)
+            previous_image_delete_os(old_instance.secondary_logo, self.secondary_logo)
+            previous_image_delete_os(old_instance.fab_icon, self.fab_icon)
+        super().save(*args, **kwargs)
+    
+    def delete(self, *args, **kwargs):
+        image_delete_os(self.logo)
+        image_delete_os(self.secondary_logo)
+        image_delete_os(self.fab_icon)
+        return super().delete( *args, **kwargs)
+    
     def __str__(self):
         return f'{self.title} | {self.pk}'
+
+
+
+
+
 
 class SiteColorSection(models.Model):
     title = models.CharField(max_length=55, blank=True, null=True)
@@ -53,6 +85,11 @@ class NewsFeed(models.Model):
     news = models.CharField(max_length=255)
     url = models.CharField(max_length=255, blank=True, null=True)
     is_active = models.BooleanField(default=True)
+    
+    @property
+    def display_name(self):
+        return "News Feed"
+    
     def __str__(self):
         return f'{self.news} | {self.pk}'
 
@@ -60,8 +97,12 @@ class SocialLink(models.Model):
     name = models.CharField(max_length=55)
     image = models.ImageField(upload_to='social/', blank=True, null=True)
     icon = models.CharField(max_length=20, blank=True, null=True)
-    url = models.URLField(max_length=255, blank=True, null=True)
+    url = models.CharField(max_length=255, blank=True, null=True)
     is_active = models.BooleanField(default=True)
+    
+    @property
+    def display_name(self):
+        return "Social Link"
     
     def __str__(self):
         return self.name
@@ -70,6 +111,10 @@ class FooterTagLink(models.Model):
     name = models.CharField(max_length=55)
     url = models.CharField(max_length=55, blank=True, null=True)
     is_active = models.BooleanField(default=True)
+    
+    @property
+    def display_name(self):
+        return "Footer Tag Link"
     
     def __str__(self):
         return self.name
@@ -124,6 +169,11 @@ class PrivacyPolicy(models.Model):
 class FAQ_List(models.Model):
     question = models.CharField(max_length=255)
     answer = models.TextField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    
+    @property
+    def display_name(self):
+        return "FAQ"
     
     def __str__(self):
         return f'{self.question} | {self.pk}'
