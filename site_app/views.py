@@ -51,257 +51,118 @@ class AdminCreationPermision(permissions.BasePermission):
 
 
 
-class HomeSliderViewSet(viewsets.ModelViewSet):
+class CustomModelViewSet(viewsets.ModelViewSet):
+    permission_classes = [AdminCreationPermision]
+    parser_classes = [MultiPartParser]
+    pagination_class = None
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        return Response({
+            'status': True,
+            'count': len(response.data),
+            # 'count': len(response.data) if isinstance(response.data, list) else response.data.get('count', 0),
+            'data': response.data
+        }, status=status.HTTP_200_OK)
+    
+    def handle_exception(self, exc):
+        if isinstance(exc, Http404):
+            return Response({
+                'status': False,
+                'message': f'No {self.queryset.model().display_name} matches the given query.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        return super().handle_exception(exc)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response({
+                'status': True,
+                'message': f"{self.queryset.model().display_name} Successfully Created!",
+                'data': serializer.data
+            }, status=status.HTTP_201_CREATED, headers=headers)
+        else:
+            error_json = {kay : str(value[0]) for kay, value in serializer.errors.items()}
+            return Response({
+                'status': False,
+                'message': f'{self.queryset.model().display_name} Creation Failed!',
+                'error': error_json
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def retrieve(self, request, *args, **kwargs):
+        response = super().retrieve(request, *args, **kwargs)
+        return Response({
+            'status': True,
+            'data': response.data
+        }, status=status.HTTP_200_OK)
+    
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        return Response({
+            'status': True,
+            'message': f'{self.queryset.model().display_name} Successfully Updated!',
+            'data': response.data
+        }, status=status.HTTP_200_OK)
+    
+    def destroy(self, request, *args, **kwargs):
+        response = super().destroy(request, *args, **kwargs)
+        return Response({
+            'status': True,
+            'message': f'{self.queryset.model().display_name} Successfully Deleted!'
+        }, status=status.HTTP_200_OK)
+
+class HomeSliderViewSet(CustomModelViewSet):
     queryset = HomeSlider.objects.all()
     serializer_class = HomeSliderSerializer
-    permission_classes = [AdminCreationPermision]
-    parser_classes = [MultiPartParser]
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    search_fields = ['title', 'image_url', 'url']
+    search_fields = ['title', 'url']
     filterset_fields = ['is_active']
-    pagination_class = None
-    
-    def list(self, request, *args, **kwargs):
-        serializer = super().list(request, *args, **kwargs)
-        return Response({
-            'status': True,
-            'data': serializer.data
-        }, status=status.HTTP_200_OK)
-    
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            self.perform_create(serializer)
-            headers = self.get_success_headers(serializer.data)
-            return Response({
-                'status': True,
-                'message': 'Slider Successfully Created!',
-                'data': serializer.data
-            }, status=status.HTTP_201_CREATED, headers=headers)
-        else:
-            error_dict = serializer.errors
-            error_json = {kay: str(value[0]) for kay, value in error_dict.items()}
-            return Response({
-                'status': False,
-                'message': 'Slider creation failed!',
-                'error': error_json
-            }, status=status.HTTP_400_BAD_REQUEST)
-    
-    def update(self, request, *args, **kwargs):
-        response = super().update(request, *args, **kwargs)
-        return Response({
-            'status': True,
-            'message': 'Slider Successfully Updated!',
-            'data': response.data
-        }, status=status.HTTP_200_OK)
-    
-    def handle_exception(self, exc):
-        if isinstance(exc, Http404):
-            return Response({
-                'status': False,
-                'message': 'No Slider matches the given query.'
-            }, status=status.HTTP_404_NOT_FOUND)
-        return super().handle_exception(exc)
-    
-    def retrieve(self, request, *args, **kwargs):
-        queryset = HomeSlider.objects.all()
-        obj = get_object_or_404(queryset, pk=kwargs.get('pk'))
-        serializer = self.get_serializer(obj)
-        return Response({
-            'status': True,
-            'data': serializer.data
-        }, status=status.HTTP_200_OK)
-    
-    def destroy(self, request, *args, **kwargs):
-        response = super().destroy(request, *args, **kwargs)
-        return Response({
-            'status': True,
-            'message': 'Slider Successfully Deleted!',
-        }, status=status.HTTP_200_OK)
 
-
-class NewsFeedViewSet(viewsets.ModelViewSet):
+class NewsFeedViewSet(CustomModelViewSet):
     queryset = NewsFeed.objects.all()
     serializer_class = NewsFeedSerializer
-    permission_classes = [AdminCreationPermision]
-    parser_classes = [MultiPartParser]
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    pagination_class = None
     search_fields = ['news', 'url']
     filterset_fields = ['is_active']
-    
-    def list(self, request, *args, **kwargs):
-        response = super().list(request, *args, **kwargs)
-        return Response({
-            'status': True,
-            'count': len(response.data),
-            'data': response.data
-        }, status=status.HTTP_200_OK)
-    
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            self.perform_create(serializer)
-            headers = self.get_success_headers(serializer.data)
-            return Response({
-                'status': True,
-                'message': 'News Feed Sucessfully Created!',
-                'data': serializer.data
-            }, status=status.HTTP_201_CREATED, headers=headers)
-        else:
-            error_dict = serializer.errors
-            error_json = {kay: str(value[0]) for kay, value in error_dict.items()}
-            return Response({
-                'status': False,
-                'message': 'News Feed Creation Failed',
-                'error': error_json
-            }, status=status.HTTP_400_BAD_REQUEST)
-    
-    def handle_exception(self, exc):
-        if isinstance(exc, Http404):
-            return Response({
-                'status': False,
-                'message': 'No NewsFeed matches the given query.',
-            }, status=status.HTTP_404_NOT_FOUND)
-        return super().handle_exception(exc)
-    
-    def retrieve(self, request, *args, **kwargs):
-        response = super().retrieve(request, *args, **kwargs)
-        return Response({
-            'status': True,
-            'data': response.data
-        }, status=status.HTTP_200_OK)
-    
-    def update(self, request, *args, **kwargs):
-        response = super().update(request, *args, **kwargs)
-        return Response({
-            'status': True,
-            'message': 'News Feed Successfully Updated!',
-            'data': response.data
-        }, status=status.HTTP_200_OK)
-    
-    def destroy(self, request, *args, **kwargs):
-        response = super().destroy(request, *args, **kwargs)
-        return Response({
-            'status': True,
-            'message': 'News Feed Successfully Deleted!'
-        }, status=status.HTTP_200_OK)
 
-
-class SocialLinkViewSet(viewsets.ModelViewSet):
+class SocialLinkViewSet(CustomModelViewSet):
     queryset = SocialLink.objects.all()
     serializer_class = SocialLinkSerializer
-    permission_classes = [AdminCreationPermision]
-    parser_classes = [MultiPartParser]
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fiels = ['name', 'url', 'icon']
     filterset_fields = ['is_active']
-    pagination_class = None
-    
-    def list(self, request, *args, **kwargs):
-        response = super().list(request, *args, **kwargs)
-        return Response({
-            'status': True,
-            'count': len(response.data),
-            'data': response.data
-        }, status=status.HTTP_200_OK)
-    
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            self.perform_create(serializer)
-            headers = self.get_success_headers(serializer.data)
-            return Response({
-                'status': True,
-                'message': 'Social Link Successfully Created!',
-                'data': serializer.data
-            }, status=status.HTTP_201_CREATED, headers=headers)
-        else:
-            error_dict = serializer.errors
-            error_json = {kay: str(value[0]) for kay, value in error_dict.items()}
-            return Response({
-                'status': False,
-                'message': 'Social Link Creation Failed!',
-                'error': error_json
-            }, status=status.HTTP_400_BAD_REQUEST)
-    
-    def handle_exception(self, exc):
-        if isinstance(exc, Http404):
-            return Response({
-                'status': True,
-                'message': 'No Social Link matches the given query.'
-            }, status=status.HTTP_404_NOT_FOUND)
-        return super().handle_exception(exc)
-    
-    def retrieve(self, request, *args, **kwargs):
-        response = super().retrieve(request, *args, **kwargs)
-        return Response({
-            'status': True,
-            'date': response.data
-        }, status=status.HTTP_200_OK)
-    
-    def update(self, request, *args, **kwargs):
-        response = super().update(request, *args, **kwargs)
-        return Response({
-            'status': True,
-            'message': 'Social Link Successfully Updated!',
-            'data': response.data
-        }, status=status.HTTP_200_OK)
-    
-    def destroy(self, request, *args, **kwargs):
-        response = super().destroy(request, *args, **kwargs)
-        return Response({
-            'status': True,
-            'message': 'Social Link Successfully Deleted!'
-        }, status=status.HTTP_200_OK)
 
-
-
-
-
-
-
-
-
-
-
-class FooterTagLinkViewSet(viewsets.ModelViewSet):
+class FooterTagLinkViewSet(CustomModelViewSet):
     queryset = FooterTagLink.objects.all()
     serializer_class = FooterTagLinkSerializer
-    permission_classes = [AdminCreationPermision]
-    parser_classes = [MultiPartParser]
+    search_fiels = ['name', 'url']
+    filterset_fields = ['is_active']
 
-class FAQListViewSet(viewsets.ModelViewSet):
+class FAQListViewSet(CustomModelViewSet):
     queryset = FAQ_List.objects.all()
     serializer_class = FAQListSerializer
-    permission_classes = [AdminCreationPermision]
-    parser_classes = [MultiPartParser]
+    search_fiels = ['question', 'answer']
+    filterset_fields = ['is_active']
+    
 
 
 
-
-
-
-
-
-# =================================Site Content Start===============================
-class SiteContentView(generics.RetrieveUpdateAPIView):
-    serializer_class = SiteContentSerializer
+class BaseRetrieveUpdateView(generics.RetrieveUpdateAPIView):
     permission_classes = [AdminCreationPermision]
     
     def get_object(self):
-        return SiteContent.objects.all().first()
+        return self.queryset.first()
     
-    def handle_no_content(self):
+    def hanlde_no_content(self, message):
         return Response({
             'status': False,
-            'data' : "No Site Content Found!"
+            'message': message
         }, status=status.HTTP_404_NOT_FOUND)
     
     def get(self, request, *args, **kwargs):
         data = self.get_object()
         if not data:
-            return self.handle_no_content()
+            return self.hanlde_no_content(f"No {self.model_name} Found!")
         return Response({
             'status': True,
             'data': self.get_serializer(data).data
@@ -313,130 +174,39 @@ class SiteContentView(generics.RetrieveUpdateAPIView):
             serializer.save()
             return Response({
                 'status': True,
+                'message': f'{self.model_name} Successfully Updated!',
                 'data': serializer.data
             }, status=status.HTTP_200_OK)
         else:
             return Response({
                 'status': False,
-                'data': serializer.errors
+                'error': serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
     
     def put(self, request, *args, **kwargs):
         data = self.get_object()
         if not data:
-            return self.handle_no_content()
+            return self.hanlde_no_content(f"No {self.model_name} Found!")
         return self.handle_object_update(request, data)
 
     def patch(self, request, *args, **kwargs):
         data = self.get_object()
         if not data:
-            return self.handle_no_content()
+            return self.handle_no_content(f"No {self.model_name} Found!")
         return self.handle_object_update(request, data)
 
-# =================================Site Content Start===============================
 
 
-# =================================Site Color Start===============================
-class SiteColorSectionView(generics.RetrieveUpdateAPIView):
-    serializer_class = SiteColorSectionSerializer
-    permission_classes = [AdminCreationPermision]
-    
-    def get_object(self):
-        return SiteColorSection.objects.all().first()
-    
-    def handle_no_content(self):
-        return Response({
-            'status': False,
-            'data' : "No Site Color Content Found!"
-        }, status=status.HTTP_404_NOT_FOUND)
-    
-    def get(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return Response({
-            'status': True,
-            'data': self.get_serializer(data).data
-        }, status=status.HTTP_200_OK)
-    
-    def handle_object_update(self, request, data):
-        serializer = self.get_serializer(data, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({
-                'status': True,
-                'data': serializer.data
-            }, status=status.HTTP_200_OK)
-        else:
-            return Response({
-                'status': False,
-                'data': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-    
-    def put(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return self.handle_object_update(request, data)
 
-    def patch(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return self.handle_object_update(request, data)
-
-# =================================Site Color Start===============================
 
 
 # =================================About Us Start===============================
 class AboutUsView(generics.RetrieveUpdateAPIView):
+    queryset = AboutUs.objects.all()
     serializer_class = AboutUsSerializer
     permission_classes = [AdminCreationPermision]
+    model_name = "About Us Content"
     
-    def get_object(self):
-        return AboutUs.objects.all().first()
-    
-    def handle_no_content(self):
-        return Response({
-            'status': False,
-            'data' : "No About Us Content Found!"
-        }, status=status.HTTP_404_NOT_FOUND)
-    
-    def get(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return Response({
-            'status': True,
-            'data': self.get_serializer(data).data
-        }, status=status.HTTP_200_OK)
-    
-    def handle_object_update(self, request, data):
-        serializer = self.get_serializer(data, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({
-                'status': True,
-                'data': serializer.data
-            }, status=status.HTTP_200_OK)
-        else:
-            return Response({
-                'status': False,
-                'data': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-    
-    def put(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return self.handle_object_update(request, data)
-
-    def patch(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return self.handle_object_update(request, data)
-
 
 class AboutWhyChooseUsViewSet(viewsets.ModelViewSet):
     queryset = About_WhyChooseUs.objects.all()
@@ -446,211 +216,60 @@ class AboutWhyChooseUsViewSet(viewsets.ModelViewSet):
 
 # =================================About Us Start===============================
 
+
+
+# =================================Site Content Start===============================
+class SiteContentView(BaseRetrieveUpdateView):
+    queryset = SiteContent.objects.all()
+    serializer_class = SiteContentSerializer
+    permission_classes = [AdminCreationPermision]
+    parser_classes = [MultiPartParser]
+    model_name = "Site Content"
+    
+# =================================Site Content Start===============================
+# =================================Site Color Start===============================
+class SiteColorSectionView(BaseRetrieveUpdateView):
+    queryset = SiteColorSection.objects.all()
+    serializer_class = SiteColorSectionSerializer
+    permission_classes = [AdminCreationPermision]
+    parser_classes = [MultiPartParser]
+    model_name = "Site Color Content"
+    
+# =================================Site Color Start===============================
 # =================================Contact Information Start===============================
 class ContactInformationView(generics.RetrieveUpdateAPIView):
+    queryset = ContactInformation.objects.all()
     serializer_class = ContactInformationSerializer
     permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
-    
-    def get_object(self):
-        return ContactInformation.objects.all().first()
-    
-    def handle_no_content(self):
-        return Response({
-            'status': False,
-            'data' : "No Contact Information Found!"
-        }, status=status.HTTP_404_NOT_FOUND)
-    
-    def get(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return Response({
-            'status': True,
-            'data': self.get_serializer(data).data
-        }, status=status.HTTP_200_OK)
-    
-    def handle_object_update(self, request, data):
-        serializer = self.get_serializer(data, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({
-                'status': True,
-                'data': serializer.data
-            }, status=status.HTTP_200_OK)
-        else:
-            return Response({
-                'status': False,
-                'data': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-    
-    def put(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return self.handle_object_update(request, data)
-
-    def patch(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return self.handle_object_update(request, data)
+    model_name = "Contact Information Content"
 
 # =================================Contact Information Start===============================
-
 # =================================Refund Policy Start===============================
 class RefundPolicyView(generics.RetrieveUpdateAPIView):
     serializer_class = RefundPolicySerializer
     permission_classes = [AdminCreationPermision]
+    permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
-    
-    def get_object(self):
-        return RefundPolicy.objects.all().first()
-    
-    def handle_no_content(self):
-        return Response({
-            'status': False,
-            'data' : "No Refund Policy Content Found!"
-        }, status=status.HTTP_404_NOT_FOUND)
-    
-    def get(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return Response({
-            'status': True,
-            'data': self.get_serializer(data).data
-        }, status=status.HTTP_200_OK)
-    
-    def handle_object_update(self, request, data):
-        serializer = self.get_serializer(data, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({
-                'status': True,
-                'data': serializer.data
-            }, status=status.HTTP_200_OK)
-        else:
-            return Response({
-                'status': False,
-                'data': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-    
-    def put(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return self.handle_object_update(request, data)
-
-    def patch(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return self.handle_object_update(request, data)
+    model_name = "Refund Policy Content"
 
 # =================================Refund Policy Start===============================
-
 # =================================Terms & Condition Start===============================
 class TermsAndConditionView(generics.RetrieveUpdateAPIView):
     serializer_class = TermsAndConditionSerializer
     permission_classes = [AdminCreationPermision]
+    permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
-    
-    def get_object(self):
-        return TermsAndCondition.objects.all().first()
-    
-    def handle_no_content(self):
-        return Response({
-            'status': False,
-            'data' : "No Terms & Condition Content Found!"
-        }, status=status.HTTP_404_NOT_FOUND)
-    
-    def get(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return Response({
-            'status': True,
-            'data': self.get_serializer(data).data
-        }, status=status.HTTP_200_OK)
-    
-    def handle_object_update(self, request, data):
-        serializer = self.get_serializer(data, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({
-                'status': True,
-                'data': serializer.data
-            }, status=status.HTTP_200_OK)
-        else:
-            return Response({
-                'status': False,
-                'data': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-    
-    def put(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return self.handle_object_update(request, data)
-
-    def patch(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return self.handle_object_update(request, data)
+    model_name = "Temrs & Condition Content"
 
 # =================================Terms & Condition Start===============================
-
 # =================================Privacy Policy Start===============================
 class PrivacyPolicyView(generics.RetrieveUpdateAPIView):
     serializer_class = PrivacyPolicySerializer
     permission_classes = [AdminCreationPermision]
+    permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
-    
-    def get_object(self):
-        return PrivacyPolicy.objects.all().first()
-    
-    def handle_no_content(self):
-        return Response({
-            'status': False,
-            'data' : "No Privacy Policy Content Found!"
-        }, status=status.HTTP_404_NOT_FOUND)
-    
-    def get(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return Response({
-            'status': True,
-            'data': self.get_serializer(data).data
-        }, status=status.HTTP_200_OK)
-    
-    def handle_object_update(self, request, data):
-        serializer = self.get_serializer(data, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({
-                'status': True,
-                'data': serializer.data
-            }, status=status.HTTP_200_OK)
-        else:
-            return Response({
-                'status': False,
-                'data': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-    
-    def put(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return self.handle_object_update(request, data)
-
-    def patch(self, request, *args, **kwargs):
-        data = self.get_object()
-        if not data:
-            return self.handle_no_content()
-        return self.handle_object_update(request, data)
+    model_name = "Privacy Policy Content"
 
 # =================================Privacy Policy Start===============================
 
