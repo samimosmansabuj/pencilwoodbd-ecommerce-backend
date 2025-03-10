@@ -5,6 +5,7 @@ from .models import Order, OrderItem, PaymentMethod, Address
 from authentication.models import Customer
 from rest_framework.generics import CreateAPIView, ListAPIView, UpdateAPIView, RetrieveAPIView
 from product.models import AddToCart
+from rest_framework.exceptions import ValidationError
 
 # ================================Order Create View Start================================
 class OrderCreateViews(CreateAPIView):
@@ -17,37 +18,50 @@ class OrderCreateViews(CreateAPIView):
     def create(self, request, *args, **kwargs):
         customer = request.user.customer_authentication
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.is_valid(raise_exception=True)
+            carts = AddToCart.objects.filter(customer=customer)
+            if not carts.exists():
+                return Response({
+                    'status': False,
+                    'message': 'Cart is Empty!'
+                }, status=status.HTTP_204_NO_CONTENT)
+            address = self.get_address(serializer, customer)
+            if address is None:
+                return Response({
+                    'status': False,
+                    'message': 'Provide either a new address or select an existing one.'
+                }, status=status.HTTP_204_NO_CONTENT)
+            order_items = self.create_order_items(customer, carts)
+            if not order_items:
+                return Response({
+                    'status': False,
+                    'message': 'Order Items is Empty!'
+                }, status=status.HTTP_204_NO_CONTENT)
+            order = serializer.save(customer=customer, address=address)
+            order.order_items.set(order_items)
+            order.save()
+            
+            header = self.get_success_headers(serializer.data)
+            return Response(
+                {
+                    'status': True,
+                    'message': 'Order Create Successfully!',
+                    'order': OrderListSerializers(order).data,
+                }, status=status.HTTP_201_CREATED, headers=header
+            )
+        except ValidationError:
+            error_json = {kay: str(value[0]) for kay, value in serializer.errors.items()}
+            return Response({
+                'status': False,
+                'error': error_json
+            }, status=status.HTTP_400_BAD_REQUEST)
         
-        carts = AddToCart.objects.filter(customer=customer)
-        if not carts.exists():
-            return Response(
-                {'error': 'Cart is Empty!'},
-                status=status.HTTP_204_NO_CONTENT
-            )
-        address = self.get_address(serializer, customer)
-        if address is None:
-            return Response(
-                {'error': 'Provide either a new address or select an existing one.'},
-                status=status.HTTP_204_NO_CONTENT
-            )
-        order_items = self.create_order_items(customer, carts)
-        if not order_items:
-            return Response(
-                {'error': 'Order Items is Empty!'},
-                status=status.HTTP_204_NO_CONTENT
-            )
-        order = serializer.save(customer=customer, address=address)
-        order.order_items.set(order_items)
-        order.save()
-        
-        header = self.get_success_headers(serializer.data)
-        return Response(
-            {
-                'message': 'Order Create Successfully!',
-                'order': OrderListSerializers(order).data,
-            }, status=status.HTTP_201_CREATED, headers=header
-        )
+        except Exception as e:
+            return Response({
+                'status': False,
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
     
     def get_address(self, serializer, customer):
         existing_addresses = serializer.validated_data.pop('existing_address', None)
@@ -96,11 +110,13 @@ class OrderListViews(viewsets.ModelViewSet):
         serializer = self.get_serializer(orders, many=True)
         if not orders:
             return Response({
+                'status': False,
                 'message': 'No order items found!',
                 'data': serializer.data
             },  status=status.HTTP_204_NO_CONTENT)
         else:
             return self.get_paginated_response({
+                'status': True,
                 'message': 'Order Items Fetched Successfully!',
                 'data': serializer.data
             })
