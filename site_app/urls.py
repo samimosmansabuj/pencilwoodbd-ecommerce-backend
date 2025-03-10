@@ -19,8 +19,8 @@ router.register(r'home-slider', HomeSliderViewSet)
 router.register(r'news-feed', NewsFeedViewSet)
 router.register(r'social-link', SocialLinkViewSet)
 router.register(r'footer-tag-link', FooterTagLinkViewSet)
-router.register(r'about-why-choose-us', AboutWhyChooseUsViewSet)
 router.register(r'faq-list', FAQListViewSet)
+router.register(r'about-why-choose-us', AboutWhyChooseUsViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),

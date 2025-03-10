@@ -1,7 +1,7 @@
 from django.db import models
 from authentication.models import Customer
 from django.utils.text import slugify
-from django.core.files.storage import default_storage
+from pencilwoodbd.extra_module import previous_image_delete_os, image_delete_os
 
 def generate_unique_slug(model_object, field_value):
     slug = slugify(field_value)
@@ -22,19 +22,15 @@ class Category(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     def save(self, *args, **kwargs):
-        if self.pk:
+        if self.pk and Category.objects.filter(pk=self.pk).exists():
             old_instance = Category.objects.get(pk=self.pk)
-            if old_instance and old_instance.image and old_instance.image != self.image:
-                if default_storage.exists(old_instance.image.name):
-                    default_storage.delete(old_instance.image.name)
-        
+            previous_image_delete_os(old_instance.image, self.image)
         self.slug = generate_unique_slug(Category, self.title)
         super().save(*args, **kwargs)
     
     def delete(self, *args, **kwargs):
-        if self.image and default_storage.exists(self.image.name):
-            default_storage.delete(self.image.name)
-        super().delete(*args, **kwargs)
+        image_delete_os(self.image)
+        return super().delete( *args, **kwargs)
     
     def __str__(self):
         return self.title
@@ -68,17 +64,15 @@ class ProductImage(models.Model):
     image = models.ImageField(upload_to='product/')
     
     def save(self, *args, **kwargs):
-        if self.pk:
+        if self.pk and ProductImage.objects.filter(pk=self.pk).exists():
             old_instance = ProductImage.objects.get(pk=self.pk)
-            if old_instance and old_instance.image and old_instance.image != self.image:
-                if default_storage.exists(old_instance.image.name):
-                    default_storage.delete(old_instance.image.name)
+            previous_image_delete_os(old_instance.image, self.image)
+        self.slug = generate_unique_slug(Category, self.title)
         super().save(*args, **kwargs)
     
     def delete(self, *args, **kwargs):
-        if self.image and default_storage.exists(self.image.name):
-            default_storage.delete(self.image.name)
-        super().delete(*args, **kwargs)
+        image_delete_os(self.image)
+        return super().delete( *args, **kwargs)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
