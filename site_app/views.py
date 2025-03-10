@@ -5,6 +5,7 @@ from rest_framework import permissions, status, generics
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser
+from rest_framework.exceptions import ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import (
@@ -50,8 +51,8 @@ class AdminCreationPermision(permissions.BasePermission):
         return request.user.is_authenticated and request.user.user_type in {'Admin', 'Super Admin', 'Staff'}
 
 
-
-class CustomModelViewSet(viewsets.ModelViewSet):
+# ==============================Model ViewSet Views Start================================
+class BaseModelViewSet(viewsets.ModelViewSet):
     permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
     pagination_class = None
@@ -100,13 +101,21 @@ class CustomModelViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_200_OK)
     
     def update(self, request, *args, **kwargs):
-        response = super().update(request, *args, **kwargs)
-        return Response({
-            'status': True,
-            'message': f'{self.queryset.model().display_name} Successfully Updated!',
-            'data': response.data
-        }, status=status.HTTP_200_OK)
-    
+        try:
+            response = super().update(request, *args, **kwargs)
+            return Response({
+                'status': True,
+                'message': f'{self.queryset.model().display_name} Successfully Updated!',
+                'data': response.data
+            }, status=status.HTTP_200_OK)
+        except ValidationError as e:
+            error_dict = e.detail
+            error_message = {kay: str(value[0]) for kay, value in error_dict.items()}
+            return Response({
+                'status': False,
+                'error': error_message
+            })
+
     def destroy(self, request, *args, **kwargs):
         response = super().destroy(request, *args, **kwargs)
         return Response({
@@ -114,39 +123,47 @@ class CustomModelViewSet(viewsets.ModelViewSet):
             'message': f'{self.queryset.model().display_name} Successfully Deleted!'
         }, status=status.HTTP_200_OK)
 
-class HomeSliderViewSet(CustomModelViewSet):
+class HomeSliderViewSet(BaseModelViewSet):
     queryset = HomeSlider.objects.all()
     serializer_class = HomeSliderSerializer
     search_fields = ['title', 'url']
     filterset_fields = ['is_active']
 
-class NewsFeedViewSet(CustomModelViewSet):
+class NewsFeedViewSet(BaseModelViewSet):
     queryset = NewsFeed.objects.all()
     serializer_class = NewsFeedSerializer
     search_fields = ['news', 'url']
     filterset_fields = ['is_active']
 
-class SocialLinkViewSet(CustomModelViewSet):
+class SocialLinkViewSet(BaseModelViewSet):
     queryset = SocialLink.objects.all()
     serializer_class = SocialLinkSerializer
     search_fiels = ['name', 'url', 'icon']
     filterset_fields = ['is_active']
 
-class FooterTagLinkViewSet(CustomModelViewSet):
+class FooterTagLinkViewSet(BaseModelViewSet):
     queryset = FooterTagLink.objects.all()
     serializer_class = FooterTagLinkSerializer
     search_fiels = ['name', 'url']
     filterset_fields = ['is_active']
 
-class FAQListViewSet(CustomModelViewSet):
+class FAQListViewSet(BaseModelViewSet):
     queryset = FAQ_List.objects.all()
     serializer_class = FAQListSerializer
     search_fiels = ['question', 'answer']
     filterset_fields = ['is_active']
-    
 
 
+class AboutWhyChooseUsViewSet(BaseModelViewSet):
+    queryset = About_WhyChooseUs.objects.all()
+    serializer_class = AboutWhyChooseUsSerializer
+    search_fiels = ['title', 'description', 'icon']
+    filterset_fields = ['is_active']
 
+# ==============================Model ViewSet Views End================================
+
+
+# =======================Generics Custom Retrive & Update Views Start==========================
 class BaseRetrieveUpdateView(generics.RetrieveUpdateAPIView):
     permission_classes = [AdminCreationPermision]
     
@@ -196,28 +213,15 @@ class BaseRetrieveUpdateView(generics.RetrieveUpdateAPIView):
         return self.handle_object_update(request, data)
 
 
-
-
-
-
 # =================================About Us Start===============================
-class AboutUsView(generics.RetrieveUpdateAPIView):
+class AboutUsView(BaseRetrieveUpdateView):
     queryset = AboutUs.objects.all()
     serializer_class = AboutUsSerializer
     permission_classes = [AdminCreationPermision]
-    model_name = "About Us Content"
-    
-
-class AboutWhyChooseUsViewSet(viewsets.ModelViewSet):
-    queryset = About_WhyChooseUs.objects.all()
-    serializer_class = AboutWhyChooseUsSerializer
-    permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
+    model_name = "About Us Content"
 
 # =================================About Us Start===============================
-
-
-
 # =================================Site Content Start===============================
 class SiteContentView(BaseRetrieveUpdateView):
     queryset = SiteContent.objects.all()
@@ -237,7 +241,7 @@ class SiteColorSectionView(BaseRetrieveUpdateView):
     
 # =================================Site Color Start===============================
 # =================================Contact Information Start===============================
-class ContactInformationView(generics.RetrieveUpdateAPIView):
+class ContactInformationView(BaseRetrieveUpdateView):
     queryset = ContactInformation.objects.all()
     serializer_class = ContactInformationSerializer
     permission_classes = [AdminCreationPermision]
@@ -246,31 +250,32 @@ class ContactInformationView(generics.RetrieveUpdateAPIView):
 
 # =================================Contact Information Start===============================
 # =================================Refund Policy Start===============================
-class RefundPolicyView(generics.RetrieveUpdateAPIView):
+class RefundPolicyView(BaseRetrieveUpdateView):
+    queryset = RefundPolicy.objects.all()
     serializer_class = RefundPolicySerializer
-    permission_classes = [AdminCreationPermision]
     permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
     model_name = "Refund Policy Content"
 
 # =================================Refund Policy Start===============================
 # =================================Terms & Condition Start===============================
-class TermsAndConditionView(generics.RetrieveUpdateAPIView):
+class TermsAndConditionView(BaseRetrieveUpdateView):
+    queryset = TermsAndCondition.objects.all()
     serializer_class = TermsAndConditionSerializer
-    permission_classes = [AdminCreationPermision]
     permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
     model_name = "Temrs & Condition Content"
 
 # =================================Terms & Condition Start===============================
 # =================================Privacy Policy Start===============================
-class PrivacyPolicyView(generics.RetrieveUpdateAPIView):
+class PrivacyPolicyView(BaseRetrieveUpdateView):
+    queryset = PrivacyPolicy.objects.all()
     serializer_class = PrivacyPolicySerializer
-    permission_classes = [AdminCreationPermision]
     permission_classes = [AdminCreationPermision]
     parser_classes = [MultiPartParser]
     model_name = "Privacy Policy Content"
 
 # =================================Privacy Policy Start===============================
 
+# =======================Generics Custom Retrive & Update Views End==========================
 

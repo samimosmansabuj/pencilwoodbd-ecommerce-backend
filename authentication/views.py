@@ -6,10 +6,11 @@ from rest_framework.response import Response
 from .models import CustomUser, Customer
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework.exceptions import NotAuthenticated
+from rest_framework.exceptions import NotAuthenticated, ValidationError
+from rest_framework_simplejwt.exceptions import TokenError
 
     
-#=========================Admin User Creation Views Start========================
+#========================Admin User Creation Views Start=======================
 class AdminCreationViews(CreateAPIView):
     serializer_class = AdminCreationSerializers
     permission_classes = [permissions.AllowAny]
@@ -38,20 +39,59 @@ class CustomerRegistrationViews(CreateAPIView):
     
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+        try:
+            serializer.is_valid(raise_exception=True)
+            user = serializer.save()
+            
+            Customer.objects.create(
+                user=user, name=request.data['name'], email=request.data['email'], phone=request.data['phone']
+            ).save()
+            return Response(
+                {
+                    'message': 'Registration Successfully!'
+                }, status=status.HTTP_201_CREATED
+            )
+        except ValidationError:
+            error_json = {kay: value[0] for kay, value in serializer.errors.items()}
+            return Response({
+                'status': False,
+                'message': 'Registration Unsuccessfull!',
+                'error': error_json
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                'status': False,
+                'message': 'Somethings Wrong!',
+                'error': str(e)
+            })
         
-        Customer.objects.create(
-            user=user, name=request.data['name'], email=request.data['email'], phone=request.data['phone']
-        ).save()
-        return Response(
-            {
-                'message': 'Registration Successfully!'
-            }, status=status.HTTP_201_CREATED
-        )
         
 class CustomerTokenObtainPairViews(TokenObtainPairView):
     serializer_class = CustomerTokenObtainPariSerializer
+    
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+            return Response({
+                'status': True,
+                'message': 'Login Successfully!',
+                'token': serializer.validated_data
+            }, status=status.HTTP_200_OK)
+        except ValidationError:
+            error_json = {kay: value[0] for kay, value in serializer.errors.items()}
+            return Response({
+                'status': False,
+                'message': 'Login Unsuccessful!',
+                'error': error_json
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except TokenError as e:
+            return Response({
+                'status': False,
+                'message': 'Login Unsuccessful!',
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
     
 #=========================Customer User Creation Views End========================
 from order.models import Order, Address

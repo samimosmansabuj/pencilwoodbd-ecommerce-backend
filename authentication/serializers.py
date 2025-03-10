@@ -31,7 +31,10 @@ class CustomerTokenObtainPariSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         user = self.user
         if user.user_type != 'Customer':
-            raise AuthenticationFailed("Only Customer can login!", code='authorization')
+            raise AuthenticationFailed({
+                    'status': False,
+                    'message': 'Only Customer can login!'
+                }, code='authorization')
         return data
 
 class CustomerRegistrationSerializers(serializers.ModelSerializer):

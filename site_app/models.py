@@ -1,31 +1,8 @@
 from django.db import models
-from django.core.files.storage import default_storage
-
-def image_delete_os(picture):
-    if picture and default_storage.exists(picture.name):
-        default_storage.delete(picture.name)
-        return True
-
-def previous_image_delete_os(old_picture, new_picture):
-    if old_picture and old_picture != new_picture and default_storage.exists(old_picture.name):
-        default_storage.delete(old_picture.name)
-        return True
+from pencilwoodbd.extra_module import image_delete_os, previous_image_delete_os
 
 
-class HomeSlider(models.Model):
-    image = models.ImageField(upload_to='slide_image/', null=True)
-    title = models.CharField(max_length=55)
-    url = models.CharField(max_length=55, blank=True, null=True)
-    button_name = models.CharField(max_length=55, blank=True, null=True)
-    is_active = models.BooleanField(default=True)
-    
-    @property
-    def display_name(self):
-        return "Slider"
-    
-    def __str__(self):
-        return f'{self.title or None} | {self.pk}'
-
+#Fixed One Object Models=============================================
 class SiteContent(models.Model):
     title = models.CharField(max_length=55)
     site_slogan = models.CharField(max_length=500, blank=True, null=True)
@@ -52,11 +29,6 @@ class SiteContent(models.Model):
     def __str__(self):
         return f'{self.title} | {self.pk}'
 
-
-
-
-
-
 class SiteColorSection(models.Model):
     title = models.CharField(max_length=55, blank=True, null=True)
     
@@ -79,7 +51,100 @@ class SiteColorSection(models.Model):
     footer = models.CharField(max_length=55, blank=True, null=True)
     footer_taxt = models.CharField(max_length=55, blank=True, null=True)
     footer_icon = models.CharField(max_length=55, blank=True, null=True)
+    
+    def __str__(self):
+        return f"Default Site Color Section | {self.pk}"
 
+class ContactInformation(models.Model):
+    phone = models.CharField(max_length=14)
+    secondary_phone = models.CharField(max_length=14, blank=True, null=True)
+    whatspp_number = models.CharField(max_length=14, blank=True, null=True)
+    email = models.EmailField(max_length=255)
+    location = models.CharField(max_length=255, blank=True, null=True)
+    
+    def __str__(self):
+        return f"Default Contact Information | {self.pk}"
+
+class RefundPolicy(models.Model):
+    short_description = models.TextField(blank=True, null=True)
+    descriptin = models.TextField(blank=True, null=True)
+    terms_and_conditions = models.TextField(blank=True, null=True)
+    exchange_policy = models.TextField(blank=True, null=True)
+    refund_policy = models.TextField(blank=True, null=True)
+    
+    def __str__(self):
+        return f"Default Refund Policy Object | {self.pk}"
+
+class TermsAndCondition(models.Model):
+    short_description = models.TextField(blank=True, null=True)
+    descriptin = models.TextField(blank=True, null=True)
+    
+    def __str__(self):
+        return f"Default Terms & Condition Object | {self.pk}"
+
+class PrivacyPolicy(models.Model):
+    short_description = models.TextField(blank=True, null=True)
+    descriptin = models.TextField(blank=True, null=True)
+    
+    def __str__(self):
+        return f"Default Privacy Policy Object | {self.pk}"
+
+class AboutUs(models.Model):
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    bg_image = models.ImageField(upload_to='about_us/', blank=True, null=True)
+    
+    def save(self, *args, **kwargs):
+        if self.pk and AboutUs.objects.filter(pk=self.pk).exists():
+            old_instance = AboutUs.objects.get(pk=self.pk)
+            previous_image_delete_os(old_instance.bg_image, self.bg_image)
+        super().save(*args, **kwargs)
+    
+    def delete(self, *args, **kwargs):
+        image_delete_os(self.bg_image)
+        return super().delete( *args, **kwargs)
+    
+    def __str__(self):
+        return f'{self.title or None} | {self.pk}'
+
+
+#Multiple Site Object Models=============================================
+class About_WhyChooseUs(models.Model):
+    title = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True)
+    icon = models.CharField(max_length=10, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    
+    @property
+    def display_name(self):
+        return "Why Choose Us Card"
+    
+    def __str__(self):
+        return f'{self.title} | {self.pk}'
+
+class HomeSlider(models.Model):
+    image = models.ImageField(upload_to='slide_image/', null=True)
+    title = models.CharField(max_length=55)
+    url = models.CharField(max_length=55, blank=True, null=True)
+    button_name = models.CharField(max_length=55, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    
+    @property
+    def display_name(self):
+        return "Slider"
+
+    def save(self, *args, **kwargs):
+        if self.pk and HomeSlider.objects.filter(pk=self.pk).exists():
+            old_instance = HomeSlider.objects.get(pk=self.pk)
+            previous_image_delete_os(old_instance.image, self.image)
+        super().save(*args, **kwargs)
+    
+    def delete(self, *args, **kwargs):
+        image_delete_os(self.image)
+        return super().delete( *args, **kwargs)
+    
+    def __str__(self):
+        return f'{self.title or None} | {self.pk}'
 
 class NewsFeed(models.Model):
     news = models.CharField(max_length=255)
@@ -95,7 +160,6 @@ class NewsFeed(models.Model):
 
 class SocialLink(models.Model):
     name = models.CharField(max_length=55)
-    image = models.ImageField(upload_to='social/', blank=True, null=True)
     icon = models.CharField(max_length=20, blank=True, null=True)
     url = models.CharField(max_length=255, blank=True, null=True)
     is_active = models.BooleanField(default=True)
@@ -118,53 +182,6 @@ class FooterTagLink(models.Model):
     
     def __str__(self):
         return self.name
-
-
-
-class AboutUs(models.Model):
-    title = models.CharField(max_length=255)
-    description = models.TextField(blank=True, null=True)
-    bg_image = models.ImageField(upload_to='about_us/', blank=True, null=True)
-    
-    def __str__(self):
-        return f'{self.title or None} | {self.pk}'
-
-class About_WhyChooseUs(models.Model):
-    title = models.CharField(max_length=100)
-    description = models.TextField(blank=True, null=True)
-    icon = models.CharField(max_length=10, blank=True, null=True)
-    is_active = models.BooleanField(default=True)
-    
-    def __str__(self):
-        return f'{self.title} | {self.pk}'
-
-
-# =================================Contact Information Start===============================
-class ContactInformation(models.Model):
-    phone = models.CharField(max_length=14, blank=True, null=True)
-    secondary_phone = models.CharField(max_length=14, blank=True, null=True)
-    whatspp_number = models.CharField(max_length=14, blank=True, null=True)
-    email = models.EmailField(max_length=255, blank=True, null=True)
-    location = models.CharField(max_length=255, blank=True, null=True)
-# =================================Contact Information Start===============================
-
-# =================================Refund Policy Start===============================
-class RefundPolicy(models.Model):
-    short_description = models.TextField(blank=True, null=True)
-    descriptin = models.TextField(blank=True, null=True)
-    terms_and_conditions = models.TextField(blank=True, null=True)
-    exchange_policy = models.TextField(blank=True, null=True)
-    refund_policy = models.TextField(blank=True, null=True)
-# =================================Refund Policy Start===============================
-
-class TermsAndCondition(models.Model):
-    short_description = models.TextField(blank=True, null=True)
-    descriptin = models.TextField(blank=True, null=True)
-
-class PrivacyPolicy(models.Model):
-    short_description = models.TextField(blank=True, null=True)
-    descriptin = models.TextField(blank=True, null=True)
-
 
 class FAQ_List(models.Model):
     question = models.CharField(max_length=255)

@@ -83,6 +83,8 @@ class Order(models.Model):
     )
     customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, related_name='customer_order', null=True, blank=True)
     order_items = models.ManyToManyField(OrderItem, blank=True, null=True)
+    name = models.CharField(blank=True, null=True, max_length=50)
+    phone_number = models.CharField(blank=True, null=True, max_length=14)
     total_cost = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     payment_type = models.CharField(max_length=50, choices=PAYMENT_TYPE, default='COD')
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS, default='Unpaid')
