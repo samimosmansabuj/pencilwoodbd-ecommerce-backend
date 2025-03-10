@@ -32,10 +32,12 @@ class OrderSerializers(serializers.ModelSerializer):
     upazila = serializers.CharField(required=False)
     district = serializers.CharField(required=False)
     address = AddressSerializers(read_only=True)
+    name = serializers.CharField(required=True)
+    phone_number = serializers.CharField(required=True)
     class Meta:
         model = Order
         fields = [
-            'id', 'customer', 'order_items', 'total_cost', 'payment_type', 'payment_status', 'status', 'tracking_id', 'payment_method', 'address',
+            'id', 'customer', 'order_items', 'total_cost', 'payment_type', 'payment_status', 'status', 'tracking_id', 'payment_method', 'address', 'name', 'phone_number',
             
             'existing_address', 'street', 'upazila', 'district'
         ]

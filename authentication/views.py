@@ -7,7 +7,9 @@ from .models import CustomUser, Customer
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.exceptions import NotAuthenticated, ValidationError
-from rest_framework_simplejwt.exceptions import TokenError
+from order.models import Order, Address
+from order.serializers import OrderListSerializers, AddressSerializers
+# from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 
     
 #========================Admin User Creation Views Start=======================
@@ -64,8 +66,8 @@ class CustomerRegistrationViews(CreateAPIView):
                 'message': 'Somethings Wrong!',
                 'error': str(e)
             })
-        
-        
+
+
 class CustomerTokenObtainPairViews(TokenObtainPairView):
     serializer_class = CustomerTokenObtainPariSerializer
     
@@ -85,18 +87,15 @@ class CustomerTokenObtainPairViews(TokenObtainPairView):
                 'message': 'Login Unsuccessful!',
                 'error': error_json
             }, status=status.HTTP_400_BAD_REQUEST)
-        except TokenError as e:
+        except Exception as e:
             return Response({
                 'status': False,
-                'message': 'Login Unsuccessful!',
+                'message': 'Somethings wrong!',
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
             
     
 #=========================Customer User Creation Views End========================
-from order.models import Order, Address
-from order.serializers import OrderListSerializers, AddressSerializers
-
 class CurrentUserDetails(RetrieveAPIView):
     serializer_class = CurrentUserProfileSerializers
     permission_classes = [permissions.IsAuthenticated]
@@ -113,24 +112,32 @@ class CurrentUserDetails(RetrieveAPIView):
         return super().handle_exception(exc)
     
     def get(self, request, *args, **kwargs):
-        user = self.get_object()
-        customer = user.customer_authentication
-        order = Order.objects.filter(
-            customer=customer
-        )
-        address = Address.objects.filter(
-            customer=customer
-        )
-        customer_data = CustomerProfileSerializers(customer).data
-        order_data = OrderListSerializers(order, many=True).data
-        address_data = AddressSerializers(address, many=True).data
-        serializer = self.get_serializer(user)
-        return Response({
-            'status': True,
-            'data': serializer.data,
-            'profile': customer_data,
-            'user_order': order_data,
-            'user_address': address_data
-        }, status=status.HTTP_200_OK)
+        try:
+            user = self.get_object()
+            customer = user.customer_authentication
+            order = Order.objects.filter(
+                customer=customer
+            )
+            address = Address.objects.filter(
+                customer=customer
+            )
+            customer_data = CustomerProfileSerializers(customer).data
+            order_data = OrderListSerializers(order, many=True).data
+            address_data = AddressSerializers(address, many=True).data
+            serializer = self.get_serializer(user).data
+            return Response({
+                'status': True,
+                'data': serializer,
+                'profile': customer_data,
+                'user_order': order_data,
+                'user_address': address_data
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({
+                'status': False,
+                'message': 'Somethings wrong!',
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
     
 
