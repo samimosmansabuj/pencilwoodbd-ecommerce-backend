@@ -2,18 +2,18 @@
 {% load static %}
 
 {% block title %}
-<title>Product List - PencilwoodBD</title>
+<title>Category List - PencilwoodBD</title>
 {% endblock title %}
 
 {% block body_main %}
 <main id="main" class="main">
 
     <div class="pagetitle">
-        <h1>Produt List</h1>
+        <h1>Category List</h1>
         <nav>
             <ol class="breadcrumb">
                 <li class="breadcrumb-item"><a href="{% url 'index' %}">Home</a></li>
-                <li class="breadcrumb-item active">Product</li>
+                <li class="breadcrumb-item active">Category</li>
             </ol>
         </nav>
     </div><!-- End Page Title -->
@@ -28,56 +28,35 @@
                     <div class="col-12">
                         <div class="card recent-sales overflow-auto">
 
-                            <div class="filter">
-                                <a class="icon" href="#" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></a>
-                                <ul class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
-                                    <li class="dropdown-header text-start">
-                                        <h6>Filter</h6>
-                                    </li>
-
-                                    <li><a class="dropdown-item" href="#">Today</a></li>
-                                    <li><a class="dropdown-item" href="#">This Month</a></li>
-                                    <li><a class="dropdown-item" href="#">This Year</a></li>
-                                </ul>
-                            </div>
 
                             <div class="card-body">
-                                <h5 class="card-title">Recent Sales <span>| Today</span></h5>
-
+                            
                                 <table class="table table-borderless datatable">
                                     <thead>
                                         <tr>
                                             <th scope="col">ID</th>
-                                            <th scope="col">Name</th>
-                                            <th scope="col">Price</th>
-                                            <th scope="col">Discount Price</th>
-                                            <th scope="col">Quantity</th>
+                                            <th scope="col">Title</th>
+                                            <th scope="col">Details</th>
                                             <th scope="col">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {% for product in products %}
+                                        {% for date in categories %}
                                         <tr>
                                             <td>
-                                                <a href="#" class="text-primary">{{product.id}}</a>
+                                                <a href="#" class="text-primary">{{date.id}}</a>
                                             </td>
                                             <td>
-                                                <a href="#" class="text-primary">{{product.name}}</a>
+                                                <a href="#" class="text-primary">{{date.title}}</a>
                                             </td>
                                             <td>
-                                                {{product.current_price}}
+                                                {{date.details}}
                                             </td>
                                             <td>
-                                                {{product.discount_price}}
-                                            </td>
-                                            <td>
-                                                {{product.stock}}
-                                            </td>
-                                            <td>
-                                                <a href="{% url 'update_product' product.pk %}">
+                                                <a href="{% url 'update_category' date.pk %}">
                                                     <span class="badge bg-success">Edit</span>
                                                 </a>
-                                                <a href="{% url 'delete_product' product.pk %}">
+                                                <a href="{% url 'delete_category' date.pk %}">
                                                     <span class="badge bg-warning">Delete</span>
                                                 </a>
                                             </td>
