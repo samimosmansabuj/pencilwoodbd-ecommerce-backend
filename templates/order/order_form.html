@@ -24,7 +24,7 @@
             <ol class="breadcrumb">
                 <li class="breadcrumb-item"><a href="{% url 'index' %}">Home</a></li>
                 <li class="breadcrumb-item"><a href="{% url 'order_list' %}">Order</a></li>
-                
+
                 {% if order %}
                 <li class="breadcrumb-item active">Update Order</li>
                 {% else %}
@@ -38,6 +38,16 @@
         <div class="row">
             <div class="col-lg-12">
 
+                {% for message in messages %}
+                {% if message %}
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="bi bi-check-circle me-1"></i>
+                    {{message}}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endif %}
+                {% endfor %}
+
                 <div class="card">
                     <div class="card-body">
                         {% if order %}
@@ -48,14 +58,16 @@
 
                         <form class="row g-3" method="POST">
                             {% csrf_token %}
-                            
+
                             <div class="col-md-4">
                                 <label for="Customer" class="form-label">Customer</label>
-                                <input type="text" disabled required="false" class="form-control" name="Customer" value="{{order.customer}}">
+                                <input type="text" disabled required="false" class="form-control" name="Customer"
+                                    value="{{order.customer}}">
                             </div>
                             <div class="col-md-4">
                                 <label for="Tracking ID" class="form-label">Tracking ID</label>
-                                <input type="text" disabled required="false" class="form-control" name="Tracking ID" value="{{order.tracking_id}}">
+                                <input type="text" disabled required="false" class="form-control" name="Tracking ID"
+                                    value="{{order.tracking_id}}">
                             </div>
                             <div class="col-md-4">
                                 <label for="Status" class="form-label">Status</label>
@@ -95,7 +107,7 @@
                                 {{form.payment_status}}
                             </div>
 
-                            
+
                             <div class="col-md-4">
                                 <label for="Delivery By" class="form-label">Delivery By</label>
                                 {{form.delivery_by}}

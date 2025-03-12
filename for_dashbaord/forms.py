@@ -20,8 +20,9 @@ class OrderForm(forms.ModelForm):
     class Meta:
         model = Order
         fields = '__all__'
+        exclude = ['customer']
         widgets = {
-            'customer': forms.Select(attrs={'class': 'form-control', 'id': 'Customer'}),
+            # 'customer': forms.Select(attrs={'class': 'form-control', 'id': 'Customer'}),
             'name': forms.TextInput(attrs={'class': 'form-control', 'id': 'Name'}),
             'phone_number': forms.TextInput(attrs={'class': 'form-control', 'id': 'PhoneNumber'}),
             
