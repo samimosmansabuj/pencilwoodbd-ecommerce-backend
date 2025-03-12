@@ -14,7 +14,7 @@ class OrderCreateViews(CreateAPIView):
     
     def get_serializer_context(self):
         return {'request': self.request}
-    
+
     def create(self, request, *args, **kwargs):
         customer = request.user.customer_authentication
         serializer = self.get_serializer(data=request.data)
@@ -121,25 +121,36 @@ class OrderListViews(viewsets.ModelViewSet):
                 'data': serializer.data
             })
     
+    def retrieve(self, request, *args, **kwargs):
+        response = super().retrieve(request, *args, **kwargs)
+        return Response({
+            'status': True,
+            'data': response.data
+        }, status=status.HTTP_200_OK)
     
-    # def update(self, request, *args, **kwargs):
-    #     data = request.data
-    #     address = data['address']
-    #     instance = self.get_object()
-    #     serializer = self.get_serializer(instance, data=request.data, partial=True)
+    
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = request.data.copy()
         
-    #     print(instance.address)
-    #     print(address)
+        cancel = bool(data.pop('cancel', None))
+        instance.name = data.pop('name')[0] if 'name' in data else instance.name
+        instance.phone_number = data.pop('phone_number')[0] if 'phone_number' in data else instance.phone_number
+        if cancel:
+            instance.status = 'Cancel'
+        instance.save()
         
-    #     if serializer.is_valid():
-    #         serializer.save()
-    #         return Response(
-    #             {
-    #                 'message': 'Order Updated Successfully!',
-    #                 'order': request.data
-    #             }, status=status.HTTP_200_OK
-    #         )
-    #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        address = AddressSerializers(instance=instance.address, data=data, partial=True)
+        # address.save(raise_exception=True)
+        if address.is_valid():
+            address.save()
+        
+        return Response({
+            'status': True,
+            'message': 'Order Information Successfully Updated!',
+            'data': self.get_serializer(instance).data
+        }, status=status.HTTP_200_OK)
+        
 
 # ================================Order List, View End================================
 

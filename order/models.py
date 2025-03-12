@@ -74,6 +74,7 @@ class Order(models.Model):
         ('Out for Delivery', 'Out for Delivery'),
         ('Processing', 'Processing'),
         ('Delivered', 'Delivered'),
+        ('Cancel', 'Cancel'),
         ('Return', 'Return'),
     )
     PAYMENT_STATUS = (
