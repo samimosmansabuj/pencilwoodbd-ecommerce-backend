@@ -23,6 +23,12 @@ class ProductSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'slug', 'created_at', 'updated_at']
     
+    def get_product_image(self, obj):
+        request = self.context.get('request')
+        if obj.product_image:
+            return request.build_absolute_uri(obj.product_image.url) if request else obj.product_image.url
+        return None
+    
     def create(self, validated_data):
         images_data = self.context['request'].FILES.getlist('product_image')
         product = Product.objects.create(**validated_data)
