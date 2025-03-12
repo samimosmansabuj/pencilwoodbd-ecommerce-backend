@@ -1,5 +1,50 @@
 from django import forms
 from product.models import Product, Category, ProductImage
+from order.models import Order, Address
+
+class AddressForm(forms.ModelForm):
+    class Meta:
+        model = Address
+        fields = ['street_01', 'street_02', 'upazila', 'post_office', 'post_code', 'district', 'country']
+        widgets = {
+            'street_01': forms.TextInput(attrs={'class': 'form-control', 'id': 'Street01'}),
+            'street_02': forms.TextInput(attrs={'class': 'form-control', 'id': 'Street02'}),
+            'post_office': forms.TextInput(attrs={'class': 'form-control', 'id': 'PostOffice'}),
+            'post_code': forms.TextInput(attrs={'class': 'form-control', 'id': 'PostCode'}),
+            'upazila': forms.TextInput(attrs={'class': 'form-control', 'id': 'Upazila'}),
+            'district': forms.TextInput(attrs={'class': 'form-control', 'id': 'District'}),
+            'country': forms.TextInput(attrs={'class': 'form-control', 'id': 'Country'}),
+        }
+
+class OrderForm(forms.ModelForm):
+    class Meta:
+        model = Order
+        fields = '__all__'
+        widgets = {
+            'customer': forms.Select(attrs={'class': 'form-control', 'id': 'Customer'}),
+            'name': forms.TextInput(attrs={'class': 'form-control', 'id': 'Name'}),
+            'phone_number': forms.TextInput(attrs={'class': 'form-control', 'id': 'PhoneNumber'}),
+            
+            'payment_type': forms.Select(attrs={'class': 'form-control', 'id': 'PaymentType'}),
+            'payment_partial': forms.CheckboxInput(attrs={'id': 'PaymentPartial'}),
+            'payment_status': forms.Select(attrs={'class': 'form-control', 'id': 'PaymentStatus'}),
+            
+            'status': forms.Select(attrs={'class': 'form-control', 'id': 'Status'}),
+            'tracking_id': forms.TextInput(attrs={'class': 'form-control', 'id': 'Tracking ID'}),
+            'delivery_by': forms.TextInput(attrs={'class': 'form-control', 'id': 'Delivery By'}),
+            
+            'total_cost': forms.NumberInput(attrs={'class': 'form-control', 'id': 'TotalCost'}),
+            'shipping_charge': forms.NumberInput(attrs={'class': 'form-control', 'id': 'ShippingCharge'}),
+        }
+    
+    # def __init__(self, *args, **kwargs):
+    #     super().__init__(*args, **kwargs)
+    #     if self.instance and self.instance.customer:
+    #         self.fields['customer'] = forms.CharField(
+    #             initial=self.instance.customer, disabled=True, required=False
+    #         )
+        
+
 
 class CategoryForm(forms.ModelForm):
     class Meta:

@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+<title>
+    {% if order %}
+    Update Order - PencilwoodBD
+    {% else %}
+    Add Order - PencilwoodBD
+    {% endif %}
+</title>
+{% endblock title %}
+
+{% block body_main %}
+<main id="main" class="main">
+
+    <div class="pagetitle">
+        {% if order %}
+        <h1>Update Order</h1>
+        {% else %}
+        <h1>Add Order</h1>
+        {% endif %}
+        <nav>
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'index' %}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'order_list' %}">Order</a></li>
+                
+                {% if order %}
+                <li class="breadcrumb-item active">Update Order</li>
+                {% else %}
+                <li class="breadcrumb-item active">Add Order</li>
+                {% endif %}
+            </ol>
+        </nav>
+    </div><!-- End Page Title -->
+
+    <section class="section">
+        <div class="row">
+            <div class="col-lg-12">
+
+                <div class="card">
+                    <div class="card-body">
+                        {% if order %}
+                        <h5 class="card-title">Update Order Form</h5>
+                        {% else %}
+                        <h5 class="card-title">Add Order Form</h5>
+                        {% endif %}
+
+                        <form class="row g-3" method="POST">
+                            {% csrf_token %}
+                            
+                            <div class="col-md-4">
+                                <label for="Customer" class="form-label">Customer</label>
+                                <input type="text" disabled required="false" class="form-control" name="Customer" value="{{order.customer}}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="Tracking ID" class="form-label">Tracking ID</label>
+                                <input type="text" disabled required="false" class="form-control" name="Tracking ID" value="{{order.tracking_id}}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="Status" class="form-label">Status</label>
+                                {{form.status}}
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="Name" class="form-label">Name</label>
+                                {{form.name}}
+                            </div>
+                            <div class="col-md-4">
+                                <label for="PhoneNumber" class="form-label">Phone Number</label>
+                                {{form.phone_number}}
+                            </div>
+                            <div class="col-md-4">
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="TotalCost" class="form-label">Total Cost</label>
+                                {{form.total_cost}}
+                            </div>
+                            <div class="col-md-4">
+                                <label for="ShippingCharge" class="form-label">Shipping Charge</label>
+                                {{form.shipping_charge}}
+                            </div>
+                            <div class="col-md-4">
+                                <label for="PaymentDue" class="form-label">Payment Due</label>
+                                <input type="text" class="form-control">
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="PaymentType" class="form-label">Payment Type</label>
+                                {{form.payment_type}}
+                            </div>
+                            <div class="col-md-4">
+                                <label for="PaymentStatus" class="form-label">Payment Status</label>
+                                {{form.payment_status}}
+                            </div>
+
+                            
+                            <div class="col-md-4">
+                                <label for="Delivery By" class="form-label">Delivery By</label>
+                                {{form.delivery_by}}
+                            </div>
+
+
+                            <hr>
+                            <h5 class="card-title" style="margin: 0px !important; padding: 0px !important;">Address</h5>
+                            <div class="col-md-12">
+                                <label for="Street01" class="form-label">Street 01</label>
+                                {{address_form.street_01}}
+                            </div>
+                            <div class="col-md-6">
+                                <label for="Street02" class="form-label">Street 02</label>
+                                {{address_form.street_02}}
+                            </div>
+                            <div class="col-md-3">
+                                <label for="PostOffice" class="form-label">Post Office</label>
+                                {{address_form.post_office}}
+                            </div>
+                            <div class="col-md-3">
+                                <label for="PostCode" class="form-label">Post Code</label>
+                                {{address_form.post_code}}
+                            </div>
+                            <div class="col-md-4">
+                                <label for="Upazila" class="form-label">Upazila</label>
+                                {{address_form.upazila}}
+                            </div>
+                            <div class="col-md-4">
+                                <label for="District" class="form-label">District</label>
+                                {{address_form.district}}
+                            </div>
+                            <div class="col-md-4">
+                                <label for="Country" class="form-label">Country</label>
+                                {{address_form.country}}
+                            </div>
+                            <hr>
+
+                            <div class="text-center">
+                                <button type="submit" class="btn btn-primary">Submit</button>
+                                <a href="{% url 'order_list' %}" class="btn btn-secondary">Cancel</a>
+                            </div>
+                        </form>
+
+                    </div>
+                </div>
+
+
+            </div>
+        </div>
+
+    </section>
+
+</main><!-- End #main -->
+{% endblock body_main %}
