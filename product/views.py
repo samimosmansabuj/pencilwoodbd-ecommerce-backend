@@ -134,12 +134,12 @@ class ProductViewset(viewsets.ModelViewSet):
         
         # related products from the same category
         related_products_data = ProductSerializer(
-            Product.objects.filter(category=product.category).exclude(id=product.id)[:5], many=True
+            Product.objects.filter(category=product.category).exclude(id=product.id)[:5], many=True, context={'request': request}
         ).data
         
         # best-selling products (sorted by sales_count)
         best_selling_products_data = ProductSerializer(
-            Product.objects.annotate(sales=Count('product_orderitem')).order_by('-sales')[:5], many=True
+            Product.objects.annotate(sales=Count('product_orderitem')).order_by('-sales')[:5], many=True,  context={'request': request}
         ).data
         
         return Response({
@@ -171,7 +171,7 @@ class ProductViewset(viewsets.ModelViewSet):
             {
                 'status': True,
                 'message': 'Product Successfully Created',
-                'product': ProductSerializer(product).data,
+                'product': ProductSerializer(product, context={'request': request}).data,
             }, status=status.HTTP_201_CREATED
         )
     
