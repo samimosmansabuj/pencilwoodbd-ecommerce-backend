@@ -14,5 +14,10 @@ urlpatterns = [
     path('category/update/<int:pk>/', CategoryUpdateView.as_view(), name='update_category'),
     path('category/delete/<int:pk>/', CategoryDeleteView.as_view(), name='delete_category'),
     
+    path('order/list/', OrdertListView.as_view(), name='order_list'),
+    # path('order/add/', OrderCreateView.as_view(), name='add_order'),
+    path('order/update/<int:pk>/', OrderUpdateView.as_view(), name='update_order'),
+    path('order/delete/<int:pk>/', OrderDeleteView.as_view(), name='delete_order'),
+    
     path('login/', login, name='login')
 ]

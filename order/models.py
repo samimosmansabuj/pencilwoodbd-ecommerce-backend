@@ -85,6 +85,7 @@ class Order(models.Model):
     order_items = models.ManyToManyField(OrderItem, blank=True, null=True)
     name = models.CharField(blank=True, null=True, max_length=50)
     phone_number = models.CharField(blank=True, null=True, max_length=14)
+    shipping_charge = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     total_cost = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     payment_type = models.CharField(max_length=50, choices=PAYMENT_TYPE, default='COD')
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS, default='Unpaid')
