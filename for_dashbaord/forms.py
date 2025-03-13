@@ -1,6 +1,26 @@
 from django import forms
 from product.models import Product, Category, ProductImage
 from order.models import Order, Address
+from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth import authenticate
+
+            
+class AdminAuthenticationForm(AuthenticationForm):
+    username = forms.EmailField(widget=forms.EmailInput(attrs={'class': 'form-control', 'id': 'EmailInput'}))
+    password = forms.CharField(widget=forms.PasswordInput(attrs={'class': 'form-control', 'id': 'PasswordInput'}))
+    
+    def clean(self):
+        email = self.cleaned_data.get('username')
+        password = self.cleaned_data.get('password')
+        if email and password:
+            self.user_cache = authenticate(email=email, password=password)
+            if self.user_cache is None:
+                raise forms.ValidationError("Invalid Email or Password!")
+            else:
+                self.confirm_login_allowed(self.user_cache)
+        return self.cleaned_data
+
+    
 
 class AddressForm(forms.ModelForm):
     class Meta:
