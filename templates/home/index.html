@@ -164,19 +164,21 @@
                                         <tr>
                                             <th scope="col">#</th>
                                             <th scope="col">Customer</th>
-                                            <th scope="col">Product</th>
+                                            <th scope="col">Status</th>
                                             <th scope="col">Price</th>
                                             <th scope="col">Status</th>
                                         </tr>
                                     </thead>
                                     <tbody>
+                                        {% for order in order %}
                                         <tr>
-                                            <th scope="row"><a href="#">#2457</a></th>
-                                            <td>Brandon Jacob</td>
-                                            <td><a href="#" class="text-primary">At praesentium minu</a></td>
-                                            <td>$64</td>
+                                            <th scope="row"><a>{{order.tracking_id}}</a></th>
+                                            <td>{{order.name}}</td>
+                                            <td><a class="text-primary">{{order.status}}</a></td>
+                                            <td>{{order.total_cost}} BDT</td>
                                             <td><span class="badge bg-success">Approved</span></td>
                                         </tr>
+                                        {% endfor %}
                                     </tbody>
                                 </table>
 
@@ -212,21 +214,17 @@
 
                         <div class="activity">
 
+                            {% for recent_activitie in recent_activities %}
                             <div class="activity-item d-flex">
-                                <div class="activite-label">32 min</div>
+                                <!-- <div class="activite-label">32 min</div> -->
+                                <div class="activite-label">{{recent_activitie.action_time.time}}</div>
                                 <i class='bi bi-circle-fill activity-badge text-success align-self-start'></i>
                                 <div class="activity-content">
-                                    Quia quae rerum <a href="#" class="fw-bold text-dark">explicabo officiis</a> beatae
+                                    <!-- Quia quae rerum <a href="#" class="fw-bold text-dark">explicabo officiis</a> beatae -->
+                                     {{recent_activitie}}
                                 </div>
                             </div><!-- End activity item-->
-
-                            <div class="activity-item d-flex">
-                                <div class="activite-label">56 min</div>
-                                <i class='bi bi-circle-fill activity-badge text-danger align-self-start'></i>
-                                <div class="activity-content">
-                                    Voluptatem blanditiis blanditiis eveniet
-                                </div>
-                            </div><!-- End activity item-->
+                            {% endfor %}
 
                         </div>
 
