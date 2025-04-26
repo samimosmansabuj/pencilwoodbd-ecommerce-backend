@@ -93,8 +93,8 @@ class CustomerTokenObtainPairViews(TokenObtainPairView):
                 'message': 'Somethings wrong!',
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
-            
-    
+   
+
 #=========================Customer User Creation Views End========================
 class CurrentUserDetails(RetrieveAPIView):
     serializer_class = CurrentUserProfileSerializers
@@ -138,6 +138,6 @@ class CurrentUserDetails(RetrieveAPIView):
                 'message': 'Somethings wrong!',
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
-            
-    
+     
+
 

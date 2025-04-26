@@ -13,10 +13,17 @@ def generate_unique_slug(model_object, field_value):
     return unique_slug
 
 class Category(models.Model):
+    STATUS = (
+        ('Active', 'Active'),
+        ('Deactive', 'Deactive'),
+        ('Draft', 'Draft'),
+        ('Trash', 'Trash'),
+    )
     title = models.CharField(max_length=100)
     image = models.ImageField(upload_to='category/', blank=True, null=True)
     details = models.TextField(blank=True, null=True)
     slug = models.SlugField(unique=True, blank=True, null=True)
+    status = models.CharField(max_length=25, choices=STATUS, default='Draft')
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -37,6 +44,12 @@ class Category(models.Model):
 
 
 class Product(models.Model):
+    STATUS = (
+        ('Active', 'Active'),
+        ('Deactive', 'Deactive'),
+        ('Draft', 'Draft'),
+        ('Trash', 'Trash'),
+    )
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, related_name='product_category', null=True, blank=True)
     name = models.CharField(max_length=255)
     slug = models.SlugField(unique=True, blank=True, null=True)
@@ -46,6 +59,7 @@ class Product(models.Model):
     stock = models.IntegerField(blank=True, null=True, default=0)
     current_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     discount_price = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    status = models.CharField(max_length=25, choices=STATUS, default='Draft')
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
