@@ -10,6 +10,7 @@ urlpatterns = [
     path('product/', include('product.urls')),
     path('order/', include('order.urls')),
     path('site/', include('site_app.urls')),
+    path('marketing/', include('marketing.urls')),
     
     path('', include('for_dashbaord.urls')),
 ]
