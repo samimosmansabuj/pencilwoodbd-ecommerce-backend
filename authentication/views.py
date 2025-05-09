@@ -9,6 +9,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.exceptions import NotAuthenticated, ValidationError
 from order.models import Order, Address
 from order.serializers import OrderListSerializers, AddressSerializers
+from .utils import CustomTokenObtainPairView
 # from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 
     
@@ -17,7 +18,8 @@ class AdminCreationViews(CreateAPIView):
     serializer_class = AdminCreationSerializers
     permission_classes = [permissions.AllowAny]
 
-class AdminTokenObtainPairViews(TokenObtainPairView):
+# class AdminTokenObtainPairViews(TokenObtainPairView):
+class AdminTokenObtainPairViews(CustomTokenObtainPairView):
     serializer_class = AdminTokenObtainPariSerializer
 
 #=========================Admin User Creation Views End========================
