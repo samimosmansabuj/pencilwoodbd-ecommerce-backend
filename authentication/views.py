@@ -1,4 +1,4 @@
-from .serializers import AdminCreationSerializers, UserListSerializers, CustomerRegistrationSerializers, CustomerTokenObtainPariSerializer, AdminTokenObtainPariSerializer, CurrentUserProfileSerializers, CustomerProfileSerializers
+from .serializers import AdminCreationSerializers, UserListSerializers, CustomerRegistrationSerializers, CustomerTokenObtainPariSerializer, AdminTokenObtainPariSerializer, CurrentUserProfileSerializers, CustomerProfileSerializers, CustomLogoutSerializer
 from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.views import APIView
 from rest_framework import permissions
@@ -6,7 +6,8 @@ from rest_framework.response import Response
 from .models import CustomUser, Customer
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework.exceptions import NotAuthenticated, ValidationError
+from rest_framework.exceptions import NotAuthenticated, ValidationError, AuthenticationFailed
+from rest_framework.permissions import IsAuthenticated
 from order.models import Order, Address
 from order.serializers import OrderListSerializers, AddressSerializers
 from .utils import CustomTokenObtainPairView
@@ -89,13 +90,51 @@ class CustomerTokenObtainPairViews(TokenObtainPairView):
                 'message': 'Login Unsuccessful!',
                 'error': error_json
             }, status=status.HTTP_400_BAD_REQUEST)
+        except AuthenticationFailed as e:
+            return Response(
+                {
+                    'status': False,
+                    'message': 'Authentication Field!',
+                    'error': str(e)
+                }, status=status.HTTP_401_UNAUTHORIZED
+            )
         except Exception as e:
             return Response({
                 'status': False,
                 'message': 'Somethings wrong!',
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
-   
+
+class CustomLogoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    def post(self, request):
+        try:
+            serializer = CustomLogoutSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(
+                {
+                    'status': True,
+                    'message': 'Logout Successful!',
+                }, status=status.HTTP_205_RESET_CONTENT
+            )
+        except ValidationError:
+            error = {key: str(value[0]) for key, value in serializer.errors.items()}
+            return Response(
+                {
+                    'status': False,
+                    'message': 'Logout Failed!',
+                    'error': error
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {
+                    'status': False,
+                    'message': 'Something Wrong!',
+                    'error': str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 #=========================Customer User Creation Views End========================
 class CurrentUserDetails(RetrieveAPIView):
