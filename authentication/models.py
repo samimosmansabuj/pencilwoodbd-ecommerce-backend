@@ -1,16 +1,11 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from pencilwoodbd.choices import USER_TYPE
 
 class CustomUser(AbstractUser):
-    USER_TYPE = (
-        ('Admin', 'Admin'),
-        ('Super Admin', 'Super Admin'),
-        ('Customer', 'Customer'),
-        ('Staff', 'Staff'),
-    )
     email = models.EmailField(unique=True)
-    user_type = models.CharField(max_length=20, choices=USER_TYPE)
-    created_at = models.DateTimeField(auto_now_add=True, editable=False)
+    user_type = models.CharField(max_length=20, choices=USER_TYPE.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     USERNAME_FIELD = 'email'
@@ -21,7 +16,7 @@ class CustomUser(AbstractUser):
 
 
 class Customer(models.Model):
-    user = models.OneToOneField(CustomUser, on_delete=models.SET_NULL, blank=True, null=True, related_name='customer_authentication')
+    user = models.OneToOneField(CustomUser, on_delete=models.SET_NULL, blank=True, null=True, related_name='customer_profile')
     name = models.CharField(max_length=50)
     phone = models.CharField(max_length=20)
     email = models.EmailField(max_length=200)

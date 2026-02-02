@@ -1,0 +1,342 @@
+{% load static %}
+<div class="main-content">
+
+    <!--breadcrumb-->
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a>
+                    </li>
+                    <li class="breadcrumb-item active" aria-current="page">Dashboard</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+    <!--end breadcrumb-->
+
+
+    <div class="row">
+        <div class="col-12 col-lg-6 col-xxl-6 d-flex">
+            <div class="card w-100 rounded-4">
+                <div class="card-body">
+                    <div class="d-flex align-items-start justify-content-between mb-3">
+                        <div class="">
+                            <h5 class="mb-0">Sales & Views</h5>
+                        </div>
+                    </div>
+                    <!-- <div id="chart5"></div> -->
+                    <div
+                        class="d-flex flex-column flex-lg-row align-items-start justify-content-around border p-3 rounded-4 mt-3 gap-3">
+                        <div class="d-flex align-items-center gap-4">
+                            <div class="">
+                                <p class="mb-0 data-attributes">
+                                    <span
+                                        data-peity='{ "fill": ["#2196f3", "rgb(255 255 255 / 12%)"], "innerRadius": 32, "radius": 40 }'>5/7</span>
+                                </p>
+                            </div>
+                            <div class="">
+                                <p class="mb-1 fs-6 fw-bold">Monthly</p>
+                                <h2 class="mb-0">65,127</h2>
+                                <p class="mb-0"><span class="text-success me-2 fw-medium">16.5%</span><span>55.21
+                                        USD</span></p>
+                            </div>
+                        </div>
+                        <div class="vr"></div>
+                        <div class="d-flex align-items-center gap-4">
+                            <div class="">
+                                <p class="mb-0 data-attributes">
+                                    <span
+                                        data-peity='{ "fill": ["#ffd200", "rgb(255 255 255 / 12%)"], "innerRadius": 32, "radius": 40 }'>5/7</span>
+                                </p>
+                            </div>
+                            <div class="">
+                                <p class="mb-1 fs-6 fw-bold">Yearly</p>
+                                <h2 class="mb-0">984,246</h2>
+                                <p class="mb-0"><span class="text-success me-2 fw-medium">24.9%</span><span>267.35
+                                        USD</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-6 col-xxl-2 d-flex">
+            <div class="card rounded-4 w-100">
+                <div class="card-body">
+                    <div class="mb-3 d-flex align-items-center justify-content-between">
+                        <div
+                            class="wh-42 d-flex align-items-center justify-content-center rounded-circle bg-primary bg-opacity-10 text-primary">
+                            <span class="material-icons-outlined fs-5">shopping_cart</span>
+                        </div>
+                        <div>
+                            <span class="text-success d-flex align-items-center">+24%<i
+                                    class="material-icons-outlined">expand_less</i></span>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="mb-0">248k</h4>
+                        <p class="mb-3">Total Orders</p>
+                        <div id="chart1"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-6 col-xxl-2 d-flex">
+            <div class="card rounded-4 w-100">
+                <div class="card-body">
+                    <div class="mb-3 d-flex align-items-center justify-content-between">
+                        <div
+                            class="wh-42 d-flex align-items-center justify-content-center rounded-circle bg-success bg-opacity-10 text-success">
+                            <span class="material-icons-outlined fs-5">attach_money</span>
+                        </div>
+                        <div>
+                            <span class="text-success d-flex align-items-center">+14%<i
+                                    class="material-icons-outlined">expand_less</i></span>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="mb-0">$47.6k</h4>
+                        <p class="mb-3">Total Sales</p>
+                        <div id="chart2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-6 col-xxl-2 d-flex">
+            <div class="card rounded-4 w-100">
+                <div class="card-body">
+                    <div class="mb-3 d-flex align-items-center justify-content-between">
+                        <div
+                            class="wh-42 d-flex align-items-center justify-content-center rounded-circle bg-info bg-opacity-10 text-info">
+                            <span class="material-icons-outlined fs-5">visibility</span>
+                        </div>
+                        <div>
+                            <span class="text-danger d-flex align-items-center">-35%<i
+                                    class="material-icons-outlined">expand_less</i></span>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="mb-0">189K</h4>
+                        <p class="mb-3">Total Visits</p>
+                        <div id="chart3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div><!--end row-->
+
+
+
+
+
+
+    <div class="row">
+        <div class="col-12 col-xxl-12 d-flex">
+            <div class="card rounded-4 w-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-start justify-content-between mb-3">
+                        <div class="">
+                            <h5 class="mb-0">Transactions</h5>
+                        </div>
+                        <div class="dropdown">
+                            <a href="javascript:;" class="dropdown-toggle-nocaret options dropdown-toggle"
+                                data-bs-toggle="dropdown">
+                                <span class="material-icons-outlined fs-5">more_vert</span>
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="javascript:;">Action</a></li>
+                                <li><a class="dropdown-item" href="javascript:;">Another action</a></li>
+                                <li><a class="dropdown-item" href="javascript:;">Something else here</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0 table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Source Name</th>
+                                    <th>Status</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <div class="">
+                                            <h6 class="mb-0">10 Sep,2024</h6>
+                                            <p class="mb-0">8:20 PM</p>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center flex-row gap-3">
+                                            <div class="">
+                                                <img src="{% static 'dashboard_assets/images/apps/paypal.png' %}"
+                                                    width="35" alt="">
+                                            </div>
+                                            <div class="">
+                                                <h6 class="mb-0">Paypal</h6>
+                                                <p class="mb-0">Business Plan</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="card-lable bg-success text-success bg-opacity-10">
+                                            <p class="text-success mb-0">Paid</p>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <h5 class="mb-0">$5897</h5>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="">
+                                            <h6 class="mb-0">10 Sep,2024</h6>
+                                            <p class="mb-0">8:20 PM</p>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center flex-row gap-3">
+                                            <div class="">
+                                                <img src="{% static 'dashboard_assets/images/apps/13.png' %}" width="35"
+                                                    alt="">
+                                            </div>
+                                            <div class="">
+                                                <h6 class="mb-0">Visa</h6>
+                                                <p class="mb-0">Business Plan</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="card-lable bg-danger text-danger bg-opacity-10">
+                                            <p class="text-danger mb-0">Unpaid</p>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <h5 class="mb-0">$9638</h5>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="">
+                                            <h6 class="mb-0">10 Sep,2024</h6>
+                                            <p class="mb-0">8:20 PM</p>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center flex-row gap-3">
+                                            <div class="">
+                                                <img src="{% static 'dashboard_assets/images/apps/behance.png' %}"
+                                                    width="35" alt="">
+                                            </div>
+                                            <div class="">
+                                                <h6 class="mb-0">Behance</h6>
+                                                <p class="mb-0">Business Plan</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="card-lable bg-success text-success bg-opacity-10">
+                                            <p class="text-success mb-0">Paid</p>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <h5 class="mb-0">$9638</h5>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="">
+                                            <h6 class="mb-0">10 Sep,2024</h6>
+                                            <p class="mb-0">8:20 PM</p>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center flex-row gap-3">
+                                            <div class="">
+                                                <img src="{% static 'dashboard_assets/images/apps/07.png' %}" width="35"
+                                                    alt="">
+                                            </div>
+                                            <div class="">
+                                                <h6 class="mb-0">Spotify</h6>
+                                                <p class="mb-0">Business Plan</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="card-lable bg-success text-success bg-opacity-10">
+                                            <p class="text-success mb-0">Paid</p>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <h5 class="mb-0">$9638</h5>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="">
+                                            <h6 class="mb-0">10 Sep,2024</h6>
+                                            <p class="mb-0">8:20 PM</p>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center flex-row gap-3">
+                                            <div class="">
+                                                <img src="{% static 'dashboard_assets/images/apps/05.png' %}" width="35"
+                                                    alt="">
+                                            </div>
+                                            <div class="">
+                                                <h6 class="mb-0">Google</h6>
+                                                <p class="mb-0">Business Plan</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="card-lable bg-danger text-danger bg-opacity-10">
+                                            <p class="text-danger mb-0">Unpaid</p>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <h5 class="mb-0">$9638</h5>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="">
+                                            <h6 class="mb-0">10 Sep,2024</h6>
+                                            <p class="mb-0">8:20 PM</p>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center flex-row gap-3">
+                                            <div class="">
+                                                <img src="{% static 'dashboard_assets/images/apps/apple.png' %}"
+                                                    width="35" alt="">
+                                            </div>
+                                            <div class="">
+                                                <h6 class="mb-0">Apple</h6>
+                                                <p class="mb-0">Business Plan</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="card-lable bg-success text-success bg-opacity-10">
+                                            <p class="text-success mb-0">Paid</p>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <h5 class="mb-0">$9638</h5>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div><!--end row-->
+
+</div>

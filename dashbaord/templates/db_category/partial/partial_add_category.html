@@ -1,0 +1,106 @@
+<div class="main-content">
+    <!--breadcrumb-->
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a>
+                    </li>
+                    <li class="breadcrumb-item active" aria-current="page">Add Category</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+    <!--end breadcrumb-->
+    <div class="row">
+        <div class="col-12 col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <div class="mb-4">
+                        <h5 class="mb-3">Product Title</h5>
+                        <input type="text" class="form-control" placeholder="write title here....">
+                    </div>
+                    <div class="mb-4">
+                        <h5 class="mb-3">Product Description</h5>
+                        <textarea class="form-control" cols="4" rows="6"
+                            placeholder="write a description here.."></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <h5 class="mb-3">Display images</h5>
+                        <input id="fancy-file-upload" type="file" name="files"
+                            accept=".jpg, .png, image/jpeg, image/png" multiple>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-4">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3">
+                        <button type="button" class="btn btn-outline-danger flex-fill"><i
+                                class="bi bi-x-circle me-2"></i>Discard</button>
+                        <button type="button" class="btn btn-outline-success flex-fill"><i
+                                class="bi bi-cloud-download me-2"></i>Save Draft</button>
+                        <button type="button" class="btn btn-outline-primary flex-fill"><i
+                                class="bi bi-send me-2"></i>Publish</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="mb-3">Organize</h5>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label for="AddCategory" class="form-label">Category</label>
+                            <select class="form-select" id="AddCategory">
+                                <option value="0">Primary</option>
+                                <option value="1">Sub-Category</option>
+                                <option value="2">Sub Sub-Category</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label for="AddCategory" class="form-label">Sub Category</label>
+                            <select class="form-select" id="AddCategory">
+                                <option value="0">Primary</option>
+                                <option value="1">Sub-Category</option>
+                                <option value="2">Sub Sub-Category</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label for="AddCategory" class="form-label">Sub Sub-Category</label>
+                            <select class="form-select" id="AddCategory">
+                                <option value="0">Primary</option>
+                                <option value="1">Sub-Category</option>
+                                <option value="2">Sub Sub-Category</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label for="Tags" class="form-label">Tags</label>
+                            <input type="text" class="form-control" id="Tags" placeholder="Tags">
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex align-items-center gap-2">
+                                <a href="javascript:;" class="btn btn-sm btn-light border shadow-sm">Woman <i
+                                        class="bi bi-x"></i></a>
+                                <a href="javascript:;" class="btn btn-sm btn-light border shadow-sm">Fashion <i
+                                        class="bi bi-x"></i></a>
+                                <a href="javascript:;" class="btn btn-sm btn-light border shadow-sm">Furniture <i
+                                        class="bi bi-x"></i></a>
+                            </div>
+                        </div>
+                    </div><!--end row-->
+                </div>
+            </div>
+        </div>
+    </div><!--end row-->
+</div>
+
+<script>
+    $('#fancy-file-upload').FancyFileUpload({
+        params: {
+            action: 'fileuploader'
+        },
+        maxfilesize: 1000000
+    });
+</script>

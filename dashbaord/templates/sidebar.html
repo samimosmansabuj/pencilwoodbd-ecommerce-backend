@@ -1,0 +1,249 @@
+{% load static %}
+<aside class="sidebar-wrapper" data-simplebar="true">
+    <div class="sidebar-header">
+        <div class="logo-icon">
+            <a href="{% url 'dashboard' %}">
+                <img src="{% static 'dashboard_assets/images/logo-icon.png' %}" class="logo-img" alt="">
+            </a>
+        </div>
+        <div class="logo-name flex-grow-1">
+            <a href="{% url 'dashboard' %}">
+                <h5 class="mb-0">Demo</h5>
+                <!-- <h5 class="mb-0">PencilwoodBD</h5> -->
+            </a>
+        </div>
+        <div class="sidebar-close">
+            <span class="material-icons-outlined">close</span>
+        </div>
+    </div>
+    <div class="sidebar-nav">
+        <!--navigation-->
+        <ul class="metismenu" id="sidenav">
+            <li>
+                <a href="{% url 'dashboard' %}">
+                    <div class="parent-icon"><i class="material-icons-outlined">home</i>
+                    </div>
+                    <div class="menu-title">Dashboard</div>
+                </a>
+            </li>
+
+            <li class="menu-label">Catalog</li>
+            <!-- Product Section------- -->
+            <li>
+                <a href="javascript:;" class="has-arrow">
+                    <div class="parent-icon"><i class="material-icons-outlined">shopping_bag</i>
+                    </div>
+                    <div class="menu-title">Product</div>
+                </a>
+                <ul>
+                    <li>
+                        <a href="{% url 'product_list' %}">
+                            <i class="material-icons-outlined">arrow_right</i>Products
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{% url 'product_add' %}">
+                            <i class="material-icons-outlined">arrow_right</i>Add Product
+                        </a>
+                    </li>
+                    <!-- <li>
+                        <a href="{% url 'product_add' %}">
+                            <i class="material-icons-outlined">arrow_right</i>Media Center
+                        </a>
+                    </li> -->
+                </ul>
+            </li>
+            <!-- Category Section------- -->
+            <li>
+                <a href="javascript:;" class="has-arrow">
+                    <div class="parent-icon"><i class="material-icons-outlined">shopping_bag</i>
+                    </div>
+                    <div class="menu-title">Category</div>
+                </a>
+                <ul>
+                    <li>
+                        <a href="{% url 'category_list' %}"><i
+                                class="material-icons-outlined">arrow_right</i>Category</a>
+                    </li>
+                    <li>
+                        <a href="{% url 'category_add' %}"><i class="material-icons-outlined">arrow_right</i>Add Category</a>
+                    </li>
+                </ul>
+            </li>
+            <!-- Order Section------- -->
+            <li>
+                <a class="has-arrow" href="javascript:;">
+                    <div class="parent-icon"><i class="material-icons-outlined">card_giftcard</i>
+                    </div>
+                    <div class="menu-title">Order</div>
+                </a>
+                <ul>
+                    <li>
+                        <a href="{% url 'order_list' %}" ><i
+                                class="material-icons-outlined">arrow_right</i>Order</a>
+                    </li>
+                    <li>
+                        <a href="{% url 'order_list' %}"><i class="material-icons-outlined">arrow_right</i>Return Order</a>
+                    </li>
+                    <li>
+                        <a href="{% url 'order_list' %}"><i
+                                class="material-icons-outlined">arrow_right</i>Reviews</a>
+                    </li>
+                    <li>
+                        <a href="{% url 'order_list' %}"><i
+                                class="material-icons-outlined">arrow_right</i>Create Order</a>
+                    </li>
+                </ul>
+            </li>
+
+
+            <!-- <li class="menu-label">Store & Marketing</li>
+            <li>
+                <a class="has-arrow" href="javascript:;">
+                    <div class="parent-icon"><i class="material-icons-outlined">view_agenda</i>
+                    </div>
+                    <div class="menu-title">Marketing Center</div>
+                </a>
+                <ul>
+                    <li><a><i class="material-icons-outlined">arrow_right</i>Campaign</a>
+                    </li>
+                    <li><a><i class="material-icons-outlined">arrow_right</i>Promotions</a>
+                    </li>
+                    <li><a><i class="material-icons-outlined">arrow_right</i>Coupon</a>
+                    </li>
+                </ul>
+            </li>
+            <li>
+                <a class="has-arrow" href="javascript:;">
+                    <div class="parent-icon"><i class="material-icons-outlined">api</i>
+                    </div>
+                    <div class="menu-title">API Setup</div>
+                </a>
+                <ul>
+                    <li><a href="table-basic-table.html"><i class="material-icons-outlined">arrow_right</i>Facebook</a>
+                    </li>
+                    <li><a href="table-datatable.html"><i class="material-icons-outlined">arrow_right</i>Google</a>
+                    </li>
+                    <li><a href="table.html"><i class="material-icons-outlined">arrow_right</i>Logistic</a>
+                    </li>
+                </ul>
+            </li>
+            <li>
+                <a class="has-arrow" href="javascript:;">
+                    <div class="parent-icon"><i class="material-icons-outlined">view_agenda</i>
+                    </div>
+                    <div class="menu-title">Store</div>
+                </a>
+                <ul>
+                    <li><a><i class="material-icons-outlined">arrow_right</i>Store Decoration</a>
+                    </li>
+                    <li><a><i class="material-icons-outlined">arrow_right</i>Store Settings</a>
+                    </li>
+                </ul>
+            </li>
+
+
+            <li class="menu-label">Sales</li>
+            <li>
+                <a class="has-arrow" href="javascript:;">
+                    <div class="parent-icon"><i class="material-icons-outlined">view_agenda</i>
+                    </div>
+                    <div class="menu-title">Sales & Analysis</div>
+                </a>
+                <ul>
+                    <li><a><i class="material-icons-outlined">arrow_right</i>Sales</a>
+                    </li>
+                    <li><a><i class="material-icons-outlined">arrow_right</i>Expense</a>
+                    </li>
+                </ul>
+            </li>
+
+            <li class="menu-label">User</li>
+            <li>
+                <a class="has-arrow" href="javascript:;">
+                    <div class="parent-icon"><i class="material-icons-outlined">view_agenda</i>
+                    </div>
+                    <div class="menu-title">Customer</div>
+                </a>
+                <ul>
+                    <li><a><i class="material-icons-outlined">arrow_right</i>Customers</a>
+                    </li>
+                    <li><a><i class="material-icons-outlined">arrow_right</i>Add Customer</a>
+                    </li>
+                </ul>
+            </li>
+            <li>
+                <a class="has-arrow" href="javascript:;">
+                    <div class="parent-icon"><i class="material-icons-outlined">view_agenda</i>
+                    </div>
+                    <div class="menu-title">Management</div>
+                </a>
+                <ul>
+                    <li><a class="has-arrow" href="javascript:;"><i
+                                class="material-icons-outlined">arrow_right</i>Staff</a>
+                        <ul>
+                            <li>
+                                <a href="javascript:;"><i class="material-icons-outlined">arrow_right</i>Staffs</a>
+                            </li>
+                            <li>
+                                <a href="javascript:;"><i class="material-icons-outlined">arrow_right</i>Create
+                                    Staff</a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li><a class="has-arrow" href="javascript:;"><i
+                                class="material-icons-outlined">arrow_right</i>Admin</a>
+                        <ul>
+                            <li>
+                                <a href="javascript:;"><i class="material-icons-outlined">arrow_right</i>Staffs</a>
+                            </li>
+                            <li>
+                                <a href="javascript:;"><i class="material-icons-outlined">arrow_right</i>Create
+                                    Staff</a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li><a class="has-arrow" href="javascript:;"><i
+                                class="material-icons-outlined">arrow_right</i>Administrator</a>
+                        <ul>
+                            <li>
+                                <a href="javascript:;"><i class="material-icons-outlined">arrow_right</i>Staffs</a>
+                            </li>
+                            <li>
+                                <a href="javascript:;"><i class="material-icons-outlined">arrow_right</i>Create
+                                    Staff</a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </li>
+
+
+            <li class="menu-label">Others</li>
+            <li>
+                <a class="has-arrow" href="javascript:;">
+                    <div class="parent-icon"><i class="material-icons-outlined">face_5</i>
+                    </div>
+                    <div class="menu-title">Menu Levels</div>
+                </a>
+                <ul>
+                    <li><a class="has-arrow" href="javascript:;"><i class="material-icons-outlined">arrow_right</i>Level
+                            One</a>
+                        <ul>
+                            <li><a class="has-arrow" href="javascript:;"><i
+                                        class="material-icons-outlined">arrow_right</i>Level
+                                    Two</a>
+                                <ul>
+                                    <li><a href="javascript:;"><i class="material-icons-outlined">arrow_right</i>Level
+                                            Three</a>
+                                    </li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </li> -->
+        </ul>
+        <!--end navigation-->
+    </div>
+</aside>

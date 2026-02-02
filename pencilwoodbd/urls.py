@@ -7,12 +7,12 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('authentication.urls')),
     path('', include('live_chat.urls')),
-    path('product/', include('product.urls')),
-    path('order/', include('order.urls')),
+    path('', include('product.urls')),
+    path('', include('order.urls')),
     path('site/', include('site_app.urls')),
-    path('marketing/', include('marketing.urls')),
+    path('', include('marketing.urls')),
     
-    path('', include('for_dashbaord.urls')),
+    path('', include('dashbaord.urls')),
 ]
 
 if settings.DEBUG:

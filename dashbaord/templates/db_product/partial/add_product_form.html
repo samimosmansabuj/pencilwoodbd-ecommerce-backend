@@ -1,0 +1,167 @@
+<form method="post" enctype="multipart/form-data">
+    <div class="row">
+        <div class="col-12 col-lg-8">
+
+            <!-- Product Details -->
+            <div class="card">
+                <div class="card-body">
+                    <!-- Product Title  -->
+                    <div class="mb-4">
+                        <h5 class="mb-3">Product Title</h5>
+                        <input type="text" class="form-control" placeholder="write title here...." name="name">
+                    </div>
+
+                    <!-- Product Highlights -->
+                    <div class="mb-4">
+                        <h5 class="mb-3">Product Highlights</h5>
+                        <textarea class="form-control" cols="4" rows="6"
+                            placeholder="write a short description here.." name="short_description"></textarea>
+                    </div>
+                    <!-- Product Full Description -->
+                    <div class="mb-4">
+                        <h5 class="mb-3">Product Full Description</h5>
+                        <div id="quill-editor" style="height: 300px;"></div>
+                        <textarea id="full-description" class="form-control" cols="4" rows="10" placeholder="write a description here.." style="display:none;" name="details"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Images -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="mb-4">
+                        <h5 class="mb-3">Display images</h5>
+                        <input id="fancy-file-upload" type="file" name="files" accept=".jpg, .png, image/jpeg, image/png" multiple>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inventory -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="mb-4">
+                        <h5 class="mb-3">Inventory</h5>
+
+                        <div class="row g-3">
+                            <div class="col-12 col-lg-3">
+                                <div class="nav flex-column nav-pills border rounded vertical-pills overflow-hidden">
+                                    <button class="nav-link active px-4 rounded-0" data-bs-toggle="pill" data-bs-target="#Pricing" type="button">
+                                        <i class="bi bi-tag-fill me-2"></i>Pricing
+                                    </button>
+                                    <button class="nav-link px-4 rounded-0" data-bs-toggle="pill" data-bs-target="#Shipping" type="button">
+                                        <i class="bi bi-truck-front-fill me-2"></i>Shipping
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-9">
+                                <div class="tab-content">
+                                    <div class="tab-pane fade show active" id="Pricing">
+                                        <div class="row g-3">
+                                            <div class="col-12 col-lg-6">
+                                                <h6 class="mb-2">Regular price</h6>
+                                                <input class="form-control" type="text" placeholder="1200" name="price">
+                                            </div>
+                                            <div class="col-12 col-lg-6">
+                                                <h6 class="mb-2">Sale price</h6>
+                                                <input class="form-control" type="text" placeholder="1000" name="discount_price">
+                                            </div>
+                                            <div class="col-12 col-lg-6">
+                                                <h6 class="mb-2">Cost price</h6>
+                                                <input class="form-control" type="text" placeholder="800" name="cost_price">
+                                            </div>
+                                            <div class="col-12 col-lg-6">
+                                                <h6 class="mb-2">Stock</h6>
+                                                <input class="form-control" type="text" placeholder="1" name="inventory_quantity">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="tab-pane fade" id="Shipping">
+                                        <div class="d-flex flex-column h-100">
+                                            <h6 class="mb-3">Shipping Type</h6>
+                                            <div class="flex-1">
+                                                <div class="mb-4">
+                                                    <div class="form-check mb-1">
+                                                        <input class="form-check-input" type="radio"
+                                                            name="shippingRadio" id="fullfilledByPhoenix"
+                                                            checked="checked">
+                                                        <label
+                                                            class="form-check-label fw-bold d-flex align-items-center"
+                                                            for="fullfilledByPhoenix">Fullfilled by Admin <span
+                                                                class="badge bg-warning text-dark ms-2">Recommended</span></label>
+                                                    </div>
+                                                    <div class="ps-4">
+                                                        <p class="mb-0">Your product, Our responsibility.<br>For a
+                                                            measly fee, we will handle the delivery process for you.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Product Add Form Side Bar -->
+        <div class="col-12 col-lg-4">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3">
+                        <button type="button" class="btn btn-outline-danger flex-fill"><i
+                                class="bi bi-x-circle me-2"></i>Discard</button>
+                        <button type="button" class="btn btn-outline-success flex-fill"><i
+                                class="bi bi-cloud-download me-2"></i>Save Draft</button>
+                        <button type="button" class="btn btn-outline-primary flex-fill"><i
+                                class="bi bi-send me-2"></i>Publish</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="mb-3">Organize</h5>
+                    <div class="row g-3">
+                        <!-- Product Category Section====== -->
+                        <div class="col-12">
+                            <label for="AddCategory" class="form-label">Category</label>
+                            <select class="form-select" id="AddCategory"
+                                data-category-api="{% url 'api:category_api' %}">
+                            </select>
+                        </div>
+                        <div class="col-12" id="AddSubCategoryDiv" style="display: none;">
+                            <select class="form-select" id="AddSubCategory"
+                                data-category-api="{% url 'api:category_api' %}">
+
+                            </select>
+                        </div>
+                        <div class="col-12" id="AddSubSubCategoryDiv" style="display: none;">
+                            <select class="form-select" id="AddSubSubCategory"
+                                data-category-api="{% url 'api:category_api' %}">
+                                <option selected disabled>Select Sub Sub Category</option>
+                            </select>
+                        </div>
+
+                        <!-- Product Tags Section====== -->
+                        <div class="mb-4">
+                            <label for="AddTags" class="form-label">Tags</label>
+                            <div class="col-12 mb-2 position-relative custom-wrapper">
+                                <input type="text" class="form-control" id="Tags" placeholder="Tags"
+                                    data-tag-api="">
+                                <ul class="list-group custom-suggestion-list d-none" id="tag_suggestions"></ul>
+                            </div>
+                            <div class="col-12 mb-2">
+                                <div class="d-flex align-items-center gap-2 flex-wrap" id="tags_list">
+                                </div>
+                            </div>
+                        </div>
+
+                    </div><!--end row-->
+                </div>
+            </div>
+
+        </div>
+
+    </div><!--end row-->
+</form>

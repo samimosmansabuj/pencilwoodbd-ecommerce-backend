@@ -29,7 +29,7 @@ INSTALLED_APPS = [
     'channels',
     
     #Custom Apps
-    'authentication', 'order', 'product','live_chat', 'site_app', 'for_dashbaord', 'marketing',
+    'authentication', 'order', 'product','live_chat', 'site_app', 'dashbaord', 'marketing',
 ]
 
 REST_FRAMEWORK = {

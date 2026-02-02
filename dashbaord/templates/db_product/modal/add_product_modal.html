@@ -1,0 +1,24 @@
+<!-- Modal -->
+<form method="post" enctype="multipart/form-data" id="add_product_form" hx-ignore="true">
+    {% csrf_token %}
+    <input type="hidden" name="product_id" id="product_id">
+    <div class="modal fade" id="ProductAddUpdateModal">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content">
+                <div class="modal-header border-bottom-0 py-2 bg-grd-primary">
+                    <h5 class="modal-title">Find Out Our New Products</h5>
+                    <a href="javascript:;" class="primaery-menu-close" data-bs-dismiss="modal">
+                        <i class="material-icons-outlined">close</i>
+                    </a>
+                </div>
+                <div class="modal-body">
+                    {% include 'db_product/partial/add_product_form.html' %}
+                </div>
+                <div class="modal-footer border-top-0">
+                    <button type="button" class="btn btn-grd-danger rounded-0" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-grd-info rounded-0">Save changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>

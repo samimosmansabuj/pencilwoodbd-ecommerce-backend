@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     HomeSlider, SiteContent, SiteColorSection, NewsFeed, SocialLink, FooterTagLink, 
     AboutUs, About_WhyChooseUs, ContactInformation, RefundPolicy, TermsAndCondition, 
-    PrivacyPolicy, FAQ_List
+    PrivacyPolicy, FAQ_List, LandingPageProduct
 )
 
 @admin.register(HomeSlider)
@@ -74,3 +74,5 @@ class PrivacyPolicyAdmin(admin.ModelAdmin):
 class FAQListAdmin(admin.ModelAdmin):
     list_display = ('question', 'pk')
     search_fields = ('question',)
+
+admin.site.register(LandingPageProduct)

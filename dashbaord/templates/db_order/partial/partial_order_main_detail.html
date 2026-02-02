@@ -1,0 +1,123 @@
+<form id="updateOrderFormPartial" method="post">
+    {% csrf_token %}
+    {% include './order_form.html' %}
+</form>
+
+<button id="update-card-btn"
+    class="btn btn-grd btn-grd-primary position-fixed bottom-0 end-0 m-3 d-flex align-items-center gap-2 shadow-lg"
+    style="z-index: 1050; display:none;" type="button">
+    <i class="material-icons-outlined">edit</i>
+    Update
+</button>
+
+<script>
+    function orderPageScript(){
+        const editCardBtn = document.getElementById("edit-card-btn");
+        const cancelCardBtn = document.getElementById("cancel-card-btn");
+        const updateBtn = document.getElementById("update-card-btn");
+        const editableFields = document.querySelectorAll("#customer-order-card .editable-text");
+        const updateOrderFormPartial = document.getElementById("updateOrderFormPartial");
+
+        function formatDisplayDate(isoDate) {
+            if (!isoDate) return "";
+            const d = new Date(isoDate);
+            if (isNaN(d)) return isoDate;
+
+            return d.toLocaleDateString("en-US", {
+                month: "short",
+                day: "2-digit",
+                year: "numeric"
+            }).replace(",", ".");
+        }
+
+        function elementChange(elementName, field, value) {
+            const elm = document.createElement(elementName);
+            if (elementName === "input") {
+                if (field === "delivery_date") {
+                    elm.type = "date";
+                } else {
+                    elm.type = "text";
+                }
+                elm.value = value;
+                elm.className = "form-control form-control-sm mb-1 editable-input";
+                elm.name = field;
+            } else {
+                elm.className = "editable-text";
+                if (field === "delivery_date") {
+                    elm.dataset.raw = value;
+                    value = formatDisplayDate(value.trim());
+                }
+                elm.textContent = value || "";
+            }
+            elm.dataset.field = field;
+            return elm
+        }
+
+        function cancelCardBtnFunc() {
+            document
+                .querySelectorAll("#customer-order-card .editable-input")
+                .forEach(input => {
+                    const field = input.dataset.field;
+                    let value = input.value.trim();
+                    const span = elementChange("span", field, value);
+                    input.replaceWith(span);
+                });
+            editCardBtn.style.display = "block";
+            cancelCardBtn.style.display = "none";
+            updateBtn.style.display = "none";
+        }
+
+        cancelCardBtn.addEventListener("click", () => {
+            cancelCardBtnFunc();
+        });
+        editCardBtn.addEventListener("click", () => {
+            document
+                .querySelectorAll("#customer-order-card .editable-text")
+                .forEach(span => {
+                    const field = span.dataset.field;
+                    const value = span.dataset.raw || span.textContent.trim();
+                    const input = elementChange("input", field, value);
+                    span.replaceWith(input);
+                });
+            editCardBtn.style.display = "none";
+            cancelCardBtn.style.display = "block";
+            updateBtn.style.display = "flex";
+        });
+
+        updateBtn.addEventListener("click", () => {
+            const formData = new FormData(updateOrderFormPartial);
+            formData.append("_method", "PATCH");
+            fetch("{% url 'order_detail' order.id %}", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": formData.get("csrfmiddlewaretoken")
+                },
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    cancelCardBtnFunc();
+                    alert(data.message);
+                } else {
+                    alert(`Update failed! ${data.message}`);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert(`Something went wrong! ${data.message}`);
+            });
+        });
+    
+    }
+
+    document.addEventListener("DOMContentLoaded", orderPageScript);
+    document.addEventListener("htmx:afterSwap", function (e) {
+        if (e.target.id === "content-area" || e.target.closest("#content-area")) {
+            orderPageScript();
+        }
+    });
+
+    // document.addEventListener("DOMContentLoaded", function () {
+    //     });
+</script>

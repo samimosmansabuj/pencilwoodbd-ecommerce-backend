@@ -11,6 +11,7 @@ from rest_framework.permissions import IsAuthenticated
 from order.models import Order, Address
 from order.serializers import OrderListSerializers, AddressSerializers
 from .utils import CustomTokenObtainPairView
+from django.views import View
 # from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 
     
@@ -180,5 +181,8 @@ class CurrentUserDetails(RetrieveAPIView):
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
      
+
+
+
 
 

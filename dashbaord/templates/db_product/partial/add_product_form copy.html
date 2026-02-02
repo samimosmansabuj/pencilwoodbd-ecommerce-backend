@@ -1,0 +1,618 @@
+<form action="">
+    <div class="row">
+        <div class="col-12 col-lg-8">
+            <!-- Product Details -->
+            <div class="card">
+                <div class="card-body">
+                    <!-- Product Title  -->
+                    <div class="mb-4">
+                        <h5 class="mb-3">Product Title</h5>
+                        <input type="text" class="form-control" placeholder="write title here....">
+                    </div>
+                    <!-- Product Category -->
+                    <div class="mb-4 row g-3">
+                        <div class="col-4">
+                            <select class="form-select" id="AddCategory">
+                                <!-- <option selected disabled>Select Category</option> -->
+                            </select>
+                        </div>
+                        <div class="col-4" id="AddSubCategoryDiv" style="display: none;">
+                            <select class="form-select" id="AddSubCategory">
+
+                            </select>
+                        </div>
+                        <div class="col-4" id="AddSubSubCategoryDiv" style="display: none;">
+                            <select class="form-select" id="AddSubSubCategory">
+                                <option selected disabled>Select Sub Sub Category</option>
+                            </select>
+                        </div>
+                    </div>
+                    <script>
+                        document.addEventListener("DOMContentLoaded", () => {
+                            // ---------- DOM Elements ----------
+                            const AddCategory = document.getElementById("AddCategory");
+                            const AddSubCategory = document.getElementById("AddSubCategory");
+                            const AddSubSubCategory = document.getElementById("AddSubSubCategory");
+
+                            const AddSubCategoryDiv = document.getElementById("AddSubCategoryDiv");
+                            const AddSubSubCategoryDiv = document.getElementById("AddSubSubCategoryDiv");
+
+                            const CATEGORY_API_URL = "{% url 'api:category_api' %}";
+
+                            // ---------- Populate Select ----------
+                            const populateSelect = (select, placeholder, items, keyAttr) => {
+                                select.innerHTML = `<option selected disabled>${placeholder}</option>`;
+
+                                if (!items) return;
+
+                                items.forEach(item => {
+                                    const option = document.createElement("option");
+                                    option.value = item.slug;
+                                    option.setAttribute(keyAttr, item.id);
+                                    option.textContent = item.name;
+                                    select.appendChild(option);
+                                });
+                            };
+
+                            // ---------- Load Main Categories ----------
+                            const loadCategories = async () => {
+                                const data = await fetchData(CATEGORY_API_URL);
+                                if (data.status) {
+                                    populateSelect(AddCategory, "Select Category", data.data, "category_id");
+                                }
+                            };
+
+                            // ---------- Category → Load Sub Categories ----------
+                            AddCategory.addEventListener("change", async function () {
+                                const category_id = this.options[this.selectedIndex].getAttribute("category_id");
+
+                                AddSubCategoryDiv.style.display = "block";
+                                AddSubSubCategoryDiv.style.display = "none";
+
+                                populateSelect(AddSubCategory, "Select Sub Category", null);
+                                populateSelect(AddSubSubCategory, "Select Sub Sub Category", null);
+
+                                if (!category_id) return;
+
+                                const data = await fetchData(`${CATEGORY_API_URL}?category=${category_id}`);
+
+                                if (data.status) {
+                                    populateSelect(AddSubCategory, "Select Sub Category", data.data, "sub_category_id");
+                                }
+                            });
+
+                            // ---------- Sub Category → Load Sub Sub Categories ----------
+                            AddSubCategory.addEventListener("change", async function () {
+                                const sub_category_id = this.options[this.selectedIndex].getAttribute("sub_category_id");
+
+                                AddSubSubCategoryDiv.style.display = "block";
+                                populateSelect(AddSubSubCategory, "Select Sub Sub Category", null);
+
+                                if (!sub_category_id) return;
+
+                                const data = await fetchData(`${CATEGORY_API_URL}?category=${sub_category_id}`);
+
+                                if (data.status) {
+                                    populateSelect(AddSubSubCategory, "Select Sub Sub Category", data.data, "sub_sub_category_id");
+                                }
+                            });
+
+                            // Load main categories on page load
+                            loadCategories();
+                        });
+                    </script>
+
+                    <!-- Product Highlights -->
+                    <div class="mb-4">
+                        <h5 class="mb-3">Product Highlights</h5>
+                        <textarea class="form-control" cols="4" rows="6"
+                            placeholder="write a short description here.."></textarea>
+                    </div>
+                    <!-- Product Full Description -->
+                    <div class="mb-4">
+                        <h5 class="mb-3">Product Full Description</h5>
+                        <div id="quill-editor" style="height: 300px;"></div>
+                        <textarea id="full-description" class="form-control" cols="4" rows="10"
+                            placeholder="write a description here.." style="display:none;"></textarea>
+                    </div>
+                    <!-- Product Tags -->
+                    <div class="mb-4">
+                        <h5 class="mb-3">Tags</h5>
+                        <div class="col-12 mb-2 position-relative tag-wrapper">
+                            <input type="text" class="form-control" id="Tags" placeholder="Tags">
+                            <ul class="list-group tag-suggestion-list d-none" id="tag_suggestions"></ul>
+                        </div>
+                        <div class="col-12 mb-2">
+                            <div class="d-flex align-items-center gap-2 flex-wrap" id="tags_list">
+                            </div>
+                        </div>
+                    </div>
+
+                    <script>
+                        const TAG_API_URL = "{% url 'api:tag_api' %}";
+
+                        const tagInput = document.getElementById("Tags");
+                        const suggestionBox = document.getElementById("tag_suggestions");
+                        const tagsList = document.getElementById("tags_list");
+                        const selectedTags = new Map();
+
+                        tagInput.addEventListener("input", async function () {
+                            const query = this.value.trim();
+                            suggestionBox.innerHTML = "";
+                            suggestionBox.classList.add("d-none");
+                            if (!query) return;
+
+                            const data = await fetchData(`${TAG_API_URL}?q=${query}`);
+                            if (data.status && data.data.length) {
+                                suggestionBox.classList.remove("d-none");
+                                data.data.forEach(tag => {
+                                    const li = document.createElement("li");
+                                    li.className = "list-group-item list-group-item-action";
+                                    li.textContent = tag.name;
+                                    li.dataset.slug = tag.slug;
+                                    li.onclick = () => addTag(tag.slug, tag.name);
+                                    suggestionBox.appendChild(li);
+                                });
+                            }
+                        });
+
+
+                        function addTag(slug, name) {
+                            if (selectedTags.has(slug)) return;
+                            selectedTags.set(slug, name);
+
+                            const tagEl = document.createElement("a");
+                            tagEl.href = "javascript:;";
+                            tagEl.className = "btn btn-sm btn-light border shadow-sm d-flex align-items-center gap-1";
+                            tagEl.dataset.slug = slug;
+                            tagEl.innerHTML = `
+                            ${name}
+                            <i class="bi bi-x"></i>
+                        `;
+
+                            tagEl.querySelector("i").onclick = () => removeTag(slug, tagEl);
+
+                            tagsList.appendChild(tagEl);
+
+                            tagInput.value = "";
+                            suggestionBox.innerHTML = "";
+                            suggestionBox.classList.add("d-none");
+                        }
+
+                        function removeTag(slug, tagEl) {
+                            selectedTags.delete(slug);
+                            tagEl.remove();
+                        }
+
+                        document.addEventListener("click", (e) => {
+                            if (!e.target.closest(".position-relative")) {
+                                suggestionBox.classList.add("d-none");
+                            }
+                        });
+                    </script>
+                </div>
+            </div>
+            <!-- Images -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="mb-4">
+                        <h5 class="mb-3">Display images</h5>
+                        <input id="fancy-file-upload" type="file" name="files"
+                            accept=".jpg, .png, image/jpeg, image/png" multiple>
+                    </div>
+                </div>
+            </div>
+            <!-- Price, Stock & Variants -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="mb-4">
+                        <h5 class="mb-3">Price, Stock & Variants</h5>
+                        <div class="col-12 mb-2">
+                            <label for="Color" class="form-label">Color</label>
+                            <input type="text" class="form-control" id="Color" placeholder="Color">
+                        </div>
+                        <div class="col-12 mb-2">
+                            <label for="Size" class="form-label">Size</label>
+                            <input type="text" class="form-control" id="Size" placeholder="Size">
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <h6 class="mb-3">Price & Stock</h6>
+                        <table class="table table-bordered mb-0">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th scope="col">Color</th>
+                                    <th scope="col">Size</th>
+                                    <th scope="col">Stock</th>
+                                    <th scope="col">Price</th>
+                                    <th scope="col">Discount Price</th>
+                                    <th scope="col">Cost Price</th>
+                                    <th scope="col">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <th scope="row">1</th>
+                                    <td>Mark</td>
+                                    <td>Otto</td>
+                                    <td>@mdo</td>
+                                    <td>@mdo</td>
+                                    <td>@mdo</td>
+                                    <td>@mdo</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">2</th>
+                                    <td>Jacob</td>
+                                    <td>Thornton</td>
+                                    <td>@fat</td>
+                                    <td>@fat</td>
+                                    <td>@fat</td>
+                                    <td>@fat</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">3</th>
+                                    <td>Larry the Bird</td>
+                                    <td>@twitter</td>
+                                    <td>@twitter</td>
+                                    <td>@twitter</td>
+                                    <td>@twitter</td>
+                                    <td>@twitter</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <!-- Inventory -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="mb-4">
+                        <h5 class="mb-3">Inventory</h5>
+
+                        <div class="row g-3">
+                            <div class="col-12 col-lg-3">
+                                <div class="nav flex-column nav-pills border rounded vertical-pills overflow-hidden">
+                                    <button class="nav-link px-4 rounded-0" data-bs-toggle="pill"
+                                        data-bs-target="#Pricing" type="button"><i
+                                            class="bi bi-tag-fill me-2"></i>Pricing</button>
+                                    <button class="nav-link px-4 rounded-0" data-bs-toggle="pill"
+                                        data-bs-target="#Restock" type="button"><i
+                                            class="bi bi-box-seam-fill me-2"></i>Restock</button>
+                                    <button class="nav-link active px-4 rounded-0" data-bs-toggle="pill"
+                                        data-bs-target="#Shipping" type="button"><i
+                                            class="bi bi-truck-front-fill me-2"></i>Shipping</button>
+                                    <button class="nav-link px-4 rounded-0" data-bs-toggle="pill"
+                                        data-bs-target="#GlobalDelivery" type="button"><i
+                                            class="bi bi-globe me-2"></i>Global Delivery</button>
+                                    <button class="nav-link px-4 rounded-0" data-bs-toggle="pill"
+                                        data-bs-target="#Attributes" type="button"><i
+                                            class="bi bi-hdd-rack-fill me-2"></i>Attributes</button>
+                                    <button class="nav-link px-4 rounded-0" data-bs-toggle="pill"
+                                        data-bs-target="#Advanced" type="button"><i
+                                            class="bi bi-handbag-fill me-2"></i>Advanced</button>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-9">
+                                <div class="tab-content">
+                                    <div class="tab-pane fade" id="Pricing">
+                                        <div class="row g-3">
+                                            <div class="col-12 col-lg-6">
+                                                <h6 class="mb-2">Regular price</h6>
+                                                <input class="form-control" type="text" placeholder="$$$">
+                                            </div>
+                                            <div class="col-12 col-lg-6">
+                                                <h6 class="mb-2">Sale price</h6>
+                                                <input class="form-control" type="text" placeholder="$$$">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="tab-pane fade" id="Restock">
+                                        <h6 class="mb-3">Add to Stock</h6>
+                                        <div class="row g-3">
+                                            <div class="col-sm-7">
+                                                <input class="form-control" type="number" placeholder="Quantity">
+                                            </div>
+                                            <div class="col-sm">
+                                                <button class="btn btn-outline-primary"><i
+                                                        class="bi bi-check2 me-2"></i>Confirm</button>
+                                            </div>
+                                        </div>
+                                        <table class="mt-3">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 200px;"></th>
+                                                    <th></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td class="text-1000 py-1">Product in stock now:</td>
+                                                    <td class="text-700 fw-semi-bold py-1">$2,059<button
+                                                            class="btn p-0 ms-2" type="button"><i
+                                                                class="bi bi-arrow-clockwise"></i></button></td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="text-1000 py-1">Product in transit:</td>
+                                                    <td class="text-700 fw-semi-bold py-1">3000</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="text-1000 py-1">Last time restocked:</td>
+                                                    <td class="text-700 fw-semi-bold py-1">25th March, 2020</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="text-1000 py-1">Total stock over lifetime:</td>
+                                                    <td class="text-700 fw-semi-bold py-1">50,000</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="tab-pane fade show active" id="Shipping">
+                                        <div class="d-flex flex-column h-100">
+                                            <h6 class="mb-3">Shipping Type</h6>
+                                            <div class="flex-1">
+                                                <div class="mb-4">
+                                                    <div class="form-check mb-1">
+                                                        <input class="form-check-input" type="radio"
+                                                            name="shippingRadio" id="fullfilledBySeller">
+                                                        <label class="form-check-label fw-bold"
+                                                            for="fullfilledBySeller">Fullfilled by Seller</label>
+                                                    </div>
+                                                    <div class="ps-4">
+                                                        <p class="mb-0">You’ll be responsible for product delivery.
+                                                            <br>Any damage or delay during shipping may cost you a
+                                                            Damage fee.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div class="mb-4">
+                                                    <div class="form-check mb-1">
+                                                        <input class="form-check-input" type="radio"
+                                                            name="shippingRadio" id="fullfilledByPhoenix"
+                                                            checked="checked">
+                                                        <label
+                                                            class="form-check-label fw-bold d-flex align-items-center"
+                                                            for="fullfilledByPhoenix">Fullfilled by Admin <span
+                                                                class="badge bg-warning text-dark ms-2">Recommended</span></label>
+                                                    </div>
+                                                    <div class="ps-4">
+                                                        <p class="mb-0">Your product, Our responsibility.<br>For a
+                                                            measly fee, we will handle the delivery process for you.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p class="fs--1 fw-semi-bold mb-0">See our <a class="fw-bold"
+                                                    href="#!">Delivery
+                                                    terms and conditions </a>for details.</p>
+                                        </div>
+                                    </div>
+                                    <div class="tab-pane fade" id="GlobalDelivery">
+                                        <div class="d-flex flex-column h-100">
+                                            <h6 class="mb-3">Global Delivery</h6>
+                                            <div class="flex-1">
+                                                <div class="mb-4">
+                                                    <div class="form-check mb-1">
+                                                        <input class="form-check-input" type="radio"
+                                                            name="shippingRadio" id="Worldwidedelivery">
+                                                        <label class="form-check-label fw-bold"
+                                                            for="Worldwidedelivery">Worldwide delivery</label>
+                                                    </div>
+                                                    <div class="ps-4">
+                                                        <p class="mb-0">Only available with Shipping method: <a
+                                                                href="#!">Fullfilled by Admin</a></p>
+                                                    </div>
+                                                </div>
+                                                <div class="mb-4">
+                                                    <div class="form-check mb-1">
+                                                        <input class="form-check-input" type="radio"
+                                                            name="shippingRadio" id="SelectedCountries"
+                                                            checked="checked">
+                                                        <label
+                                                            class="form-check-label fw-bold d-flex align-items-center"
+                                                            for="SelectedCountries">Selected Countries</label>
+                                                    </div>
+                                                    <div class="ps-4">
+                                                        <input class="form-control" type="text"
+                                                            placeholder="Type Country name">
+                                                    </div>
+                                                </div>
+                                                <div class="mb-0">
+                                                    <div class="form-check mb-1">
+                                                        <input class="form-check-input" type="radio"
+                                                            name="shippingRadio" id="Localdelivery">
+                                                        <label class="form-check-label fw-bold"
+                                                            for="Localdelivery">Local
+                                                            delivery</label>
+                                                    </div>
+                                                    <div class="ps-4">
+                                                        <p class="mb-0">Only available with Shipping method: <a
+                                                                href="#!">Fullfilled by Admin</a></p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="tab-pane fade" id="Attributes">
+                                        <h6 class="mb-3">Attributes</h6>
+                                        <div class="form-check">
+                                            <input class="form-check-input" id="fragileCheck" type="checkbox">
+                                            <label class="form-check-label text-900 fs-0" for="fragileCheck">Fragile
+                                                Product</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" id="biodegradableCheck" type="checkbox">
+                                            <label class="form-check-label text-900 fs-0"
+                                                for="biodegradableCheck">Biodegradable</label>
+                                        </div>
+                                        <div class="mb-3">
+                                            <div class="form-check"><input class="form-check-input" id="frozenCheck"
+                                                    type="checkbox" checked="checked">
+                                                <label class="form-check-label text-900 fs-0" for="frozenCheck">Frozen
+                                                    Product</label>
+                                                <input class="form-control" type="text"
+                                                    placeholder="Max. allowed Temperature" style="max-width: 350px;">
+                                            </div>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" id="productCheck" type="checkbox"
+                                                checked="checked">
+                                            <label class="form-check-label text-900 fs-0" for="productCheck">Expiry Date
+                                                of Product</label>
+                                            <input class="form-control" id="inventory" type="date">
+                                        </div>
+                                    </div>
+                                    <div class="tab-pane fade" id="Advanced">
+                                        <h6 class="mb-3">Advanced</h6>
+                                        <div class="row g-3">
+                                            <div class="col-12 col-lg-6">
+                                                <label class="mb-2">Product ID Type</label>
+                                                <select class="form-select">
+                                                    <option selected="selected">ISBN</option>
+                                                    <option value="1">UPC</option>
+                                                    <option value="2">EAN</option>
+                                                    <option value="3">JAN</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-12 col-lg-6">
+                                                <label class="mb-2">Product ID</label>
+                                                <input class="form-control" type="text" placeholder="ISBN Number">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Product Add Form Side Bar -->
+        <div class="col-12 col-lg-4">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3">
+                        <button type="button" class="btn btn-outline-danger flex-fill"><i
+                                class="bi bi-x-circle me-2"></i>Discard</button>
+                        <button type="button" class="btn btn-outline-success flex-fill"><i
+                                class="bi bi-cloud-download me-2"></i>Save Draft</button>
+                        <button type="button" class="btn btn-outline-primary flex-fill"><i
+                                class="bi bi-send me-2"></i>Publish</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="mb-3">Organize</h5>
+                    <div class="row g-3">
+                        <!-- Product Category Section====== -->
+                        <div class="col-12">
+                            <label for="AddCategory" class="form-label">Category</label>
+                            <select class="form-select" id="AddCategory">
+                                <option value="0">Topwear</option>
+                                <option value="1">Bottomwear</option>
+                                <option value="2">Casual Tshirt</option>
+                                <option value="3">Electronic</option>
+                            </select>
+                        </div>
+                        <div class="col-12" style="display: none;">
+                            <label for="AddCategory" class="form-label">Category</label>
+                            <select class="form-select" id="AddCategory">
+                                <option value="0">Topwear</option>
+                                <option value="1">Bottomwear</option>
+                                <option value="2">Casual Tshirt</option>
+                                <option value="3">Electronic</option>
+                            </select>
+                        </div>
+                        <div class="col-12" style="display: none;">
+                            <label for="AddCategory" class="form-label">Category</label>
+                            <select class="form-select" id="AddCategory">
+                                <option value="0">Topwear</option>
+                                <option value="1">Bottomwear</option>
+                                <option value="2">Casual Tshirt</option>
+                                <option value="3">Electronic</option>
+                            </select>
+                        </div>
+
+                        <!-- Product Tags Section====== -->
+                        <div class="col-12">
+                            <label for="Tags" class="form-label">Tags</label>
+                            <input type="text" class="form-control" id="Tags" placeholder="Tags">
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex align-items-center gap-2">
+                                <a href="javascript:;" class="btn btn-sm btn-light border shadow-sm">Woman <i
+                                        class="bi bi-x"></i></a>
+                                <a href="javascript:;" class="btn btn-sm btn-light border shadow-sm">Fashion <i
+                                        class="bi bi-x"></i></a>
+                                <a href="javascript:;" class="btn btn-sm btn-light border shadow-sm">Furniture <i
+                                        class="bi bi-x"></i></a>
+                            </div>
+                        </div>
+
+                    </div><!--end row-->
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="mb-3">Variants</h5>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label for="Vendor" class="form-label">Vendor</label>
+                            <input type="text" class="form-control" id="Vendor" placeholder="Vendor">
+                        </div>
+                        <div class="col-12">
+                            <label for="Brand" class="form-label">Brand</label>
+                            <input type="text" class="form-control" id="Brand" placeholder="Brand">
+                        </div>
+                        <div class="col-12">
+                            <label for="SKU" class="form-label">SKU</label>
+                            <input type="text" class="form-control" id="SKU" placeholder="SKU">
+                        </div>
+                        <div class="col-12">
+                            <label for="Color" class="form-label">Color</label>
+                            <input type="text" class="form-control" id="Color" placeholder="Color">
+                        </div>
+                        <div class="col-12">
+                            <label for="Size" class="form-label">Size</label>
+                            <input type="text" class="form-control" id="Size" placeholder="Size">
+                        </div>
+                        <div class="col-12">
+                            <div class="d-grid">
+                                <button type="button" class="btn btn-primary">Add Variants</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div><!--end row-->
+</form>
+<script>
+    // Fetch Data
+    const fetchData = async (url) => {
+        try {
+            const response = await fetch(url);
+            return await response.json();
+        } catch (err) {
+            console.error("Fetch Error:", err);
+            return { status: false };
+        }
+    };
+
+    var quill = new Quill('#quill-editor', {
+        theme: 'snow'
+    });
+    // Save HTML into textarea on form submit
+    document.querySelector("form")?.addEventListener("submit", function () {
+        document.getElementById("full-description").value = quill.root.innerHTML;
+    });
+
+    $('#fancy-file-upload').FancyFileUpload({
+        params: {
+            action: 'fileuploader'
+        },
+        maxfilesize: 1000000
+    });
+</script>

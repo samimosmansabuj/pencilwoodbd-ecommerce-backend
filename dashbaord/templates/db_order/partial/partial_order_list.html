@@ -1,0 +1,169 @@
+<div class="main-content">
+    <!--breadcrumb-->
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a>
+                    </li>
+                    <li class="breadcrumb-item active" aria-current="page">Orders</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+    <!--end breadcrumb-->
+
+    <div class="product-count d-flex align-items-center gap-3 gap-lg-4 mb-4 fw-medium flex-wrap font-text1">
+        <a href="javascript:;"><span class="me-1">All</span><span class="text-secondary">(85472)</span></a>
+        <a href="javascript:;"><span class="me-1">Pending Payment</span><span class="text-secondary">(86)</span></a>
+        <a href="javascript:;"><span class="me-1">Incomplete</span><span class="text-secondary">(76)</span></a>
+        <a href="javascript:;"><span class="me-1">Completed</span><span class="text-secondary">(8759)</span></a>
+        <a href="javascript:;"><span class="me-1">Refunded</span><span class="text-secondary">(769)</span></a>
+        <a href="javascript:;"><span class="me-1">Failed</span><span class="text-secondary">(42)</span></a>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-auto">
+            <div class="position-relative">
+                <input class="form-control px-5" type="search" placeholder="Search Orders">
+                <span
+                    class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">search</span>
+            </div>
+        </div>
+        <div class="col-auto flex-grow-1 overflow-auto">
+            <div class="btn-group position-static">
+                <div class="btn-group position-static">
+                    <button type="button" class="btn border btn-filter dropdown-toggle px-4" data-bs-toggle="dropdown"
+                        aria-expanded="false">
+                        Payment Status
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="javascript:;">Action</a></li>
+                        <li><a class="dropdown-item" href="javascript:;">Another action</a></li>
+                        <li>
+                            <hr class="dropdown-divider">
+                        </li>
+                        <li><a class="dropdown-item" href="javascript:;">Something else here</a></li>
+                    </ul>
+                </div>
+                <div class="btn-group position-static">
+                    <button type="button" class="btn border btn-filter dropdown-toggle px-4" data-bs-toggle="dropdown"
+                        aria-expanded="false">
+                        Completed
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="javascript:;">Action</a></li>
+                        <li><a class="dropdown-item" href="javascript:;">Another action</a></li>
+                        <li>
+                            <hr class="dropdown-divider">
+                        </li>
+                        <li><a class="dropdown-item" href="javascript:;">Something else here</a></li>
+                    </ul>
+                </div>
+                <div class="btn-group position-static">
+                    <button type="button" class="btn border btn-filter dropdown-toggle px-4" data-bs-toggle="dropdown"
+                        aria-expanded="false">
+                        More Filters
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="javascript:;">Action</a></li>
+                        <li><a class="dropdown-item" href="javascript:;">Another action</a></li>
+                        <li>
+                            <hr class="dropdown-divider">
+                        </li>
+                        <li><a class="dropdown-item" href="javascript:;">Something else here</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-auto">
+            <div class="d-flex align-items-center gap-2 justify-content-lg-end">
+                <button class="btn btn-filter px-4"><i class="bi bi-box-arrow-right me-2"></i>Export</button>
+                <button type="button" class="btn btn-primary px-4" data-bs-toggle="modal"
+                    data-bs-target="#OrderFormModal">
+                    <i class="bi bi-plus-lg me-2"></i>Add Order
+                </button>
+                {% include 'db_order/modal/order_form_modal.html' %}
+            </div>
+        </div>
+    </div><!--end row-->
+
+    <div class="card mt-4">
+        <div class="card-body">
+            <div class="customer-table">
+                <div class="table-responsive white-space-nowrap">
+                    <table class="table align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>
+                                    <input class="form-check-input" type="checkbox">
+                                </th>
+                                <th>Order Id</th>
+                                <th>Price</th>
+                                <th>Customer</th>
+                                <th>Payment Status</th>
+                                <th>Completed Payment</th>
+                                <th>Delivery Type</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in orders %}
+                            <tr>
+                                <td>
+                                    <input class="form-check-input" type="checkbox">
+                                </td>
+                                <td>
+                                    <!-- <a href="{% url 'order_list' %}" hx-get="{% url 'order_list' %}" hx-target="#content-area"
+                            hx-push-url="true" hx-trigger="click, refreshOrderList from:body" hx-swap="innerHTML"><i
+                                class="material-icons-outlined">arrow_right</i>Order</a> -->
+                                    <a href="{% url 'order_detail' order.id %}"
+                                        hx-get="{% url 'order_detail' order.id %}" hx-target="#content-area"
+                                        hx-push-url="true" hx-trigger="click, refreshReturnOrderDetailView from:body"
+                                        hx-swap="innerHTML">
+                                        #{{ order.order_id }}
+                                    </a>
+                                </td>
+                                <td>${{ order.get_discount_total }}</td>
+                                <td>
+                                    <a class="d-flex align-items-center gap-3" href="javascript:;">
+                                        <div class="customer-pic">
+                                            <img src="https://placehold.co/110x110/png" class="rounded-circle"
+                                                width="40" height="40" alt="">
+                                        </div>
+                                        <p class="mb-0 customer-name fw-bold">{{ order.customer.full_name }}</p>
+                                    </a>
+                                </td>
+                                <td><span
+                                        class="lable-table bg-success-subtle text-success rounded border border-success-subtle font-text2 fw-bold">
+                                        {{ order.order_status }}
+                                    </span></td>
+                                <td><span
+                                        class="lable-table bg-danger-subtle text-danger rounded border border-danger-subtle font-text2 fw-bold">
+                                        {{ order.payment_status }}<i class="bi bi-x-lg ms-2"></i></span></td>
+                                <td>{{ order.delivery_type|upper }}</td>
+                                <td>{% if order.delivery_date %}{{ order.delivery_date }}{% else %}Not Set{% endif %}
+                                </td>
+                                <td>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-filter edit-order-btn" data-id="{{ order.id }}"
+                                            data-bs-toggle="modal" data-bs-target="#OrderFormModal">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-filter delete-order-btn" data-id="{{ order.id }}"
+                                            data-bs-toggle="modal" data-bs-target="#deleteOrderModal">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,139 @@
+<!-- Modal -->
+<form method="post" enctype="multipart/form-data" id="order_form" hx-ignore="true">
+    {% csrf_token %}
+    <input type="hidden" name="order_id" id="order_id">
+    <div class="modal fade" id="OrderFormModal">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content">
+                <div class="modal-header border-bottom-0 py-2 bg-grd-primary">
+                    <h5 class="modal-title">Find Out Our New Products</h5>
+                    <a href="javascript:;" class="primaery-menu-close" data-bs-dismiss="modal">
+                        <i class="material-icons-outlined">close</i>
+                    </a>
+                </div>
+                <div class="modal-body">
+                    {% include 'db_order/partial/order_form.html' %}
+                </div>
+                <div class="modal-footer border-top-0">
+                    <button type="button" class="btn btn-grd-danger rounded-0" data-bs-dismiss="modal"
+                        id="close_order_form_modal">Close</button>
+                    <button type="button" class="btn btn-grd-info rounded-0">Save changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<script>
+    // Create Category Modal Js=================== 
+    const OrderForm = document.getElementById("order_form");
+    // const closeAddCategoryModal = document.getElementById("close_add_category_modal");
+    document.addEventListener("submit", async function (e) {
+        if (e.target.id === "order_form") {
+            e.preventDefault();
+
+            try {
+                const csrftoken = getCookie("csrftoken");
+                const form = e.target;
+                const formData = new FormData(form);
+
+                const response = await fetch("{% url 'category_list' %}", {
+                    method: "POST",
+                    body: formData,
+                    headers: {
+                        "X-CSRFToken": csrftoken,
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                });
+
+                const data = await response.json();
+
+                if (data.status) {
+                    document.getElementById("close_order_form_modal").click();
+                    form.reset();
+                    successNotificationCustom(data.message);
+                    htmx.trigger("body", "refreshOrderList");
+                } else {
+                    errorNotificationCustom(data.message);
+                }
+
+            } catch (error) {
+                errorNotificationCustom(error.message);
+            }
+        }
+    });
+
+    // Update Category Modal Js=======================
+    document.addEventListener("click", function (e) {
+        const btn = e.target.closest(".edit-order-btn");
+        if (btn) {
+            const orderId = btn.dataset.id;
+            document.querySelector(".modal-title").textContent = "Update Order";
+            document.getElementById("order_id").value = orderId;
+            document.querySelector("input[name='order_title']").value = "Loading...";
+            document.querySelector("textarea[name='order_description']").value = "Loading...";
+            fetch(`/dashboard/get-order/${orderId}/`, {
+                method: "GET",
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status) {
+                        document.querySelector("input[name='category_title']").value = data.category.name;
+                        document.querySelector("textarea[name='category_description']").value = data.category.description;
+                    } else {
+                        errorNotificationCustom(data.message);
+                    }
+                })
+                .catch(error => {
+                    errorNotificationCustom(error.message);
+                });
+        }
+    });
+
+
+
+    function successNotificationCustom(message) {
+        Lobibox.notify('success', {
+            title: "Success",
+            pauseDelayOnHover: true,
+            size: 'mini',
+            rounded: true,
+            icon: 'bi bi-check2-circle',
+            delayIndicator: false,
+            continueDelayOnInactiveTab: false,
+            position: 'top right',
+            msg: message
+        });
+    }
+    function errorNotificationCustom(message) {
+        Lobibox.notify('error', {
+            title: "Error",
+            pauseDelayOnHover: true,
+            size: 'mini',
+            rounded: true,
+            icon: 'bi bi-x-circle',
+            delayIndicator: false,
+            continueDelayOnInactiveTab: false,
+            position: 'top right',
+            msg: message
+        });
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== "") {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+</script>

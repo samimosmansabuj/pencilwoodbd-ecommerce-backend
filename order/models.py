@@ -2,6 +2,7 @@ from django.db import models
 from authentication.models import Customer
 from product.models import Product
 import uuid
+from pencilwoodbd.choices import PAYMENT_STATUS, PAYMENT_TYPE, STATUS, REVIEW_STATUS, DELIVERY_TYPE
 
 # Payment Method Model
 class PaymentMethod(models.Model):
@@ -17,29 +18,6 @@ class PaymentMethod(models.Model):
     
     def __str__(self):
         return f'{self.payment_option} | {self.transaction_id}'
-
-# Order Item Model
-class OrderItem(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.SET_NULL, related_name='product_orderitem', null=True, blank=True)
-    customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, related_name='customer_orderitem', null=True, blank=True)
-    quantity = models.PositiveIntegerField()
-    price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    total_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    
-    def save(self, *args, **kwargs):
-        if not self.price:
-            self.price = self.product.discount_price
-        if not self.total_price:
-            self.total_price = self.product.discount_price * self.quantity
-        super().save(*args, **kwargs)
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    def __str__(self):
-        return f'{self.customer} - Order Item - {self.product}'
-
-
 
 # Address Model
 class Address(models.Model):
@@ -58,60 +36,141 @@ class Address(models.Model):
     def __str__(self):
         return f'{self.street_01} - {self.upazila} - {self.district}'
 
+
 # Order Model
 class Order(models.Model):
-    PAYMENT_TYPE = (
-        ('None', 'None'),
-        ('COD', 'COD'),
-        ('Online', 'Online'),
-        ('Partial', 'Partial'),
-    )
-    STATUS = (
-        ('Pending', 'Pending'),
-        ('Confirm', 'Confirm'),
-        ('Shipped', 'Shipped'),
-        ('Ready to Ship', 'Ready to Ship'),
-        ('Out for Delivery', 'Out for Delivery'),
-        ('Processing', 'Processing'),
-        ('Delivered', 'Delivered'),
-        ('Cancel', 'Cancel'),
-        ('Return', 'Return'),
-    )
-    PAYMENT_STATUS = (
-        ('Paid', 'Paid'),
-        ('Unpaid', 'Unpaid'),
-        ('Partial', 'Partial'),
-    )
-    customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, related_name='customer_order', null=True, blank=True)
-    order_items = models.ManyToManyField(OrderItem, blank=True, null=True)
-    name = models.CharField(blank=True, null=True, max_length=50)
-    phone_number = models.CharField(blank=True, null=True, max_length=14)
-    shipping_charge = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    order_uuid = models.CharField(max_length=255, unique=True, blank=True, null=True)
+    customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, related_name='orders', null=True, blank=True)
+
+    shipping_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    tax_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_cost = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    payment_type = models.CharField(max_length=50, choices=PAYMENT_TYPE, default='COD')
-    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS, default='Unpaid')
-    payment_partial = models.BooleanField(default=False)
-    status = models.CharField(max_length=50, choices=STATUS, default='Pending')
-    tracking_id = models.CharField(max_length=255, unique=True, blank=True, null=True)
-    delivery_by = models.CharField(max_length=255, blank=True, null=True)
+    promotions_applied = models.JSONField(default=dict, blank=True)
+
+    payment_type = models.CharField(max_length=50, choices=PAYMENT_TYPE.choices, default=PAYMENT_TYPE.COD)
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS.choices, default=PAYMENT_STATUS.Unpaid)
     
-    payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True, related_name='order_payment_method')
-    address = models.ForeignKey(Address, on_delete=models.SET_NULL, null=True, blank=True, related_name='order_address')
+    status = models.CharField(max_length=50, choices=STATUS.choices, default=STATUS.Pending)
+    # address = models.ForeignKey(Address, on_delete=models.SET_NULL, null=True, blank=True, related_name='order_address')
+    shipping_address = models.CharField(max_length=100, blank=True, null=True)
     
+    
+    metadata = models.JSONField(default=dict, blank=True)
+    delivery_type = models.CharField(max_length=50, choices=DELIVERY_TYPE.choices, default=DELIVERY_TYPE.HOME_DELIVERY)
+    delivery_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def get_order_status_choise(self):
+        return STATUS.choices
+    
+    def get_payment_status_choise(self):
+        return PAYMENT_STATUS.choices
+
+    @property
+    def get_items_total(self):
+        product_item = len(self.order_items.all())
+        return product_item
+    
+    @property
+    def get_total_quantity(self):
+        total_quantity = sum(item.quantity for item in self.order_items.all())
+        return total_quantity
+    
+    @property
+    def get_discount_total(self):
+        discount_total = sum(item.discount_total for item in self.order_items.all())
+        return discount_total
+    
+    @property
+    def get_current_total(self):
+        current_total = sum(item.current_total for item in self.order_items.all())
+        return current_total
+    
+    @property
+    def get_discount_percentage(self):
+        if not self.get_discount_total or self.get_discount_total >= self.get_current_total:
+            return 0
+        discount_amount = self.get_current_total - self.get_discount_total
+        discount_percentage = (discount_amount / self.get_current_total) * 100
+        return round(discount_percentage, 2)
+    
+    @property
+    def get_total_order_amount(self):
+        return self.get_discount_total() + self.shipping_total + self.tax_total
+
     def save(self, *args, **kwargs):
-        if self.pk:
-            self.total_cost = sum(i.total_price for i in self.order_items.all())
-        
-        if not self.tracking_id:
-            self.tracking_id = str(uuid.uuid4()).replace("-", "").upper()[:12]  # Generate a unique 12-char tracking ID
+        if not self.order_uuid:
+            self.order_uuid = uuid.uuid4().hex
         super().save(*args, **kwargs)
 
+    def __str__(self):
+        return f'{self.customer} - Order {self.order_uuid} - {self.id}'
+
+# Order Item Model
+class OrderItem(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="order_items")
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, related_name='order_items', null=True, blank=True)
+    quantity = models.PositiveIntegerField(default=1)
+    price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    discount_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def current_total(self):
+        return self.price * self.quantity
+    
+    @property
+    def discount_total(self):
+        return self.discount_price * self.quantity
+    
+    def save(self, *args, **kwargs):
+        if not self.price:
+            self.price = self.product.current_price
+        if not self.discount_price:
+            self.discount_price = self.product.discount_price
+        super().save(*args, **kwargs)
     
     def __str__(self):
-        return f'{self.customer} - Order {self.tracking_id} - {self.id}'
+        return f'{self.order} - Order Item - {self.product}'
 
+
+class Shipment(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='shipments')
+    courier = models.CharField(max_length=255, blank=True, null=True)
+    tracking_number = models.CharField(max_length=255, blank=True, null=True)
+    status = models.CharField(max_length=50, default='pending')
+    label_url = models.URLField(blank=True, null=True)
+
+    def __str__(self):
+        return f"Shipment {self.courier} for {self.order.order_id}"
+
+class Payment(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='order_payment')
+    payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True, related_name='order_payment')
+    provider = models.CharField(max_length=128)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    status = models.CharField(max_length=50, default='pending')
+    transaction_id = models.CharField(max_length=255, blank=True, null=True)
+    raw_response = models.JSONField(default=dict, blank=True)
+    attempts = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Payment {self.pk} ({self.provider})"
+
+class Review(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
+    order = models.OneToOneField(Order, on_delete=models.SET_NULL, related_name="order", blank=True, null=True)
+    customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, null=True, blank=True)
+    rating = models.PositiveSmallIntegerField(default=5)
+    title = models.CharField(max_length=255, blank=True)
+    comment = models.TextField(blank=True)
+    status = models.CharField(max_length=32, choices=REVIEW_STATUS.choices, default=REVIEW_STATUS.PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.rating} stars — {self.product}"
 
 

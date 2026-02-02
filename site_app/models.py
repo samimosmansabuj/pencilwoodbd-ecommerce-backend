@@ -1,5 +1,6 @@
 from django.db import models
 from pencilwoodbd.extra_module import image_delete_os, previous_image_delete_os
+from product.models import Product
 
 
 #Fixed One Object Models=============================================
@@ -196,3 +197,8 @@ class FAQ_List(models.Model):
         return f'{self.question} | {self.pk}'
 
 
+class LandingPageProduct(models.Model):
+    page_name = models.CharField(max_length=30, blank=True, null=True)
+    product = models.ManyToManyField(Product)
+    def __str__(self):
+        return self.page_name

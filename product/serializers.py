@@ -1,11 +1,10 @@
 from rest_framework import serializers
-from .models import Category, Product, AddToCart, FreeAddToCart, ProductImage
+from .models import Category, Product, AddToCart, ProductImage, ProductGifting
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = '__all__'
-
 
 class ProductImageSerializer(serializers.ModelSerializer):
     class Meta:
@@ -13,48 +12,36 @@ class ProductImageSerializer(serializers.ModelSerializer):
         fields = ['id', 'image']
         read_only_fields = ['id']
 
+class ProductGiftingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductGifting
+        fields = ["gift_type", "gift_product", "value"]
+    
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        gift_product = Product.objects.get(pk=data.get("gift_product"))
+        data["gift_product"] = {
+            "id": gift_product.id,
+            "name": gift_product.name,
+            "discount_price": gift_product.discount_price,
+        }
+        return data
+
 class ProductSerializer(serializers.ModelSerializer):
-    product_image = ProductImageSerializer(many=True, required=False)
+    images = ProductImageSerializer(many=True)
+    gift_product = ProductGiftingSerializer(many=True)
     class Meta:
         model = Product
         fields = [
             'id', 'category', 'name', 'slug', 'short_description', 'details', 
-            'variation', 'stock', 'current_price', 'discount_price', 'created_at', 'updated_at', 'product_image'
+            'inventory_quantity', 'price', 'discount_price', 'created_at', 'updated_at', 'images', 'gift_product'
         ]
         read_only_fields = ['id', 'slug', 'created_at', 'updated_at']
     
-    def get_product_image(self, obj):
+    def get_images(self, obj):
         request = self.context.get('request')
-        if obj.product_image:
-            return request.build_absolute_uri(obj.product_image.url) if request else obj.product_image.url
+        print("request: ", request)
+        if obj.images:
+            return request.build_absolute_uri(obj.images.url) if request else obj.images.url
         return None
-    
-    def create(self, validated_data):
-        images_data = self.context['request'].FILES.getlist('product_image')
-        product = Product.objects.create(**validated_data)
-        for image in images_data:
-            ProductImage.objects.create(product=product, image=image)
-        return product
-    
-    def update(self, instance, validated_data):
-        images_data = self.context['request'].FILES.getlist('product_image')
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        for image in images_data:
-            ProductImage.objects.create(product=instance, image=image)
-        return instance
 
-
-class AddToCartSerializer(serializers.ModelSerializer):
-    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all(), required=True)
-    class Meta:
-        model = AddToCart
-        fields = '__all__'
-        read_only_fields = ('price', 'discount_price', 'total_price')
-
-
-class FreeAddToCartSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = FreeAddToCart
-        fields = '__all__'
