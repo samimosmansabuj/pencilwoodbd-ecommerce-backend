@@ -25,6 +25,7 @@ def dashboard(request):
 
 class UserLoginView(View):
     def get(self, request):
+        print("request.user: ", request.user)
         if request.user.is_authenticated:
             return redirect('dashboard')
         return render(request, 'db_auth/login.html')

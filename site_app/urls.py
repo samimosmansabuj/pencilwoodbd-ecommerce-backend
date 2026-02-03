@@ -23,7 +23,7 @@ router.register(r'faq-list', FAQListViewSet)
 router.register(r'about-why-choose-us', AboutWhyChooseUsViewSet)
 
 urlpatterns = [
-    path('', include(router.urls)),
+    # path('', include(router.urls)),
     path('site-content/', SiteContentView.as_view(), name='site-content'),
     path('site-color/', SiteColorSectionView.as_view(), name='site-color'),
     path('about-us/', AboutUsView.as_view(), name='about-us'),
