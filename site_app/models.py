@@ -199,6 +199,7 @@ class FAQ_List(models.Model):
 
 class LandingPageProduct(models.Model):
     page_name = models.CharField(max_length=30, blank=True, null=True)
+    main_product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="landing_page", blank=True, null=True)
     product = models.ManyToManyField(Product)
     def __str__(self):
         return self.page_name

@@ -47,7 +47,10 @@ class ProductViews(views.APIView):
         try:
             landing_page = LandingPageProduct.objects.first()
             if landing_page:
-                product = landing_page.product.all()
+                main = [landing_page.main_product] if landing_page.main_product else []
+                many = list(landing_page.product.all())
+                product = main + many
+                # product = landing_page.product.all()
                 return Response(
                     {
                         "status": True,
