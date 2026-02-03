@@ -1,9 +1,10 @@
 from http import HTTPStatus
+from django import forms
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
 from django.views.generic import CreateView, UpdateView, DeleteView, ListView
 from order.models import Order
-from product.models import Product, Category
+from product.models import Product, Category, ProductImage, ProductVideo
 from authentication.models import CustomUser
 from django.urls import reverse_lazy
 from django.contrib import messages
@@ -17,6 +18,8 @@ from django.views import View
 from pencilwoodbd.choices import USER_TYPE
 from django.db import transaction
 from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS
+from product.forms import ProductForm,ProductImageForm, ProductVideoForm
+from django.forms import modelformset_factory
 
 @login_required(login_url='admin_login')
 def dashboard(request):
@@ -62,7 +65,145 @@ def product_list(request):
 
 @login_required(login_url='admin_login')
 def add_product(request):
-    return render(request, "db_product/add_product.html")
+    ImageFormSet = modelformset_factory(ProductImage, form=ProductImageForm, extra=3, can_delete=True)
+    VideoFormSet = modelformset_factory(ProductVideo, form=ProductVideoForm, extra=1, can_delete=True)
+
+    if request.method == "POST":
+        product_form = ProductForm(request.POST)
+        image_formset = ImageFormSet(request.POST, request.FILES, queryset=ProductImage.objects.none())
+        video_formset = VideoFormSet(request.POST, request.FILES, queryset=ProductVideo.objects.none())
+
+        if product_form.is_valid() and image_formset.is_valid() and video_formset.is_valid():
+            try:
+                with transaction.atomic():
+                    product = product_form.save()
+
+                    # Images
+                    for img_form in image_formset.cleaned_data:
+                        if img_form and not img_form.get("DELETE", False):
+                            ProductImage.objects.create(
+                                product=product,
+                                image=img_form.get("image"),
+                                role=img_form.get("role", "gallery"),
+                                position=img_form.get("position", 0)
+                            )
+
+                    # Video
+                    for vid_form in video_formset.cleaned_data:
+                        if vid_form and vid_form.get("video"):
+                            ProductVideo.objects.create(
+                                product=product,
+                                video=vid_form.get("video")
+                            )
+
+                    messages.success(request, "Product added successfully!")
+                    return redirect("product_list")
+            except Exception as e:
+                messages.error(request, f"Error saving product: {e}")
+        else:
+            messages.error(request, "Please correct the errors below.")
+
+    else:
+        product_form = ProductForm()
+        image_formset = ImageFormSet(queryset=ProductImage.objects.none())
+        video_formset = VideoFormSet(queryset=ProductVideo.objects.none())
+
+    return render(request, "db_product/add_product.html", {
+        "product_form": product_form,
+        "image_formset": image_formset,
+        "video_formset": video_formset
+    })
+
+
+@login_required(login_url='admin_login')
+def product_update(request, pk):
+    product = get_object_or_404(Product, pk=pk)
+
+    ImageFormSet = modelformset_factory(
+        ProductImage,
+        form=ProductImageForm,
+        extra=0,
+        can_delete=True
+    )
+
+    VideoFormSet = modelformset_factory(
+        ProductVideo,
+        form=ProductVideoForm,
+        extra=0,
+        can_delete=True
+    )
+
+    if request.method == "POST":
+        product_form = ProductForm(request.POST, instance=product)
+
+        image_formset = ImageFormSet(
+            request.POST,
+            request.FILES,
+            queryset=ProductImage.objects.filter(product=product)
+        )
+
+        video_formset = VideoFormSet(
+            request.POST,
+            request.FILES,
+            queryset=ProductVideo.objects.filter(product=product)
+        )
+
+        if product_form.is_valid() and image_formset.is_valid() and video_formset.is_valid():
+            try:
+                with transaction.atomic():
+                    product_form.save()
+
+                    # images
+                    for form in image_formset:
+                        if form.cleaned_data.get("DELETE"):
+                            if form.instance.pk:
+                                form.instance.delete()
+                        else:
+                            img = form.save(commit=False)
+                            img.product = product
+                            img.save()
+
+                    # videos
+                    for form in video_formset:
+                        if form.cleaned_data.get("DELETE"):
+                            if form.instance.pk:
+                                form.instance.delete()
+                        else:
+                            vid = form.save(commit=False)
+                            vid.product = product
+                            vid.save()
+
+                    messages.success(request, "Product updated successfully")
+                    return redirect("product_list")
+
+            except Exception as e:
+                messages.error(request, str(e))
+        else:
+            messages.error(request, "Please fix the errors below")
+
+    else:
+        product_form = ProductForm(instance=product)
+        image_formset = ImageFormSet(queryset=ProductImage.objects.filter(product=product))
+        video_formset = VideoFormSet(queryset=ProductVideo.objects.filter(product=product))
+
+    return render(request, "db_product/add_product.html", {
+        "product_form": product_form,
+        "image_formset": image_formset,
+        "video_formset": video_formset,
+        "is_update": True,
+        "product": product
+    })
+
+
+@login_required(login_url='admin_login')
+def product_delete(request, pk):
+    product = get_object_or_404(Product, pk=pk)
+    if request.method == "POST":
+        product.delete()
+        messages.success(request, "Product deleted successfully!")
+        return redirect("product_list")
+    return redirect("product_list")  # fallback
+
 
 @login_required(login_url='admin_login')
 def add_category(request):
@@ -313,6 +454,19 @@ class OrderDetailView(View):
         return super().dispatch(request, *args, **kwargs)
 
 
+
+
+
+
+@login_required(login_url='admin_login')
+def order_delete(request, pk):
+    order = get_object_or_404(Order, pk=pk)
+    if request.method == "POST":
+        order.delete()
+        messages.success(request, "Order deleted successfully!")
+        return redirect("order_list") 
+    messages.error(request, "Invalid request method!")
+    return redirect("order_list")
 
 
 
