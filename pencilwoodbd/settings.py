@@ -32,7 +32,22 @@ INSTALLED_APPS = [
     'authentication', 'order', 'product','live_chat', 'site_app', 'dashbaord', 'marketing',
 ]
 
+# ================================================================================
+# ==================== Rest Frame Work Configurations Start====================
+ENABLE_BROWSABLE_API = os.getenv('ENABLE_BROWSABLE_API', 'False') == 'True'
+if ENABLE_BROWSABLE_API:
+    DEFAULT_RENDERER_CLASSES_ = [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ]
+else:
+    DEFAULT_RENDERER_CLASSES_ = [
+        'rest_framework.renderers.JSONRenderer'
+    ]
+
 REST_FRAMEWORK = {
+    'DEFAULT_RENDERER_CLASSES': DEFAULT_RENDERER_CLASSES_,
+    
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly'
     ],
