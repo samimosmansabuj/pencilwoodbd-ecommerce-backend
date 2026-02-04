@@ -1,0 +1,11 @@
+{
+    "all": 100.00,
+    "area-set-1": {
+        "area": ["dhaka", "chittagong"],
+        "charge": 70.00
+    },
+    "area-set-2": {
+        "area": ["all"],
+        "charge": 130.00
+    }
+}
