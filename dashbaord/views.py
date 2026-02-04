@@ -25,7 +25,6 @@ from django.forms import modelformset_factory
 def dashboard(request):
     return render(request, "dashboard.html")
 
-
 class UserLoginView(View):
     def get(self, request):
         print("request.user: ", request.user)
@@ -467,111 +466,5 @@ def order_delete(request, pk):
         return redirect("order_list") 
     messages.error(request, "Invalid request method!")
     return redirect("order_list")
-
-
-
-# # =============================Order Section Start==============================
-# class OrdertListView(LoginRequiredMixin, ListView):
-#     model = Order
-#     form_class = OrderForm
-#     template_name = 'order/list.html'
-#     context_object_name = 'orders'
-
-# # class OrderCreateView(CreateView):
-# #     model = Order
-# #     form_class = OrderForm
-# #     template_name = 'order/order_form.html'
-# #     success_url = reverse_lazy('product_list')
-
-# class OrderUpdateView(LoginRequiredMixin, UpdateView):
-#     model = Order
-#     form_class = OrderForm
-#     template_name = 'order/order_form.html'
-#     context_object_name = 'order'
-    
-#     def get_context_data(self, **kwargs):
-#         context = super().get_context_data(**kwargs)
-#         order = self.get_object()
-#         context['address_form'] = AddressForm(instance=order.address if order.address else None)
-#         return context
-    
-#     def form_valid(self, form):
-#         order = form.save(commit=False)
-#         address_form = AddressForm(self.request.POST, instance=order.address if order.address else None)
-#         if address_form.is_valid():
-#             address = address_form.save()
-#             order.address = address
-#             order.save()
-#             messages.success(self.request, "Order and Address updated successfully!")
-#             return redirect(self.request.META['HTTP_REFERER'])
-#         else:
-#             return self.render_to_response(self.get_context_data(form=form, address_form=address_form))
-
-# class OrderDeleteView(LoginRequiredMixin, DeleteView):
-#     model = Order
-#     context_object_name = 'order'
-#     success_url = reverse_lazy('product_list')
-
-# # =============================Order Section End==============================
-
-
-
-
-# # =============================Product Section Start==============================
-# class ProductListView(LoginRequiredMixin, ListView):
-#     model = Product
-#     form_class = ProductForm
-#     template_name = 'product/list.html'
-#     context_object_name = 'products'
-
-# class ProductCreateView(LoginRequiredMixin, CreateView):
-#     model = Product
-#     form_class = ProductForm
-#     template_name = 'product/product_form.html'
-#     success_url = reverse_lazy('product_list')
-
-# class ProductUpdateView(LoginRequiredMixin, UpdateView):
-#     model = Product
-#     form_class = ProductForm
-#     template_name = 'product/product_form.html'
-#     context_object_name = 'product'
-#     success_url = reverse_lazy('product_list')
-
-# class ProductDeleteView(LoginRequiredMixin, DeleteView):
-#     model = Product
-#     context_object_name = 'product'
-#     success_url = reverse_lazy('product_list')
-
-# # =============================Product Section End==============================
-
-
-
-# # =============================Category Section Start==============================
-# class CategoryListView(LoginRequiredMixin, ListView):
-#     model = Category
-#     form_class = CategoryForm
-#     template_name = 'category/list.html'
-#     context_object_name = 'categories'
-
-# class CategoryCreateView(LoginRequiredMixin, CreateView):
-#     model = Category
-#     form_class = CategoryForm
-#     template_name = 'category/category_form.html'
-#     success_url = reverse_lazy('category_list')
-
-# class CategoryUpdateView(LoginRequiredMixin, UpdateView):
-#     model = Category
-#     form_class = CategoryForm
-#     template_name = 'category/category_form.html'
-#     context_object_name = 'object'
-#     success_url = reverse_lazy('category_list')
-
-# class CategoryDeleteView(LoginRequiredMixin, DeleteView):
-#     model = Category
-#     context_object_name = 'object'
-#     success_url = reverse_lazy('category_list')
-#     template_name = 'category/category_confirm_delete.html'
-
-# # =============================Category Section End==============================
 
 

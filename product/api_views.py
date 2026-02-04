@@ -1,7 +1,7 @@
 from rest_framework import views, status, permissions
-from .models import Category, Product
+from .models import Category
 from rest_framework.response import Response
-from .serializers import CategorySerializer, ProductSerializer
+from .serializers import ProductSerializer
 from site_app.models import LandingPageProduct
 
 class CategoryAPIViews(views.APIView):

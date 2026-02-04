@@ -1,13 +1,7 @@
-from .serializers import OrderSerializers, OrderItemSerializer, AddressSerializers, PaymentMethodSerializers, OrderListSerializers
-from rest_framework import permissions, viewsets, status, views
+from rest_framework import permissions, status, views
 from rest_framework.response import Response
-from .models import Order, OrderItem, PaymentMethod, Address
 from authentication.models import Customer
-from rest_framework.generics import CreateAPIView, ListAPIView, UpdateAPIView, RetrieveAPIView
-from product.models import AddToCart
-from rest_framework.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
-from authentication.models import Customer
 from django.http import JsonResponse
 from product.models import Product
 from pencilwoodbd.choices import PRODUCT_GIFT_TYPE
