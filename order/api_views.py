@@ -28,7 +28,7 @@ class OrderCreateAPIView(views.APIView):
     
     # MAKE ADDRESS 
     def get_make_address(self, data):
-        address = f"{data.get("address")}, {data.get("district")}"
+        address = f"{data.get('address')}, {data.get('district')}"
         return address
     
     # VERIFY ORDER CUSTOMER INFORMATION
