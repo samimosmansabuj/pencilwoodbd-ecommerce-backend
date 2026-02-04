@@ -87,7 +87,7 @@
         updateBtn.addEventListener("click", () => {
             const formData = new FormData(updateOrderFormPartial);
             formData.append("_method", "PATCH");
-            fetch("{% url 'order_detail' order.id %}", {
+            fetch("{% url 'order_update' order.id %}", {
                 method: "POST",
                 headers: {
                     "X-CSRFToken": formData.get("csrfmiddlewaretoken")

@@ -119,7 +119,7 @@
                                        hx-push-url="true"
                                        hx-trigger="click, refreshReturnOrderDetailView from:body"
                                        hx-swap="innerHTML">
-                                        #{{ order.order_id }}
+                                        #{{ order.order_uuid  }}
                                     </a>
                                 </td>
 
@@ -132,14 +132,14 @@
                                                  class="rounded-circle" width="40" height="40">
                                         </div>
                                         <p class="mb-0 customer-name fw-bold">
-                                            {{ order.customer.full_name }}
+                                            {{ order.customer.name }}
                                         </p>
                                     </a>
                                 </td>
 
                                 <td>
                                     <span class="lable-table bg-success-subtle text-success rounded border border-success-subtle font-text2 fw-bold">
-                                        {{ order.order_status }}
+                                        {{ order.status }}
                                     </span>
                                 </td>
 
