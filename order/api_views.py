@@ -7,6 +7,7 @@ from product.models import Product
 from pencilwoodbd.choices import PRODUCT_GIFT_TYPE
 from django.db import transaction
 from order.models import Order, OrderItem
+from .utils import OrderConfirmatinoEmailSend
 
 class OrderCreateAPIView(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -140,6 +141,10 @@ class OrderCreateAPIView(views.APIView):
                     total_cost=amount.get("totalAmount" or 0)
                 )
                 order_item = self.create_order_item(order, data.get("products", {}), amount)
+
+                if data.get("customer", {}).get("email", None):
+                    send_mail = OrderConfirmatinoEmailSend(order, data.get("customer", {}).get("email", None))
+                    send_mail.order_confirmation_mail_send()
 
                 return Response(
                     {
