@@ -15,11 +15,13 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.admin.models import LogEntry
 from django.utils.timezone import now
 from django.views import View
-from pencilwoodbd.choices import USER_TYPE
+from pencilwoodbd.choices import USER_TYPE, STATUS
 from django.db import transaction
 from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS
 from product.forms import ProductForm,ProductImageForm, ProductVideoForm
 from django.forms import modelformset_factory
+from django.utils.text import slugify
+
 
 @login_required(login_url='admin_login')
 def dashboard(request):
@@ -56,7 +58,7 @@ def logout_view(request):
 
 
 
-
+# ------------------Product--------
 @login_required(login_url='admin_login')
 def product_list(request):
     products = Product.objects.all()
@@ -306,6 +308,8 @@ def delete_category(request, id):
     }, status=HTTPStatus.BAD_REQUEST)
 
 
+
+# ------------------Order section CBV-------------
 class OrderView(View):
     def get(self, request):
         # if not request.user.is_authenticated:
@@ -349,7 +353,7 @@ class OrderView(View):
                 Order.objects.create(
                     name=data.get("order_title"),
                     description=data.get("order_description"),
-                    status=ORDER_STATUS.ACTIVE,
+                    status=STATUS.ACTIVE,
                 )
                 return JsonResponse({
                     "status": True,
@@ -454,7 +458,60 @@ class OrderDetailView(View):
 
 
 
+# ------------------Order section FBV-------------
 
+@login_required(login_url='admin_login')
+def update_order(request, order_id):
+    if request.method != "POST" or request.POST.get("_method") != "PATCH":
+        return JsonResponse({"success": False, "message": "Invalid request"}, status=400)
+
+    if request.user.user_type not in [USER_TYPE.ADMIN, USER_TYPE.STAFF, USER_TYPE.SUPER_ADMIN]:
+        return JsonResponse({"success": False, "message": "Permission denied"}, status=403)
+
+    order = get_object_or_404(Order, id=order_id)
+    data = request.POST
+
+    def generate_unique_username(name):
+        base = slugify(name) or "user"
+        username = base
+        counter = 1
+        while CustomUser.objects.filter(username=username).exists():
+            username = f"{base}-{counter}"
+            counter += 1
+        return username
+
+    try:
+        with transaction.atomic():
+            # Update customer profile
+            profile = order.customer
+            profile.name = data.get("full_name", profile.name)
+            profile.phone = data.get("phone", profile.phone)
+            email = data.get("email")
+            if email:
+                if profile.user:
+                    profile.user.email = email
+                    profile.user.save()
+                else:
+                    user = CustomUser.objects.create(
+                        email=email,
+                        username=generate_unique_username(profile.name),
+                        user_type=USER_TYPE.CUSTOMER
+                    )
+                    profile.user = user
+            profile.save()
+
+            # Update order
+            if data.get("delivery_date"):
+                order.delivery_date = data.get("delivery_date")
+            order.shipping_address = data.get("shipping_address", order.shipping_address)
+            order.payment_status = data.get("payment_status", order.payment_status)
+            order.status = data.get("order_status", order.status)
+            order.save()
+
+            return JsonResponse({"success": True, "message": "Order updated successfully"}, status=200)
+
+    except Exception as e:
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
 
 
 @login_required(login_url='admin_login')
