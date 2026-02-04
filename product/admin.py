@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Product, AddToCart, ProductImage, ProductVideo, ProductGifting
+from .models import Category, Product, AddToCart, ProductImage, ProductVideo, ProductGifting, ProductDeliveryCharge
 
 class ProductImageInline(admin.TabularInline):
     model = ProductImage
@@ -19,5 +19,6 @@ admin.site.register(ProductVideo)
 admin.site.register(ProductGifting)
 admin.site.register(Category)
 admin.site.register(Product, ProductAdmin)
+admin.site.register(ProductDeliveryCharge)
 admin.site.register(AddToCart)
 

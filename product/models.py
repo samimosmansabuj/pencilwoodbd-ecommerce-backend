@@ -120,7 +120,6 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
-
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
     # variant = models.ForeignKey(ProductVariant, null=True, blank=True, on_delete=models.CASCADE, related_name='images')
@@ -176,6 +175,12 @@ class ProductGifting(models.Model):
     def __str__(self):
         return f"{self.value} {self.gift_product} {self.gift_type} for per {self.product}"
 
+class ProductDeliveryCharge(models.Model):
+    product = models.OneToOneField(Product, on_delete=models.CASCADE, related_name="delivery_charge")
+    area_and_charge = models.JSONField(blank=True, null=True)
+
+    def __str__(self):
+        return f"Custom Delivery Charge Set For {self.product}"
 
 # class ProductTag(models.Model):
 #     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='product_tags')

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Product, AddToCart, ProductImage, ProductGifting
+from .models import Category, Product, AddToCart, ProductImage, ProductGifting, ProductDeliveryCharge
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -27,16 +27,22 @@ class ProductGiftingSerializer(serializers.ModelSerializer):
         }
         return data
 
+class ProductDeliveryChargeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductDeliveryCharge
+        fields = ["area_and_charge"]
+
 class ProductSerializer(serializers.ModelSerializer):
     images = ProductImageSerializer(many=True)
     gift_product = ProductGiftingSerializer(many=True)
+    delivery_charge = ProductDeliveryChargeSerializer()
     class Meta:
         model = Product
         fields = [
             'id', 'category', 'name', 'slug', 'short_description', 'details', 
-            'inventory_quantity', 'price', 'discount_price', 'created_at', 'updated_at', 'images', 'gift_product'
+            'inventory_quantity', 'price', 'discount_price', 'created_at', 'updated_at', 'images', 'gift_product', 'delivery_charge'
         ]
-        read_only_fields = ['id', 'slug', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'slug', 'delivery_charge', 'gift_product', 'created_at', 'updated_at']
     
     def get_images(self, obj):
         request = self.context.get('request')
