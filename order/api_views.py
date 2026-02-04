@@ -6,6 +6,7 @@ from django.http import JsonResponse
 from product.models import Product
 from pencilwoodbd.choices import PRODUCT_GIFT_TYPE
 from django.db import transaction
+from order.models import Order, OrderItem
 
 class OrderCreateAPIView(views.APIView):
     permission_classes = [permissions.AllowAny]
