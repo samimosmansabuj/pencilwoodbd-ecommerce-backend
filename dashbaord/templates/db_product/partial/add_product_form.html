@@ -1,167 +1,204 @@
-<form method="post" enctype="multipart/form-data">
+{% load static %}
+
+<form method="POST" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    {% if is_update %}
+        <input type="hidden" name="product_id" value="{{ product.id }}">
+    {% endif %}
+
     <div class="row">
         <div class="col-12 col-lg-8">
 
-            <!-- Product Details -->
+            <!-- ================= Product Details ================= -->
             <div class="card">
                 <div class="card-body">
-                    <!-- Product Title  -->
+
+                    <!-- Title -->
                     <div class="mb-4">
                         <h5 class="mb-3">Product Title</h5>
-                        <input type="text" class="form-control" placeholder="write title here...." name="name">
+                        <input type="text" class="form-control"
+                               name="name"
+                               value="{{ product.name|default:'' }}"
+                               required>
                     </div>
 
-                    <!-- Product Highlights -->
+                    <!-- Category -->
+                    <div class="mb-4">
+                        <select class="form-select" name="category" required>
+                            <option value="">Select Category</option>
+                            {% for cat in categories %}
+                                <option value="{{ cat.id }}"
+                                    {% if product.category.id == cat.id %}selected{% endif %}>
+                                    {{ cat.get_category_path }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Short description -->
                     <div class="mb-4">
                         <h5 class="mb-3">Product Highlights</h5>
-                        <textarea class="form-control" cols="4" rows="6"
-                            placeholder="write a short description here.." name="short_description"></textarea>
+                        <textarea class="form-control" name="short_description" rows="5">
+{{ product.short_description|default:'' }}</textarea>
                     </div>
-                    <!-- Product Full Description -->
+
+                    <!-- Full description -->
                     <div class="mb-4">
                         <h5 class="mb-3">Product Full Description</h5>
-                        <div id="quill-editor" style="height: 300px;"></div>
-                        <textarea id="full-description" class="form-control" cols="4" rows="10" placeholder="write a description here.." style="display:none;" name="details"></textarea>
+                        <div id="quill-editor" style="height:300px;"></div>
+                        <textarea id="full-description" name="details" style="display:none;">
+{{ product.details|default:'' }}</textarea>
                     </div>
+
+                    <!-- Tags -->
+                    <div class="mb-4">
+                        <h5 class="mb-3">Tags</h5>
+                        <input type="text" id="Tags" class="form-control" placeholder="Type tag...">
+                        <ul class="list-group d-none" id="tag_suggestions"></ul>
+
+                        <input type="hidden" name="tags" id="tags_input"
+                               value='{{ product.tags|default:"[]" }}'>
+
+                        <div class="mt-2 d-flex flex-wrap gap-2" id="tags_list">
+                            {% for tag in product.tags %}
+                                <a class="btn btn-sm btn-light border"
+                                   data-slug="{{ tag }}">
+                                    {{ tag }}
+                                    <i class="bi bi-x"
+                                       onclick="removeTag('{{ tag }}', this.parentElement)"></i>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+
                 </div>
             </div>
 
-            <!-- Images -->
+            <!-- ================= IMAGES (FIXED) ================= -->
             <div class="card">
                 <div class="card-body">
-                    <div class="mb-4">
-                        <h5 class="mb-3">Display images</h5>
-                        <input id="fancy-file-upload" type="file" name="files" accept=".jpg, .png, image/jpeg, image/png" multiple>
-                    </div>
+                    <h5 class="mb-3">Display Images</h5>
+
+                    {{ image_formset.management_form }}
+
+                    {% for form in image_formset %}
+                        <div class="row align-items-center mb-3">
+                            <div class="col-7">
+                                {{ form.image }}
+                            </div>
+
+                            {% if is_update and form.instance.pk %}
+                                <div class="col-3">
+                                    <img src="{{ form.instance.image.url }}" width="80">
+                                </div>
+                            {% endif %}
+
+                            <div class="col-2 text-end">
+                                {{ form.DELETE }} Delete
+                            </div>
+
+                            {{ form.id }}
+                            {{ form.role }}
+                            {{ form.position }}
+                        </div>
+                    {% endfor %}
                 </div>
             </div>
 
-            <!-- Inventory -->
+            <!-- ================= VIDEO (FIXED) ================= -->
             <div class="card">
                 <div class="card-body">
-                    <div class="mb-4">
-                        <h5 class="mb-3">Inventory</h5>
+                    <h5 class="mb-3">Product Video</h5>
 
-                        <div class="row g-3">
-                            <div class="col-12 col-lg-3">
-                                <div class="nav flex-column nav-pills border rounded vertical-pills overflow-hidden">
-                                    <button class="nav-link active px-4 rounded-0" data-bs-toggle="pill" data-bs-target="#Pricing" type="button">
-                                        <i class="bi bi-tag-fill me-2"></i>Pricing
-                                    </button>
-                                    <button class="nav-link px-4 rounded-0" data-bs-toggle="pill" data-bs-target="#Shipping" type="button">
-                                        <i class="bi bi-truck-front-fill me-2"></i>Shipping
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="col-12 col-lg-9">
-                                <div class="tab-content">
-                                    <div class="tab-pane fade show active" id="Pricing">
-                                        <div class="row g-3">
-                                            <div class="col-12 col-lg-6">
-                                                <h6 class="mb-2">Regular price</h6>
-                                                <input class="form-control" type="text" placeholder="1200" name="price">
-                                            </div>
-                                            <div class="col-12 col-lg-6">
-                                                <h6 class="mb-2">Sale price</h6>
-                                                <input class="form-control" type="text" placeholder="1000" name="discount_price">
-                                            </div>
-                                            <div class="col-12 col-lg-6">
-                                                <h6 class="mb-2">Cost price</h6>
-                                                <input class="form-control" type="text" placeholder="800" name="cost_price">
-                                            </div>
-                                            <div class="col-12 col-lg-6">
-                                                <h6 class="mb-2">Stock</h6>
-                                                <input class="form-control" type="text" placeholder="1" name="inventory_quantity">
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="tab-pane fade" id="Shipping">
-                                        <div class="d-flex flex-column h-100">
-                                            <h6 class="mb-3">Shipping Type</h6>
-                                            <div class="flex-1">
-                                                <div class="mb-4">
-                                                    <div class="form-check mb-1">
-                                                        <input class="form-check-input" type="radio"
-                                                            name="shippingRadio" id="fullfilledByPhoenix"
-                                                            checked="checked">
-                                                        <label
-                                                            class="form-check-label fw-bold d-flex align-items-center"
-                                                            for="fullfilledByPhoenix">Fullfilled by Admin <span
-                                                                class="badge bg-warning text-dark ms-2">Recommended</span></label>
-                                                    </div>
-                                                    <div class="ps-4">
-                                                        <p class="mb-0">Your product, Our responsibility.<br>For a
-                                                            measly fee, we will handle the delivery process for you.</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                    {{ video_formset.management_form }}
+
+                    {% for form in video_formset %}
+                        {% if is_update and form.instance.pk %}
+                            <video width="300" controls class="mb-2">
+                                <source src="{{ form.instance.video.url }}">
+                            </video>
+                        {% endif %}
+
+                        <div class="d-flex align-items-center gap-3">
+                            {{ form.video }}
+                            {{ form.DELETE }} Delete
+                            {{ form.id }}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- ================= PRICE & STOCK ================= -->
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="mb-3">Price & Stock</h5>
+                    <div class="row g-3">
+                        <div class="col-4">
+                            <label>Price</label>
+                            <input type="number" class="form-control"
+                                   name="price"
+                                   value="{{ product.price|default:0 }}">
+                        </div>
+                        <div class="col-4">
+                            <label>Discount Price</label>
+                            <input type="number" class="form-control"
+                                   name="discount_price"
+                                   value="{{ product.discount_price|default:0 }}">
+                        </div>
+                        <div class="col-4">
+                            <label>Stock</label>
+                            <input type="number" class="form-control"
+                                   name="inventory_quantity"
+                                   value="{{ product.inventory_quantity|default:0 }}">
                         </div>
                     </div>
                 </div>
             </div>
+
         </div>
 
-        <!-- Product Add Form Side Bar -->
+        <!-- ================= SIDEBAR ================= -->
         <div class="col-12 col-lg-4">
             <div class="card">
                 <div class="card-body">
-                    <div class="d-flex align-items-center gap-3">
-                        <button type="button" class="btn btn-outline-danger flex-fill"><i
-                                class="bi bi-x-circle me-2"></i>Discard</button>
-                        <button type="button" class="btn btn-outline-success flex-fill"><i
-                                class="bi bi-cloud-download me-2"></i>Save Draft</button>
-                        <button type="button" class="btn btn-outline-primary flex-fill"><i
-                                class="bi bi-send me-2"></i>Publish</button>
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'product_list' %}"
+                           class="btn btn-outline-danger flex-fill">
+                            Discard
+                        </a>
+                        <button type="submit"
+                                name="status"
+                                value="DRAFT"
+                                class="btn btn-outline-success flex-fill">
+                            Save Draft
+                        </button>
+                        <button type="submit"
+                                name="status"
+                                value="PUBLISHED"
+                                class="btn btn-outline-primary flex-fill">
+                            Publish
+                        </button>
                     </div>
                 </div>
             </div>
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="mb-3">Organize</h5>
-                    <div class="row g-3">
-                        <!-- Product Category Section====== -->
-                        <div class="col-12">
-                            <label for="AddCategory" class="form-label">Category</label>
-                            <select class="form-select" id="AddCategory"
-                                data-category-api="{% url 'api:category_api' %}">
-                            </select>
-                        </div>
-                        <div class="col-12" id="AddSubCategoryDiv" style="display: none;">
-                            <select class="form-select" id="AddSubCategory"
-                                data-category-api="{% url 'api:category_api' %}">
-
-                            </select>
-                        </div>
-                        <div class="col-12" id="AddSubSubCategoryDiv" style="display: none;">
-                            <select class="form-select" id="AddSubSubCategory"
-                                data-category-api="{% url 'api:category_api' %}">
-                                <option selected disabled>Select Sub Sub Category</option>
-                            </select>
-                        </div>
-
-                        <!-- Product Tags Section====== -->
-                        <div class="mb-4">
-                            <label for="AddTags" class="form-label">Tags</label>
-                            <div class="col-12 mb-2 position-relative custom-wrapper">
-                                <input type="text" class="form-control" id="Tags" placeholder="Tags"
-                                    data-tag-api="">
-                                <ul class="list-group custom-suggestion-list d-none" id="tag_suggestions"></ul>
-                            </div>
-                            <div class="col-12 mb-2">
-                                <div class="d-flex align-items-center gap-2 flex-wrap" id="tags_list">
-                                </div>
-                            </div>
-                        </div>
-
-                    </div><!--end row-->
-                </div>
-            </div>
-
         </div>
 
-    </div><!--end row-->
+    </div>
 </form>
+
+<script>
+var quill = new Quill('#quill-editor', { theme: 'snow' });
+
+document.querySelector("form").addEventListener("submit", function () {
+    document.getElementById("full-description").value = quill.root.innerHTML;
+
+    const tags = Array.from(document.querySelectorAll("#tags_list a"))
+        .map(el => el.dataset.slug);
+    document.getElementById("tags_input").value = JSON.stringify(tags);
+});
+
+function removeTag(slug, el) {
+    el.remove();
+}
+</script>

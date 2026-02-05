@@ -1,214 +1,442 @@
-<form method="POST" enctype="multipart/form-data">
-    {% csrf_token %}
 
-    {% if is_update %}
-        <input type="hidden" name="product_id" value="{{ product.id }}">
+<div class="main-order-view">
+
+    <!-- No Edit Section=========== -->
+    <div class="card">
+        <div class="card-body">
+            <div
+                class="d-flex flex-lg-row flex-column align-items-start align-items-lg-center justify-content-between gap-3">
+                <div class="flex-grow-1">
+                    <h4 class="fw-bold">Order #{{order.order_uuid}}</h4>
+                    <p class="mb-0">Customer ID : <a href="javascript:;">{{order.customer.id}}</a></p>
+                </div>
+                <div class="overflow-auto">
+                    <div class="btn-group position-static">
+                        <div class="btn-group position-static">
+                            <button type="button" class="btn btn-outline-primary">
+                                <i class="bi bi-printer-fill me-2"></i>Print
+                            </button>
+                        </div>
+                        <div class="btn-group position-static">
+                            <button type="button" class="btn btn-outline-primary">
+                                <i class="bi bi-arrow-clockwise me-2"></i>Refund
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="javascript:;">Action</a></li>
+                                <li><a class="dropdown-item" href="javascript:;">Another action</a></li>
+                                <li>
+                                    <hr class="dropdown-divider">
+                                </li>
+                                <li><a class="dropdown-item" href="javascript:;">Something else here</a></li>
+                            </ul>
+                        </div>
+                        <div class="btn-group position-static">
+                            <button type="button" class="btn btn-outline-primary dropdown-toggle"
+                                data-bs-toggle="dropdown" aria-expanded="false">
+                                More Actions
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="javascript:;">Action</a></li>
+                                <li><a class="dropdown-item" href="javascript:;">Another action</a></li>
+                                <li>
+                                    <hr class="dropdown-divider">
+                                </li>
+                                <li><a class="dropdown-item" href="javascript:;">Something else here</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Item List and Price Section===== -->
+    <div class="row">
+        <div class="col-12 col-lg-8 d-flex">
+            <div class="card w-100">
+                <div class="card-body">
+                    <h5 class="mb-3 fw-bold">Order Items<span class="fw-light ms-2">({{order.order_items.count}})</span>
+                    </h5>
+                    <div class="product-table">
+                        <div class="table-responsive white-space-nowrap">
+                            <table class="table align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Product Name</th>
+                                        <th>Meta Data</th>
+                                        <th>Quantity</th>
+                                        <th>Price</th>
+                                        <th>Discount Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in order.order_items.all %}
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center gap-3">
+                                                <div class="product-box">
+                                                    <img src="{{ item.getPrimaryImage.image.url }}" width="70"
+                                                        class="rounded-3" alt="">
+                                                </div>
+                                                <div class="product-info">
+                                                    <a href="javascript:;" class="product-title">
+                                                        {{ item.product.name }}
+                                                    </a>
+                                                    <p class="mb-0 product-category">
+                                                        Category : {{ item.product.category_path }}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {% if item.variant and item.variant.attributes %}
+                                            {% for key, value in item.variant.attributes.items %}
+                                            <div>{{ key|capfirst }}: {{ value|capfirst }}</div>
+                                            {% endfor %}
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ item.quantity }}</td>
+                                        <td>৳{{ item.price }}</td>
+                                        <td class="item_total_price">{{ item.discount_total  }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between">
+                        <p class="mb-0 fw-bold">Items subtotal :</p>
+                        <p class="mb-0 fw-bold items_subtotal">$0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-4 d-flex">
+            <div class="w-100">
+                <div class="card">
+                    <div class="card-body">
+                        <h4 class="card-title mb-4 fw-bold">Summary</h4>
+                        <div>
+                            <div class="d-flex justify-content-between">
+                                <p class="fw-semi-bold">Items subtotal :</p>
+                                <p class="fw-semi-bold items_subtotal">$0</p>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <p class="fw-semi-bold">Discount :</p>
+                                <p class="text-danger fw-semi-bold" id="discount">-$0</p>
+                            </div>
+                            <!-- <div class="d-flex justify-content-between">
+                                    <p class="fw-semi-bold">Tax :</p>
+                                    <p class="fw-semi-bold" id="tax">$0</p>
+                                </div> -->
+                            <div class="d-flex justify-content-between">
+                                <p class="fw-semi-bold">Subtotal :</p>
+                                <p class="fw-semi-bold" id="subtotal">$0</p>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <p class="fw-semi-bold">Shipping Cost :</p>
+                                <p class="fw-semi-bold" id="shipping_cost">৳{{order.shipping_total}}</p>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between border-top pt-4">
+                            <h5 class="mb-0 fw-bold">Total :</h5>
+                            <h5 class="mb-0 fw-bold" id="total_amount_of_order">$0</h5>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <h4 class="card-title mb-4 fw-bold">Order Status</h4>
+                        <label class="form-label">Payment status</label>
+                        <select class="form-select mb-4" name="payment_status">
+                            {% for choice, display in order.get_payment_status_choise %}
+                            <option value="{{choice}}" {% if choice == order.payment_status %}selected{% endif %}>
+                                {{display}}
+                            </option>
+                            {% endfor %}
+                        </select>
+
+                        <label class="form-label">Completed status</label>
+                        <select class="form-select" name="order_status">
+                            {% for choice, display in order.get_order_status_choise %}
+                            <option value="{{choice}}" {% if choice == order.status %}selected{% endif %}>{{display}}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+            function calculateTotals() {
+                let itemCells = document.querySelectorAll(".item_total_price");
+                let itemsSubtotal = 0;
+                itemCells.forEach(cell => {
+                    let value = parseFloat(cell.textContent.replace(/[$,]/g, '')) || 0;
+                    itemsSubtotal += value;
+                });
+
+                let discountEl = document.getElementById("discount");
+                let shippingEl = document.getElementById("shipping_cost");
+
+                let discount = parseFloat(discountEl.textContent.replace(/[$,-]/g, '')) || 0;
+                let shipping = parseFloat(shippingEl.textContent.replace(/[$,]/g, '')) || 0;
+
+                let subtotal = itemsSubtotal - discount;
+                let total = subtotal + shipping;
+
+                document.querySelectorAll(".items_subtotal").forEach(place => {
+                    place.textContent = "$" + itemsSubtotal.toFixed(2);
+                });
+                document.getElementById("subtotal").textContent = "$" + subtotal.toFixed(2);
+                document.getElementById("total_amount_of_order").textContent = "$" + total.toFixed(2);
+            };
+            document.addEventListener("DOMContentLoaded", calculateTotals);
+            document.addEventListener("htmx:afterSwap", function (e) {
+                if (e.target.id === "content-area" || e.target.closest("#content-area")) {
+                    calculateTotals();
+                }
+            });
+        </script>
+
+    </div><!--end row-->
+
+    <!-- Custom & Billing Information========= -->
+    <h5 class="fw-bold mb-4">Billing Details</h5>
+    {% with order.customer as customer_profile %}
+    <div class="card position-relative" id="customer-order-card">
+        <button id="edit-card-btn" class="btn btn-light btn-sm position-absolute top-0 end-0 m-2" type="button">
+            <i class="bi bi-pencil-fill"></i>
+        </button>
+        <button id="cancel-card-btn" class="btn btn-light btn-sm position-absolute top-0 end-0 m-2" type="button"
+            style="display: none;">
+            <i class="bi bi-stop-fill"></i>
+        </button>
+
+        <div class="card-body">
+            <div class="row g-3 row-cols-1 row-cols-lg-4">
+                <div class="col">
+                    <div class="d-flex align-items-start gap-3 border p-3 rounded">
+                        <div class="detail-icon fs-5">
+                            <i class="bi bi-person-circle"></i>
+                        </div>
+                        <div class="detail-info">
+                            <p class="fw-bold mb-1">Customer Name</p>
+                            <!-- <a href="javascript:;" class="mb-0">{{ customer_profile.full_name }}</a> -->
+                            <span class="editable-text" data-field="full_name">{{ customer_profile.name }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col">
+                    <div class="d-flex align-items-start gap-3 border p-3 rounded">
+                        <div class="detail-icon fs-5">
+                            <i class="bi bi-envelope-fill"></i>
+                        </div>
+                        <div class="detail-info">
+                            <h6 class="fw-bold mb-1">Email</h6>
+                            <span class="editable-text" data-field="email">
+                                {{ customer_profile.email|default:"Not available" }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col">
+                    <div class="d-flex align-items-start gap-3 border p-3 rounded">
+                        <div class="detail-icon fs-5">
+                            <i class="bi bi-telephone-fill"></i>
+                        </div>
+                        <div class="detail-info">
+                            <h6 class="fw-bold mb-1">Phone</h6>
+                            <span class="editable-text" data-field="phone">{{ customer_profile.phone }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col">
+                    <div class="d-flex align-items-start gap-3 border p-3 rounded">
+                        <div class="detail-icon fs-5">
+                            <i class="bi bi-calendar-check-fill"></i>
+                        </div>
+                        <div class="detail-info">
+                            <h6 class="fw-bold mb-1">Shipping Date</h6>
+                            <span class="editable-text" data-field="delivery_date" data-raw="{{ order.delivery_date|date:'Y-m-d' }}">
+                                {% if order.delivery_date %}{{ order.delivery_date|date:"M. d, Y" }}{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <div class="d-flex align-items-start gap-3 border p-3 rounded">
+                        <div class="detail-icon fs-5">
+                            <i class="bi bi-house-fill"></i>
+                        </div>
+                        <div class="detail-info">
+                            <h6 class="fw-bold mb-1">Shipping Address</h6>
+                            <span class="editable-text" data-field="shipping_address">
+                                {{ order.shipping_address }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div><!--end row-->
+        </div>
+    </div>
+    {% endwith %}
+
+
+    {% if order.metadata.extra_personal_info %}
+    <div class="card mt-4">
+        <div class="card-header">
+            <h6 class="mb-0">Extra Information</h6>
+        </div>
+
+        <div class="card-body">
+            {% for key, value in order.metadata.extra_personal_info.items %}
+                <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #eee;">
+                    <span>{{ key }}</span>
+                    <strong>{{ value }}</strong>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
     {% endif %}
 
-    <div class="row">
-        <div class="col-12 col-lg-8">
-            <!-- Product Details -->
-            <div class="card">
-                <div class="card-body">
-                    <!-- Product Title  -->
-                    <div class="mb-4">
-                        <h5 class="mb-3">Product Title</h5>
-                        <input type="text"
-                               class="form-control"
-                               name="name"
-                               value="{{ product.name|default:'' }}"
-                               placeholder="write title here....">
-                    </div>
 
-                    <!-- Product Category -->
-                    <div class="mb-4 row g-3">
-                        <div class="col-4">
-                            <select class="form-select" name="category" id="AddCategory">
-                                <option selected disabled>Select Category</option>
-                                {% for cat in categories %}
-                                    <option value="{{ cat.id }}"
-                                        {% if product.category.id == cat.id %}selected{% endif %}>
-                                        {{ cat.get_category_path }}
-                                    </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
 
-                    <!-- Product Highlights -->
-                    <div class="mb-4">
-                        <h5 class="mb-3">Product Highlights</h5>
-                        <textarea class="form-control"
-                                  name="short_description"
-                                  cols="4" rows="6"
-                                  placeholder="write a short description here..">{{ product.short_description|default:'' }}</textarea>
-                    </div>
+    <!-- <div class="card mt-4" id="order-metadata-card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">Extra Information</h6>
 
-                    <!-- Product Full Description -->
-                    <div class="mb-4">
-                        <h5 class="mb-3">Product Full Description</h5>
-                        <div id="quill-editor" style="height: 300px;"></div>
-                        <textarea id="full-description"
-                                  name="details"
-                                  class="form-control"
-                                  cols="4" rows="10"
-                                  style="display:none;">{{ product.details|default:'' }}</textarea>
-                    </div>
+            <button class="btn btn-sm btn-light" id="edit-metadata-btn">
+                <i class="bi bi-pencil-fill"></i>
+            </button>
 
-                    <!-- Product Tags -->
-                    <div class="mb-4">
-                        <h5 class="mb-3">Tags</h5>
-                        <div class="col-12 mb-2 position-relative tag-wrapper">
-                            <input type="text" class="form-control" id="Tags" placeholder="Tags">
-                            <ul class="list-group tag-suggestion-list d-none" id="tag_suggestions"></ul>
-                            <input type="hidden" name="tags" id="tags_input" value='{{ product.tags|default:"[]" }}'>
-                        </div>
-                        <div class="col-12 mb-2">
-                            <div class="d-flex align-items-center gap-2 flex-wrap" id="tags_list">
-                                {% for tag in product.tags %}
-                                    <a href="javascript:;" class="btn btn-sm btn-light border shadow-sm" data-slug="{{ tag }}">
-                                        {{ tag }} <i class="bi bi-x" onclick="removeTag('{{ tag }}', this.parentElement)"></i>
-                                    </a>
-                                {% endfor %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Images -->
-            <div class="card">
-                <div class="card-body">
-                    <div class="mb-4">
-                        <h5 class="mb-3">Display images</h5>
-                        {% if is_update %}
-                            {% for img in product.images.all %}
-                                <div class="position-relative mb-2">
-                                    <img src="{{ img.image.url }}" width="100">
-                                    <input type="checkbox" name="delete_images" value="{{ img.id }}"> Delete
-                                </div>
-                            {% endfor %}
-                        {% endif %}
-                        <input id="fancy-file-upload" type="file" name="images" accept=".jpg, .png, image/jpeg, image/png" multiple>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Video -->
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="mb-3">Product Video</h5>
-                    {% if is_update and product.videos %}
-                        <video width="300" controls>
-                            <source src="{{ product.videos.video.url }}" type="video/mp4">
-                        </video>
-                        <div>
-                            <input type="checkbox" name="delete_video" value="{{ product.videos.id }}"> Delete
-                        </div>
-                    {% endif %}
-                    <input type="file" name="video" accept="video/*">
-                </div>
-            </div>
-
-            <!-- Price, Stock & Variants -->
-            <div class="card">
-                <div class="card-body">
-                    <div class="mb-4">
-                        <h5 class="mb-3">Price & Stock</h5>
-                        <div class="row g-3">
-                            <div class="col-6">
-                                <label>Price</label>
-                                <input type="number" name="price" class="form-control" value="{{ product.price|default:'' }}">
-                            </div>
-                            <div class="col-6">
-                                <label>Discount Price</label>
-                                <input type="number" name="discount_price" class="form-control" value="{{ product.discount_price|default:'' }}">
-                            </div>
-                            <div class="col-6">
-                                <label>Stock Quantity</label>
-                                <input type="number" name="inventory_quantity" class="form-control" value="{{ product.inventory_quantity|default:'' }}">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
+            <button class="btn btn-sm btn-light" id="cancel-metadata-btn" style="display:none;">
+                <i class="bi bi-x-lg"></i>
+            </button>
         </div>
 
-        <!-- Product Add Form Side Bar -->
-        <div class="col-12 col-lg-4">
-            <div class="card">
-                <div class="card-body">
-                    <div class="d-flex align-items-center gap-3">
-                        <button type="button" class="btn btn-outline-danger flex-fill"><i class="bi bi-x-circle me-2"></i>Discard</button>
-                        <button type="submit" name="status" value="DRAFT" class="btn btn-outline-success flex-fill"><i class="bi bi-cloud-download me-2"></i>Save Draft</button>
-                        <button type="submit" name="status" value="PUBLISHED" class="btn btn-outline-primary flex-fill"><i class="bi bi-send me-2"></i>Publish</button>
-                    </div>
-                </div>
-            </div>
+        <div class="card-body">
+            <div id="metadata-view"></div>
+            <div id="metadata-edit" style="display:none;"></div>
         </div>
-    </div><!--end row-->
-</form>
+    </div> -->
+    <script>
+        const FIELD_LABELS = {
+            groomName: "Groom Name",
+            brideName: "Bride Name",
+            marriageDate: "Marriage Date",
+            babyName: "Baby Name",
+            babyDOB: "Date of Birth",
+            babyBirthTime: "Birth Time",
+            fatherName: "Father Name",
+            motherName: "Mother Name",
+        };
 
-<script>
-var quill = new Quill('#quill-editor', { theme: 'snow' });
+        function renderMetadataView(metadata) {
+            console.log("metadata: ", metadata)
+            const container = document.getElementById("metadata-view");
+            container.innerHTML = "";
 
-// Save Quill HTML and tags into hidden inputs
-document.querySelector("form").addEventListener("submit", function() {
-    document.getElementById("full-description").value = quill.root.innerHTML;
+            const info = metadata.extra_personal_info || {};
 
-    const tagsInput = document.getElementById("tags_input");
-    const tagsList = document.getElementById("tags_list");
-    const selectedTags = Array.from(tagsList.querySelectorAll('a')).map(a => a.dataset.slug);
-    tagsInput.value = JSON.stringify(selectedTags);
-});
+            if (!Object.keys(info).length) {
+                container.innerHTML = "<p class='text-muted'>No extra information</p>";
+                return;
+            }
 
-// Tag system
+            Object.entries(info).forEach(([key, value]) => {
+                container.innerHTML += `
+                    <div class="d-flex justify-content-between border-bottom py-2">
+                        <span>${FIELD_LABELS[key] || key}</span>
+                        <strong>${value ?? "-"}</strong>
+                    </div>
+                `;
+            });
+        }
+        renderMetadataView("{{ order.metadata }}")
 
-const tagInput = document.getElementById("Tags");
-const suggestionBox = document.getElementById("tag_suggestions");
-const tagsList = document.getElementById("tags_list");
+        function renderMetadataEdit(metadata) {
+            const container = document.getElementById("metadata-edit");
+            container.innerHTML = "";
 
-tagInput.addEventListener("input", async function () {
-    const query = this.value.trim();
-    suggestionBox.innerHTML = "";
-    suggestionBox.classList.add("d-none");
-    if (!query) return;
+            const info = metadata.extra_personal_info || {};
 
-    const data = await fetch(`${TAG_API_URL}?q=${query}`).then(res => res.json());
-    if (data.status && data.data.length) {
-        suggestionBox.classList.remove("d-none");
-        data.data.forEach(tag => {
-            const li = document.createElement("li");
-            li.className = "list-group-item list-group-item-action";
-            li.textContent = tag.name;
-            li.dataset.slug = tag.slug;
-            li.onclick = () => addTag(tag.slug, tag.name);
-            suggestionBox.appendChild(li);
+            Object.entries(info).forEach(([key, value]) => {
+                container.innerHTML += `
+                    <div class="mb-2">
+                        <label class="form-label">${FIELD_LABELS[key] || key}</label>
+                        <input class="form-control"
+                            data-key="${key}"
+                            value="${value ?? ""}">
+                    </div>
+                `;
+            });
+
+            container.innerHTML += `
+                <button class="btn btn-primary btn-sm mt-2" id="save-metadata-btn">
+                    Save
+                </button>
+            `;
+        }
+        
+        const editBtn = document.getElementById("edit-metadata-btn");
+        const cancelBtn = document.getElementById("cancel-metadata-btn");
+
+        editBtn.onclick = () => {
+            editBtn.style.display = "none";
+            cancelBtn.style.display = "inline-block";
+
+            document.getElementById("metadata-view").style.display = "none";
+            document.getElementById("metadata-edit").style.display = "block";
+
+            renderMetadataEdit(ORDER_METADATA);
+        };
+
+        cancelBtn.onclick = () => {
+            cancelBtn.style.display = "none";
+            editBtn.style.display = "inline-block";
+
+            document.getElementById("metadata-edit").style.display = "none";
+            document.getElementById("metadata-view").style.display = "block";
+        };
+
+
+        document.addEventListener("click", function (e) {
+            if (e.target.id !== "save-metadata-btn") return;
+
+            const inputs = document.querySelectorAll("#metadata-edit input");
+            const updatedInfo = {};
+
+            inputs.forEach(input => {
+                updatedInfo[input.dataset.key] = input.value;
+            });
+
+            fetch(`/orders/${ORDER_ID}/update-metadata/`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": CSRF_TOKEN
+                },
+                body: JSON.stringify({
+                    extra_personal_info: updatedInfo
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                ORDER_METADATA.extra_personal_info = updatedInfo;
+                renderMetadataView(ORDER_METADATA);
+                cancelBtn.onclick();
+            });
         });
-    }
-});
 
-function addTag(slug, name) {
-    if (Array.from(tagsList.querySelectorAll('a')).some(a => a.dataset.slug === slug)) return;
-    const tagEl = document.createElement("a");
-    tagEl.href = "javascript:;";
-    tagEl.className = "btn btn-sm btn-light border shadow-sm";
-    tagEl.dataset.slug = slug;
-    tagEl.innerHTML = `${name} <i class="bi bi-x" onclick="removeTag('${slug}', this.parentElement)"></i>`;
-    tagsList.appendChild(tagEl);
-    tagInput.value = "";
-    suggestionBox.innerHTML = "";
-    suggestionBox.classList.add("d-none");
-}
 
-function removeTag(slug, el) {
-    el.remove();
-}
 
-// FancyFileUpload
-$('#fancy-file-upload').FancyFileUpload({
-    params: { action: 'fileuploader' },
-    maxfilesize: 1000000
-});
-</script>
+
+    </script>
+
+</div>

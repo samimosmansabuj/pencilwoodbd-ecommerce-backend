@@ -137,21 +137,26 @@
                                     {{ products.created_at|date:"M d, Y" }}
                                 </td>
                                 <td>
-                                    <div class="dropdown">
-                                        <div class="btn-group">
-                                            <button class="btn btn-sm btn-filter edit-category-btn"
-                                                data-id="{{ category.id }}" data-bs-toggle="modal"
-                                                data-bs-target="#CategoryModal">
-                                                <i class="bi bi-pencil"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-filter delete-category-btn"
-                                                data-id="{{ category.id }}" data-bs-toggle="modal"
-                                                data-bs-target="#deleteCategoryModal">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </div>
+                                    <div class="btn-group">
+                                
+                                        <!-- EDIT -->
+                                        <a href="{% url 'product_update' product.id %}"
+                                           class="btn btn-sm btn-filter"
+                                           title="Edit Product">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                
+                                        <!-- DELETE -->
+                                        <a href="{% url 'product_delete' product.id %}"
+                                           class="btn btn-sm btn-filter"
+                                           title="Delete Product"
+                                           onclick="return confirm('Are you sure you want to delete this product?');">
+                                            <i class="bi bi-trash"></i>
+                                        </a>
+                                
                                     </div>
                                 </td>
+                                
                             </tr>
                             {% endfor %}
                         </tbody>
