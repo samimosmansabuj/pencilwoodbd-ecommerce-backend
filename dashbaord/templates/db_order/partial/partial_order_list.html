@@ -98,11 +98,12 @@
                             <tr>
                                 <th><input class="form-check-input" type="checkbox"></th>
                                 <th>Order Id</th>
-                                <th>Price</th>
                                 <th>Customer</th>
-                                <th>Payment Status</th>
-                                <th>Completed Payment</th>
+                                <th>Phone</th>
+                                <th>Price</th>
+                                <th>Status</th>
                                 <th>Delivery Type</th>
+                                <th>Delivery Date</th>
                                 <th>Date</th>
                                 <th>Actions</th>
                             </tr>
@@ -119,17 +120,14 @@
                                        hx-push-url="true"
                                        hx-trigger="click, refreshReturnOrderDetailView from:body"
                                        hx-swap="innerHTML">
-                                        #{{ order.order_uuid  }}
+                                        #{{ order.order_id  }}
                                     </a>
                                 </td>
-
-                                <td>${{ order.get_discount_total }}</td>
-
+                                
                                 <td>
                                     <a class="d-flex align-items-center gap-3" href="javascript:;">
                                         <div class="customer-pic">
-                                            <img src="https://placehold.co/110x110/png"
-                                                 class="rounded-circle" width="40" height="40">
+                                            <img src="https://placehold.co/110x110/png" class="rounded-circle" width="40" height="40">
                                         </div>
                                         <p class="mb-0 customer-name fw-bold">
                                             {{ order.customer.name }}
@@ -138,15 +136,14 @@
                                 </td>
 
                                 <td>
-                                    <span class="lable-table bg-success-subtle text-success rounded border border-success-subtle font-text2 fw-bold">
-                                        {{ order.status }}
-                                    </span>
+                                    {{ order.customer.phone }}
                                 </td>
 
+                                <td>${{ order.get_total_order_amount }}</td>
+
                                 <td>
-                                    <span class="lable-table bg-danger-subtle text-danger rounded border border-danger-subtle font-text2 fw-bold">
-                                        {{ order.payment_status }}
-                                        <i class="bi bi-x-lg ms-2"></i>
+                                    <span class="lable-table bg-success-subtle text-success rounded border border-success-subtle font-text2 fw-bold">
+                                        {{ order.status }}
                                     </span>
                                 </td>
 
@@ -154,10 +151,14 @@
 
                                 <td>
                                     {% if order.delivery_date %}
-                                        {{ order.delivery_date }}
+                                    {{ order.delivery_date|date:"M d, Y" }}
                                     {% else %}
-                                        Not Set
+                                    Not Set
                                     {% endif %}
+                                </td>
+
+                                <td>
+                                    {{ order.created_at|date:"M d, Y" }}
                                 </td>
 
                                 <td>

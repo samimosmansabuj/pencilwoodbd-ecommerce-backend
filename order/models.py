@@ -1,8 +1,9 @@
+import string, secrets
 from django.db import models
 from authentication.models import Customer
 from product.models import Product
-import uuid
 from pencilwoodbd.choices import PAYMENT_STATUS, PAYMENT_TYPE, STATUS, REVIEW_STATUS, DELIVERY_TYPE
+from datetime import datetime
 
 # Payment Method Model
 class PaymentMethod(models.Model):
@@ -39,7 +40,7 @@ class Address(models.Model):
 
 # Order Model
 class Order(models.Model):
-    order_uuid = models.CharField(max_length=255, unique=True, blank=True, null=True)
+    order_id = models.CharField(max_length=255, unique=True, blank=True, null=True)
     customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, related_name='orders', null=True, blank=True)
 
     shipping_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -97,15 +98,24 @@ class Order(models.Model):
     
     @property
     def get_total_order_amount(self):
-        return self.get_discount_total() + self.shipping_total + self.tax_total
+        return self.get_discount_total + self.shipping_total + self.tax_total
+    
+    def generate_payment_id(self):
+        chars = string.ascii_uppercase + string.digits
+        while True:
+            code = ''.join(secrets.choice(chars) for _ in range(4))
+            today = datetime.now().strftime("%b%d")
+            generate_id = f"PWBD-{today.upper()}-{code}"
+            if not Order.objects.filter(order_id=generate_id).exists():
+                return generate_id
 
     def save(self, *args, **kwargs):
-        if not self.order_uuid:
-            self.order_uuid = uuid.uuid4().hex
+        if not self.order_id:
+            self.order_id = self.generate_payment_id()
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f'{self.customer} - Order {self.order_uuid} - {self.id}'
+        return f'{self.customer} - Order {self.order_id}'
 
 # Order Item Model
 class OrderItem(models.Model):
