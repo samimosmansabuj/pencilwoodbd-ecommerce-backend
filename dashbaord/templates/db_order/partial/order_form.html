@@ -7,7 +7,7 @@
             <div
                 class="d-flex flex-lg-row flex-column align-items-start align-items-lg-center justify-content-between gap-3">
                 <div class="flex-grow-1">
-                    <h4 class="fw-bold">Order #{{order.order_uuid}}</h4>
+                    <h4 class="fw-bold">Order #{{order.order_id}}</h4>
                     <p class="mb-0">Customer ID : <a href="javascript:;">{{order.customer.id}}</a></p>
                 </div>
                 <div class="overflow-auto">
@@ -18,22 +18,9 @@
                             </button>
                         </div>
                         <div class="btn-group position-static">
+                            <!-- <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"> -->
                             <button type="button" class="btn btn-outline-primary">
                                 <i class="bi bi-arrow-clockwise me-2"></i>Refund
-                            </button>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="javascript:;">Action</a></li>
-                                <li><a class="dropdown-item" href="javascript:;">Another action</a></li>
-                                <li>
-                                    <hr class="dropdown-divider">
-                                </li>
-                                <li><a class="dropdown-item" href="javascript:;">Something else here</a></li>
-                            </ul>
-                        </div>
-                        <div class="btn-group position-static">
-                            <button type="button" class="btn btn-outline-primary dropdown-toggle"
-                                data-bs-toggle="dropdown" aria-expanded="false">
-                                More Actions
                             </button>
                             <ul class="dropdown-menu">
                                 <li><a class="dropdown-item" href="javascript:;">Action</a></li>
@@ -63,10 +50,10 @@
                                 <thead class="table-light">
                                     <tr>
                                         <th>Product Name</th>
-                                        <th>Meta Data</th>
+                                        <!-- <th>Meta Data</th> -->
                                         <th>Quantity</th>
                                         <th>Price</th>
-                                        <th>Discount Price</th>
+                                        <th>Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -88,15 +75,15 @@
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>
+                                        <!-- <td>
                                             {% if item.variant and item.variant.attributes %}
                                             {% for key, value in item.variant.attributes.items %}
                                             <div>{{ key|capfirst }}: {{ value|capfirst }}</div>
                                             {% endfor %}
                                             {% endif %}
-                                        </td>
+                                        </td> -->
                                         <td>{{ item.quantity }}</td>
-                                        <td>৳{{ item.price }}</td>
+                                        <td>৳{{ item.discount_price }}</td>
                                         <td class="item_total_price">{{ item.discount_total  }}</td>
                                     </tr>
                                     {% endfor %}
@@ -119,11 +106,11 @@
                         <div>
                             <div class="d-flex justify-content-between">
                                 <p class="fw-semi-bold">Items subtotal :</p>
-                                <p class="fw-semi-bold items_subtotal">$0</p>
+                                <p class="fw-semi-bold items_subtotal">৳0</p>
                             </div>
                             <div class="d-flex justify-content-between">
                                 <p class="fw-semi-bold">Discount :</p>
-                                <p class="text-danger fw-semi-bold" id="discount">-$0</p>
+                                <p class="text-danger fw-semi-bold" id="discount">-৳0</p>
                             </div>
                             <!-- <div class="d-flex justify-content-between">
                                     <p class="fw-semi-bold">Tax :</p>
@@ -131,7 +118,7 @@
                                 </div> -->
                             <div class="d-flex justify-content-between">
                                 <p class="fw-semi-bold">Subtotal :</p>
-                                <p class="fw-semi-bold" id="subtotal">$0</p>
+                                <p class="fw-semi-bold" id="subtotal">৳0</p>
                             </div>
                             <div class="d-flex justify-content-between">
                                 <p class="fw-semi-bold">Delivary Cost :</p>
@@ -140,7 +127,7 @@
                         </div>
                         <div class="d-flex justify-content-between border-top pt-4">
                             <h5 class="mb-0 fw-bold">Total :</h5>
-                            <h5 class="mb-0 fw-bold" id="total_amount_of_order">$0</h5>
+                            <h5 class="mb-0 fw-bold" id="total_amount_of_order">৳0</h5>
                         </div>
                     </div>
                 </div>
@@ -173,24 +160,24 @@
                 let itemCells = document.querySelectorAll(".item_total_price");
                 let itemsSubtotal = 0;
                 itemCells.forEach(cell => {
-                    let value = parseFloat(cell.textContent.replace(/[$,]/g, '')) || 0;
+                    let value = parseFloat(cell.textContent.replace(/[৳,]/g, '')) || 0;
                     itemsSubtotal += value;
                 });
 
                 let discountEl = document.getElementById("discount");
                 let shippingEl = document.getElementById("shipping_cost");
 
-                let discount = parseFloat(discountEl.textContent.replace(/[$,-]/g, '')) || 0;
-                let shipping = parseFloat(shippingEl.textContent.replace(/[$,]/g, '')) || 0;
+                let discount = parseFloat(discountEl.textContent.replace(/[৳,-]/g, '')) || 0;
+                let shipping = parseFloat(shippingEl.textContent.replace(/[৳,]/g, '')) || 0;
 
                 let subtotal = itemsSubtotal - discount;
                 let total = subtotal + shipping;
 
                 document.querySelectorAll(".items_subtotal").forEach(place => {
-                    place.textContent = "$" + itemsSubtotal.toFixed(2);
+                    place.textContent = "৳" + itemsSubtotal.toFixed(2);
                 });
-                document.getElementById("subtotal").textContent = "$" + subtotal.toFixed(2);
-                document.getElementById("total_amount_of_order").textContent = "$" + total.toFixed(2);
+                document.getElementById("subtotal").textContent = "৳" + subtotal.toFixed(2);
+                document.getElementById("total_amount_of_order").textContent = "৳" + total.toFixed(2);
             };
             document.addEventListener("DOMContentLoaded", calculateTotals);
             document.addEventListener("htmx:afterSwap", function (e) {

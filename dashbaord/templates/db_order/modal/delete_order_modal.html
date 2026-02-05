@@ -1,7 +1,7 @@
 <div class="modal fade" id="deleteOrderModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <form method="POST" id="deleteOrderForm">
+            <form method="POST" id="deleteOrderForm" data-url="{% url 'order_delete' 0 %}">
                 {% csrf_token %}
                 <div class="modal-header">
                     <h5 class="modal-title text-danger">Delete Order</h5>

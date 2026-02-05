@@ -1,12 +1,13 @@
 from http import HTTPStatus
+from urllib.parse import urlparse
 from django import forms
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse
+from django.http import HttpRequest, HttpResponse, HttpResponsePermanentRedirect, HttpResponseRedirect, JsonResponse
 from django.views.generic import CreateView, UpdateView, DeleteView, ListView
 from order.models import Order
 from product.models import Product, Category, ProductImage, ProductVideo
 from authentication.models import CustomUser
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.contrib import messages
 from django.contrib.auth.views import LoginView
 from django.contrib.auth import logout, authenticate, login
@@ -21,6 +22,7 @@ from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS
 from product.forms import ProductForm,ProductImageForm, ProductVideoForm
 from django.forms import modelformset_factory
 from django.utils.text import slugify
+from django.contrib.auth.mixins import LoginRequiredMixin
 
 
 @login_required(login_url='admin_login')
@@ -310,7 +312,9 @@ def delete_category(request, id):
 
 
 # ------------------Order section CBV-------------
-class OrderView(View):
+class OrderView(LoginRequiredMixin, View):
+    login_url = 'admin_login'
+    
     def get(self, request):
         # if not request.user.is_authenticated:
         #     return redirect('product_landing_page')
@@ -321,6 +325,7 @@ class OrderView(View):
         return render(request, "db_order/order_list.html", {"orders": orders})
     
     def post(self, request):
+        print("request.POST: ", request.POST)
         if not request.user.is_authenticated:
             return redirect('product_landing_page')
         elif request.user.user_type not in [USER_TYPE.ADMIN, USER_TYPE.STAFF, USER_TYPE.SUPER_ADMIN]:
@@ -353,7 +358,7 @@ class OrderView(View):
                 Order.objects.create(
                     name=data.get("order_title"),
                     description=data.get("order_description"),
-                    status=STATUS.ACTIVE,
+                    status=STATUS.Pending,
                 )
                 return JsonResponse({
                     "status": True,
@@ -366,7 +371,7 @@ class OrderView(View):
                 "message": str(e)
             }, status=HTTPStatus.BAD_REQUEST)
 
-class OrderDetailView(View):
+class OrderDetailView(LoginRequiredMixin, View):
     def get(self, request, id):
         if not request.user.is_authenticated:
             return redirect('product_landing_page')
@@ -513,15 +518,63 @@ def update_order(request, order_id):
     except Exception as e:
         return JsonResponse({"success": False, "message": str(e)}, status=500)
 
+class OrderDeleteView(LoginRequiredMixin, DeleteView):
+    model = Order
+    success_url = reverse_lazy("order_list")
+    login_url = 'admin_login'
+    
+    def post(self, request, *args: str, **kwargs) -> HttpResponse:
+        try:
+            order = get_object_or_404(Order, pk=kwargs.get("pk"))
+            order.delete()
+            messages.success(request, "Order deleted successfully!")
+        except:
+            messages.error(request, "Order does not exist.")
+        return redirect(self.success_url)
 
-@login_required(login_url='admin_login')
-def order_delete(request, pk):
-    order = get_object_or_404(Order, pk=pk)
-    if request.method == "POST":
-        order.delete()
-        messages.success(request, "Order deleted successfully!")
-        return redirect("order_list") 
-    messages.error(request, "Invalid request method!")
-    return redirect("order_list")
+# class RedirectView(View):
+#     permanent = False
+#     url = None
+#     pattern_name = None
+#     query_string = False
 
+#     def get_redirect_url(self, *args, **kwargs):
+#         if self.url:
+#             url = self.url % kwargs
+#         elif self.pattern_name:
+#             url = reverse(self.pattern_name, args=args, kwargs=kwargs)
+#         else:
+#             return None
+
+#         args = self.request.META.get("QUERY_STRING", "")
+#         if args and self.query_string:
+#             if urlparse(url).query:
+#                 url = f"{url}&{args}"
+#             else:
+#                 url = f"{url}?{args}"
+#         return url
+
+#     def get(self, request, *args, **kwargs):
+#         url = self.get_redirect_url(*args, **kwargs)
+#         if url:
+#             if self.permanent:
+#                 return HttpResponsePermanentRedirect(url)
+#             else:
+#                 return HttpResponseRedirect(url)
+#         else:
+#             response = HttpResponseGone()
+#             log_response("Gone: %s", request.path, response=response, request=request)
+#             return response
+
+#     def head(self, request, *args, **kwargs):
+#         return self.get(request, *args, **kwargs)
+
+#     def post(self, request, *args, **kwargs):
+#         return self.get(request, *args, **kwargs)
+
+#     def options(self, request, *args, **kwargs):
+#         return self.get(request, *args, **kwargs)
+
+#     def delete(self, request, *args, **kwargs):
+#         return self.get(request, *args, **kwargs)
 
