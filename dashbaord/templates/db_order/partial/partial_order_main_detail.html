@@ -30,24 +30,23 @@
             }).replace(",", ".");
         }
 
-        function elementChange(elementName, field, value) {
+        function elementChange(elementName, field, value, type) {
             const elm = document.createElement(elementName);
             if (elementName === "input") {
-                if (field === "delivery_date") {
-                    elm.type = "date";
-                } else {
-                    elm.type = "text";
-                }
+                elm.type = type || "text";
+                if (value === "Not available") value = "";
                 elm.value = value;
                 elm.className = "form-control form-control-sm mb-1 editable-input";
                 elm.name = field;
             } else {
+                if (!value) value = "Not available";
                 elm.className = "editable-text";
                 if (field === "delivery_date") {
                     elm.dataset.raw = value;
                     value = formatDisplayDate(value.trim());
                 }
                 elm.textContent = value || "";
+                elm.dataset.type = type || "text";
             }
             elm.dataset.field = field;
             return elm
@@ -58,8 +57,9 @@
                 .querySelectorAll("#customer-order-card .editable-input")
                 .forEach(input => {
                     const field = input.dataset.field;
+                    const type = input.type;
                     let value = input.value.trim();
-                    const span = elementChange("span", field, value);
+                    const span = elementChange("span", field, value, type);
                     input.replaceWith(span);
                 });
             editCardBtn.style.display = "block";
@@ -70,13 +70,15 @@
         cancelCardBtn.addEventListener("click", () => {
             cancelCardBtnFunc();
         });
+        
         editCardBtn.addEventListener("click", () => {
             document
                 .querySelectorAll("#customer-order-card .editable-text")
                 .forEach(span => {
                     const field = span.dataset.field;
+                    const type = span.dataset.type;
                     const value = span.dataset.raw || span.textContent.trim();
-                    const input = elementChange("input", field, value);
+                    const input = elementChange("input", field, value, type);
                     span.replaceWith(input);
                 });
             editCardBtn.style.display = "none";
@@ -117,7 +119,4 @@
             orderPageScript();
         }
     });
-
-    // document.addEventListener("DOMContentLoaded", function () {
-    //     });
 </script>

@@ -20,16 +20,16 @@ class PAYMENT_STATUS(models.TextChoices):
     Unpaid = "Unpaid"
     Partial = "Partial"
 
+
 class STATUS(models.TextChoices):
-    Pending = "Pending"
-    Confirm = "Confirm"
-    Shipped = "Shipped"
-    Ready_to_Ship = "Ready to Ship"
-    Out_for_Delivery = "Out for Delivery"
-    Processing = "Processing"
-    Delivered = "Delivered"
-    Cancel = "Cancel"
-    Return = "Return"
+# class ORDER_STATUS(models.TextChoices):
+    NEW = "new"
+    CONFIRMED = "confirmed"
+    SHIPPED = "shipped"
+    DELIVERED = "delivered"
+    CANCELLED = "cancelled"
+    RETURNED = "returned"
+    REFUNDED = "refunded"
 
 class REVIEW_STATUS(models.TextChoices):
     PENDING = "Pending"

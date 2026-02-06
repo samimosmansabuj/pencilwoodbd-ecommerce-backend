@@ -8,7 +8,7 @@
                 class="d-flex flex-lg-row flex-column align-items-start align-items-lg-center justify-content-between gap-3">
                 <div class="flex-grow-1">
                     <h4 class="fw-bold">Order #{{order.order_id}}</h4>
-                    <p class="mb-0">Customer ID : <a href="javascript:;">{{order.customer.id}}</a></p>
+                    <p class="mb-0">Customer ID : <a href="javascript:;">{{order.customer.name}}</a></p>
                 </div>
                 <div class="overflow-auto">
                     <div class="btn-group position-static">
@@ -211,7 +211,7 @@
                         <div class="detail-info">
                             <p class="fw-bold mb-1">Customer Name</p>
                             <!-- <a href="javascript:;" class="mb-0">{{ customer_profile.full_name }}</a> -->
-                            <span class="editable-text" data-field="full_name">{{ customer_profile.name }}</span>
+                            <span class="editable-text" data-field="full_name" data-type="text">{{ customer_profile.name }}</span>
                         </div>
                     </div>
                 </div>
@@ -222,10 +222,9 @@
                             <i class="bi bi-envelope-fill"></i>
                         </div>
                         <div class="detail-info">
-                            <h6 class="fw-bold mb-1">Email</h6>
-                            <span class="editable-text" data-field="email">
-                                {{ customer_profile.email|default:"Not available" }}
-                            </span>
+                            <h6 class="fw-bold mb-1">Whatsapp</h6>
+                            <span class="editable-text" data-field="whatsapp" data-type="text">{{ customer_profile.whatsapp|default:"Not available" }}</span>
+                            <!-- <span class="editable-text" data-field="whatsapp">{% if customer_profile.whatsapp %}{{ customer_profile.whatsapp }}{% endif %}</span> -->
                         </div>
                     </div>
                 </div>
@@ -237,7 +236,7 @@
                         </div>
                         <div class="detail-info">
                             <h6 class="fw-bold mb-1">Phone</h6>
-                            <span class="editable-text" data-field="phone">{{ customer_profile.phone }}</span>
+                            <span class="editable-text" data-field="phone" data-type="text">{{ customer_profile.phone }}</span>
                         </div>
                     </div>
                 </div>
@@ -249,8 +248,26 @@
                         </div>
                         <div class="detail-info">
                             <h6 class="fw-bold mb-1">Shipping Date</h6>
-                            <span class="editable-text" data-field="delivery_date" data-raw="{{ order.delivery_date|date:'Y-m-d' }}">
-                                {% if order.delivery_date %}{{ order.delivery_date|date:"M. d, Y" }}{% endif %}
+                            <span class="editable-text" data-field="delivery_date" data-raw="{{ order.delivery_date|date:'Y-m-d' }}" data-type="date">
+                                {% if order.delivery_date %}
+                                    {{ order.delivery_date|date:"M. d, Y" }}
+                                {% else %}
+                                    Not available
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col">
+                    <div class="d-flex align-items-start gap-3 border p-3 rounded">
+                        <div class="detail-icon fs-5">
+                            <i class="bi bi-envelope-fill"></i>
+                        </div>
+                        <div class="detail-info">
+                            <h6 class="fw-bold mb-1">Email</h6>
+                            <span class="editable-text" data-field="email" data-type="email">
+                                {{ customer_profile.email|default:"Not available" }}
                             </span>
                         </div>
                     </div>
@@ -263,7 +280,7 @@
                         </div>
                         <div class="detail-info">
                             <h6 class="fw-bold mb-1">Shipping Address</h6>
-                            <span class="editable-text" data-field="shipping_address">
+                            <span class="editable-text" data-field="shipping_address" data-type="text">
                                 {{ order.shipping_address }}
                             </span>
                         </div>
@@ -293,26 +310,8 @@
     {% endif %}
 
 
-
-    <!-- <div class="card mt-4" id="order-metadata-card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h6 class="mb-0">Extra Information</h6>
-
-            <button class="btn btn-sm btn-light" id="edit-metadata-btn">
-                <i class="bi bi-pencil-fill"></i>
-            </button>
-
-            <button class="btn btn-sm btn-light" id="cancel-metadata-btn" style="display:none;">
-                <i class="bi bi-x-lg"></i>
-            </button>
-        </div>
-
-        <div class="card-body">
-            <div id="metadata-view"></div>
-            <div id="metadata-edit" style="display:none;"></div>
-        </div>
-    </div> -->
     <script>
+        // Order Meta Data Hanlde Script===================
         const FIELD_LABELS = {
             groomName: "Groom Name",
             brideName: "Bride Name",
@@ -323,9 +322,7 @@
             fatherName: "Father Name",
             motherName: "Mother Name",
         };
-
         function renderMetadataView(metadata) {
-            console.log("metadata: ", metadata)
             const container = document.getElementById("metadata-view");
             container.innerHTML = "";
 
@@ -392,7 +389,6 @@
             document.getElementById("metadata-view").style.display = "block";
         };
 
-
         document.addEventListener("click", function (e) {
             if (e.target.id !== "save-metadata-btn") return;
 
@@ -420,9 +416,6 @@
                 cancelBtn.onclick();
             });
         });
-
-
-
 
     </script>
 

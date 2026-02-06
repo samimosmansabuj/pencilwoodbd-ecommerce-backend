@@ -23,6 +23,8 @@ from product.forms import ProductForm,ProductImageForm, ProductVideoForm
 from django.forms import modelformset_factory
 from django.utils.text import slugify
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Count, Q
+from pencilwoodbd.choices import STATUS
 
 
 @login_required(login_url='admin_login')
@@ -31,7 +33,6 @@ def dashboard(request):
 
 class UserLoginView(View):
     def get(self, request):
-        print("request.user: ", request.user)
         if request.user.is_authenticated:
             return redirect('dashboard')
         return render(request, 'db_auth/login.html')
@@ -312,17 +313,68 @@ def delete_category(request, id):
 
 
 # ------------------Order section CBV-------------
+from django.core.paginator import Paginator
 class OrderView(LoginRequiredMixin, View):
     login_url = 'admin_login'
     
-    def get(self, request):
-        # if not request.user.is_authenticated:
-        #     return redirect('product_landing_page')
-        # elif request.user.user_type not in [USER_TYPE.ADMIN, USER_TYPE.STAFF, USER_TYPE.SUPER_ADMIN]:
-        #     return redirect('product_landing_page')
+    def status_wise_order_count(self):
+        qs = (
+            Order.objects
+            .values('status')
+            .annotate(total=Count('id'))
+        )
+        order_count = {status: 0 for status, _ in STATUS.choices}
+        for row in qs:
+            order_count[row['status']] = row['total']
+        order_count['all'] = sum(order_count.values())
+        return order_count
+    
+    def get_order_queryset(self, request):
+        order_status = request.GET.get('status')
+        search = request.GET.get('q', '')
+        orders = Order.objects.all().order_by("-created_at")
         
-        orders = Order.objects.all()
-        return render(request, "db_order/order_list.html", {"orders": orders})
+        if order_status and order_status in STATUS.values:
+            orders = orders.filter(status=order_status)
+        
+        if search:
+            orders = orders.filter(
+                Q(order_id__icontains=search) |
+                Q(customer__name__icontains=search) |
+                Q(customer__phone__icontains=search) |
+                Q(status__icontains=search) |
+                Q(payment_status__icontains=search) |
+                Q(delivery_type__icontains=search) |
+                Q(shipping_address__icontains=search)
+            )
+        
+        page_number = request.GET.get('page', 1)
+        per_page = int(request.GET.get('per_page', 3))
+        paginator = Paginator(orders, per_page)
+        orders = paginator.get_page(page_number)
+        
+        return orders, paginator, per_page, page_number
+    
+    def permission_denied(self, request):
+        if not request.user.is_authenticated:
+            return redirect('product_landing_page')
+        elif request.user.user_type not in [USER_TYPE.ADMIN, USER_TYPE.STAFF, USER_TYPE.SUPER_ADMIN]:
+            return redirect('product_landing_page')
+    
+    def get(self, request):
+        orders, paginator, per_page, page_number = self.get_order_queryset(request)
+        context = {
+            "orders": orders,
+            "paginator": paginator,
+            "per_page": per_page,
+            "page_number": page_number,
+            "order_count": self.status_wise_order_count(),
+            "current_status": request.GET.get('status', 'all'),
+            "current_search": request.GET.get('q', ''),
+        }
+        if request.htmx:
+            return render(request, "db_order/partial/partial_order_list.html", context)
+        return render(request, "db_order/order_list.html", context)
     
     def post(self, request):
         print("request.POST: ", request.POST)
@@ -379,6 +431,8 @@ class OrderDetailView(LoginRequiredMixin, View):
             return redirect('product_landing_page')
         
         order = self.get_order(id)
+        if request.htmx:
+            return render(request, "db_order/partial/partial_order_detail.html", {"order": order})
         return render(request, "db_order/order_detail.html", {"order": order})
 
     def get_order(self, id):
@@ -424,7 +478,6 @@ class OrderDetailView(LoginRequiredMixin, View):
             return redirect('product_landing_page')
         elif request.user.user_type not in [USER_TYPE.ADMIN, USER_TYPE.STAFF, USER_TYPE.SUPER_ADMIN]:
             return redirect('product_landing_page')
-        
         if request.POST.get("_method") == "PATCH":
             return self.patch(request, id)
         return JsonResponse({"error": "Invalid request"}, status=400)
@@ -491,6 +544,7 @@ def update_order(request, order_id):
             profile = order.customer
             profile.name = data.get("full_name", profile.name)
             profile.phone = data.get("phone", profile.phone)
+            profile.whatsapp = data.get("whatsapp", profile.phone)
             email = data.get("email")
             if email:
                 if profile.user:

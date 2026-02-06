@@ -14,27 +14,53 @@
         </div>
     </div>
     <!--end breadcrumb-->
-
+    
     <div class="product-count d-flex align-items-center gap-3 gap-lg-4 mb-4 fw-medium flex-wrap font-text1">
-        <a href="javascript:;"><span class="me-1">All</span><span class="text-secondary">(85472)</span></a>
-        <a href="javascript:;"><span class="me-1">Pending Payment</span><span class="text-secondary">(86)</span></a>
-        <a href="javascript:;"><span class="me-1">Incomplete</span><span class="text-secondary">(76)</span></a>
-        <a href="javascript:;"><span class="me-1">Completed</span><span class="text-secondary">(8759)</span></a>
-        <a href="javascript:;"><span class="me-1">Refunded</span><span class="text-secondary">(769)</span></a>
-        <a href="javascript:;"><span class="me-1">Failed</span><span class="text-secondary">(42)</span></a>
+        <a href="{% url 'order_list' %}?status=all&q={{ current_search }}" hx-get="{% url 'order_list' %}?status=all&q={{ current_search }}" hx-target="#content-area"
+            hx-push-url="true" class="{% if current_status == 'all' %}active{% endif %}">
+            <span class="me-1">All</span>
+            <span class="text-secondary">({{ order_count.all }})</span>
+        </a>
+        <a href="{% url 'order_list' %}?status=new&q={{ current_search }}" hx-get="{% url 'order_list' %}?status=new&q={{ current_search }}" hx-target="#content-area"
+            hx-push-url="true" class="{% if current_status == 'new' %}active{% endif %}">
+            <span class="me-1">NEW</span>
+            <span class="text-secondary">({{ order_count.new }})</span>
+        </a>
+        <a href="{% url 'order_list' %}?status=confirmed&q={{ current_search }}" hx-get="{% url 'order_list' %}?status=confirmed&q={{ current_search }}" hx-target="#content-area"
+            hx-push-url="true" class="{% if current_status == 'confirmed' %}active{% endif %}">
+            <span class="me-1">CONFIRMED</span>
+            <span class="text-secondary">({{ order_count.confirmed }})</span>
+        </a>
+        <a href="{% url 'order_list' %}?status=shipped&q={{ current_search }}" hx-get="{% url 'order_list' %}?status=shipped&q={{ current_search }}" hx-target="#content-area"
+            hx-push-url="true" class="{% if current_status == 'shipped' %}active{% endif %}">
+            <span class="me-1">SHIPPED</span>
+            <span class="text-secondary">({{ order_count.shipped }})</span>
+        </a>
+        <a href="{% url 'order_list' %}?status=delivered&q={{ current_search }}" hx-get="{% url 'order_list' %}?status=delivered&q={{ current_search }}" hx-target="#content-area"
+            hx-push-url="true" class="{% if current_status == 'delivered' %}active{% endif %}">
+            <span class="me-1">DELIVERED</span>
+            <span class="text-secondary">({{ order_count.delivered }})</span>
+        </a>
+        <a href="{% url 'order_list' %}?status=cancelled&q={{ current_search }}" hx-get="{% url 'order_list' %}?status=cancelled&q={{ current_search }}" hx-target="#content-area"
+            hx-push-url="true" class="{% if current_status == 'cancelled' %}active{% endif %}">
+            <span class="me-1">CANCELLED</span>
+            <span class="text-secondary">({{ order_count.cancelled }})</span>
+        </a>
     </div>
 
     <div class="row g-3">
         <div class="col-auto">
             <div class="position-relative">
-                <input class="form-control px-5" type="search" placeholder="Search Orders">
+                <input class="form-control px-5" type="search" name="q" placeholder="Search Orders" value="{{ current_search }}" hx-get="{% url 'order_list' %}?status={{ current_status }}" hx-trigger="keyup changed delay:400ms" hx-target="#content-area" hx-push-url="true">
                 <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">
                     search
                 </span>
+
             </div>
         </div>
 
-        <div class="col-auto flex-grow-1 overflow-auto">
+
+        <!-- <div class="col-auto flex-grow-1 overflow-auto">
             <div class="btn-group position-static">
                 <div class="btn-group position-static">
                     <button type="button" class="btn border btn-filter dropdown-toggle px-4" data-bs-toggle="dropdown">
@@ -72,7 +98,7 @@
                     </ul>
                 </div>
             </div>
-        </div>
+        </div> -->
 
         <div class="col-auto">
             <div class="d-flex align-items-center gap-2 justify-content-lg-end">
@@ -89,6 +115,7 @@
     </div>
     <!--end row-->
 
+    <!-- Order List Table Div ============ -->
     <div class="card mt-4">
         <div class="card-body">
             <div class="customer-table">
@@ -139,7 +166,7 @@
                                     {{ order.customer.phone }}
                                 </td>
 
-                                <td>${{ order.get_total_order_amount }}</td>
+                                <td>৳{{ order.get_total_order_amount }}</td>
 
                                 <td>
                                     <span class="lable-table bg-success-subtle text-success rounded border border-success-subtle font-text2 fw-bold">
@@ -185,6 +212,65 @@
                 </div>
             </div>
         </div>
+    </div>
+</div>
+
+<div class="btn btn-grd position-fixed bottom-0 end-0 m-3 d-flex align-items-center gap-2 shadow-lg"
+style="z-index: 1050; margin: auto 22px 45px 0px !important; padding: 0px !important;">
+    <!-- Pagination Here -->
+    <div class="card-body" style="padding: 0px;">
+        <nav aria-label="Page navigation example">
+            <ul class="pagination" style="margin: auto;">
+                {# Previous #}
+                <li class="page-item {% if not orders.has_previous %}disabled{% endif %}">
+                    <a class="page-link"
+                    hx-get="{% url 'order_list' %}{% if orders.has_previous %}?page={{ orders.previous_page_number }}&status={{ current_status }}&q={{ current_search }}{% endif %}"
+                    hx-target="#content-area"
+                    hx-push-url="true">
+                        «
+                    </a>
+                </li>
+
+                {# ±2 pages around current #}
+                {% for num in paginator.page_range %}
+                    {% if num >= orders.number|add:-2 and num <= orders.number|add:2 %}
+                        <li class="page-item {% if orders.number == num %}active{% endif %}">
+                            <a class="page-link"
+                            hx-get="{% url 'order_list' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&per_page={{ per_page }}"
+                            hx-target="#content-area"
+                            hx-push-url="true">
+                                {{ num }}
+                            </a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {# Next #}
+                <li class="page-item {% if not orders.has_next %}disabled{% endif %}">
+                    <a class="page-link"
+                    hx-get="{% url 'order_list' %}{% if orders.has_next %}?page={{ orders.next_page_number }}&status={{ current_status }}&q={{ current_search }}{% endif %}"
+                    hx-target="#content-area"
+                    hx-push-url="true">
+                        »
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+
+    <!-- Page Name: -->
+    <div class="col-auto">
+        <select class="form-select"
+                hx-get="{% url 'order_list' %}?page={{ page_number }}&status={{ current_status }}&q={{ current_search }}&per_page={{ per_page }}"
+                hx-trigger="change"
+                hx-target="#content-area"
+                hx-push-url="true"
+                name="per_page">
+
+            <option value="3" {% if per_page == 3 %}selected{% endif %}>3</option>
+            <option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
+            <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+        </select>
     </div>
 </div>
 
