@@ -19,6 +19,7 @@ class Customer(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.SET_NULL, blank=True, null=True, related_name='customer_profile')
     name = models.CharField(max_length=50)
     phone = models.CharField(max_length=20)
+    whatsapp = models.CharField(max_length=20, blank=True, null=True)
     email = models.EmailField(max_length=200)
     
     created_at = models.DateTimeField(auto_now_add=True)

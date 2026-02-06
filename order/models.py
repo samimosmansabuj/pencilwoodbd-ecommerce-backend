@@ -51,8 +51,7 @@ class Order(models.Model):
     payment_type = models.CharField(max_length=50, choices=PAYMENT_TYPE.choices, default=PAYMENT_TYPE.COD)
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS.choices, default=PAYMENT_STATUS.Unpaid)
     
-    status = models.CharField(max_length=50, choices=STATUS.choices, default=STATUS.Pending)
-    # address = models.ForeignKey(Address, on_delete=models.SET_NULL, null=True, blank=True, related_name='order_address')
+    status = models.CharField(max_length=50, choices=STATUS.choices, default=STATUS.NEW)
     shipping_address = models.CharField(max_length=100, blank=True, null=True)
     
     

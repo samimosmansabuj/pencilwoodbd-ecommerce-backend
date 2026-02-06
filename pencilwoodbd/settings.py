@@ -10,7 +10,7 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = os.getenv('DEBUG', 'False').strip().lower() in ('true', '1', 'yes')
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
-
+CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
 
 # Application definition
 INSTALLED_APPS = [
@@ -25,12 +25,14 @@ INSTALLED_APPS = [
     
     #install apps
     'rest_framework', 'rest_framework_simplejwt', 'rest_framework_simplejwt.token_blacklist',
-    'corsheaders', 'django_extensions', 'django_filters',
+    'corsheaders', 'django_extensions', 'django_filters', 'django_htmx',
     'channels',
     
     #Custom Apps
     'authentication', 'order', 'product','live_chat', 'site_app', 'dashbaord', 'marketing',
 ]
+
+
 
 # ================================================================================
 # ==================== Rest Frame Work Configurations Start====================
@@ -66,11 +68,28 @@ REST_FRAMEWORK = {
 
 from datetime import timedelta
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=15), 
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=15), 
-    'ROTATE_REFRESH_TOKENS': False,
-    "UPDATE_LAST_LOGIN": False,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'BLACKLIST_AFTER_ROTATION': True,
+    'ROTATE_REFRESH_TOKENS': True,
+    # 'ROTATE_REFRESH_TOKENS': False,
+    
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=60),
+    # 'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=60),
+    
+    "UPDATE_LAST_LOGIN": True,
 }
+
+
+CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOW_CREDENTIALS = True
+# ==================== Rest Frame Work Configurations End====================
+# ================================================================================
+
+
+
+
+
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -82,6 +101,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django.middleware.common.CommonMiddleware',
+    "django_htmx.middleware.HtmxMiddleware",
     # "product.middleware.MirgateCartMiddleware",
 ]
 
@@ -128,25 +148,11 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SAVE_EVERY_REQUEST = True
 
 # CSRF settings
-CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SECURE = False
-# CSRF_COOKIE_SAMESITE = "Lax"
-CSRF_COOKIE_SAMESITE = "None"
+# CSRF_COOKIE_HTTPONLY = False
+# CSRF_COOKIE_SECURE = False
+# # CSRF_COOKIE_SAMESITE = "Lax"
+# CSRF_COOKIE_SAMESITE = "None"
 
-
-
-
-
-# #===========================================Cors========================================
-CORS_ORIGIN_ALLOW_ALL = True
-# CORS_ALLOW_CREDENTIALS = True
-# CORS_ALLOW_ALL_ORIGINS = False
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000", "http://192.168.68.107:3000", "http://127.0.0.1:3000",
-# ]
-# CSRF_TRUSTED_ORIGINS = [
-#     "http://localhost:3000", "http://192.168.68.107:3000", "http://127.0.0.1:3000",
-# ]
 
 
 # Database

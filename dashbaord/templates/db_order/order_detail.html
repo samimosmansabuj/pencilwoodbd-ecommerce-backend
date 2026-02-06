@@ -1,6 +1,10 @@
 {% extends 'dashboard.html' %}
 {% load static %}
 
+{% block page_title %}
+<title>Order Detail | PencilWoodBD</title>
+{% endblock page_title %}
+
 {% block dashboard_body_content %}
 {% include './partial/partial_order_detail.html' %}
 {% endblock dashboard_body_content %}
