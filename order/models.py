@@ -123,6 +123,7 @@ class OrderItem(models.Model):
     quantity = models.PositiveIntegerField(default=1)
     price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     discount_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    discount_total_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -139,6 +140,8 @@ class OrderItem(models.Model):
             self.price = self.product.current_price
         if not self.discount_price:
             self.discount_price = self.product.discount_price
+        if not self.discount_total_price:
+            self.discount_total_price = float(self.discount_price) * self.quantity
         super().save(*args, **kwargs)
     
     def __str__(self):

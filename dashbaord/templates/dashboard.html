@@ -60,6 +60,7 @@
 
 </head>
 
+{% block for_invoice %}
 <body id="root" style="background-image: url({% static 'dashboard_assets/images/bg-themes/body-background-1.webp' %});"
   hx-headers='{"x-csrftoken": "{{ csrf_token }}"}'>
 
@@ -184,5 +185,6 @@
 
 
 </body>
+{% endblock for_invoice %}
 
 </html>

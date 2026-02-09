@@ -13,9 +13,22 @@
                 <div class="overflow-auto">
                     <div class="btn-group position-static">
                         <div class="btn-group position-static">
-                            <button type="button" class="btn btn-outline-primary">
+                            <button type="button" class="btn btn-outline-primary" onclick="printInvoice('{% url 'order_invoice' order.id %}')">
                                 <i class="bi bi-printer-fill me-2"></i>Print
                             </button>
+                            <script>
+                                function printInvoice(url) {                            
+                                    const printWindow = window.open(url, '_blank', 'width=900,height=1200');
+
+                                    printWindow.onload = function () {
+                                        printWindow.focus();
+                                        printWindow.print();
+                                    };
+                                    window.onafterprint = function () {
+                                        window.close();
+                                    };
+                                }
+                            </script>
                         </div>
                         <div class="btn-group position-static">
                             <!-- <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"> -->

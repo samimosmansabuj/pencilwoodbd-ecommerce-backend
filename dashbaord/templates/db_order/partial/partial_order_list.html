@@ -26,6 +26,11 @@
             <span class="me-1">NEW</span>
             <span class="text-secondary">({{ order_count.new }})</span>
         </a>
+        <a href="{% url 'order_list' %}?status=follow_up" hx-get="{% url 'order_list' %}?status=follow_up" hx-target="#content-area"
+            hx-push-url="true" class="{% if current_status == 'follow_up' %}active{% endif %}">
+            <span class="me-1">FOLLOW UP</span>
+            <span class="text-secondary">({{ order_count.follow_up }})</span>
+        </a>
         <a href="{% url 'order_list' %}?status=confirmed&q={{ current_search }}" hx-get="{% url 'order_list' %}?status=confirmed&q={{ current_search }}" hx-target="#content-area"
             hx-push-url="true" class="{% if current_status == 'confirmed' %}active{% endif %}">
             <span class="me-1">CONFIRMED</span>
@@ -185,7 +190,7 @@
                                 </td>
 
                                 <td>
-                                    {{ order.created_at|date:"M d, Y" }}
+                                    {{ order.created_at }}
                                 </td>
 
                                 <td>
@@ -203,12 +208,28 @@
                                                 data-bs-target="#deleteOrderModal">
                                             <i class="bi bi-trash"></i>
                                         </button>
+                                        <button type="button" class="btn btn-sm btn-filter delete-order-btn">
+                                            <i class="material-icons-outlined" onclick="printInvoice('{% url 'order_invoice' order.id %}')">print</i>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
+                    <script>
+                        function printInvoice(url) {                            
+                            const printWindow = window.open(url, '_blank', 'width=900,height=1200');
+
+                            printWindow.onload = function () {
+                                printWindow.focus();
+                                printWindow.print();
+                            };
+                            window.onafterprint = function () {
+                                window.close();
+                            };
+                        }
+                    </script>
                 </div>
             </div>
         </div>
@@ -267,9 +288,9 @@ style="z-index: 1050; margin: auto 22px 45px 0px !important; padding: 0px !impor
                 hx-push-url="true"
                 name="per_page">
 
-            <option value="3" {% if per_page == 3 %}selected{% endif %}>3</option>
-            <option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
             <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+            <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+            <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
         </select>
     </div>
 </div>
