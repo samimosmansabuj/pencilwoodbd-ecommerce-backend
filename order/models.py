@@ -136,12 +136,16 @@ class OrderItem(models.Model):
         return self.discount_price * self.quantity
     
     def save(self, *args, **kwargs):
-        if not self.price:
-            self.price = self.product.current_price
-        if not self.discount_price:
-            self.discount_price = self.product.discount_price
+        # if not self.price:
+        #     self.price = self.product.current_price
+        # if not self.discount_price:
+        #     self.discount_price = self.product.discount_price
         if not self.discount_total_price:
-            self.discount_total_price = float(self.discount_price) * self.quantity
+            if self.discount_price:
+                self.discount_total_price = float(self.discount_price) * self.quantity
+            else:
+                self.discount_price = 0
+                self.discount_total_price = 0
         super().save(*args, **kwargs)
     
     def __str__(self):
