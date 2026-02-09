@@ -1,0 +1,195 @@
+{% extends 'dashboard.html' %}
+{% load static %}
+
+{% block page_title %}
+<title>Order #{{ order.order_id }} | PencilwoodBD</title>
+{% endblock page_title %}
+
+{% block for_invoice %}
+<style>
+    .main-content {
+        width: 100%;
+    }
+
+    .table-invoice {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .table-invoice th,
+    .table-invoice td {
+        border: 1px solid black;
+    }
+
+
+    @media print {
+        body {
+            margin: 0;
+            background: white;
+        }
+
+        .card {
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        button,
+        .btn,
+        .no-print {
+            display: none !important;
+        }
+    }
+
+    @page {
+        size: A4;
+        margin: 12mm;
+    }
+
+    .table>:not(caption)>*>* {
+        color: black !important;
+    }
+</style>
+
+<body id="invoice-body">
+    <div class="main-content">
+        <div class="card radius-10" style="color: black; background: white;">
+            <div class="card-header py-3">
+                <div class="row align-items-center g-3">
+                    <div class="col-12 col-lg-6">
+                        <h5 class="mb-0" style="color: black;">PencilwoodBD</h5>
+                    </div>
+                </div>
+            </div>
+            <div class="card-header py-2">
+                <div class="row row-cols-2 row-cols-lg-2">
+                    <div class="col">
+                        <div class="">
+                            <small>to</small>
+                            <address class="m-t-5 m-b-5">
+                                <strong class="text-inverse">Name: {{ order.customer.name }}</strong><br>
+                                Address: {{ order.shipping_address }}
+                                Phone: {{ order.customer.phone }}<br>
+                            </address>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="">
+                            <small class="invoice-right-text">Invoice</small>
+                            <div class="invoice-right-text"><b>{{ order.created_at|date:"M-d-y" }}</b></div>
+                            <div class="invoice-detail invoice-right-text">
+                                #{{ order.order_id }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-invoice" style="border: 1px solid black;">
+                        <thead>
+                            <tr>
+                                <th>PRODUCT DESCRIPTION</th>
+                                <th class="text-center" style="width: 10%;">UNIT</th>
+                                <th class="text-center" style="width: 10%;">QUANTITY</th>
+                                <th class="text-right" style="width: 10%;">TOTAL</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in order.order_items.all %}
+                            <tr>
+                                <td>
+                                    <span class="text-inverse">{{ item.product.name }}</span>
+                                </td>
+                                <td class="text-center">৳{{ item.discount_price }}</td>
+                                <td class="text-center">{{ item.quantity }}</td>
+                                <td class="text-right">৳{{ item.discount_total_price }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="3">
+                                    <span class="text-inverse">Product Total</span>
+                                </td>
+                                <td class="text-right">৳{{ order.get_discount_total }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="row bg-light align-items-center m-0" style="background-color: #dae3eb !important">
+                    <div class="col col-auto p-4">
+                        <p class="mb-0">SHIPPING CHARGE</p>
+                        <h4 class="mb-0" style="color: black !important;">৳{{ order.shipping_total }}</h4>
+                    </div>
+                    <div class="col col-auto p-4">
+                        <i class="bi bi-plus-lg text-muted"></i>
+                    </div>
+                    <div class="col col-auto me-auto p-4">
+                        <p class="mb-0">EXTRA DISCOUNT (0.0%)</p>
+                        <h4 class="mb-0" style="color: black !important;">৳0.00</h4>
+                    </div>
+                    <div class="col bg-primary col-auto p-4">
+                        <p class="mb-0 text-white">TOTAL</p>
+                        <h4 class="mb-0 text-white">৳{{ order.get_total_order_amount }}</h4>
+                    </div>
+                </div><!--end row-->
+
+                <hr>
+                <!-- begin invoice-note -->
+                <div class="my-3">
+                    * Make all cheques payable to PencilwoodBD<br>
+                    * Payment is due within 30 days<br>
+                    * If you have any questions concerning this invoice, contact us.
+                </div>
+                <!-- end invoice-note -->
+            </div>
+
+            <div class="card-footer py-3 bg-transparent">
+                <p class="text-center mb-2">
+                    THANK YOU FOR YOUR BUSINESS
+                </p>
+                <p class="text-center d-flex align-items-center gap-3 justify-content-center mb-0">
+                    <span class=""><i class="bi bi-globe"></i> www.pencilwoodbd.com</span>
+                    <span class=""><i class="bi bi-telephone-fill"></i> T:+8801855942504</span>
+                    <span class=""><i class="bi bi-envelope-fill"></i> pencilwoodbd@gmail.com</span>
+                </p>
+            </div>
+        </div>
+    </div>
+    <!--bottom content start here -->
+    <section class="agency-bottom-content d-print-none" id="agency_bottom" style="background: #fec219;">
+        <div class="container">
+            <!--print-download content start here -->
+            <div class="invo-buttons-wrap">
+                <div class="invo-print-btn invo-btns">
+                    <a href="javascript:window.print()" class="print-btn">
+                        <i class="fa-solid fa-print fa-xl" style="color: #000000; margin: auto;"></i>
+
+                        <span class="inter-700 medium-font" style="color: #000000;">Print</span>
+                    </a>
+                </div>
+                <div class="invo-down-btn invo-btns">
+                    <a class="download-btn" id="generatePDF">
+                        <i class="fa-solid fa-download fa-xl" style="color: #000000; margin: auto;"></i>
+                        <span class="inter-700 medium-font" style="color: #000000;">Download</span>
+                    </a>
+                </div>
+            </div>
+            <!--print-download content end here -->
+        </div>
+    </section>
+    <!--bottom content end here -->
+</body>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const pace_inactive = document.querySelector('.pace, .pace-inactive')
+        pace_inactive.remove();
+
+        const invoice_body = document.getElementById("invoice-body")
+        invoice_body.className = '';
+    });
+</script>
+{% endblock for_invoice %}
+
+<!-- style="width: 60%; margin: auto;" -->

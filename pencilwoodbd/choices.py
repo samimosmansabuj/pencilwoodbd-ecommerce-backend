@@ -24,6 +24,7 @@ class PAYMENT_STATUS(models.TextChoices):
 class STATUS(models.TextChoices):
 # class ORDER_STATUS(models.TextChoices):
     NEW = "new"
+    FOLLOW_UP = "follow_up"
     CONFIRMED = "confirmed"
     SHIPPED = "shipped"
     DELIVERED = "delivered"

@@ -33,29 +33,26 @@
                             <div class="">
                                 <p class="mb-0 data-attributes">
                                     <span
-                                        data-peity='{ "fill": ["#2196f3", "rgb(255 255 255 / 12%)"], "innerRadius": 32, "radius": 40 }'>5/7</span>
+                                        data-peity='{ "fill": ["#2196f3", "rgb(255 255 255 / 12%)"], "innerRadius": 32, "radius": 40 }'>{{ today_order_count }}/{{ total_orders }}</span>
                                 </p>
                             </div>
                             <div class="">
-                                <p class="mb-1 fs-6 fw-bold">Monthly</p>
-                                <h2 class="mb-0">65,127</h2>
-                                <p class="mb-0"><span class="text-success me-2 fw-medium">16.5%</span><span>55.21
-                                        USD</span></p>
+                                <p class="mb-1 fs-6 fw-bold">Today</p>
+                                <h2 class="mb-0">{{ today_order_count }}</h2>
+                                <!-- <p class="mb-0"><span class="text-success me-2 fw-medium">16.5%</span><span>55.21 USD</span></p> -->
                             </div>
                         </div>
                         <div class="vr"></div>
                         <div class="d-flex align-items-center gap-4">
                             <div class="">
                                 <p class="mb-0 data-attributes">
-                                    <span
-                                        data-peity='{ "fill": ["#ffd200", "rgb(255 255 255 / 12%)"], "innerRadius": 32, "radius": 40 }'>5/7</span>
+                                    <span data-peity='{ "fill": ["#ffd200", "rgb(255 255 255 / 12%)"], "innerRadius": 32, "radius": 40 }'>{{ new_orders_count }}/{{ total_orders }}</span>
                                 </p>
                             </div>
                             <div class="">
-                                <p class="mb-1 fs-6 fw-bold">Yearly</p>
-                                <h2 class="mb-0">984,246</h2>
-                                <p class="mb-0"><span class="text-success me-2 fw-medium">24.9%</span><span>267.35
-                                        USD</span></p>
+                                <p class="mb-1 fs-6 fw-bold">New Orders</p>
+                                <h2 class="mb-0">{{ new_orders_count }}</h2>
+                                <!-- <p class="mb-0"><span class="text-success me-2 fw-medium">24.9%</span><span>267.35 USD</span></p> -->
                             </div>
                         </div>
                     </div>
@@ -66,8 +63,7 @@
             <div class="card rounded-4 w-100">
                 <div class="card-body">
                     <div class="mb-3 d-flex align-items-center justify-content-between">
-                        <div
-                            class="wh-42 d-flex align-items-center justify-content-center rounded-circle bg-primary bg-opacity-10 text-primary">
+                        <div class="wh-42 d-flex align-items-center justify-content-center rounded-circle bg-primary bg-opacity-10 text-primary">
                             <span class="material-icons-outlined fs-5">shopping_cart</span>
                         </div>
                         <div>
@@ -76,7 +72,7 @@
                         </div>
                     </div>
                     <div>
-                        <h4 class="mb-0">248k</h4>
+                        <h4 class="mb-0">{{ total_orders }}</h4>
                         <p class="mb-3">Total Orders</p>
                         <div id="chart1"></div>
                     </div>
@@ -97,7 +93,7 @@
                         </div>
                     </div>
                     <div>
-                        <h4 class="mb-0">$47.6k</h4>
+                        <h4 class="mb-0">৳{{ total_order_amount }}</h4>
                         <p class="mb-3">Total Sales</p>
                         <div id="chart2"></div>
                     </div>
@@ -127,76 +123,118 @@
         </div>
     </div><!--end row-->
 
+    <div class="card mt-4">
+        <div class="card-body">
+            <div class="customer-table">
+                <div class="table-responsive white-space-nowrap">
+                    <table class="table align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th><input class="form-check-input" type="checkbox"></th>
+                                <th>Order Id</th>
+                                <th>Customer</th>
+                                <th>Phone</th>
+                                <th>Price</th>
+                                <th>Status</th>
+                                <th>Delivery Type</th>
+                                <th>Delivery Date</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in orders %}
+                            <tr>
+                                <td><input class="form-check-input" type="checkbox"></td>
 
-
-
-
-
-    <div class="row">
-        <div class="col-12 col-xxl-12 d-flex">
-            <div class="card rounded-4 w-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-start justify-content-between mb-3">
-                        <div class="">
-                            <h5 class="mb-0">Transactions</h5>
-                        </div>
-                        <div class="dropdown">
-                            <a href="javascript:;" class="dropdown-toggle-nocaret options dropdown-toggle"
-                                data-bs-toggle="dropdown">
-                                <span class="material-icons-outlined fs-5">more_vert</span>
-                            </a>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="javascript:;">Action</a></li>
-                                <li><a class="dropdown-item" href="javascript:;">Another action</a></li>
-                                <li><a class="dropdown-item" href="javascript:;">Something else here</a></li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table align-middle mb-0 table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Source Name</th>
-                                    <th>Status</th>
-                                    <th>Amount</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>
-                                        <div class="">
-                                            <h6 class="mb-0">10 Sep,2024</h6>
-                                            <p class="mb-0">8:20 PM</p>
+                                <td>
+                                    <a href="{% url 'order_detail' order.id %}"
+                                       hx-get="{% url 'order_detail' order.id %}"
+                                       hx-target="#content-area"
+                                       hx-push-url="true"
+                                       hx-trigger="click, refreshReturnOrderDetailView from:body"
+                                       hx-swap="innerHTML">
+                                        #{{ order.order_id  }}
+                                    </a>
+                                </td>
+                                
+                                <td>
+                                    <a class="d-flex align-items-center gap-3" href="javascript:;">
+                                        <div class="customer-pic">
+                                            <img src="https://placehold.co/110x110/png" class="rounded-circle" width="40" height="40">
                                         </div>
-                                    </td>
-                                    <td>
-                                        <div class="d-flex align-items-center flex-row gap-3">
-                                            <div class="">
-                                                <img src="{% static 'dashboard_assets/images/apps/paypal.png' %}"
-                                                    width="35" alt="">
-                                            </div>
-                                            <div class="">
-                                                <h6 class="mb-0">Paypal</h6>
-                                                <p class="mb-0">Business Plan</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div class="card-lable bg-success text-success bg-opacity-10">
-                                            <p class="text-success mb-0">Paid</p>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <h5 class="mb-0">$5897</h5>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                                        <p class="mb-0 customer-name fw-bold">
+                                            {{ order.customer.name }}
+                                        </p>
+                                    </a>
+                                </td>
+
+                                <td>
+                                    {{ order.customer.phone }}
+                                </td>
+
+                                <td>৳{{ order.get_total_order_amount }}</td>
+
+                                <td>
+                                    <span class="lable-table bg-success-subtle text-success rounded border border-success-subtle font-text2 fw-bold">
+                                        {{ order.order_status }}
+                                    </span>
+                                </td>
+
+                                <td>{{ order.delivery_type|upper }}</td>
+
+                                <td>
+                                    {% if order.delivery_date %}
+                                    {{ order.delivery_date|date:"M d, Y" }}
+                                    {% else %}
+                                    Not Set
+                                    {% endif %}
+                                </td>
+
+                                <td>
+                                    {{ order.created_at }}
+                                </td>
+
+                                <td>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-filter edit-order-btn"
+                                                data-id="{{ order.id }}"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#OrderFormModal">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+
+                                        <button class="btn btn-sm btn-filter delete-order-btn"
+                                                data-id="{{ order.id }}"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#deleteOrderModal">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-filter delete-order-btn">
+                                            <i class="material-icons-outlined" onclick="printInvoice('{% url 'order_invoice' order.id %}')">print</i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <script>
+                        function printInvoice(url) {                            
+                            const printWindow = window.open(url, '_blank', 'width=900,height=1200');
+
+                            printWindow.onload = function () {
+                                printWindow.focus();
+                                printWindow.print();
+                            };
+                            window.onafterprint = function () {
+                                window.close();
+                            };
+                        }
+                    </script>
                 </div>
             </div>
         </div>
-    </div><!--end row-->
+    </div>
 
 </div>

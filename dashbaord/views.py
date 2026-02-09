@@ -23,13 +23,45 @@ from product.forms import ProductForm,ProductImageForm, ProductVideoForm
 from django.forms import modelformset_factory
 from django.utils.text import slugify
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum, F, Value, DecimalField
 from pencilwoodbd.choices import STATUS
+from django.utils import timezone
+from django.db.models.functions import Coalesce
 
 
-@login_required(login_url='admin_login')
-def dashboard(request):
-    return render(request, "dashboard.html")
+
+class DashboardView(LoginRequiredMixin, View):
+    login_url = 'admin_login'
+    
+    def get_today_order_count(self, orders):
+        today = timezone.now().date()
+        return orders.filter(created_at__date=today).count()
+    
+    def new_orders_count (self, orders):
+        return orders.filter(status=STATUS.NEW).count()
+    
+    def get_total_order_amount(self, orders):
+        return orders.aggregate(
+            total_amount=Coalesce(
+                Sum('order_items__discount_total_price') + Sum('shipping_total'),
+                Value(0),
+                output_field=DecimalField(max_digits=12, decimal_places=2)
+            )
+        )['total_amount']
+    
+    def get(self, request):
+        orders = Order.objects.all().order_by("-created_at")
+        context = {
+            "orders": orders[:10],
+            "total_order_amount": self.get_total_order_amount(orders),
+            "total_orders": orders.count(),
+            "today_order_count": self.get_today_order_count(orders),
+            "new_orders_count": self.new_orders_count(orders),
+        }
+        if request.htmx:
+            return render(request, "db_home/main_wrapper.html", context)
+        return render(request, "dashboard.html", context)
+
 
 class UserLoginView(View):
     def get(self, request):
@@ -349,7 +381,7 @@ class OrderView(LoginRequiredMixin, View):
             )
         
         page_number = request.GET.get('page', 1)
-        per_page = int(request.GET.get('per_page', 3))
+        per_page = int(request.GET.get('per_page', 10))
         paginator = Paginator(orders, per_page)
         orders = paginator.get_page(page_number)
         
@@ -514,7 +546,16 @@ class OrderDetailView(LoginRequiredMixin, View):
             return self.patch(request, *args, **kwargs)
         return super().dispatch(request, *args, **kwargs)
 
+class OrderInvoiceView(View):
+    def get_order(self, id):
+        return get_object_or_404(Order, id=id)
 
+    def get(self, request, id):
+        print("id: ", id)
+        order = self.get_order(id)
+        if order:
+            return render(request, "db_order/invoice.html", {"order": order})
+        return redirect(request.META.get('HTTP_REFERER'))
 
 # ------------------Order section FBV-------------
 
