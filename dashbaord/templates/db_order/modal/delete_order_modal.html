@@ -28,3 +28,18 @@
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const deleteButtons = document.querySelectorAll(".delete-order-btn");
+        const deleteForm = document.getElementById("deleteOrderForm");
+        const baseUrl = deleteForm.getAttribute("data-url");
+
+        deleteButtons.forEach(btn => {
+            btn.addEventListener("click", function () {
+                const orderId = this.getAttribute("data-id");
+                deleteForm.action = baseUrl.replace("0", orderId);
+            });
+        });
+    });
+</script>

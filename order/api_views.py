@@ -20,53 +20,27 @@ class OrderCreateAPIView(views.APIView):
             }, status=status.HTTP_405_METHOD_NOT_ALLOWED
         )
 
-    # GET AND CREATE CUSTOMER OBJECT
-    def get_customer(self, data):
-        customer, created = Customer.objects.get_or_create(
-            phone=data.get("phone"),
-            defaults={"name": data.get("name")}
-        )
-        return customer
-    
-    # MAKE ADDRESS 
-    def get_make_address(self, data):
-        address = f"{data.get('address')}, {data.get('district')}"
-        return address
-    
-    # VERIFY ORDER CUSTOMER INFORMATION
-    def verify_input_customer(self, data):
-        if data:
-            required_fields = [
-                "name", "phone", "address", "district",
-            ]
-            missing_fields = [field for field in required_fields if not data.get(field)]
-            return missing_fields
-        else:
-            raise Exception("Customer data must be set.")
-    
-    # VERIFY ORDER AMOUNT 
-    def verify_input_amount(self, data):
-        input_delivery_charge = data["deliveryCharge"]
-        data["deliveryCharge"] = "FREE" if input_delivery_charge == 0 else input_delivery_charge
-        if data:
-            required_fields = [
-                "productTotal", "deliveryCharge", "totalAmount"
-            ]
-            missing_fields = [field for field in required_fields if not data.get(field)]
-            data["deliveryCharge"] = input_delivery_charge
-            return missing_fields
-        else:
-            raise Exception("Customer data must be set.")
+    # AMOUNT CHECK BETWEEN DATA AND PRODUCT 
+    def amount_check(self, data: dict) -> dict:
+        if self.productTotal == data.get("productTotal" or 0):
+            return data
+        raise Exception("Total product amount not same.")
 
-    # HANDLING MISSING FIELD AND SEND ERROR 
-    def handle_missing_field(self, data):
-        customer_missing_fields = self.verify_input_customer(data.get("customer", {}))
-        if customer_missing_fields:
-            raise Exception(f"The following fields must be filled: {', '.join(customer_missing_fields)}")
-        
-        amount_missing_fields = self.verify_input_amount(data.get("amount", {}))
-        if amount_missing_fields:
-            raise Exception(f"The following fields must be set: {', '.join(amount_missing_fields)}")
+    # CREATE ORDER ITEM
+    def create_order_item(self, order: object, products, amount):
+        order_items = []
+        for product in products:
+            prod = Product.objects.get(pk=product.get("id"))
+            order_item = OrderItem.objects.create(
+                order=order,
+                product=prod,
+                quantity=product.get("quantity" or 1),
+                price=prod.price,
+                discount_price=product.get("price" or 0),
+                discount_total_price=float(product.get("quantity" or 1)) * float(product.get("price" or 0))
+            )
+            order_items.append(order_item)
+        return order_items
 
     # CHECK FREE PRODUCT FOR MAIN PRODUCT 
     def check_free_product(self, reference_product: int, product: object):
@@ -102,31 +76,23 @@ class OrderCreateAPIView(views.APIView):
                 products.append(product)
         return products
 
-    # AMOUNT CHECK BETWEEN DATA AND PRODUCT 
-    def amount_check(self, data: dict) -> dict:
-        if self.productTotal == data.get("productTotal" or 0):
-            return data
-        raise Exception("Total product amount not same.")
+    # MAKE ADDRESS 
+    def get_make_address(self, data):
+        address = f"{data.get('address')}, {data.get('district')}"
+        return address
 
-    # CREATE ORDER ITEM
-    def create_order_item(self, order, products, amount):
-        order_items = []
-        for product in products:
-            prod = Product.objects.get(pk=product.get("id"))
-            order_item = OrderItem.objects.create(
-                order=order,
-                product=prod,
-                quantity=product.get("quantity"),
-                price=prod.price,
-                discount_price=product.get("price"),
-            )
-            order_items.append(order_item)
-        return order_items
+    # GET AND CREATE CUSTOMER OBJECT
+    def get_customer(self, data):
+        customer, created = Customer.objects.get_or_create(
+            phone=data.get("phone"),
+            defaults={"name": data.get("name")}
+        )
+        return customer
 
     def post(self, request, *args, **kwargs):
         try:
             with transaction.atomic():
-                data = request.data                
+                data = request.data
                 self.handle_missing_field(data)
 
                 customer = self.get_customer(data.get("customer", {}))
@@ -159,3 +125,39 @@ class OrderCreateAPIView(views.APIView):
                     "message": str(e)
                 }, status=status.HTTP_400_BAD_REQUEST
             )
+    
+    # VERIFY ORDER AMOUNT 
+    def verify_input_amount(self, data):
+        if data:
+            input_delivery_charge = data["deliveryCharge"]
+            data["deliveryCharge"] = "FREE" if input_delivery_charge == 0 else input_delivery_charge
+            required_fields = [
+                "productTotal", "deliveryCharge", "totalAmount"
+            ]
+            missing_fields = [field for field in required_fields if not data.get(field)]
+            data["deliveryCharge"] = input_delivery_charge
+            return missing_fields
+        else:
+            raise Exception("Customer data must be set.")
+
+    # VERIFY ORDER CUSTOMER INFORMATION
+    def verify_input_customer(self, data):
+        if data:
+            required_fields = [
+                "name", "phone", "address", "district",
+            ]
+            missing_fields = [field for field in required_fields if not data.get(field)]
+            return missing_fields
+        else:
+            raise Exception("Customer data must be set.")
+
+    # HANDLING MISSING FIELD AND SEND ERROR 
+    def handle_missing_field(self, data):
+        customer_missing_fields = self.verify_input_customer(data.get("customer", {}))
+        if customer_missing_fields:
+            raise Exception(f"The following fields must be filled: {', '.join(customer_missing_fields)}")
+        
+        amount_missing_fields = self.verify_input_amount(data.get("amount", {}))
+        if amount_missing_fields:
+            raise Exception(f"The following fields must be set: {', '.join(amount_missing_fields)}")
+    

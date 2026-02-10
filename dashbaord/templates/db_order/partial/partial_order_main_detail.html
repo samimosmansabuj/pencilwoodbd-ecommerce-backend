@@ -100,14 +100,15 @@
             .then(data => {
                 if (data.success) {
                     cancelCardBtnFunc();
-                    alert(data.message);
+                    NotificationPush('success', `${data.message}`);
                 } else {
-                    alert(`Update failed! ${data.message}`);
+                    const msge = `Update failed! ${data.message}`
+                    NotificationPush('error', msge);
                 }
             })
             .catch(err => {
-                console.error(err);
-                alert(`Something went wrong! ${data.message}`);
+                const msge = `Something went wrong! ${data.message}`
+                NotificationPush('error', msge)
             });
         });
     
