@@ -107,7 +107,7 @@
                 }
             })
             .catch(err => {
-                const msge = `Something went wrong! ${data.message}`
+                const msge = `Something went wrong! ${err}`
                 NotificationPush('error', msge)
             });
         });
