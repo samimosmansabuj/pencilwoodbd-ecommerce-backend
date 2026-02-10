@@ -171,7 +171,7 @@
                                     {{ order.customer.phone }}
                                 </td>
 
-                                <td>৳{{ order.get_total_order_amount }}</td>
+                                <td>৳{{ order.total_cost }}</td>
 
                                 <td>
                                     <span class="lable-table bg-success-subtle text-success rounded border border-success-subtle font-text2 fw-bold">
@@ -299,17 +299,4 @@ style="z-index: 1050; margin: auto 22px 45px 0px !important; padding: 0px !impor
 <!-- Include Delete Order Modal -->
 {% include 'db_order/modal/delete_order_modal.html' %}
 
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        const deleteButtons = document.querySelectorAll(".delete-order-btn");
-        const deleteForm = document.getElementById("deleteOrderForm");
-        const baseUrl = deleteForm.getAttribute("data-url");
 
-        deleteButtons.forEach(btn => {
-            btn.addEventListener("click", function () {
-                const orderId = this.getAttribute("data-id");
-                deleteForm.action = baseUrl.replace("0", orderId);
-            });
-        });
-    });
-</script>

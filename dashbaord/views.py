@@ -27,9 +27,10 @@ from django.db.models import Count, Q, Sum, F, Value, DecimalField
 from pencilwoodbd.choices import STATUS
 from django.utils import timezone
 from django.db.models.functions import Coalesce
+from django.core.paginator import Paginator
 
 
-
+# ------------------Dashboard--------
 class DashboardView(LoginRequiredMixin, View):
     login_url = 'admin_login'
     
@@ -62,7 +63,6 @@ class DashboardView(LoginRequiredMixin, View):
             return render(request, "db_home/main_wrapper.html", context)
         return render(request, "dashboard.html", context)
 
-
 class UserLoginView(View):
     def get(self, request):
         if request.user.is_authenticated:
@@ -82,22 +82,19 @@ class UserLoginView(View):
         except CustomUser.DoesNotExist:
             return render(request, 'db_auth/login.html', {'error': 'User does not exist.'})
 
-def logout_view(request):
-    logout(request)
-    return redirect('admin_login')
-
-
-
-
-
-
+class AdminLogoutView(LoginRequiredMixin, View):
+    login_url = 'admin_login'
+    def get(self, request):
+        logout(request)
+        return redirect("admin_login")
 
 
 # ------------------Product--------
-@login_required(login_url='admin_login')
-def product_list(request):
-    products = Product.objects.all()
-    return render(request, "db_product/product_list.html", {"products": products})
+class ProductListView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+    def get(self, request, *args, **kwargs):
+        products = Product.objects.all()
+        return render(request, "db_product/product_list.html", {"products": products})
 
 @login_required(login_url='admin_login')
 def add_product(request):
@@ -149,7 +146,6 @@ def add_product(request):
         "image_formset": image_formset,
         "video_formset": video_formset
     })
-
 
 @login_required(login_url='admin_login')
 def product_update(request, pk):
@@ -230,17 +226,20 @@ def product_update(request, pk):
         "product": product
     })
 
+class ProductDeleteView(LoginRequiredMixin, View):
+    login_url = "admin_login"
 
-@login_required(login_url='admin_login')
-def product_delete(request, pk):
-    product = get_object_or_404(Product, pk=pk)
-    if request.method == "POST":
+    def get(self, request, pk):
+        return redirect("product_list")
+
+    def post(self, request, pk, *args, **kwargs):
+        product = get_object_or_404(Product, pk=pk)
         product.delete()
         messages.success(request, "Product deleted successfully!")
         return redirect("product_list")
-    return redirect("product_list")  # fallback
 
 
+# ------------------Category--------
 @login_required(login_url='admin_login')
 def add_category(request):
     if request.method == "POST":
@@ -254,7 +253,6 @@ def add_category(request):
         return JsonResponse({"message": "Category added successfully"})
     return render(request, "db_category/add_category.html")
 
-# @login_required(login_url='admin_login')
 class CategoryView(View):
     def get(self, request):
         categories = Category.objects.all()
@@ -345,7 +343,6 @@ def delete_category(request, id):
 
 
 # ------------------Order section CBV-------------
-from django.core.paginator import Paginator
 class OrderView(LoginRequiredMixin, View):
     login_url = 'admin_login'
     
@@ -625,7 +622,8 @@ class OrderDeleteView(LoginRequiredMixin, DeleteView):
             messages.success(request, "Order deleted successfully!")
         except:
             messages.error(request, "Order does not exist.")
-        return redirect(self.success_url)
+        return redirect(request.META["HTTP_REFERER"])
+        # return redirect(self.success_url)
 
 # class RedirectView(View):
 #     permanent = False

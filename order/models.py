@@ -79,7 +79,7 @@ class Order(models.Model):
     
     @property
     def get_discount_total(self):
-        discount_total = sum(item.discount_total for item in self.order_items.all())
+        discount_total = sum(item.discount_total_price for item in self.order_items.all())
         return discount_total
     
     @property
@@ -94,10 +94,6 @@ class Order(models.Model):
         discount_amount = self.get_current_total - self.get_discount_total
         discount_percentage = (discount_amount / self.get_current_total) * 100
         return round(discount_percentage, 2)
-    
-    @property
-    def get_total_order_amount(self):
-        return self.get_discount_total + self.shipping_total + self.tax_total
     
     def generate_payment_id(self):
         chars = string.ascii_uppercase + string.digits
@@ -131,21 +127,7 @@ class OrderItem(models.Model):
     def current_total(self):
         return self.price * self.quantity
     
-    @property
-    def discount_total(self):
-        return self.discount_price * self.quantity
-    
     def save(self, *args, **kwargs):
-        # if not self.price:
-        #     self.price = self.product.current_price
-        # if not self.discount_price:
-        #     self.discount_price = self.product.discount_price
-        if not self.discount_total_price:
-            if self.discount_price:
-                self.discount_total_price = float(self.discount_price) * self.quantity
-            else:
-                self.discount_price = 0
-                self.discount_total_price = 0
         super().save(*args, **kwargs)
     
     def __str__(self):

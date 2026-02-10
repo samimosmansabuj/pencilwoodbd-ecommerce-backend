@@ -5,12 +5,12 @@ urlpatterns = [
     path('', DashboardView.as_view(), name='dashboard'),
     
     path('admin-login/', UserLoginView.as_view(), name='admin_login'),
-    path('admin-logout/', logout_view, name='admin_logout'),
+    path('admin-logout/', AdminLogoutView.as_view(), name='admin_logout'),
     
-    path('product-list/', product_list, name='product_list'),
+    path('product-list/', ProductListView.as_view(), name='product_list'),
     path('product-add/', add_product, name='product_add'),
     path("product/update/<int:pk>/", product_update, name="product_update"),
-    path('products/delete/<int:pk>/', product_delete, name='product_delete'),  
+    path('products/delete/<int:pk>/', ProductDeleteView.as_view(), name='product_delete'),  
 
 
     # path('media-center/', product_list, name='media_center'),
