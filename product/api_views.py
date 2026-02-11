@@ -41,7 +41,7 @@ class CategoryAPIViews(views.APIView):
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-class ProductViews(views.APIView):
+class CradleProductViews(views.APIView):
     permission_classes = [permissions.AllowAny]
     def get(self, request, *args, **kwargs):
         try:

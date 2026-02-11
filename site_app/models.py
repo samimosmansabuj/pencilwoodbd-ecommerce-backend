@@ -1,3 +1,4 @@
+from typing import Iterable
 from django.db import models
 from pencilwoodbd.extra_module import image_delete_os, previous_image_delete_os
 from product.models import Product
@@ -199,7 +200,14 @@ class FAQ_List(models.Model):
 
 class LandingPageProduct(models.Model):
     page_name = models.CharField(max_length=30, blank=True, null=True)
+    code = models.CharField(max_length=30, blank=True, null=True)
     main_product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="landing_page", blank=True, null=True)
     product = models.ManyToManyField(Product)
+    
+    def save(self, *args, **kwargs):
+        if self.code and LandingPageProduct.objects.filter(code=self.code).exclude(pk=self.pk).exists():
+            raise Exception("Please submit unique landing page code.")
+        super().save(*args, **kwargs)
+    
     def __str__(self):
         return self.page_name

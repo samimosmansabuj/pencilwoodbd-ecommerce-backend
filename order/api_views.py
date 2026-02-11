@@ -160,4 +160,4 @@ class OrderCreateAPIView(views.APIView):
         amount_missing_fields = self.verify_input_amount(data.get("amount", {}))
         if amount_missing_fields:
             raise Exception(f"The following fields must be set: {', '.join(amount_missing_fields)}")
-    
+
