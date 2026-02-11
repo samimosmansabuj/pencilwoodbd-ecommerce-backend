@@ -1,11 +1,12 @@
 from rest_framework import views, status, permissions
 from rest_framework.response import Response
+from django.utils import timezone
 
 from product.models import Category
 from product.serializers import ProductSerializer, CategorySerializer
 from site_app.models import LandingPageProduct
 from order.models import Order
-
+from authentication.models import *
 
 class CategoryAPIViews2(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -106,24 +107,34 @@ class TissueBoxLandingOrderAPI(views.APIView):
     def post(self, request, *args, **kwargs):
         try:
             data = request.data
-
             name = data.get("name")
             phone = data.get("phone")
             address = data.get("address")
-            quantity = data.get("quantity")
+            quantity = int(data.get("quantity", 1))
+            UNIT_PRICE = 500  # same as your JS
 
             if not name or not phone or not address:
                 return Response(
-                    {
-                        "status": False,
-                        "message": "Name, phone and address are required"
-                    },
+                    {"status": False, "message": "Name, phone and address are required"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
+            # Check if customer already exists, else create
+            customer, created = Customer.objects.get_or_create(
+                phone=phone,
+                defaults={"name": name}
+            )
+
+            total_cost = UNIT_PRICE * quantity
+
             order = Order.objects.create(
-                address=address,
-                note=f"Tissue Box Landing | Name: {name} | Phone: {phone} | Qty: {quantity}"
+                customer=customer,
+                shipping_address=address,
+                total_cost=total_cost,
+                metadata={
+                    "note": f"Tissue Box Landing | Name: {name} | Phone: {phone} | Qty: {quantity}"
+                },
+                created_at=timezone.localtime()
             )
 
             return Response(
@@ -137,9 +148,7 @@ class TissueBoxLandingOrderAPI(views.APIView):
 
         except Exception as e:
             return Response(
-                {
-                    "status": False,
-                    "message": str(e)
-                },
+                {"status": False, "message": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
