@@ -1,0 +1,138 @@
+<div class="modal fade" id="deliveryOptionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" id="deliveryOptionForm" data-url="{% url 'order_delivery_option_submit' 0 %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger">Delivery Option</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+
+                <div class="modal-body">
+
+                    <p class="mb-3">
+                        Select a logistics partner to create parcel:
+                    </p>
+
+                    <div class="row g-3" id="logistics-option">
+
+                        <!-- <div class="col-md-6">
+                            <label class="logistics-card w-100">
+                                <input type="radio" name="logistics_partner" value="ecourier">
+                                <div class="card-content">
+                                    <img src="/static/logos/ecourier.png" alt="eCourier">
+                                    <h6>eCourier</h6>
+                                    <p>Trusted courier for urban delivery.</p>
+                                </div>
+                            </label>
+                        </div> -->
+
+                    </div>
+
+                    <div class="alert alert-danger mt-3 small">
+                        Once submitted, parcel will be created in the selected logistics panel.
+                    </div>
+
+                </div>
+
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn btn-danger">
+                        Submit
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const deliveryOptionBtn = document.querySelectorAll(".delivery-option-btn");
+        const deliveryOptionForm = document.getElementById("deliveryOptionForm");
+        const baseUrl = deliveryOptionForm.getAttribute("data-url");
+        const logisticsContainer = document.getElementById("logistics-option");
+
+        deliveryOptionBtn.forEach(btn => {
+            btn.addEventListener("click", function () {
+                const orderId = this.getAttribute("data-id");
+                deliveryOptionForm.action = baseUrl.replace("0", orderId);
+
+
+
+
+                // Clear old cards
+                logisticsContainer.innerHTML = `
+                    <div class="text-center py-3 w-100">
+                        <div class="spinner-border text-danger"></div>
+                    </div>
+                `;
+
+                // Fetch API
+                fetch("http://127.0.0.1:8000/api/v1/delivery-options/")
+                    .then(response => response.json())
+                    .then(data => {
+
+                        logisticsContainer.innerHTML = "";
+
+                        if (data.success && data.delivery_options.length > 0) {
+
+                            data.delivery_options.forEach(option => {
+
+                                if (!option.is_active) return;
+
+                                const card = `
+                                <div class="col-md-6">
+                                    <label class="logistics-card w-100">
+                                        <input type="radio" 
+                                               name="logistics_partner" 
+                                               value="${option.id}" required>
+
+                                        <div class="card-content">
+                                            ${option.logo ?
+                                        `<img src="${option.logo}" height="35">`
+                                        : ''
+                                    }
+
+                                            <h6>${option.name} 
+                                                ${option.type ? `<small class="text-muted">(${option.type})</small>` : ''}
+                                            </h6>
+
+                                            <p>${option.description ? option.description : 'No description available'}</p>
+                                        </div>
+                                    </label>
+                                </div>
+                            `;
+
+                                logisticsContainer.insertAdjacentHTML("beforeend", card);
+                            });
+
+                        } else {
+                            logisticsContainer.innerHTML = `
+                            <div class="col-12 text-center text-danger">
+                                No delivery options available.
+                            </div>
+                        `;
+                        }
+
+                    })
+                    .catch(error => {
+                        logisticsContainer.innerHTML = `
+                            <div class="col-12 text-center text-danger">
+                                Failed to load delivery options.
+                            </div>
+                        `;
+                        console.error("Delivery API Error:", error);
+                    });
+
+
+
+
+
+            });
+        });
+    });
+</script>

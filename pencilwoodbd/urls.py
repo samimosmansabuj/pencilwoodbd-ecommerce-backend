@@ -4,6 +4,10 @@ from django.urls import path, include, re_path
 from django.conf import settings
 from django.views.static import serve as static_serve
 
+admin.site.site_header = "Pencilwood Admin Panel"
+admin.site.site_title = "Pencilwood Admin"
+admin.site.index_title = "Welcome to Pencilwood Admin Panel"
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('authentication.urls')),

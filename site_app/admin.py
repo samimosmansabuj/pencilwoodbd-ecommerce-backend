@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     HomeSlider, SiteContent, SiteColorSection, NewsFeed, SocialLink, FooterTagLink, 
     AboutUs, About_WhyChooseUs, ContactInformation, RefundPolicy, TermsAndCondition, 
-    PrivacyPolicy, FAQ_List, LandingPageProduct
+    PrivacyPolicy, FAQ_List, LandingPageProduct, DeliveryOption
 )
 
 @admin.register(HomeSlider)
@@ -76,3 +76,5 @@ class FAQListAdmin(admin.ModelAdmin):
     search_fields = ('question',)
 
 admin.site.register(LandingPageProduct)
+admin.site.register(DeliveryOption)
+

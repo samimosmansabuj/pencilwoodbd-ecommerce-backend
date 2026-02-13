@@ -195,21 +195,19 @@
 
                                 <td>
                                     <div class="dropdown">
-                                        <button class="btn btn-sm btn-filter edit-order-btn"
-                                                data-id="{{ order.id }}"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#OrderFormModal">
+                                        <button class="btn btn-sm btn-filter edit-order-btn" data-id="{{ order.id }}" data-bs-toggle="modal" data-bs-target="#OrderFormModal">
                                             <i class="bi bi-pencil"></i>
                                         </button>
 
-                                        <button class="btn btn-sm btn-filter delete-order-btn"
-                                                data-id="{{ order.id }}"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#deleteOrderModal">
+                                        <button class="btn btn-sm btn-filter delivery-option-btn" data-id="{{ order.id }}" data-bs-toggle="modal" data-bs-target="#deliveryOptionModal">
+                                            <i class="lni lni-delivery"></i>
+                                        </button>
+
+                                        <button class="btn btn-sm btn-filter delete-order-btn" data-id="{{ order.id }}" data-bs-toggle="modal" data-bs-target="#deleteOrderModal">
                                             <i class="bi bi-trash"></i>
                                         </button>
-                                        <button type="button" class="btn btn-sm btn-filter delete-order-btn">
-                                            <i class="material-icons-outlined" onclick="printInvoice({{ order.id }})">print</i>
+                                        <button type="button" class="btn btn-sm btn-filter" onclick="printInvoice({{ order.id }})">
+                                            <i class="material-icons-outlined">print</i>
                                         </button>
                                     </div>
                                 </td>
@@ -298,5 +296,6 @@ style="z-index: 1050; margin: auto 22px 45px 0px !important; padding: 0px !impor
 
 <!-- Include Delete Order Modal -->
 {% include 'db_order/modal/delete_order_modal.html' %}
+{% include 'db_order/modal/delivery_option_modal.html' %}
 
 

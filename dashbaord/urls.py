@@ -23,6 +23,7 @@ urlpatterns = [
     path('order-list/', OrderView.as_view(), name='order_list'),
     path('order-detail/<int:id>/', OrderDetailView.as_view(), name='order_detail'),
     path('orders/delete/<int:pk>/', OrderDeleteView.as_view(), name='order_delete'),
+    path('orders/delivery-option-submit/<int:pk>/', OrderDeliveryOptionSubmitView.as_view(), name='order_delivery_option_submit'),
     path('orders/<int:id>/invoice/', OrderInvoiceView.as_view(), name='order_invoice'),
     path('order-detail/<int:order_id>/update/', update_order, name='order_update'),
 
