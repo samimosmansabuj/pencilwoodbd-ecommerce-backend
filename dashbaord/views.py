@@ -625,6 +625,30 @@ class OrderDeleteView(LoginRequiredMixin, DeleteView):
         return redirect(request.META["HTTP_REFERER"])
         # return redirect(self.success_url)
 
+class OrderDeliveryOptionSubmitView(LoginRequiredMixin, View):
+    model = Order
+    login_url = 'admin_login'
+    
+    def post(self, request, *args: str, **kwargs) -> HttpResponse:
+        try:
+            order = get_object_or_404(Order, pk=kwargs.get("pk"))
+            print("order: ", order)
+            return JsonResponse(
+                {
+                    "status": True,
+                    "message": "Delivery option submitted successfully!",
+                }, status=HTTPStatus.OK
+            )
+        except:
+            return JsonResponse(
+                {
+                    "status": False,
+                    "message": "Order does not exist.",
+                }, status=HTTPStatus.BAD_REQUEST
+            )
+
+
+
 # class RedirectView(View):
 #     permanent = False
 #     url = None

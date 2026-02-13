@@ -8,6 +8,8 @@ from pencilwoodbd.choices import PRODUCT_GIFT_TYPE
 from django.db import transaction
 from order.models import Order, OrderItem
 from .utils import OrderConfirmatinoEmailSend
+from site_app.models import DeliveryOption
+from .serializers import DeliveryOptionSerializer
 
 class OrderCreateAPIView(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -161,3 +163,23 @@ class OrderCreateAPIView(views.APIView):
         if amount_missing_fields:
             raise Exception(f"The following fields must be set: {', '.join(amount_missing_fields)}")
 
+class DeliveryOptionListAPIView(views.APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def get(self, request, *args, **kwargs):
+        try:
+            delivery_options = DeliveryOption.objects.filter(is_active=True)
+            serializer = DeliveryOptionSerializer(delivery_options, many=True)
+            return Response(
+                {
+                    "success": True,
+                    "delivery_options": serializer.data
+                }, status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {
+                    "success": False,
+                    "message": str(e)
+                }, status=status.HTTP_400_BAD_REQUEST
+            )

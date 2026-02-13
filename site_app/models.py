@@ -2,6 +2,7 @@ from typing import Iterable
 from django.db import models
 from pencilwoodbd.extra_module import image_delete_os, previous_image_delete_os
 from product.models import Product
+from django.core.validators import FileExtensionValidator
 
 
 #Fixed One Object Models=============================================
@@ -211,3 +212,21 @@ class LandingPageProduct(models.Model):
     
     def __str__(self):
         return self.page_name
+
+
+class DeliveryOption(models.Model):
+    name = models.CharField(max_length=255)
+    type = models.CharField(max_length=20, blank=True, null=True)
+    logo = models.FileField(upload_to='delivery_option/', blank=True, null=True, validators=[FileExtensionValidator(allowed_extensions=['svg', 'png', 'jpg', 'jpeg', 'webp'])])
+    description = models.TextField(blank=True, null=True)
+    api_url = models.CharField(max_length=255, blank=True, null=True)
+    api_key = models.CharField(max_length=255, blank=True, null=True)
+    secret_key = models.CharField(max_length=255, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    
+    def __str__(self):
+        if self.type:
+            return f'{self.name} - {self.type}'
+        return self.name
+
+
