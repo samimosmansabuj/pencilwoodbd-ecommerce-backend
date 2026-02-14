@@ -6,10 +6,10 @@ from django.http import JsonResponse
 from product.models import Product
 from pencilwoodbd.choices import PRODUCT_GIFT_TYPE
 from django.db import transaction
-from order.models import Order, OrderItem
+from order.models import Order, OrderItem, Shipment
 from .utils import OrderConfirmatinoEmailSend
 from site_app.models import DeliveryOption
-from .serializers import DeliveryOptionSerializer
+from .serializers import DeliveryOptionSerializer, ShipmentSerializer
 
 class OrderCreateAPIView(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -174,6 +174,36 @@ class DeliveryOptionListAPIView(views.APIView):
                 {
                     "success": True,
                     "delivery_options": serializer.data
+                }, status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {
+                    "success": False,
+                    "message": str(e)
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
+
+class ShipmentSerializerAPIView(views.APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        try:
+            order_id = kwargs.get("order_id")
+            shipment = Shipment.objects.filter(order__id=order_id)
+            if not shipment.exists():
+                return Response(
+                    {
+                        "success": False,
+                        "message": "No shipment information found for this order."
+                    }, status=status.HTTP_404_NOT_FOUND
+                )
+            serializer = ShipmentSerializer(shipment, many=True)
+            return Response(
+                {
+                    "success": True,
+                    "message": "Shipment information!",
+                    "data": serializer.data
                 }, status=status.HTTP_200_OK
             )
         except Exception as e:

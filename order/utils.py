@@ -127,7 +127,7 @@ class OrderConfirmatinoEmailSend:
 
 
 
-class SteadFastOrderCreateAPI:
+class SteadFastParcelAPI:
     def __init__(self, id):
         self.id = id
     
