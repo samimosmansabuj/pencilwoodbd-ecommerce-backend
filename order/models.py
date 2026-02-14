@@ -4,6 +4,7 @@ from authentication.models import Customer
 from product.models import Product
 from pencilwoodbd.choices import PAYMENT_STATUS, PAYMENT_TYPE, STATUS, REVIEW_STATUS, DELIVERY_TYPE
 from datetime import datetime
+from site_app.models import DeliveryOption
 
 # Payment Method Model
 class PaymentMethod(models.Model):
@@ -56,6 +57,7 @@ class Order(models.Model):
     
     
     metadata = models.JSONField(default=dict, blank=True)
+    note = models.TextField(blank=True, null=True)
     delivery_type = models.CharField(max_length=50, choices=DELIVERY_TYPE.choices, default=DELIVERY_TYPE.HOME_DELIVERY)
     delivery_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -136,10 +138,12 @@ class OrderItem(models.Model):
 
 class Shipment(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='shipments')
-    courier = models.CharField(max_length=255, blank=True, null=True)
+    courier = models.ForeignKey(DeliveryOption, on_delete=models.SET_NULL, null=True, blank=True, related_name='shipments')
     tracking_number = models.CharField(max_length=255, blank=True, null=True)
     status = models.CharField(max_length=50, default='pending')
     label_url = models.URLField(blank=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Shipment {self.courier} for {self.order.order_id}"

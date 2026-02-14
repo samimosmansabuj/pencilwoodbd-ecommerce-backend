@@ -1,32 +1,25 @@
 <div class="modal fade" id="deliveryOptionModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <form method="POST" id="deliveryOptionForm" data-url="{% url 'order_delivery_option_submit' 0 %}">
+            <form method="POST" id="deliveryOptionForm" data-url="{% url 'order_delivery_option_submit' 0 %}" novalidate>
                 {% csrf_token %}
                 <div class="modal-header">
-                    <h5 class="modal-title text-danger">Delivery Option</h5>
+                    <h5 class="modal-title text-danger">Shipping Information</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
 
                 <div class="modal-body">
+
+                    <!-- Result Card Here -->
+                    <div id="delivery-result">
+                    </div>
+
 
                     <p class="mb-3">
                         Select a logistics partner to create parcel:
                     </p>
 
                     <div class="row g-3" id="logistics-option">
-
-                        <!-- <div class="col-md-6">
-                            <label class="logistics-card w-100">
-                                <input type="radio" name="logistics_partner" value="ecourier">
-                                <div class="card-content">
-                                    <img src="/static/logos/ecourier.png" alt="eCourier">
-                                    <h6>eCourier</h6>
-                                    <p>Trusted courier for urban delivery.</p>
-                                </div>
-                            </label>
-                        </div> -->
-
                     </div>
 
                     <div class="alert alert-danger mt-3 small">
@@ -56,13 +49,11 @@
         const baseUrl = deliveryOptionForm.getAttribute("data-url");
         const logisticsContainer = document.getElementById("logistics-option");
 
+        // When open logistics modal, fetch delivery options from API and populate the modal with options
         deliveryOptionBtn.forEach(btn => {
             btn.addEventListener("click", function () {
                 const orderId = this.getAttribute("data-id");
                 deliveryOptionForm.action = baseUrl.replace("0", orderId);
-
-
-
 
                 // Clear old cards
                 logisticsContainer.innerHTML = `
@@ -71,53 +62,68 @@
                     </div>
                 `;
 
-                // Fetch API
-                fetch("http://127.0.0.1:8000/api/v1/delivery-options/")
+                // Shipping Information Card Clears When Modal Opens
+                const resultContainer = document.getElementById("delivery-result");
+                resultContainer.innerHTML = "";
+
+                // Fetch Shipping Information with Cards
+                fetch(`/api/v1/shipment-info/${orderId}/`)
                     .then(response => response.json())
                     .then(data => {
-
-                        logisticsContainer.innerHTML = "";
-
-                        if (data.success && data.delivery_options.length > 0) {
-
-                            data.delivery_options.forEach(option => {
-
-                                if (!option.is_active) return;
-
-                                const card = `
-                                <div class="col-md-6">
-                                    <label class="logistics-card w-100">
-                                        <input type="radio" 
-                                               name="logistics_partner" 
-                                               value="${option.id}" required>
-
-                                        <div class="card-content">
-                                            ${option.logo ?
-                                        `<img src="${option.logo}" height="35">`
-                                        : ''
-                                    }
-
-                                            <h6>${option.name} 
-                                                ${option.type ? `<small class="text-muted">(${option.type})</small>` : ''}
-                                            </h6>
-
-                                            <p>${option.description ? option.description : 'No description available'}</p>
-                                        </div>
-                                    </label>
+                        if (data.success && data.data.length > 0) {
+                            const resultContainer = document.getElementById("delivery-result");
+                            data.data.forEach(shipment => {
+                                const order_shipped_data = createShippingCard(data.message, shipment);
+                                resultContainer.insertAdjacentHTML("beforeend", order_shipped_data);
+                            });
+                        } else {
+                            const resultContainer = document.getElementById("delivery-result");
+                            resultContainer.innerHTML = `
+                                <div class="card mt-3 border-warning shadow-sm" id="no-shipment-card">
+                                    <div class="card-body">
+                                        <h6 class="text-warning mb-0">
+                                            ⚠ ${data.message || "No shipment information found for this order."}
+                                        </h6>
+                                    </div>
                                 </div>
                             `;
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Shipment Info API Error:", error);
+                    });
 
+                // Fetch Shipping Options from API
+                fetch("/api/v1/delivery-options/")
+                    .then(response => response.json())
+                    .then(data => {
+                        logisticsContainer.innerHTML = "";
+                        if (data.success && data.delivery_options.length > 0) {
+                            data.delivery_options.forEach(option => {
+                                if (!option.is_active) return;
+                                const card = `
+                                    <div class="col-md-6">
+                                        <label class="logistics-card w-100">
+                                            <input type="radio"  name="logistics_partner"  value="${option.id}" required>
+                                            <div class="card-content">
+                                                ${option.logo ? `<img src="${option.logo}" height="35">` : ''}
+                                                <h6>${option.name} 
+                                                    ${option.type ? `<small style="color: #007bff;">(${option.type})</small>` : ''}
+                                                </h6>
+                                                <p>${option.description || 'No description available'}</p>
+                                            </div>
+                                        </label>
+                                    </div>
+                                `;
                                 logisticsContainer.insertAdjacentHTML("beforeend", card);
                             });
-
                         } else {
                             logisticsContainer.innerHTML = `
                             <div class="col-12 text-center text-danger">
                                 No delivery options available.
                             </div>
-                        `;
+                            `;
                         }
-
                     })
                     .catch(error => {
                         logisticsContainer.innerHTML = `
@@ -127,12 +133,173 @@
                         `;
                         console.error("Delivery API Error:", error);
                     });
-
-
-
-
-
             });
         });
+
+
+
+
+        // =============================
+        // AJAX FORM SUBMIT
+        // =============================
+        deliveryOptionForm.addEventListener("submit", function (e) {
+            e.preventDefault();
+
+            const formAction = deliveryOptionForm.action;
+            const selectedOption = document.querySelector('input[name="logistics_partner"]:checked');
+
+            if (!selectedOption) {
+                alert("Please select a delivery option.");
+                return;
+            }
+
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+            const submitBtn = deliveryOptionForm.querySelector("button[type='submit']");
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = "Processing...";
+
+            fetch(formAction, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": csrfToken
+                },
+                body: JSON.stringify({
+                    logistics_partner: selectedOption.value
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = "Submit";
+                if (data.success) {
+                    // Clear No Shipment Card When Shipment Created Successfully
+                    const noShipmentCard = document.getElementById("no-shipment-card");
+                    if (noShipmentCard) noShipmentCard.remove();
+
+                    const resultContainer = document.getElementById("delivery-result");
+                    const order_shipped_data = createShippingCard(data.message, data.data);
+                    resultContainer.insertAdjacentHTML("beforeend", order_shipped_data);
+
+                    // Optional: disable logistics selection after success
+                    document.querySelectorAll('input[name="logistics_partner"]').forEach(el => {
+                        el.disabled = true;
+                    });
+                    // submitBtn.style.display = "none";
+                } else {
+                    alert(data.message || "Something went wrong.");
+                }
+            })
+            .catch(error => {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = "Submit";
+                alert("Server error occurred.", error);
+            });
+        });
+
+        // Order Shipping Card Template Literal Function
+        function createShippingCard(message, data) {
+            const order_shipped_data = `
+            <div class="card mt-3 shadow border-0 rounded-3">
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h6 class="fw-bold text-success mb-1">
+                                <i class="lni lni-checkmark-circle"></i>
+                                ${message || "Consignment Created Successfully"} (ID#${data.id})
+                            </h6>
+                        </div>
+
+                        <span class="badge ${getStatusBadge(data.status)} px-3 py-2">
+                            ${data.status.replace("_", " ").toUpperCase()}
+                        </span>
+                    </div>
+
+                    <div class="row gy-3">
+                        <div class="col-6">
+                            <small class="d-block">Courier</small>
+                            <span class="fw-semibold">${data.courier}</span>
+                        </div>
+                        <div class="col-6">
+                            <small class="d-block">Tracking/Consignment Number</small>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fw-bold text-primary">
+                                    ${data.tracking_number}
+                                </span>
+                                <button type="button" class="btn btn-sm btn-light border copy-btn" onclick="copyToClipboard(this, '${data.tracking_number}')">
+                                    <i class="lni lni-clipboard"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <small class="d-block">Created At</small>
+                            <span>${formatDate(data.created_at)}</span>
+                        </div>
+
+                        <div class="col-6">
+                            <small class="d-block">Last Updated</small>
+                            <span>${formatDate(data.updated_at)}</span>
+                        </div>
+
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="trackParcel('${data.tracking_number}')">
+                            <i class="lni lni-map-marker"></i> Track Parcel
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+            `;
+            return order_shipped_data;
+        };
+
+        // Order Shipping Card Status Badge Update Dynamic Class Function
+        function getStatusBadge(status) {
+            if (status === "in_review") return "bg-warning text-dark";
+            if (status === "approved") return "bg-success";
+            if (status === "cancelled") return "bg-danger";
+            return "bg-secondary";
+        };
+        
+        // Data Format Function
+        function formatDate(dateString) {
+            if (!dateString) return "-";
+            const date = new Date(dateString);
+            return date.toLocaleString("en-BD", {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit"
+            });
+        };
+        
+        // TODO: Tracking Number Copy Function
+        window.copyToClipboard = function(button, text) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalHTML = button.innerHTML;
+                button.innerHTML = '<i class="lni lni-checkmark text-success"></i>';
+                button.classList.add("border-success");
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                    button.classList.remove("border-success");
+                }, 1500);
+            }).catch(err => {
+                console.error("Copy failed:", err);
+            });
+        };
+
+        // TODO: Track Parcel Function
+        function trackParcel(trackingNumber) {
+            window.open(`/track/${trackingNumber}/`, "_blank");
+        };
+
     });
 </script>
