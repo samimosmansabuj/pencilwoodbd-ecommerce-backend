@@ -1,21 +1,22 @@
 from rest_framework import views, status, permissions
 from rest_framework.response import Response
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
-from product.models import Category
+from product.models import Category, Product
 from product.serializers import ProductSerializer, CategorySerializer
 from site_app.models import LandingPageProduct
-from order.models import Order
-from authentication.models import *
+from order.models import Order, OrderItem
+from authentication.models import Customer
 
-
+# ================= Tissue Box Landing Products =================
 class TissueBoxLandingProductViews(views.APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, *args, **kwargs):
         try:
             landing_page = LandingPageProduct.objects.filter(page_name="Tissue Box").first()
-
 
             if landing_page:
                 main = [landing_page.main_product] if landing_page.main_product else []
@@ -35,23 +36,16 @@ class TissueBoxLandingProductViews(views.APIView):
                 )
             else:
                 return Response(
-                    {
-                        "status": False,
-                        "message": "Landing page product not setup."
-                    },
+                    {"status": False, "message": "Landing page product not setup."},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
 
         except Exception as e:
-            return Response(
-                {
-                    "status": False,
-                    "message": str(e)
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({"status": False, "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+# ================= Tissue Box Landing Order =================
+@method_decorator(csrf_exempt, name='dispatch')
 class TissueBoxLandingOrderAPI(views.APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -70,7 +64,7 @@ class TissueBoxLandingOrderAPI(views.APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Check if customer already exists, else create
+            # Get or create customer
             customer, created = Customer.objects.get_or_create(
                 phone=phone,
                 defaults={"name": name}
@@ -78,6 +72,7 @@ class TissueBoxLandingOrderAPI(views.APIView):
 
             total_cost = UNIT_PRICE * quantity
 
+            # Create order
             order = Order.objects.create(
                 customer=customer,
                 shipping_address=address,
@@ -88,18 +83,22 @@ class TissueBoxLandingOrderAPI(views.APIView):
                 created_at=timezone.localtime()
             )
 
+            # Create OrderItem
+            tissue_product = Product.objects.filter(name__icontains="Tissue Box").first()
+            if tissue_product:
+                OrderItem.objects.create(
+                    order=order,
+                    product=tissue_product,
+                    quantity=quantity,
+                    price=UNIT_PRICE,
+                    discount_price=UNIT_PRICE,
+                    discount_total_price=UNIT_PRICE * quantity
+                )
+
             return Response(
-                {
-                    "status": True,
-                    "message": "Order received successfully",
-                    "order_id": order.id
-                },
+                {"status": True, "message": "Order received successfully", "order_id": order.id},
                 status=status.HTTP_201_CREATED
             )
 
         except Exception as e:
-            return Response(
-                {"status": False, "message": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
+            return Response({"status": False, "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
