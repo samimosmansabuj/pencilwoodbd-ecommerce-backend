@@ -412,12 +412,12 @@ class OrderView(LoginRequiredMixin, View):
         order_status = request.GET.get("status")
         search = request.GET.get("q", "")
         orders = Order.objects.all().order_by("-created_at")
-        product_name = request.GET.get("product_name")  
+        product_slug = request.GET.get("product")
 
 
-        if product_name:
+        if product_slug:
             orders = orders.filter(
-                order_items__product__name__icontains=product_name
+                order_items__product__slug=product_slug
             ).distinct()
 
         if order_status and order_status in STATUS.values:
@@ -439,11 +439,12 @@ class OrderView(LoginRequiredMixin, View):
         paginator = Paginator(orders, per_page)
         orders = paginator.get_page(page_number)
 
-        product_names = Product.objects.filter(
-            order_items__order__in=orders
-        ).values_list('name', flat=True).distinct()
+        products = Product.objects.all().distinct()
+        # products = Product.objects.filter(
+        #     order_items__order__in=orders
+        # ).distinct()
 
-        return orders, paginator, per_page, page_number, product_names
+        return orders, paginator, per_page, page_number, products
 
     def permission_denied(self, request):
         if not request.user.is_authenticated:
@@ -456,7 +457,7 @@ class OrderView(LoginRequiredMixin, View):
             return redirect("product_landing_page")
 
     def get(self, request):
-        orders, paginator, per_page, page_number,product_names = self.get_order_queryset(request)
+        orders, paginator, per_page, page_number, products = self.get_order_queryset(request)
         context = {
             "orders": orders,
             "paginator": paginator,
@@ -465,14 +466,14 @@ class OrderView(LoginRequiredMixin, View):
             "order_count": self.status_wise_order_count(),
             "current_status": request.GET.get("status", "all"),
             "current_search": request.GET.get("q", ""),
-            "product_names": product_names,
+            "current_product_slug":  request.GET.get("product", ""),
+            "products": products,
         }
         if request.htmx:
             return render(request, "db_order/partial/partial_order_list.html", context)
         return render(request, "db_order/order_list.html", context)
 
     def post(self, request):
-        print("request.POST: ", request.POST)
         if not request.user.is_authenticated:
             return redirect("product_landing_page")
         elif request.user.user_type not in [
