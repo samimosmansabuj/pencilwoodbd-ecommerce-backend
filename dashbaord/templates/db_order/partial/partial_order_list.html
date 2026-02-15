@@ -65,6 +65,39 @@
         </div>
 
 
+        <div class="col-auto">
+            <div class="btn-group position-static">
+                <button type="button"
+                        class="btn border btn-filter dropdown-toggle px-4"
+                        data-bs-toggle="dropdown">
+                    Product
+                </button>
+                <ul class="dropdown-menu">
+                    {% for pname in product_names %}
+                    <li>
+                        <a class="dropdown-item"
+                           hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&product_name={{ pname|urlencode }}"
+                           hx-target="#content-area"
+                           hx-push-url="true">
+                            {{ pname }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                    <li>
+                        <hr class="dropdown-divider">
+                    </li>
+                    <li>
+                        <a class="dropdown-item"
+                           hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}"
+                           hx-target="#content-area"
+                           hx-push-url="true">
+                            All Products
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        
         <!-- <div class="col-auto flex-grow-1 overflow-auto">
             <div class="btn-group position-static">
                 <div class="btn-group position-static">
