@@ -203,7 +203,7 @@ class LandingPageProduct(models.Model):
     page_name = models.CharField(max_length=30, blank=True, null=True)
     code = models.CharField(max_length=30, blank=True, null=True)
     main_product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="landing_page", blank=True, null=True)
-    product = models.ManyToManyField(Product)
+    product = models.ManyToManyField(Product, blank=True)
     
     def save(self, *args, **kwargs):
         if self.code and LandingPageProduct.objects.filter(code=self.code).exclude(pk=self.pk).exists():
