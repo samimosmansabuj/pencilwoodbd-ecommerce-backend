@@ -50,7 +50,6 @@ class CradleProductViews(views.APIView):
                 main = [landing_page.main_product] if landing_page.main_product else []
                 many = list(landing_page.product.all())
                 product = main + many
-                # product = landing_page.product.all()
                 return Response(
                     {
                         "status": True,
@@ -64,6 +63,51 @@ class CradleProductViews(views.APIView):
                         "message": "Landing page product not setup."
                     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
+        except Exception as e:
+            return Response(
+                {
+                    "status": False,
+                    "message": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class LandingPageProductViews(views.APIView):
+    permission_classes = [permissions.AllowAny]
+    def get(self, request, code, *args, **kwargs):
+        # if not LandingPageProduct.objects.filter(code=code).exists():
+        #     return Response(
+        #         {
+        #             "status": False,
+        #             "message": "Product ID doesn't match, Please use valid product id."
+        #         }
+        #     )
+        
+        try:
+            landing_page = LandingPageProduct.objects.get(code=code)
+            if landing_page:
+                main = [landing_page.main_product] if landing_page.main_product else []
+                many = list(landing_page.product.all())
+                product = main + many
+                return Response(
+                    {
+                        "status": True,
+                        "data": ProductSerializer(product, many=True, context={"request": request}).data
+                    }, status=status.HTTP_200_OK
+                )
+            else:
+                return Response(
+                    {
+                        "status": False,
+                        "message": "Landing page product not setup."
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        except LandingPageProduct.DoesNotExist:
+            return Response(
+                {
+                    "status": False,
+                    "message": "Product ID doesn't match, Please use valid product id."
+                }
+            )
         except Exception as e:
             return Response(
                 {

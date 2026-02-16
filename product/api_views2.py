@@ -17,7 +17,6 @@ class TissueBoxLandingProductViews(views.APIView):
     def get(self, request, *args, **kwargs):
         try:
             landing_page = LandingPageProduct.objects.filter(page_name="Tissue Box").first()
-
             if landing_page:
                 main = [landing_page.main_product] if landing_page.main_product else []
                 many = list(landing_page.product.all())
