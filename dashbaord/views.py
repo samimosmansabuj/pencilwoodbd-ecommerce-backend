@@ -10,6 +10,7 @@ from django.http import (
     JsonResponse,
 )
 from django.views.generic import CreateView, UpdateView, DeleteView, ListView
+import order
 from order.models import Order
 from product.models import Product, Category, ProductImage, ProductVideo
 from authentication.models import CustomUser
@@ -59,6 +60,14 @@ class DashboardView(LoginRequiredMixin, View):
                 output_field=DecimalField(max_digits=12, decimal_places=2),
             )
         )["total_amount"]
+    
+
+    def get_status_counts(self, orders):
+        counts = {status: 0 for status, _ in STATUS.choices}
+        for status_key, _ in STATUS.choices:
+            counts[status_key] = orders.filter(status=status_key).count()
+        return counts
+
 
     def get(self, request):
         orders = Order.objects.all().order_by("-created_at")
@@ -68,6 +77,7 @@ class DashboardView(LoginRequiredMixin, View):
             "total_orders": orders.count(),
             "today_order_count": self.get_today_order_count(orders),
             "new_orders_count": self.new_orders_count(orders),
+            "status_counts": self.get_status_counts(orders),        
         }
         if request.htmx:
             return render(request, "db_home/main_wrapper.html", context)
@@ -413,7 +423,8 @@ class OrderView(LoginRequiredMixin, View):
         search = request.GET.get("q", "")
         orders = Order.objects.all().order_by("-created_at")
         product_slug = request.GET.get("product")
-
+        start_date = request.GET.get("start_date")
+        end_date = request.GET.get("end_date")
 
         if product_slug:
             orders = orders.filter(
@@ -422,6 +433,12 @@ class OrderView(LoginRequiredMixin, View):
 
         if order_status and order_status in STATUS.values:
             orders = orders.filter(status=order_status)
+
+        if start_date:
+            orders = orders.filter(created_at__date__gte=start_date)
+
+        if end_date:
+            orders = orders.filter(created_at__date__lte=end_date)
 
         if search:
             orders = orders.filter(

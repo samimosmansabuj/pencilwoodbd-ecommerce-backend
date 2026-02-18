@@ -1,7 +1,7 @@
 from rest_framework import views, status, permissions
 from .models import Category
 from rest_framework.response import Response
-from .serializers import ProductSerializer
+from .serializers import ProductSerializer, CategorySerializer
 from site_app.models import LandingPageProduct
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
