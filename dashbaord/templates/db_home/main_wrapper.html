@@ -123,6 +123,93 @@
         </div>
     </div><!--end row-->
 
+<!-- ORDER STATUS -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card w-100 rounded-4">
+            <div class="card-body">
+                <h5 class="card-title mb-3">Order Status</h5>
+
+                <div class="d-flex flex-column flex-lg-row align-items-start justify-content-around border p-3 rounded-4 gap-4">
+
+                    <!-- Followup -->
+                    <div class="d-flex align-items-center gap-4">
+                        <div>
+                            <p class="mb-0 data-attributes">
+                                <span data-peity='{ "fill": ["#0dcaf0", "rgb(255 255 255 / 12%)"], "innerRadius": 28, "radius": 36 }'>
+                                    {{ status_counts.follow_up|default:0 }}/{{ total_orders }}
+                                </span>
+                            </p>
+                        </div>
+                        <div>
+                            <p class="mb-1 fs-6 fw-bold">Followup</p>
+                            <h4 class="mb-0">{{ status_counts.follow_up|default:0 }}</h4>
+                        </div>
+                    </div>
+
+                    <div class="vr"></div>
+
+                    <!-- Confirm + Shipped -->
+                    <div class="d-flex align-items-center gap-4">
+                        <div>
+                            <p class="mb-0 data-attributes">
+                                <span data-peity='{ "fill": ["#198754", "rgb(255 255 255 / 12%)"], "innerRadius": 28, "radius": 36 }'>
+                                    {{ status_counts.confirmed|default:0|add:status_counts.shipped|default:0 }}/{{ total_orders }}
+                                </span>
+                            </p>
+                        </div>
+                        <div>
+                            <p class="mb-1 fs-6 fw-bold">Confirm + Shipped</p>
+                            <h4 class="mb-0">
+                                {{ status_counts.confirmed|default:0|add:status_counts.shipped|default:0 }}
+                            </h4>
+                        </div>
+                    </div>
+
+                    <div class="vr"></div>
+
+                    <!-- Delivered -->
+                    <div class="d-flex align-items-center gap-4">
+                        <div>
+                            <p class="mb-0 data-attributes">
+                                <span data-peity='{ "fill": ["#6f42c1", "rgb(255 255 255 / 12%)"], "innerRadius": 28, "radius": 36 }'>
+                                    {{ status_counts.delivered|default:0 }}/{{ total_orders }}
+                                </span>
+                            </p>
+                        </div>
+                        <div>
+                            <p class="mb-1 fs-6 fw-bold">Delivered</p>
+                            <h4 class="mb-0">{{ status_counts.delivered|default:0 }}</h4>
+                        </div>
+                    </div>
+
+                    <div class="vr"></div>
+
+                    <!-- Cancelled -->
+                    <div class="d-flex align-items-center gap-4">
+                        <div>
+                            <p class="mb-0 data-attributes">
+                                <span data-peity='{ "fill": ["#dc3545", "rgb(255 255 255 / 12%)"], "innerRadius": 28, "radius": 36 }'>
+                                    {{ status_counts.cancelled|default:0 }}/{{ total_orders }}
+                                </span>
+                            </p>
+                        </div>
+                        <div>
+                            <p class="mb-1 fs-6 fw-bold">Cancelled</p>
+                            <h4 class="mb-0">{{ status_counts.cancelled|default:0 }}</h4>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- END ORDER -->
+    
+    
+    
     <div class="card mt-4">
         <div class="card-body">
             <div class="customer-table">
@@ -203,6 +290,12 @@
                                                 data-bs-target="#OrderFormModal">
                                             <i class="bi bi-pencil"></i>
                                         </button>
+
+                                        {% include 'db_order/modal/delivery_option_modal.html' %}
+                                        <button class="btn btn-sm btn-filter delivery-option-btn" data-id="{{ order.id }}" data-bs-toggle="modal" data-bs-target="#deliveryOptionModal">
+                                            <i class="lni lni-delivery"></i>
+                                        </button>
+
                                         <button class="btn btn-sm btn-filter delete-order-btn"
                                                 data-id="{{ order.id }}"
                                                 data-bs-toggle="modal"
