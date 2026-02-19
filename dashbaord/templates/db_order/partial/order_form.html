@@ -63,13 +63,13 @@
                             <table class="table align-middle">
                                 
 
-                                <thead class="table-light">
+                                <!-- <thead class="table-light">
                                     <tr>
                                         <th>Product Name</th>
                                         <th>Quantity</th>
                                         <th>Price</th>
                                         <th>Total</th>
-                                        <th>Note</th> <!-- New column -->
+                                        <th>Note</th> 
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -89,42 +89,36 @@
                                         <td>{{ item.quantity }}</td>
                                         <td>৳{{ item.discount_price }}</td>
                                         <td class="item_total_price">{{ item.discount_total_price }}</td>
-                                        <td>{{ order.note|default:"-" }}</td> <!-- Note cell -->
-                                    </tr>
+                                        <td>{{ order.note|default:"-" }}</td> 
                                     {% endfor %}
-                                </tbody>
+                                </tbody> -->
 
                                 
                                 
-                                <!-- <thead class="table-light">
+                                <thead class="table-light">
                                     <tr>
-                                        <th>Product Name</th> -->
+                                        <th>Product Name</th>
                                         <!-- <th>/// Meta Data ///</th> -->
-                                        <!-- <th>Quantity</th>
+                                        <th>Quantity</th>
                                         <th>Price</th>
                                         <th>Total</th>
                                     </tr>
-                                </thead> -->
+                                </thead>
 
-                                <!-- <tbody>
+                                <tbody>
                                     {% for item in order.order_items.all %}
                                     <tr>
                                         <td>
                                             <div class="d-flex align-items-center gap-3">
                                                 <div class="product-box">
-                                                    <img src="{{ item.getPrimaryImage.image.url }}" width="70"
-                                                        class="rounded-3" alt="">
+                                                    <img src="{{ item.product.primary_image }}" width="70" class="rounded-3" alt="">
                                                 </div>
                                                 <div class="product-info">
-                                                    <a href="javascript:;" class="product-title">
-                                                        {{ item.product.name }}
-                                                    </a>
-                                                    <p class="mb-0 product-category">
-                                                        Category : {{ item.product.category_path }}
-                                                    </p>
+                                                    <a href="javascript:;" class="product-title">{{ item.product.name }}</a>
+                                                    <p class="mb-0 product-category">Category : {{ item.product.category_path }}</p>
                                                 </div>
                                             </div>
-                                        </td> -->
+                                        </td>
 
 
                                         <!-- <td> ///
@@ -137,12 +131,12 @@
                                         </td> -->
 
 
-                                        <!-- <td>{{ item.quantity }}</td>
+                                        <td>{{ item.quantity }}</td>
                                         <td>৳{{ item.discount_price }}</td>
                                         <td class="item_total_price">{{ item.discount_total_price  }}</td>
                                     </tr>
                                     {% endfor %}
-                                </tbody> -->
+                                </tbody>
 
                                 
                             </table>
@@ -248,7 +242,7 @@
     
     <!-- Note section -->
 
-    <!-- {% if order.note %}
+    {% if order.note %}
     <div class="card mt-4">
         <div class="card-header">
             <h6 class="mb-0">Customer Note</h6>
@@ -257,7 +251,7 @@
             <p class="mb-0">{{ order.note }}</p>
         </div>
     </div>
-    {% endif %} -->
+    {% endif %}
 
 
 <!-- End Note section -->
@@ -292,7 +286,7 @@
                 <div class="col">
                     <div class="d-flex align-items-start gap-3 border p-3 rounded">
                         <div class="detail-icon fs-5">
-                            <i class="bi bi-envelope-fill"></i>
+                            <i class="bi bi-whatsapp"></i>
                         </div>
                         <div class="detail-info">
                             <h6 class="fw-bold mb-1">Whatsapp</h6>
@@ -359,6 +353,21 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="col-lg-4">
+                    <div class="d-flex align-items-start gap-3 border p-3 rounded">
+                        <div class="detail-icon fs-5">
+                            <i class="bi bi-card-text"></i> <!-- Note icon -->
+                        </div>
+                        <div class="detail-info">
+                            <h6 class="fw-bold mb-1">Customer Note</h6>
+                            <span class="editable-text" data-field="note" data-type="textarea">
+                                {{ order.note|default:"No note available" }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
             </div><!--end row-->
         </div>
     </div>

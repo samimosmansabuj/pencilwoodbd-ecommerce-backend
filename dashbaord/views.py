@@ -49,24 +49,46 @@ class DashboardView(LoginRequiredMixin, View):
         today = timezone.now().date()
         return orders.filter(created_at__date=today).count()
 
+    def get_today_sales_amount(self, orders):
+        today = timezone.now().date()
+        return orders.filter(created_at__date=today).aggregate(
+            total=Coalesce(Sum(F("order_items__discount_total_price") + F("shipping_total")), Value(0), output_field=DecimalField(max_digits=12, decimal_places=2))
+        )["total"]
+
     def new_orders_count(self, orders):
         return orders.filter(status=STATUS.NEW).count()
 
     def get_total_order_amount(self, orders):
         return orders.aggregate(
             total_amount=Coalesce(
-                Sum("order_items__discount_total_price") + Sum("shipping_total"),
+                Sum(F("order_items__discount_total_price") + F("shipping_total")),
                 Value(0),
                 output_field=DecimalField(max_digits=12, decimal_places=2),
             )
         )["total_amount"]
     
-
-    def get_status_counts(self, orders):
-        counts = {status: 0 for status, _ in STATUS.choices}
+    def get_status_amounts(self, orders):
+        """Return a dict with total Tk per status"""
+        amounts = {}
         for status_key, _ in STATUS.choices:
-            counts[status_key] = orders.filter(status=status_key).count()
-        return counts
+            amounts[status_key] = orders.filter(status=status_key).aggregate(
+                total=Coalesce(
+                    Sum(F("order_items__discount_total_price") + F("shipping_total")),
+                    Value(0),
+                    output_field=DecimalField(max_digits=12, decimal_places=2)
+                )
+            )["total"]
+        
+        # Add Returned + Refund combined total
+        amounts["returned_refund"] = orders.filter(status__in=["returned", "refund"]).aggregate(
+            total=Coalesce(
+                Sum(F("order_items__discount_total_price") + F("shipping_total")),
+                Value(0),
+                output_field=DecimalField(max_digits=12, decimal_places=2)
+            )
+        )["total"]
+
+        return amounts
 
 
     def get(self, request):
@@ -76,8 +98,9 @@ class DashboardView(LoginRequiredMixin, View):
             "total_order_amount": self.get_total_order_amount(orders),
             "total_orders": orders.count(),
             "today_order_count": self.get_today_order_count(orders),
+            "today_sales_amount": self.get_today_sales_amount(orders),
             "new_orders_count": self.new_orders_count(orders),
-            "status_counts": self.get_status_counts(orders),        
+            "status_amounts": self.get_status_amounts(orders),
         }
         if request.htmx:
             return render(request, "db_home/main_wrapper.html", context)
@@ -422,22 +445,27 @@ class OrderView(LoginRequiredMixin, View):
         order_status = request.GET.get("status")
         search = request.GET.get("q", "")
         orders = Order.objects.all().order_by("-created_at")
+        
         product_slug = request.GET.get("product")
         start_date = request.GET.get("start_date")
         end_date = request.GET.get("end_date")
 
-        if product_slug:
-            orders = orders.filter(
-                order_items__product__slug=product_slug
-            ).distinct()
-
         if order_status and order_status in STATUS.values:
             orders = orders.filter(status=order_status)
-
-        if start_date:
-            orders = orders.filter(created_at__date__gte=start_date)
-
-        if end_date:
+        
+        if product_slug:
+                    orders = orders.filter(
+                        order_items__product__slug=product_slug
+                    ).distinct()
+                    
+        if start_date and end_date:
+            # Range filter
+            orders = orders.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
+        elif start_date:
+            # Only start_date: orders on that date
+            orders = orders.filter(created_at__date=start_date)
+        elif end_date:
+            # Only end_date: orders up to that date
             orders = orders.filter(created_at__date__lte=end_date)
 
         if search:
@@ -593,6 +621,10 @@ class OrderDetailView(LoginRequiredMixin, View):
         order.shipping_address = data.get("shipping_address", order.shipping_address)
         order.payment_status = data.get("payment_status", order.payment_status)
         order.order_status = data.get("order_status", order.order_status)
+        
+        if "note" in data:
+            order.note = data.get("note", order.note)
+
         order.save()
         return True
 
