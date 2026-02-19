@@ -6,8 +6,9 @@
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0 p-0">
                     <li class="breadcrumb-item">
-                        <a href="javascript:;"><i class="bx bx-home-alt"></i></a>
-                    </li>
+    <a href="{% url 'dashboard' %}"><i class="bx bx-home-alt"></i></a>
+</li>
+
                     <li class="breadcrumb-item active" aria-current="page">Orders <span>({{ orders.paginator.count }})</span></li>
                 </ol>
             </nav>
@@ -99,31 +100,44 @@
 </div>
 
         <!-- Date Range Filter (Right side of row, before buttons) -->
-        <div class="col-auto ms-auto d-flex gap-2 align-items-end">
-            <!-- Start Date -->
-            <div class="d-flex flex-column">
-                <label class="form-label mb-1">Start Date</label>
-                <input type="date" name="start_date" class="form-control"
-                       value="{{ request.GET.start_date }}"
-                       hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}"
-                       hx-trigger="change"
-                       hx-target="#content-area"
-                       hx-include="[name='end_date'],[name='q'],[name='product']"
-                       hx-push-url="true">
-            </div>
-    
-            <!-- End Date -->
-            <div class="d-flex flex-column">
-                <label class="form-label mb-1">End Date</label>
-                <input type="date" name="end_date" class="form-control"
-                       value="{{ request.GET.end_date }}"
-                       hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}"
-                       hx-trigger="change"
-                       hx-target="#content-area"
-                       hx-include="[name='start_date'],[name='q'],[name='product']"
-                       hx-push-url="true">
-            </div>
-        </div>
+<div class="col-auto ms-auto d-flex gap-2 align-items-end">
+
+    <!-- Start Date -->
+    <div class="d-flex flex-column">
+        <label class="form-label mb-1">Start Date</label>
+        <input type="date" name="start_date" class="form-control"
+               value="{{ request.GET.start_date }}"
+               hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}"
+               hx-trigger="change"
+               hx-target="#content-area"
+               hx-include="[name='end_date'],[name='q'],[name='product']"
+               hx-push-url="true">
+    </div>
+
+    <!-- End Date -->
+    <div class="d-flex flex-column">
+        <label class="form-label mb-1">End Date</label>
+        <input type="date" name="end_date" class="form-control"
+               value="{{ request.GET.end_date }}"
+               hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}"
+               hx-trigger="change"
+               hx-target="#content-area"
+               hx-include="[name='start_date'],[name='q'],[name='product']"
+               hx-push-url="true">
+    </div>
+
+    <!-- Clear Dates Button -->
+    <div class="d-flex flex-column">
+        <button type="button" class="btn btn-outline-secondary mt-4"
+                hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}"
+                hx-target="#content-area"
+                hx-push-url="true"
+                onclick="this.closest('div').querySelectorAll('input[type=date]').forEach(input => input.value='')">
+            Clear
+        </button>
+    </div>
+</div>
+
     
     </div>
     
@@ -204,9 +218,15 @@
 
                                 <td>
                                     <div class="dropdown">
-                                        <button class="btn btn-sm btn-filter edit-order-btn" data-id="{{ order.id }}" data-bs-toggle="modal" data-bs-target="#OrderFormModal">
-                                            <i class="bi bi-pencil"></i>
-                                        </button>
+                                        <a href="{% url 'order_detail' order.id %}"
+   class="btn btn-sm btn-filter edit-order-btn"
+   hx-get="{% url 'order_detail' order.id %}"
+   hx-target="#content-area"
+   hx-push-url="true"
+   hx-trigger="click, refreshReturnOrderDetailView from:body">
+    <i class="bi bi-pencil"></i>
+</a>
+
 
                                         <button class="btn btn-sm btn-filter delivery-option-btn" data-id="{{ order.id }}" data-bs-toggle="modal" data-bs-target="#deliveryOptionModal">
                                             <i class="lni lni-delivery"></i>
