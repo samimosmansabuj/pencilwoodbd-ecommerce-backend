@@ -43,7 +43,7 @@
 </div>
 
 <script>
-    document.addEventListener("DOMContentLoaded", function () {
+    function DeliveryOptionFetch() {
         const deliveryOptionBtn = document.querySelectorAll(".delivery-option-btn");
         const deliveryOptionForm = document.getElementById("deliveryOptionForm");
         const baseUrl = deliveryOptionForm.getAttribute("data-url");
@@ -135,9 +135,6 @@
                     });
             });
         });
-
-
-
 
         // =============================
         // AJAX FORM SUBMIT
@@ -301,5 +298,13 @@
             window.open(`/track/${trackingNumber}/`, "_blank");
         };
 
+    };
+
+
+    document.addEventListener("DOMContentLoaded", DeliveryOptionFetch);
+    document.addEventListener("htmx:afterSwap", function (e) {
+        if (e.target.id === "content-area" || e.target.closest("#content-area")) {
+            DeliveryOptionFetch();
+        }
     });
 </script>

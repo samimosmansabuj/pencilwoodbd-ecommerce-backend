@@ -459,13 +459,10 @@ class OrderView(LoginRequiredMixin, View):
                     ).distinct()
                     
         if start_date and end_date:
-            # Range filter
             orders = orders.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
         elif start_date:
-            # Only start_date: orders on that date
             orders = orders.filter(created_at__date=start_date)
         elif end_date:
-            # Only end_date: orders up to that date
             orders = orders.filter(created_at__date__lte=end_date)
 
         if search:
@@ -485,10 +482,6 @@ class OrderView(LoginRequiredMixin, View):
         orders = paginator.get_page(page_number)
 
         products = Product.objects.all().distinct()
-        # products = Product.objects.filter(
-        #     order_items__order__in=orders
-        # ).distinct()
-
         return orders, paginator, per_page, page_number, products
 
     def permission_denied(self, request):
@@ -509,9 +502,13 @@ class OrderView(LoginRequiredMixin, View):
             "per_page": per_page,
             "page_number": page_number,
             "order_count": self.status_wise_order_count(),
+
             "current_status": request.GET.get("status", "all"),
             "current_search": request.GET.get("q", ""),
             "current_product_slug":  request.GET.get("product", ""),
+            "start_date":  request.GET.get("start_date", ""),
+            "end_date":  request.GET.get("end_date", ""),
+
             "products": products,
         }
         if request.htmx:
