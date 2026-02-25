@@ -454,9 +454,10 @@ class OrderView(LoginRequiredMixin, View):
             orders = orders.filter(status=order_status)
         
         if product_slug:
-                    orders = orders.filter(
-                        order_items__product__slug=product_slug
-                    ).distinct()
+                orders = orders.filter(
+                    Q(order_items__variant__product__slug=product_slug) 
+                    | Q(order_items__product__slug=product_slug)                     
+                ).distinct()
                     
         if start_date and end_date:
             orders = orders.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)

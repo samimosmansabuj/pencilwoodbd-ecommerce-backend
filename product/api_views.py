@@ -1,5 +1,5 @@
 from rest_framework import views, status, permissions
-from .models import Category
+from .models import Category, ProductVariant
 from rest_framework.response import Response
 from .serializers import ProductSerializer, CategorySerializer
 from site_app.models import LandingPageProduct
@@ -142,36 +142,45 @@ class LandingPageOrderAPI(views.APIView):
     
     def get_product_object(self, id):
         try:
-            product = Product.objects.get(id=id)
-            return product
-        except Product.DoesNotExist:
-            raise ValueError("Product not found")
+            variant = ProductVariant.objects.select_related("product").get(id=id)
+            return variant
+        except ProductVariant.DoesNotExist:
+            raise ValueError("Variant not found")
     
-    def check_order_amount(self, product, data):
+    # ================= Corrected check_order_amount =================
+    def check_order_amount(self, variant, data):
         unit_price = data.get("unit_price")
         subtotal = data.get("subtotal")
         district = data.get("district")
         delivery = data.get("delivery")
         total = data.get("total")
-        
-        if product.discount_price and product.discount_price != unit_price:
+
+        unit_price_expected = variant.discount_price if variant.discount_price else variant.price
+
+        if float(unit_price) != float(unit_price_expected):
             raise ValueError("Unit price doesn't match with product price")
-        
-        if district == "dhaka" and delivery != 60:
+
+        district_lower = district.lower()
+        if district_lower == "dhaka" and float(delivery) != 60:
             raise ValueError("Delivery charge for Dhaka should be 60")
-        elif district == "chattogram" and delivery != 120:
-            raise ValueError("Delivery charge for outside Chittagong should be 120")
-        elif district not in ["chattogram", "dhaka"] and delivery != 150:
-            raise ValueError("Delivery charge for outside Dhaka and Chittagong should be 150")
-        
-        if subtotal != product.discount_price * int(data.get("quantity", 1)):
-            raise ValueError("Subtotal doesn't match with product price")
-        if total != subtotal + delivery:
-            raise ValueError("Total doesn't match with subtotal + delivery")
-        
+        elif district_lower == "chattogram" and float(delivery) != 120:
+            raise ValueError("Delivery charge for outside Chattogram should be 120")
+        elif district_lower not in ["dhaka", "chattogram"] and float(delivery) != 150:
+            raise ValueError("Delivery charge for outside Dhaka and Chattogram should be 150")
+
         quantity = int(data.get("quantity", 1))
-        total_cost = product.discount_price * quantity
-        return total_cost, quantity, subtotal, delivery
+        subtotal_expected = unit_price_expected * quantity
+        if float(subtotal) != float(subtotal_expected):
+            raise ValueError("Subtotal doesn't match with product price")
+
+        total_expected = subtotal_expected + float(delivery)
+        if float(total) != float(total_expected):
+            raise ValueError("Total doesn't match with subtotal + delivery")
+
+        total_cost = subtotal_expected
+
+        return total_cost, quantity, subtotal_expected, float(delivery)
+        
     
     def post(self, request, *args, **kwargs):
         try:
@@ -179,7 +188,8 @@ class LandingPageOrderAPI(views.APIView):
                 data = request.data
                 
                 # Product Section---
-                product = self.get_product_object(data.get("product_id"))
+                variant = self.get_product_object(data.get("variant_id"))
+                product = variant.product                
                 total_cost, quantity, subtotal, delivery = self.check_order_amount(product, data)
 
                 # Customer Section---
@@ -197,11 +207,11 @@ class LandingPageOrderAPI(views.APIView):
                 # Create OrderItem
                 OrderItem.objects.create(
                     order=order,
-                    product=product,
+                    variant=variant,
                     quantity=quantity,
-                    price=product.price,
-                    discount_price=product.discount_price if product.discount_price else product.price,
-                    discount_total_price=product.discount_price * quantity if product.discount_price else product.price * quantity
+                    price=variant.price,
+                    discount_price=variant.discount_price or variant.price,
+                    discount_total_price=(variant.discount_price or variant.price) * quantity
                 )
 
                 return Response(
