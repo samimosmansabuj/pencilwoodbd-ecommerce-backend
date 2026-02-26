@@ -89,7 +89,7 @@ class Product(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     @property
-    def active_variantes(self):  # New property
+    def active_variants(self):  # New property
         return self.variants.filter(is_active=True) 
     
     @property
