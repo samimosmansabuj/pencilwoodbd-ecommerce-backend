@@ -12,6 +12,8 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from decimal import Decimal
 from pencilwoodbd.choices import STATUS, PAYMENT_TYPE, PAYMENT_STATUS
+
+
 class CategoryAPIViews(views.APIView):
     permission_classes = [permissions.AllowAny]
     def get(self, request, *args, **kwargs):
@@ -150,23 +152,23 @@ class LandingPageOrderAPI(views.APIView):
             raise ValueError("Variant not found")
     
     # ================= Corrected check_order_amount =================
-    def check_order_amount(self, variant, data):
+    def check_order_amount(self, variant, product, data):
         unit_price = data.get("unit_price")
         subtotal = data.get("subtotal")
         district = data.get("district")
         delivery = data.get("delivery")
         total = data.get("total")
 
-        unit_price_expected = (
-            variant.discount_price
-            if variant.discount_price and variant.discount_price > 0
-            else variant.price
-        )
+        unit_price_expected = 0
+        if variant:
+            unit_price_expected = variant.discount_price or variant.price
+        else:
+            unit_price_expected = product.discount_price or product.price
 
         if Decimal(str(unit_price)) != unit_price_expected:
             raise ValueError("Unit price doesn't match with product price")
 
-        district_lower = district.lower()
+        district_lower = district.lower().strip()
         if district_lower == "dhaka" and float(delivery) != 60:
             raise ValueError("Delivery charge for Dhaka should be 60")
         elif district_lower == "chattogram" and float(delivery) != 120:
@@ -207,24 +209,15 @@ class LandingPageOrderAPI(views.APIView):
 
                 if variant_id:
                     variant = self.get_product_object(variant_id)
+                    product = variant.product
                 elif product_id:
                     product = get_object_or_404(Product, id=product_id)
-                    variant = product.variants.first()
-                    if not variant:
-                        raise ValueError("No variant available for this product")
-                else:
-                    raise ValueError("Product or variant is required")
+                    variant = product.variants.filter(is_active=True).first() if product.has_variants else None
+                    if product.has_variants and not variant:
+                        raise ValueError("No active variant available for this product")  
+                
+                total_cost, quantity, subtotal, delivery = self.check_order_amount(variant, product, data)
 
-                product = variant.product                
-                total_cost, quantity, subtotal, delivery = self.check_order_amount(variant, data)
-
-
-                # Inventory Check ----
-                if variant.inventory_quantity < quantity:
-                    raise ValueError(
-                        f"Not enough inventory for variant {variant.sku}. "
-                        f"Available: {variant.inventory_quantity}, requested: {quantity}"
-                    )
 
                 # Customer Section---
                 customer = self.get_customer_data(data)
@@ -242,25 +235,28 @@ class LandingPageOrderAPI(views.APIView):
                 )
 
                 # Create OrderItem
-                unit_price = variant.discount_price or variant.price
+                unit_price = variant.discount_price or variant.price if variant else product.discount_price or product.price
                 OrderItem.objects.create(
                     order=order,
                     variant=variant,
+                    product=product,
                     quantity=quantity,
-                    # Snapshot fields
-                    product_name=variant.product.name,  # ✅ fixed from title -> name
-                    sku=variant.sku,
-                    price=variant.price,
+                    product_name=product.name,
+                    sku=variant.sku if variant else product.sku,
+                    price=unit_price,
                     discount_price=unit_price,
                     discount_total_price=unit_price * quantity,
                 )
 
                 # Inventory Deduction -----
-                variant.inventory_quantity -= quantity
-                variant.save()
-
-                # Sync total product inventory
-                product.inventory_quantity = sum(v.inventory_quantity for v in product.variants.all())
+                if variant:
+                    variant.inventory_quantity -= quantity
+                    variant.save()
+                    product.inventory_quantity = sum(v.inventory_quantity for v in product.variants.filter(is_active=True))
+                else:
+                    if product.inventory_quantity < quantity:
+                        raise ValueError(f"Not enough inventory for product {product.sku}")
+                    product.inventory_quantity -= quantity
                 product.save()
 
                 return Response(

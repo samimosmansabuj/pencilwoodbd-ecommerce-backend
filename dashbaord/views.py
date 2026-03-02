@@ -171,14 +171,22 @@ def add_product(request):
                     # Images
                     for img_form in image_formset.cleaned_data:
                         if img_form and not img_form.get("DELETE", False):
-                            ProductImage.objects.create(product=product, image=img_form.get("image"), role=img_form.get("role","gallery"), position=img_form.get("position",0))
+                            ProductImage.objects.create(
+                                product=product,
+                                image=img_form.get("image"),
+                                role=img_form.get("role","gallery"),
+                                position=img_form.get("position",0)
+                            )
 
                     # Videos
                     for vid_form in video_formset.cleaned_data:
                         if vid_form and vid_form.get("video"):
-                            ProductVideo.objects.create(product=product, video=vid_form.get("video"))
+                            ProductVideo.objects.create(
+                                product=product,
+                                video=vid_form.get("video")
+                            )
 
-                    # Variants
+                    # Variants (optional)
                     if variant_data:
                         for variant_json in variant_data:
                             attr_values = json.loads(variant_json)  # e.g., {"size":1, "color":4}
@@ -254,13 +262,17 @@ def product_update(request, pk):
                         if v_id and v_id in existing_variants:
                             variant = existing_variants[v_id]
                             variant.price = v_data.get("price", variant.price)
+                            variant.size = v_data.get("size", getattr(variant, "size", None))
+                            variant.color = v_data.get("color", getattr(variant, "color", None))
                             variant.save()
                         else:
+                            # optional attributes handled dynamically
+                            attrs = {k:v for k,v in v_data.items() if k != "id"}
                             ProductVariant.objects.create(
                                 product=product,
                                 sku=f"{product.slug}-{random.randint(1000,9999)}",
                                 price=v_data.get("price", product.price),
-                                **{f"{k}": v for k,v in v_data.items() if k!="id"}
+                                **attrs
                             )
 
                     messages.success(request, "Product updated successfully")
