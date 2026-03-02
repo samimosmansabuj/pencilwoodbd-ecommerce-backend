@@ -68,6 +68,13 @@ class EmailConfigServerType(models.TextChoices):
 
 
 # ----- PRODUCT SECTION CHOICES OPTION -----
+class ATTRIBUTE_TYPE(models.TextChoices):
+    TEXT = "text"
+    NUMBER = "number"
+    DROPDOWN = "dropdown"
+    COLOR = "color"
+    SWATCH = "swatch"
+
 class CATEGORY_PRODUCT_STATUS(models.TextChoices):
     ACTIVE = "Active"
     DEACTIVE = "Deactive"
