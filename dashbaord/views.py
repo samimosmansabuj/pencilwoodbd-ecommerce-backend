@@ -145,7 +145,7 @@ class ProductListView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
     def get(self, request, *args, **kwargs):
-        products = Product.objects.annotate(variant_count=Count("variants "))
+        products = Product.objects.annotate(variant_count=Count("variants"))
         return render(request, "db_product/product_list.html", {"products": products})
 
 

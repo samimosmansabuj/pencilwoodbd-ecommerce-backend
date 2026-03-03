@@ -270,16 +270,17 @@ class LandingPageOrderAPI(views.APIView):
 
 
 
-# ================= PROFESSIONAL GLOBAL CATEGORY API =================
+
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
+from django.db.models import Prefetch
 
 class StandardPagination(PageNumberPagination):
     page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100
 
-
+# ================= PROFESSIONAL GLOBAL CATEGORY API =================
 class GlobalCategoryApi(views.APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -326,21 +327,15 @@ class GlobalCategoryApi(views.APIView):
                 {"status": False, "message": str(e)},
                 status=400
             )
-        
-
-
 
 
 # ================= PROFESSIONAL GLOBAL PRODUCT API =================
-from django.db.models import Prefetch
-
 class GlobalProductApi(views.APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
         try:
-            queryset = Product.objects.filter(
-            status=CATEGORY_PRODUCT_STATUS.ACTIVE ) \
+            queryset = Product.objects.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE ) \
                 .select_related("category") \
                 .prefetch_related(
                     Prefetch("variants", queryset=ProductVariant.objects.filter(is_active=True))
@@ -389,9 +384,6 @@ class GlobalProductApi(views.APIView):
                 status=400
             )
         
-
-
-
 
 # ================= ENTERPRISE GLOBAL ORDER CREATE API =================
 @method_decorator(csrf_exempt, name='dispatch')
@@ -448,9 +440,7 @@ class GlobalOrderCreateApi(views.APIView):
 
                 # -------- ITEM PROCESS --------
                 for item in items:
-
                     quantity = int(item.get("quantity", 1))
-
                     if item.get("variant_id"):
                         variant = ProductVariant.objects.select_for_update().select_related("product").get(id=item["variant_id"])
                         product = variant.product
@@ -470,7 +460,7 @@ class GlobalOrderCreateApi(views.APIView):
                     else:
                         product_id = item.get("product_id")
                         if not product_id:
-                            raise ValueError("product_id required if no variant_id")
+                            raise ValueError("product id required if no variant id")
 
                         product = Product.objects.select_for_update().get(id=product_id)
 
