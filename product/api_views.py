@@ -1,5 +1,5 @@
 from rest_framework import views, status, permissions
-from .models import Category
+from .models import Category, ProductVariant
 from rest_framework.response import Response
 from .serializers import ProductSerializer, CategorySerializer
 from site_app.models import LandingPageProduct
@@ -9,6 +9,10 @@ from authentication.models import Customer
 from order.models import Order, OrderItem
 from product.models import Product
 from django.db import transaction
+from django.shortcuts import get_object_or_404
+from decimal import Decimal
+from pencilwoodbd.choices import STATUS, PAYMENT_TYPE, PAYMENT_STATUS
+
 
 class CategoryAPIViews(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -142,67 +146,118 @@ class LandingPageOrderAPI(views.APIView):
     
     def get_product_object(self, id):
         try:
-            product = Product.objects.get(id=id)
-            return product
-        except Product.DoesNotExist:
-            raise ValueError("Product not found")
+            variant = ProductVariant.objects.select_related("product").get(id=id)
+            return variant
+        except ProductVariant.DoesNotExist:
+            raise ValueError("Variant not found")
     
-    def check_order_amount(self, product, data):
+    # ================= Corrected check_order_amount =================
+    def check_order_amount(self, variant, product, data):
         unit_price = data.get("unit_price")
         subtotal = data.get("subtotal")
         district = data.get("district")
         delivery = data.get("delivery")
         total = data.get("total")
-        
-        if product.discount_price and product.discount_price != unit_price:
+
+        unit_price_expected = 0
+        if variant:
+            unit_price_expected = variant.discount_price or variant.price
+        else:
+            unit_price_expected = product.discount_price or product.price
+
+        if Decimal(str(unit_price)) != unit_price_expected:
             raise ValueError("Unit price doesn't match with product price")
-        
-        if district == "dhaka" and delivery != 60:
+
+        district_lower = district.lower().strip()
+        if district_lower == "dhaka" and float(delivery) != 60:
             raise ValueError("Delivery charge for Dhaka should be 60")
-        elif district == "chattogram" and delivery != 120:
-            raise ValueError("Delivery charge for outside Chittagong should be 120")
-        elif district not in ["chattogram", "dhaka"] and delivery != 150:
-            raise ValueError("Delivery charge for outside Dhaka and Chittagong should be 150")
-        
-        if subtotal != product.discount_price * int(data.get("quantity", 1)):
-            raise ValueError("Subtotal doesn't match with product price")
-        if total != subtotal + delivery:
-            raise ValueError("Total doesn't match with subtotal + delivery")
-        
+        elif district_lower == "chattogram" and float(delivery) != 120:
+            raise ValueError("Delivery charge for outside Chattogram should be 120")
+        elif district_lower not in ["dhaka", "chattogram"] and float(delivery) != 150:
+            raise ValueError("Delivery charge for outside Dhaka and Chattogram should be 150")
+
         quantity = int(data.get("quantity", 1))
-        total_cost = product.discount_price * quantity
-        return total_cost, quantity, subtotal, delivery
+        subtotal_expected = unit_price_expected * quantity
+        if Decimal(str(subtotal)) != subtotal_expected:
+            raise ValueError("Subtotal doesn't match with product price")
+        total_expected = subtotal_expected + float(delivery)
+        if Decimal(str(total)) != total_expected:
+            raise ValueError("Total doesn't match with subtotal + delivery")
+        total_cost = subtotal_expected
+
+        return total_cost, quantity, subtotal_expected, float(delivery)
+        
     
     def post(self, request, *args, **kwargs):
         try:
             with transaction.atomic():
                 data = request.data
                 
+                # Payment validation ----
+                payment_type = data.get("payment_type", "COD")
+                payment_status = data.get("payment_status", "Unpaid")
+
+                if payment_type not in [pt.value for pt in PAYMENT_TYPE]:
+                    raise ValueError("Invalid payment type")
+                if payment_status not in [ps.value for ps in PAYMENT_STATUS]:
+                    raise ValueError("Invalid payment status")
+
+
                 # Product Section---
-                product = self.get_product_object(data.get("product_id"))
-                total_cost, quantity, subtotal, delivery = self.check_order_amount(product, data)
+                variant_id = data.get("variant_id")
+                product_id = data.get("product_id")
+
+                if variant_id:
+                    variant = self.get_product_object(variant_id)
+                    product = variant.product
+                elif product_id:
+                    product = get_object_or_404(Product, id=product_id)
+                    variant = product.variants.filter(is_active=True).first() if product.has_variants else None
+                    if product.has_variants and not variant:
+                        raise ValueError("No active variant available for this product")  
+                
+                total_cost, quantity, subtotal, delivery = self.check_order_amount(variant, product, data)
+
 
                 # Customer Section---
                 customer = self.get_customer_data(data)
                 address = self.get_address(data)
-                
+
                 order = Order.objects.create(
                     customer=customer,
                     shipping_address=address,
                     note=data.get("note", ""),
                     shipping_total=delivery,
-                    total_cost=total_cost
+                    total_cost=total_cost,
+                    payment_type=payment_type,        
+                    payment_status=payment_status,    
+                    status=STATUS.NEW  
                 )
 
                 # Create OrderItem
+                unit_price = variant.discount_price or variant.price if variant else product.discount_price or product.price
                 OrderItem.objects.create(
                     order=order,
+                    variant=variant,
                     product=product,
                     quantity=quantity,
-                    price=product.price,
-                    discount_price=product.discount_price if product.discount_price else product.price,
-                    discount_total_price=product.discount_price * quantity if product.discount_price else product.price * quantity
+                    product_name=product.name,
+                    sku=variant.sku if variant else product.sku,
+                    price=unit_price,
+                    discount_price=unit_price,
+                    discount_total_price=unit_price * quantity,
                 )
+
+                # Inventory Deduction -----
+                if variant:
+                    variant.inventory_quantity -= quantity
+                    variant.save()
+                    product.inventory_quantity = sum(v.inventory_quantity for v in product.variants.filter(is_active=True))
+                else:
+                    if product.inventory_quantity < quantity:
+                        raise ValueError(f"Not enough inventory for product {product.sku}")
+                    product.inventory_quantity -= quantity
+                product.save()
 
                 return Response(
                     {"status": True, "message": "Order received successfully"},

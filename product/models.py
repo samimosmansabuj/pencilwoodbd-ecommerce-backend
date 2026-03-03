@@ -2,7 +2,7 @@ from django.db import models
 from authentication.models import Customer
 from django.utils.text import slugify
 from pencilwoodbd.extra_module import previous_image_delete_os, image_delete_os
-from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS, PRODUCT_TYPE, PRODUCT_MEDIA_TYPE, PRODUCT_MEDIA_ROLE, PRODUCT_GIFT_TYPE
+from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS, PRODUCT_TYPE, PRODUCT_MEDIA_TYPE, PRODUCT_MEDIA_ROLE, PRODUCT_GIFT_TYPE, ATTRIBUTE_TYPE
 import random, string
 
 def generate_unique_slug(model_object, field_value, old_slug=None):
@@ -61,11 +61,60 @@ class Category(models.Model):
 
     def __str__(self):
         return self.name
+    
+
+
+class Brand(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    name = models.CharField(max_length=255)
+    slug = slug = models.SlugField(max_length=255, unique=True, blank=True, null=True)
+    logo = models.ImageField(upload_to="brand/logo/", blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        old_slug = Brand.objects.get(pk=self.pk) if self.pk else None
+        self.slug = generate_unique_slug(Brand, self.name, old_slug.slug if old_slug else None)
+        
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
+class Attribute(models.Model):
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=255, unique=True, blank=True, null=True)
+    type = models.CharField(max_length=50, choices=ATTRIBUTE_TYPE.choices, default=ATTRIBUTE_TYPE.TEXT)
+    is_variant = models.BooleanField(default=False)
+    is_filterable = models.BooleanField(default=False)
+
+    def save(self, *args, **kwargs):
+        old_slug = Attribute.objects.get(pk=self.pk) if self.pk else None
+        self.slug = generate_unique_slug(Attribute, self.name, old_slug.slug if old_slug else None)
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+class AttributeValue(models.Model):
+    attribute = models.ForeignKey(Attribute, on_delete=models.CASCADE, related_name='values')
+    value = models.CharField(max_length=255)
+    hex_code = models.CharField(max_length=20, blank=True, null=True)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        unique_together = (('attribute', 'value'),)
+
+    def __str__(self):
+        return f"{self.attribute.name}: {self.value}"
+
 
 class Product(models.Model):
     name = models.CharField(max_length=512)
     slug = models.SlugField(max_length=512, unique=True, blank=True, null=True)
-    sku = models.CharField(max_length=128, blank=True, null=True)
+    sku = models.CharField(max_length=128, blank=True, null=False)
     product_type = models.CharField(max_length=50, choices=PRODUCT_TYPE.choices, default=PRODUCT_TYPE.SIMPLE)
 
     category = models.ForeignKey(Category, null=True, blank=True, on_delete=models.SET_NULL)
@@ -73,6 +122,7 @@ class Product(models.Model):
     details = models.TextField(blank=True, null=True)
     description_json = models.JSONField(default=list, blank=True)
 
+    has_variants = models.BooleanField(default=False)
     cost_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     discount_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -88,9 +138,9 @@ class Product(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    # @property
-    # def active_variante(self):
-    #     return self.variants.filter(is_active=True)
+    @property
+    def active_variants(self):  # New property
+        return self.variants.filter(is_active=True) 
     
     @property
     def category_path(self):
@@ -100,16 +150,27 @@ class Product(models.Model):
     
     @property
     def primary_image(self):
-        primary_image = self.images.filter(role=PRODUCT_MEDIA_ROLE.PRIMARY).first()
+        primary_image = self.images.filter(role=PRODUCT_MEDIA_ROLE.PRIMARY, variant__isnull=True).first()
         if primary_image:
             return primary_image.image.url
         first_image = self.images.first()
         if first_image:
             return first_image.image.url
         return None
+    
+    @property
+    def effective_price(self):
+        if self.has_variants:
+            first_variant = self.variants.filter(is_active=True).first()
+            if first_variant:
+                return first_variant.discount_price or first_variant.price
+            return 0
+        return self.discount_price or self.price
 
 
     def save(self, *args, **kwargs):
+        is_new = self.pk is None  # NEW
+
         old_slug = Product.objects.get(pk=self.pk) if self.pk else None
         self.slug = generate_unique_slug(Product, self.name, old_slug.slug if old_slug else None)
         if not self.sku:
@@ -120,11 +181,58 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
+
+
+class ProductVariant(models.Model):  # New model
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')  
+    sku = models.CharField(max_length=128,blank=True, null=False)  
+    barcode = models.CharField(max_length=128, blank=True, null=True)  
+    price = models.DecimalField(max_digits=12, decimal_places=2, default=0)  
+    discount_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)  
+    compare_at_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)  
+    cost_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)  
+    inventory_quantity = models.IntegerField(default=0)  
+    weight = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)  
+    dimensions = models.JSONField(default=dict, blank=True)  
+    attributes = models.JSONField(default=dict, blank=True)  # {"size":"M","color":"Red"}
+    is_active = models.BooleanField(default=True)  
+    created_at = models.DateTimeField(auto_now_add=True)  
+    updated_at = models.DateTimeField(auto_now=True) 
+
+    class Meta:
+        unique_together = (('product', 'sku'),)  
+
+    def get_product_sku(self):
+        base_sku = self.product.sku or generate_product_sku()
+        sku = base_sku
+
+        if self.attributes:
+            for key in sorted(self.attributes.keys()):
+                value = self.attributes[key]
+                sku = f"{sku}-{value}"
+
+        self.sku = sku
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        if not self.sku:
+            self.get_product_sku()
+        super().save(*args, **kwargs)
+
+        if is_new and not self.product.has_variants:
+            self.product.has_variants = True
+            self.product.save(update_fields=["has_variants"])
+
+    def __str__(self):  # new
+        return f"{self.product.name} - {self.sku or self.pk}"
+
+
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
-    # variant = models.ForeignKey(ProductVariant, null=True, blank=True, on_delete=models.CASCADE, related_name='images')
+    variant = models.ForeignKey(ProductVariant, null=True, blank=True, on_delete=models.CASCADE, related_name='images')
     image = models.ImageField(upload_to="product/images/", blank=True, null=True)
     role = models.CharField(max_length=20, choices=PRODUCT_MEDIA_ROLE, default=PRODUCT_MEDIA_ROLE.GALLERY)
+    metadata = models.JSONField(default=dict, blank=True) 
     position = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -147,8 +255,11 @@ class ProductImage(models.Model):
         return f"Image {self.pk} for {self.product.name}"
 
 class ProductVideo(models.Model):
-    product = models.OneToOneField(Product, on_delete=models.CASCADE, related_name='videos')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='videos')
+    variant = models.ForeignKey(ProductVariant, null=True, blank=True, on_delete=models.CASCADE, related_name='videos')  
     video = models.FileField(upload_to="product/videos/", blank=True, null=True)
+    metadata = models.JSONField(default=dict, blank=True) 
+    position = models.IntegerField(default=0)    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -192,6 +303,7 @@ class ProductDeliveryCharge(models.Model):
 class AddToCart(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, related_name='customer_cart', null=True, blank=True)
     product = models.ForeignKey(Product, on_delete=models.SET_NULL, related_name='product_cart', null=True, blank=True)
+    variant = models.ForeignKey(ProductVariant, null=True, blank=True, on_delete=models.SET_NULL, related_name='cart_items')      
     quantity = models.PositiveIntegerField()
     price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     discount_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
@@ -201,12 +313,35 @@ class AddToCart(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     def save(self, *args, **kwargs):
-        if self.product:
-            self.price = self.product.current_price
+
+        if not self.product:
+            raise ValueError("Product is required")
+
+        if self.product.has_variants:
+
+            if not self.variant:
+                raise ValueError("Variant must be selected")
+
+            if self.variant.product_id != self.product.id:
+                raise ValueError("Variant does not belong to this product")
+
+            self.price = self.variant.price
+            self.discount_price = self.variant.discount_price
+            self.total_price = self.quantity * (
+                self.variant.discount_price or self.variant.price
+            )
+
+        else:
+
+            self.variant = None
+            self.price = self.product.price
             self.discount_price = self.product.discount_price
-            self.total_price = self.quantity * self.discount_price
+            self.total_price = self.quantity * (
+                self.product.discount_price or self.product.price
+            )
+
         super().save(*args, **kwargs)
-    
+        
     def __str__(self):
         return f'{self.customer} | Cart | {self.product}'
     

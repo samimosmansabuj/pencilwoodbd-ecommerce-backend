@@ -1,44 +1,39 @@
 from http import HTTPStatus
-from urllib.parse import urlparse
-from django import forms
+import json
+import random
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import (
-    HttpRequest,
-    HttpResponse,
-    HttpResponsePermanentRedirect,
-    HttpResponseRedirect,
-    JsonResponse,
-)
-from django.views.generic import CreateView, UpdateView, DeleteView, ListView
-import order
-from order.models import Order
-from product.models import Product, Category, ProductImage, ProductVideo
-from authentication.models import CustomUser
-from django.urls import reverse, reverse_lazy
+from django.http import JsonResponse, HttpResponse
+from django.views import View
 from django.contrib import messages
-from django.contrib.auth.views import LoginView
-from django.contrib.auth import logout, authenticate, login
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.admin.models import LogEntry
-from django.utils.timezone import now
-from django.views import View
-from pencilwoodbd.choices import USER_TYPE, STATUS
+from django.core.paginator import Paginator
 from django.db import transaction
-from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS
+from django.db.models import Count, Q, Sum, F, Value, DecimalField
+from django.db.models.functions import Coalesce
+from django.utils.text import slugify
+from django.utils import timezone
+from django.urls import reverse_lazy
+
+from django.views.generic import CreateView, UpdateView, DeleteView, ListView
+
+
+# Models
+from order.models import Order
+from product.models import Product, Category, ProductImage, ProductVideo, Attribute, AttributeValue, ProductVariant
+from authentication.models import CustomUser
+from site_app.models import DeliveryOption
+
+# Forms
 from product.forms import ProductForm, ProductImageForm, ProductVideoForm
 from django.forms import modelformset_factory
-from django.utils.text import slugify
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Count, Q, Sum, F, Value, DecimalField
-from pencilwoodbd.choices import STATUS
-from django.utils import timezone
-from django.db.models.functions import Coalesce
-from django.core.paginator import Paginator
-from site_app.models import DeliveryOption
-import json
+
+# Utilities
 from order.utils import SteadFastParcelAPI
-from pencilwoodbd.choices import DELIVERY_TYPE
+
+# Choices
+from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE
 
 
 # ------------------Dashboard--------
@@ -150,33 +145,25 @@ class ProductListView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
     def get(self, request, *args, **kwargs):
-        products = Product.objects.all()
+        products = Product.objects.annotate(variant_count=Count("variants "))
         return render(request, "db_product/product_list.html", {"products": products})
 
 
 @login_required(login_url="admin_login")
 def add_product(request):
-    ImageFormSet = modelformset_factory(
-        ProductImage, form=ProductImageForm, extra=3, can_delete=True
-    )
-    VideoFormSet = modelformset_factory(
-        ProductVideo, form=ProductVideoForm, extra=1, can_delete=True
-    )
+    ImageFormSet = modelformset_factory(ProductImage, form=ProductImageForm, extra=3, can_delete=True)
+    VideoFormSet = modelformset_factory(ProductVideo, form=ProductVideoForm, extra=1, can_delete=True)
+
+    attributes = Attribute.objects.prefetch_related("attributevalue_set").all()  # for variant selection
 
     if request.method == "POST":
         product_form = ProductForm(request.POST)
-        image_formset = ImageFormSet(
-            request.POST, request.FILES, queryset=ProductImage.objects.none()
-        )
-        video_formset = VideoFormSet(
-            request.POST, request.FILES, queryset=ProductVideo.objects.none()
-        )
+        image_formset = ImageFormSet(request.POST, request.FILES, queryset=ProductImage.objects.none())
+        video_formset = VideoFormSet(request.POST, request.FILES, queryset=ProductVideo.objects.none())
 
-        if (
-            product_form.is_valid()
-            and image_formset.is_valid()
-            and video_formset.is_valid()
-        ):
+        variant_data = request.POST.getlist("variants")  # expects JSON or structured variant input
+
+        if product_form.is_valid() and image_formset.is_valid() and video_formset.is_valid():
             try:
                 with transaction.atomic():
                     product = product_form.save()
@@ -187,15 +174,27 @@ def add_product(request):
                             ProductImage.objects.create(
                                 product=product,
                                 image=img_form.get("image"),
-                                role=img_form.get("role", "gallery"),
-                                position=img_form.get("position", 0),
+                                role=img_form.get("role","gallery"),
+                                position=img_form.get("position",0)
                             )
 
-                    # Video
+                    # Videos
                     for vid_form in video_formset.cleaned_data:
                         if vid_form and vid_form.get("video"):
                             ProductVideo.objects.create(
-                                product=product, video=vid_form.get("video")
+                                product=product,
+                                video=vid_form.get("video")
+                            )
+
+                    # Variants (optional)
+                    if variant_data:
+                        for variant_json in variant_data:
+                            attr_values = json.loads(variant_json)  # e.g., {"size":1, "color":4}
+                            ProductVariant.objects.create(
+                                product=product,
+                                sku=f"{product.slug}-{random.randint(1000,9999)}",
+                                price=product.price,
+                                **{f"{k}": v for k,v in attr_values.items()}
                             )
 
                     messages.success(request, "Product added successfully!")
@@ -203,108 +202,99 @@ def add_product(request):
             except Exception as e:
                 messages.error(request, f"Error saving product: {e}")
         else:
-            messages.error(request, "Please correct the errors below.")
-
+            messages.error(request, "Please correct the errors below")
     else:
         product_form = ProductForm()
         image_formset = ImageFormSet(queryset=ProductImage.objects.none())
         video_formset = VideoFormSet(queryset=ProductVideo.objects.none())
 
-    return render(
-        request,
-        "db_product/add_product.html",
-        {
-            "product_form": product_form,
-            "image_formset": image_formset,
-            "video_formset": video_formset,
-        },
-    )
+    return render(request, "db_product/add_product.html", {
+        "product_form": product_form,
+        "image_formset": image_formset,
+        "video_formset": video_formset,
+        "attributes": attributes,
+    })
 
 
 @login_required(login_url="admin_login")
 def product_update(request, pk):
     product = get_object_or_404(Product, pk=pk)
+    variants = ProductVariant.objects.filter(product=product)
+    ImageFormSet = modelformset_factory(ProductImage, form=ProductImageForm, extra=0, can_delete=True)
+    VideoFormSet = modelformset_factory(ProductVideo, form=ProductVideoForm, extra=0, can_delete=True)
 
-    ImageFormSet = modelformset_factory(
-        ProductImage, form=ProductImageForm, extra=0, can_delete=True
-    )
-
-    VideoFormSet = modelformset_factory(
-        ProductVideo, form=ProductVideoForm, extra=0, can_delete=True
-    )
+    attributes = Attribute.objects.prefetch_related("attributevalue_set").all()
 
     if request.method == "POST":
         product_form = ProductForm(request.POST, instance=product)
+        image_formset = ImageFormSet(request.POST, request.FILES, queryset=ProductImage.objects.filter(product=product))
+        video_formset = VideoFormSet(request.POST, request.FILES, queryset=ProductVideo.objects.filter(product=product))
+        variant_data = request.POST.getlist("variants")  # same as add
 
-        image_formset = ImageFormSet(
-            request.POST,
-            request.FILES,
-            queryset=ProductImage.objects.filter(product=product),
-        )
-
-        video_formset = VideoFormSet(
-            request.POST,
-            request.FILES,
-            queryset=ProductVideo.objects.filter(product=product),
-        )
-
-        if (
-            product_form.is_valid()
-            and image_formset.is_valid()
-            and video_formset.is_valid()
-        ):
+        if product_form.is_valid() and image_formset.is_valid() and video_formset.is_valid():
             try:
                 with transaction.atomic():
                     product_form.save()
 
-                    # images
+                    # Images
                     for form in image_formset:
-                        if form.cleaned_data.get("DELETE"):
-                            if form.instance.pk:
-                                form.instance.delete()
+                        if form.cleaned_data.get("DELETE") and form.instance.pk:
+                            form.instance.delete()
                         else:
                             img = form.save(commit=False)
                             img.product = product
                             img.save()
 
-                    # videos
+                    # Videos
                     for form in video_formset:
-                        if form.cleaned_data.get("DELETE"):
-                            if form.instance.pk:
-                                form.instance.delete()
+                        if form.cleaned_data.get("DELETE") and form.instance.pk:
+                            form.instance.delete()
                         else:
                             vid = form.save(commit=False)
                             vid.product = product
                             vid.save()
 
+                    # Variants
+                    existing_variants = {v.id: v for v in variants}
+                    for variant_json in variant_data:
+                        v_data = json.loads(variant_json)
+                        v_id = v_data.get("id")
+                        if v_id and v_id in existing_variants:
+                            variant = existing_variants[v_id]
+                            variant.price = v_data.get("price", variant.price)
+                            variant.size = v_data.get("size", getattr(variant, "size", None))
+                            variant.color = v_data.get("color", getattr(variant, "color", None))
+                            variant.save()
+                        else:
+                            # optional attributes handled dynamically
+                            attrs = {k:v for k,v in v_data.items() if k != "id"}
+                            ProductVariant.objects.create(
+                                product=product,
+                                sku=f"{product.slug}-{random.randint(1000,9999)}",
+                                price=v_data.get("price", product.price),
+                                **attrs
+                            )
+
                     messages.success(request, "Product updated successfully")
                     return redirect("product_list")
-
             except Exception as e:
                 messages.error(request, str(e))
         else:
             messages.error(request, "Please fix the errors below")
-
     else:
         product_form = ProductForm(instance=product)
-        image_formset = ImageFormSet(
-            queryset=ProductImage.objects.filter(product=product)
-        )
-        video_formset = VideoFormSet(
-            queryset=ProductVideo.objects.filter(product=product)
-        )
+        image_formset = ImageFormSet(queryset=ProductImage.objects.filter(product=product))
+        video_formset = VideoFormSet(queryset=ProductVideo.objects.filter(product=product))
 
-    return render(
-        request,
-        "db_product/add_product.html",
-        {
-            "product_form": product_form,
-            "image_formset": image_formset,
-            "video_formset": video_formset,
-            "is_update": True,
-            "product": product,
-        },
-    )
+    return render(request, "db_product/add_product.html", {
+        "product_form": product_form,
+        "image_formset": image_formset,
+        "video_formset": video_formset,
+        "is_update": True,
+        "product": product,
+        "variants": variants,
+        "attributes": attributes,
+    })
 
 
 class ProductDeleteView(LoginRequiredMixin, View):
@@ -454,9 +444,10 @@ class OrderView(LoginRequiredMixin, View):
             orders = orders.filter(status=order_status)
         
         if product_slug:
-                    orders = orders.filter(
-                        order_items__product__slug=product_slug
-                    ).distinct()
+                orders = orders.filter(
+                    Q(order_items__variant__product__slug=product_slug) 
+                    | Q(order_items__product__slug=product_slug)                     
+                ).distinct()
                     
         if start_date and end_date:
             orders = orders.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)

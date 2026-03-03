@@ -1,7 +1,8 @@
 import string, secrets
 from django.db import models
+from django.forms import ValidationError
 from authentication.models import Customer
-from product.models import Product
+from product.models import Product, ProductVariant
 from pencilwoodbd.choices import PAYMENT_STATUS, PAYMENT_TYPE, STATUS, REVIEW_STATUS, DELIVERY_TYPE
 from datetime import datetime
 from site_app.models import DeliveryOption
@@ -118,6 +119,10 @@ class Order(models.Model):
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="order_items")
     product = models.ForeignKey(Product, on_delete=models.SET_NULL, related_name='order_items', null=True, blank=True)
+    variant = models.ForeignKey(ProductVariant, on_delete=models.SET_NULL, null=True, blank=True, related_name='order_items')
+    product_name = models.CharField(max_length=255, null=True, blank=True)
+    # Snapshot fields
+    sku = models.CharField(max_length=255, null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)
     price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     discount_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
@@ -125,13 +130,49 @@ class OrderItem(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    snapshot = models.JSONField(default=dict, blank=True)
+
     @property
     def current_total(self):
         return self.price * self.quantity
     
+
     def save(self, *args, **kwargs):
+        if self.variant:
+            self.product = self.variant.product
+            self.product_name = self.variant.product.name
+            self.sku = self.variant.sku
+            self.price = self.variant.price
+            self.discount_price = self.variant.discount_price
+            self.snapshot = {
+                "product_id": self.product.id,
+                "product_name": self.product.name,
+                "variant": self.variant.attributes,
+                "sku": self.variant.sku,
+                "price": str(self.price),
+                "discount_price": str(self.discount_price),
+            }
+        elif self.product:
+            self.product_name = self.product.name
+            self.sku = self.product.sku
+            self.price = self.product.price
+            self.discount_price = self.product.discount_price
+            self.snapshot = {
+                "product_id": self.product.id,
+                "product_name": self.product.name,
+                "variant": None,
+                "sku": self.sku,
+                "price": str(self.price),
+                "discount_price": str(self.discount_price),
+            }
+
+        self.discount_total_price = (self.discount_price or self.price) * self.quantity
         super().save(*args, **kwargs)
     
+    def clean(self):
+        if self.product.has_variants and not self.variant:
+            raise ValidationError("Variant is required for this product")
+
     def __str__(self):
         return f'{self.order} - Order Item - {self.product}'
 
