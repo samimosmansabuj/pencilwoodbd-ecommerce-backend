@@ -1,4 +1,4 @@
-from rest_framework import views, status, permissions
+from rest_framework import views, status, permissions, viewsets
 from .models import Category, ProductVariant
 from rest_framework.response import Response
 from .serializers import ProductSerializer, CategorySerializer
@@ -12,6 +12,9 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from decimal import Decimal
 from pencilwoodbd.choices import STATUS, PAYMENT_TYPE, PAYMENT_STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE
+from rest_framework.pagination import PageNumberPagination
+from django.db.models import Q
+from django.db.models import Prefetch
 
 
 class CategoryAPIViews(views.APIView):
@@ -271,119 +274,102 @@ class LandingPageOrderAPI(views.APIView):
 
 
 
-from rest_framework.pagination import PageNumberPagination
-from django.db.models import Q
-from django.db.models import Prefetch
+
+
 
 class StandardPagination(PageNumberPagination):
     page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100
 
+    def get_paginated_response(self, data):
+        return Response({
+            "status": True,
+            "count": self.page.paginator.count,
+            "next": self.get_next_link(),
+            "previous": self.get_previous_link(),
+            "data": data
+        })
+
 # ================= PROFESSIONAL GLOBAL CATEGORY API =================
-class GlobalCategoryApi(views.APIView):
+class GlobalCategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = CategorySerializer
     permission_classes = [permissions.AllowAny]
+    pagination_class = StandardPagination
 
-    def get(self, request):
-        try:
-            queryset = Category.objects.filter(
-                status=CATEGORY_PRODUCT_STATUS.ACTIVE
-            )
+    def get_queryset(self):
+        queryset = Category.objects.filter(
+            status=CATEGORY_PRODUCT_STATUS.ACTIVE
+        )
 
-            parent_id = request.query_params.get("parent_id")
-            search = request.query_params.get("search")
-            ordering = request.query_params.get("ordering", "sort_order")
-            allowed_ordering = ["sort_order", "name", "-name", "created_at", "-created_at"]
+        parent_id = self.request.query_params.get("parent_id")
+        search = self.request.query_params.get("search")
+        ordering = self.request.query_params.get("ordering", "sort_order")
 
-            if ordering not in allowed_ordering:
-                ordering = "sort_order"
+        allowed_ordering = [
+            "sort_order", "name", "-name",
+            "created_at", "-created_at"
+        ]
 
-            if parent_id:
-                queryset = queryset.filter(parent_id=parent_id)
-            else:
-                queryset = queryset.filter(parent__isnull=True)
+        if ordering not in allowed_ordering:
+            ordering = "sort_order"
 
-            if search:
-                queryset = queryset.filter(name__icontains=search)
+        if parent_id:
+            queryset = queryset.filter(parent_id=parent_id)
+        else:
+            queryset = queryset.filter(parent__isnull=True)
 
-            queryset = queryset.order_by(ordering)
+        if search:
+            queryset = queryset.filter(name__icontains=search)
 
-            paginator = StandardPagination()
-            paginated_queryset = paginator.paginate_queryset(queryset, request)
-
-            serializer = CategorySerializer(
-                paginated_queryset,
-                many=True,
-                context={"request": request}
-            )
-
-            return paginator.get_paginated_response({
-                "status": True,
-                "data": serializer.data
-            })
-
-        except Exception as e:
-            return Response(
-                {"status": False, "message": str(e)},
-                status=400
-            )
-
+        return queryset.order_by(ordering)
 
 # ================= PROFESSIONAL GLOBAL PRODUCT API =================
-class GlobalProductApi(views.APIView):
+class GlobalProductViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = ProductSerializer
     permission_classes = [permissions.AllowAny]
+    pagination_class = StandardPagination
 
-    def get(self, request):
-        try:
-            queryset = Product.objects.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE ) \
-                .select_related("category") \
-                .prefetch_related(
-                    Prefetch("variants", queryset=ProductVariant.objects.filter(is_active=True))
-                )
-
-            category = request.query_params.get("category")
-            search = request.query_params.get("search")
-            min_price = request.query_params.get("min_price")
-            max_price = request.query_params.get("max_price")
-            ordering = request.query_params.get("ordering", "-created_at")
-            allowed_ordering = ["price", "-price", "created_at", "-created_at", "name", "-name"]
-
-            if ordering not in allowed_ordering:
-                ordering = "-created_at"
-            if category:
-                queryset = queryset.filter(category_id=category)
-
-            if search:
-                queryset = queryset.filter(name__icontains=search)
-
-            if min_price:
-                queryset = queryset.filter(price__gte=Decimal(min_price))
-
-            if max_price:
-                queryset = queryset.filter(price__lte=Decimal(max_price))
-
-            queryset = queryset.order_by(ordering)
-
-            paginator = StandardPagination()
-            paginated_queryset = paginator.paginate_queryset(queryset, request)
-
-            serializer = ProductSerializer(
-                paginated_queryset,
-                many=True,
-                context={"request": request}
+    def get_queryset(self):
+        queryset = Product.objects.filter(
+            status=CATEGORY_PRODUCT_STATUS.ACTIVE
+        ).select_related(
+            "category"
+        ).prefetch_related(
+            Prefetch(
+                "variants",
+                queryset=ProductVariant.objects.filter(is_active=True)
             )
+        )
 
-            return paginator.get_paginated_response({
-                "status": True,
-                "data": serializer.data
-            })
+        category = self.request.query_params.get("category")
+        search = self.request.query_params.get("search")
+        min_price = self.request.query_params.get("min_price")
+        max_price = self.request.query_params.get("max_price")
+        ordering = self.request.query_params.get("ordering", "-created_at")
 
-        except Exception as e:
-            return Response(
-                {"status": False, "message": str(e)},
-                status=400
-            )
-        
+        allowed_ordering = [
+            "price", "-price",
+            "created_at", "-created_at",
+            "name", "-name"
+        ]
+
+        if ordering not in allowed_ordering:
+            ordering = "-created_at"
+
+        if category:
+            queryset = queryset.filter(category_id=category)
+
+        if search:
+            queryset = queryset.filter(name__icontains=search)
+
+        if min_price:
+            queryset = queryset.filter(price__gte=Decimal(min_price))
+
+        if max_price:
+            queryset = queryset.filter(price__lte=Decimal(max_price))
+
+        return queryset.order_by(ordering)
 
 # ================= ENTERPRISE GLOBAL ORDER CREATE API =================
 @method_decorator(csrf_exempt, name='dispatch')
