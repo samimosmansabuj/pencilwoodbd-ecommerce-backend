@@ -11,7 +11,7 @@ from product.models import Product
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from decimal import Decimal
-from pencilwoodbd.choices import STATUS, PAYMENT_TYPE, PAYMENT_STATUS
+from pencilwoodbd.choices import STATUS, PAYMENT_TYPE, PAYMENT_STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE
 
 
 class CategoryAPIViews(views.APIView):
@@ -222,7 +222,7 @@ class LandingPageOrderAPI(views.APIView):
                 # Customer Section---
                 customer = self.get_customer_data(data)
                 address = self.get_address(data)
-
+                
                 order = Order.objects.create(
                     customer=customer,
                     shipping_address=address,
@@ -265,6 +265,280 @@ class LandingPageOrderAPI(views.APIView):
                 )
         except Exception as e:
             return Response({"status": False, "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+
+# ================= PROFESSIONAL GLOBAL CATEGORY API =================
+from rest_framework.pagination import PageNumberPagination
+from django.db.models import Q
+
+class StandardPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
+class GlobalCategoryApi(views.APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        try:
+            queryset = Category.objects.filter(
+                status=CATEGORY_PRODUCT_STATUS.ACTIVE
+            )
+
+            parent_id = request.query_params.get("parent_id")
+            search = request.query_params.get("search")
+            ordering = request.query_params.get("ordering", "sort_order")
+            allowed_ordering = ["sort_order", "name", "-name", "created_at", "-created_at"]
+
+            if ordering not in allowed_ordering:
+                ordering = "sort_order"
+
+            if parent_id:
+                queryset = queryset.filter(parent_id=parent_id)
+            else:
+                queryset = queryset.filter(parent__isnull=True)
+
+            if search:
+                queryset = queryset.filter(name__icontains=search)
+
+            queryset = queryset.order_by(ordering)
+
+            paginator = StandardPagination()
+            paginated_queryset = paginator.paginate_queryset(queryset, request)
+
+            serializer = CategorySerializer(
+                paginated_queryset,
+                many=True,
+                context={"request": request}
+            )
+
+            return paginator.get_paginated_response({
+                "status": True,
+                "data": serializer.data
+            })
+
+        except Exception as e:
+            return Response(
+                {"status": False, "message": str(e)},
+                status=400
+            )
+        
+
+
+
+
+# ================= PROFESSIONAL GLOBAL PRODUCT API =================
+from django.db.models import Prefetch
+
+class GlobalProductApi(views.APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        try:
+            queryset = Product.objects.filter(
+            status=CATEGORY_PRODUCT_STATUS.ACTIVE ) \
+                .select_related("category") \
+                .prefetch_related(
+                    Prefetch("variants", queryset=ProductVariant.objects.filter(is_active=True))
+                )
+
+            category = request.query_params.get("category")
+            search = request.query_params.get("search")
+            min_price = request.query_params.get("min_price")
+            max_price = request.query_params.get("max_price")
+            ordering = request.query_params.get("ordering", "-created_at")
+            allowed_ordering = ["price", "-price", "created_at", "-created_at", "name", "-name"]
+
+            if ordering not in allowed_ordering:
+                ordering = "-created_at"
+            if category:
+                queryset = queryset.filter(category_id=category)
+
+            if search:
+                queryset = queryset.filter(name__icontains=search)
+
+            if min_price:
+                queryset = queryset.filter(price__gte=Decimal(min_price))
+
+            if max_price:
+                queryset = queryset.filter(price__lte=Decimal(max_price))
+
+            queryset = queryset.order_by(ordering)
+
+            paginator = StandardPagination()
+            paginated_queryset = paginator.paginate_queryset(queryset, request)
+
+            serializer = ProductSerializer(
+                paginated_queryset,
+                many=True,
+                context={"request": request}
+            )
+
+            return paginator.get_paginated_response({
+                "status": True,
+                "data": serializer.data
+            })
+
+        except Exception as e:
+            return Response(
+                {"status": False, "message": str(e)},
+                status=400
+            )
+        
+
+
+
+
+# ================= ENTERPRISE GLOBAL ORDER CREATE API =================
+@method_decorator(csrf_exempt, name='dispatch')
+class GlobalOrderCreateApi(views.APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        try:
+            with transaction.atomic():
+
+                data = request.data
+                request_id = data.get("request_id")
+
+                # -------- IDEMPOTENCY CHECK --------
+                if request_id and Order.objects.filter(metadata__request_id=request_id).exists():
+                    return Response(
+                        {"status": False, "message": "Duplicate order submission"},
+                        status=400
+                    )
+
+                # -------- CUSTOMER --------
+                name = data.get("name")
+                phone = data.get("phone")
+                address = data.get("address")
+                district = data.get("district")
+
+                if not all([name, phone, address, district]):
+                    raise ValueError("Missing required customer fields")
+
+                customer, _ = Customer.objects.get_or_create(
+                    phone=phone,
+                    defaults={"name": name}
+                )
+
+                full_address = f"{address}, {district}"
+                delivery_type = data.get("delivery_type", DELIVERY_TYPE.HOME_DELIVERY)
+
+
+                order = Order.objects.create(
+                    customer=customer,
+                    shipping_address=full_address,
+                    payment_type=data.get("payment_type", PAYMENT_TYPE.COD),
+                    payment_status=PAYMENT_STATUS.Unpaid,
+                    status=STATUS.NEW,
+                    metadata={"request_id": request_id},
+                    delivery_type=delivery_type,
+                )
+
+                items = data.get("items", [])
+                if not items:
+                    raise ValueError("Order must contain at least one item")
+
+                subtotal = Decimal("0")
+
+                # -------- ITEM PROCESS --------
+                for item in items:
+
+                    quantity = int(item.get("quantity", 1))
+
+                    if item.get("variant_id"):
+                        variant = ProductVariant.objects.select_for_update().select_related("product").get(id=item["variant_id"])
+                        product = variant.product
+
+                        if variant.inventory_quantity < quantity:
+                            raise ValueError("Insufficient stock")
+
+                        unit_price = variant.discount_price or variant.price
+                        variant.inventory_quantity -= quantity
+                        variant.save()
+
+                        product.inventory_quantity = sum(
+                            v.inventory_quantity for v in product.variants.filter(is_active=True)
+                        )
+                        product.save(update_fields=["inventory_quantity"])
+
+                    else:
+                        product_id = item.get("product_id")
+                        if not product_id:
+                            raise ValueError("product_id required if no variant_id")
+
+                        product = Product.objects.select_for_update().get(id=product_id)
+
+                        if product.inventory_quantity < quantity:
+                            raise ValueError("Insufficient stock")
+
+                        unit_price = product.discount_price or product.price
+                        product.inventory_quantity -= quantity
+                        product.save(update_fields=["inventory_quantity"])
+                        variant = None
+
+                    OrderItem.objects.create(
+                        order=order,
+                        product=product,
+                        variant=variant,
+                        quantity=quantity,
+                        price=unit_price,
+                        discount_price=unit_price,
+                        discount_total_price=unit_price * quantity
+                    )
+
+                    subtotal += unit_price * quantity
+
+                # -------- OPTIONAL TAX --------
+                tax_total = Decimal("0")
+                if data.get("apply_tax"):
+                    tax_percentage = Decimal(str(data.get("tax_percentage", 0)))
+                    tax_total = (subtotal * tax_percentage) / 100
+                    order.tax_total = tax_total
+
+                # -------- DELIVERY --------
+                delivery_charge = Decimal("0")
+                if order.delivery_type == "HOME_DELIVERY":
+                    delivery_charge = Decimal("60")  # you can dynamic this
+                    order.shipping_total = delivery_charge
+
+                # -------- OPTIONAL COUPON --------
+                if data.get("coupon_code"):
+                    discount_amount = subtotal * Decimal("0.10")  # Example 10%
+                    subtotal -= discount_amount
+                    order.promotions_applied = {
+                        "coupon": data.get("coupon_code"),
+                        "discount": str(discount_amount)
+                    }
+
+                # -------- FINAL TOTAL --------
+                order.total_cost = subtotal + tax_total + delivery_charge
+                order.save()
+
+                return Response(
+                    {
+                        "status": True,
+                        "message": "Order created successfully",
+                        "order_id": order.order_id,
+                        "total": order.total_cost
+                    },
+                    status=201
+                )
+
+        except Exception as e:
+            return Response(
+                {"status": False, "message": str(e)},
+                status=400
+            )
+        
+
+
+
 
 
 # class TagAPIViews(views.APIView):
