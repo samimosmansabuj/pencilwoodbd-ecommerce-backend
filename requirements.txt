@@ -8,6 +8,7 @@ django-extensions==4.1
 django-filter==25.2
 django-htmx==1.27.0
 django-jet-reboot==1.3.10
+django-json-widget==2.1.1
 django-material-admin==1.8.6
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
