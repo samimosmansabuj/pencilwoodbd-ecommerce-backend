@@ -29,7 +29,7 @@ INSTALLED_APPS = [
     'channels',
     
     #Custom Apps
-    'authentication', 'order', 'product','live_chat', 'site_app', 'dashbaord', 'marketing',
+    'authentication', 'order', 'product','live_chat', 'site_app', 'dashbaord', 'marketing',"django_json_widget",
 ]
 
 

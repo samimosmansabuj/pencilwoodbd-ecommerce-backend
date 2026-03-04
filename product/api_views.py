@@ -470,6 +470,25 @@ class GlobalOrderCreateApi(views.APIView):
 
                     subtotal += unit_price * quantity
 
+
+                # -------- UPDATE ORDER METADATA WITH VARIANT SIZE --------
+                order_items_data = [
+                    {
+                        "product_id": item.product.id,
+                        "product_name": item.product_name,
+                        "variant_id": item.variant.id if item.variant else None,
+                        "variant": item.variant.attributes if item.variant else None,
+                        "sku": item.sku,
+                        "quantity": item.quantity,
+                        "price": str(item.price),
+                        "discount_price": str(item.discount_price),
+                        "discount_total_price": str(item.discount_total_price),
+                    }
+                    for item in order.order_items.all()
+                ]
+
+                order.metadata["items"] = order_items_data
+                order.save(update_fields=["metadata"])
                 # -------- OPTIONAL TAX --------
                 tax_total = Decimal("0")
                 if data.get("apply_tax"):
