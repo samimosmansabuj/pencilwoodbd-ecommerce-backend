@@ -278,7 +278,7 @@ class LandingPageOrderAPI(views.APIView):
 
 
 class StandardPagination(PageNumberPagination):
-    page_size = 20
+    page_size = 25
     page_size_query_param = "page_size"
     max_page_size = 100
 
@@ -442,7 +442,6 @@ class GlobalOrderCreateApi(views.APIView):
                             v.inventory_quantity for v in product.variants.filter(is_active=True)
                         )
                         product.save(update_fields=["inventory_quantity"])
-
                     else:
                         product_id = item.get("product_id")
                         if not product_id:

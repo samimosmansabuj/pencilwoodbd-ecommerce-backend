@@ -98,8 +98,10 @@
                                     <input class="form-check-input" type="checkbox">
                                 </th>
                                 <th>Product Name</th>
+                                <th>Cost</th>
                                 <th>Price</th>
-                                <th>Rating</th>
+                                <th>Discount Price</th>
+                                <!-- <th>Rating</th> -->
                                 <th>Date</th>
                                 <th>Action</th>
                             </tr>
@@ -113,12 +115,11 @@
                                 <td>
                                     <div class="d-flex align-items-center gap-3">
                                         <div class="product-box">
-                                            <img src="{{ product.primary_image }}" width="70" class="rounded-3"
-                                                alt="{{ product.primary_image }}">
+                                            <img src="{{ product.primary_image }}" width="70" class="rounded-3" alt="{{ product.primary_image }}">
                                         </div>
                                         <div class="product-info">
                                             <a href="javascript:;" class="product-title">
-                                                {{ product.title|truncatechars:30 }}
+                                                {{ product.name|truncatechars:30 }}
                                             </a>
                                             <p class="mb-0 product-category">
                                                 Category: {{ product.category_path }}
@@ -127,14 +128,16 @@
                                         </div>
                                     </div>
                                 </td>
+                                <td>৳{{ product.cost_price }}</td>
                                 <td>৳{{ product.price }}</td>
-                                <td>
+                                <td>৳{{ product.discount_price }}</td>
+                                <!-- <td>
                                     <div class="product-rating">
                                         <i class="bi bi-star-fill text-warning me-2"></i><span>5.0</span>
                                     </div>
-                                </td>
+                                </td> -->
                                 <td>
-                                    {{ products.created_at|date:"M d, Y" }}
+                                    {{ product.created_at|date:"M d, Y" }}
                                 </td>
                                 <td>
                                     <div class="btn-group">
