@@ -61,44 +61,10 @@
                     <div class="product-table">
                         <div class="table-responsive white-space-nowrap">
                             <table class="table align-middle">
-                                
-
-                                <!-- <thead class="table-light">
-                                    <tr>
-                                        <th>Product Name</th>
-                                        <th>Quantity</th>
-                                        <th>Price</th>
-                                        <th>Total</th>
-                                        <th>Note</th> 
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for item in order.order_items.all %}
-                                    <tr>
-                                        <td>
-                                            <div class="d-flex align-items-center gap-3">
-                                                <div class="product-box">
-                                                    <img src="{{ item.product.primary_image }}" width="70" class="rounded-3" alt="">
-                                                </div>
-                                                <div class="product-info">
-                                                    <a href="javascript:;" class="product-title">{{ item.product.name }}</a>
-                                                    <p class="mb-0 product-category">Category : {{ item.product.category_path }}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>{{ item.quantity }}</td>
-                                        <td>৳{{ item.discount_price }}</td>
-                                        <td class="item_total_price">{{ item.discount_total_price }}</td>
-                                        <td>{{ order.note|default:"-" }}</td> 
-                                    {% endfor %}
-                                </tbody> -->
-
-                                
-                                
                                 <thead class="table-light">
                                     <tr>
                                         <th>Product Name</th>
-                                        <!-- <th>/// Meta Data ///</th> -->
+                                        <th>Meta Data</th>
                                         <th>Quantity</th>
                                         <th>Price</th>
                                         <th>Total</th>
@@ -121,14 +87,13 @@
                                         </td>
 
 
-                                        <!-- <td> ///
+                                        <td> 
                                             {% if item.variant and item.variant.attributes %}
                                             {% for key, value in item.variant.attributes.items %}
                                             <div>{{ key|capfirst }}: {{ value|capfirst }}</div>
                                             {% endfor %}
                                             {% endif %} 
-                                            /////
-                                        </td> -->
+                                        </td>
 
 
                                         <td>{{ item.quantity }}</td>

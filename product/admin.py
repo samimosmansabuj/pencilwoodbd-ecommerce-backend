@@ -4,7 +4,7 @@ from .models import Attribute, AttributeValue, Brand, Category, Product, AddToCa
 class ProductImageInline(admin.TabularInline):
     model = ProductImage
     extra = 1
-    fields = ('image',)
+    fields = ('image', 'role', 'position')
     readonly_fields = ('created_at', 'updated_at')
 
 class ProductVideoInline(admin.TabularInline):
@@ -14,7 +14,7 @@ class ProductVideoInline(admin.TabularInline):
 
 class ProductVariantInline(admin.TabularInline):
     model = ProductVariant
-    fields = ('sku', 'price', 'inventory_quantity', 'attributes', 'is_active')
+    fields = ('sku', 'cost_price', 'price', 'discount_price', 'inventory_quantity', 'attributes', 'is_active')
     readonly_fields = ('sku',)
     extra = 0
     show_change_link = True
