@@ -188,14 +188,21 @@ def add_product(request):
 
                     # Variants (optional)
                     if variant_data:
+                        variant_fields = [f.name for f in ProductVariant._meta.fields 
+                                        if f.name not in ["id", "product", "sku", "created_at", "updated_at", "inventory_quantity"]]
                         for variant_json in variant_data:
                             attr_values = json.loads(variant_json)  # e.g., {"size":1, "color":4}
+                            variant_kwargs = {k: v for k, v in attr_values.items() if k in variant_fields}
                             ProductVariant.objects.create(
                                 product=product,
                                 sku=f"{product.slug}-{random.randint(1000,9999)}",
                                 price=product.price,
-                                **{f"{k}": v for k,v in attr_values.items()}
+                                inventory_quantity=product.inventory_quantity,  # initialize same as product
+                                **variant_kwargs
                             )
+                    # Sync product inventory
+                    product.inventory_quantity = sum(v.inventory_quantity for v in product.variants.filter(is_active=True))
+                    product.save(update_fields=["inventory_quantity"])
 
                     messages.success(request, "Product added successfully!")
                     return redirect("product_list")
@@ -261,13 +268,20 @@ def product_update(request, pk):
                         v_id = v_data.get("id")
                         if v_id and v_id in existing_variants:
                             variant = existing_variants[v_id]
+                            variant_fields = [f.name for f in ProductVariant._meta.fields 
+                                            if f.name not in ["id", "product", "sku", "created_at", "updated_at", "inventory_quantity"]]
+                            # update all fields dynamically
+                            for field in variant_fields:
+                                if field in v_data:
+                                    setattr(variant, field, v_data[field])
                             variant.price = v_data.get("price", variant.price)
-                            variant.size = v_data.get("size", getattr(variant, "size", None))
-                            variant.color = v_data.get("color", getattr(variant, "color", None))
                             variant.save()
                         else:
                             # optional attributes handled dynamically
-                            attrs = {k:v for k,v in v_data.items() if k != "id"}
+                            variant_fields = [f.name for f in ProductVariant._meta.fields 
+                                            if f.name not in ["id", "product", "sku", "created_at", "updated_at", "inventory_quantity"]]
+
+                            attrs = {k: v for k, v in v_data.items() if k in variant_fields}
                             ProductVariant.objects.create(
                                 product=product,
                                 sku=f"{product.slug}-{random.randint(1000,9999)}",
@@ -275,8 +289,15 @@ def product_update(request, pk):
                                 **attrs
                             )
 
+                    # Sync product inventory BEFORE returning
+                    product.inventory_quantity = sum(
+                        v.inventory_quantity for v in product.variants.filter(is_active=True)
+                    )
+                    product.save(update_fields=["inventory_quantity"])
+
                     messages.success(request, "Product updated successfully")
                     return redirect("product_list")
+
             except Exception as e:
                 messages.error(request, str(e))
         else:

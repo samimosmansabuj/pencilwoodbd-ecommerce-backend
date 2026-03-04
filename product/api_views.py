@@ -498,9 +498,12 @@ class GlobalOrderCreateApi(views.APIView):
 
                 # -------- DELIVERY --------
                 delivery_charge = Decimal("0")
-                if order.delivery_type == "HOME_DELIVERY":
-                    delivery_charge = Decimal("60")  # you can dynamic this
-                    order.shipping_total = delivery_charge
+
+                if order.delivery_type == DELIVERY_TYPE.HOME_DELIVERY:
+                    district_lower = district.lower()
+                    delivery_charge = Decimal("60") if district_lower == "dhaka" else Decimal("130")
+
+                order.shipping_total = delivery_charge
 
                 # -------- OPTIONAL COUPON --------
                 if data.get("coupon_code"):
