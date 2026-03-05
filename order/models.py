@@ -48,7 +48,7 @@ class Order(models.Model):
     shipping_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     tax_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_cost = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    promotions_applied = models.JSONField(default=dict, blank=True)
+    promotions_applied = models.JSONField(default=dict, blank=True, null=True)
 
     payment_type = models.CharField(max_length=50, choices=PAYMENT_TYPE.choices, default=PAYMENT_TYPE.COD)
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS.choices, default=PAYMENT_STATUS.Unpaid)
