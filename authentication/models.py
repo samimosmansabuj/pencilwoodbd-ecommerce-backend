@@ -20,7 +20,7 @@ class Customer(models.Model):
     name = models.CharField(max_length=50)
     phone = models.CharField(max_length=20)
     whatsapp = models.CharField(max_length=20, blank=True, null=True)
-    email = models.EmailField(max_length=200)
+    email = models.EmailField(max_length=200, blank=True, null=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
