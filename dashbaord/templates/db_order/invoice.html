@@ -133,11 +133,11 @@
                     <div class="col bg-primary col-auto p-4">
                         <p class="mb-0 text-white">TOTAL</p>
 
-                        {% with final_total=order.total_cost|add:order.shipping_total %}
-                        <h4 class="mb-0 text-white">
-                            ৳{{ final_total|floatformat:2 }}
-                        </h4>
-                    {% endwith %}
+                        {% with final_total=order.total_cost %}
+                            <h4 class="mb-0 text-white">
+                                ৳{{ final_total|floatformat:2 }}
+                            </h4>
+                        {% endwith %}
                                             
                     </div>
                 </div>
