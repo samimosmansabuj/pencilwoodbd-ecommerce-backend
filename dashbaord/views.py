@@ -858,7 +858,6 @@ class OrderDeliveryOptionSubmitView(LoginRequiredMixin, View):
                 logistics_partner = self.get_logistics_partners(data)
                 order = self.get_order(kwargs.get("pk"))
                 steadfast_response = self.steadfast_response(logistics_partner, order)
-                print("steadfast_response: ", steadfast_response)
                 if steadfast_response.get("status") == 200:
                     order_shipped_data = order.shipments.create(
                         courier=logistics_partner,
