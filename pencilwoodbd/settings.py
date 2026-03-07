@@ -200,11 +200,19 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-# Static files (CSS, JavaScript, Images)
+# # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static', ]
-# STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static'),]
-# STATIC_ROOT = BASE_DIR / 'collectstatic'
+# # STATICFILES_DIRS = [BASE_DIR / 'static', ]
+# # STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static'),]
+# # STATIC_ROOT = BASE_DIR / 'collectstatic'
+# STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+
+if DEBUG:
+    STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+    STATIC_ROOT = None  # don't use collectstatic in dev
+else:
+    STATIC_ROOT = os.path.join(BASE_DIR, 'static')  # Gunicorn + Nginx serve this
+    STATICFILES_DIRS = []
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.getenv('MEDIA_ROOT', default=os.path.join(BASE_DIR, 'media'))
