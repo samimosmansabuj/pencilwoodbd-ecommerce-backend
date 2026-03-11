@@ -1,5 +1,5 @@
 from rest_framework import views, status, permissions, viewsets
-from .models import Category, ProductVariant
+from .models import Category, ProductGifting, ProductImage, ProductVariant
 from rest_framework.response import Response
 from .serializers import ProductSerializer, CategorySerializer
 from site_app.models import LandingPageProduct
@@ -15,6 +15,7 @@ from pencilwoodbd.choices import STATUS, PAYMENT_TYPE, PAYMENT_STATUS, CATEGORY_
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
 from django.db.models import Prefetch
+from django.db.models import Prefetch, Case, When
 
 
 class CategoryAPIViews(views.APIView):
@@ -121,7 +122,7 @@ class LandingPageProductViews(views.APIView):
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-# ================= Tissue Box Landing Order =================
+  # ================= Tissue Box Landing Order =================
 @method_decorator(csrf_exempt, name='dispatch')
 class LandingPageOrderAPI(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -332,18 +333,19 @@ class GlobalProductViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         queryset = Product.objects.filter(
-            status=CATEGORY_PRODUCT_STATUS.ACTIVE
-        ).select_related(
-            "category"
-        ).prefetch_related(
-            Prefetch(
-                "variants",
-                queryset=ProductVariant.objects.filter(is_active=True)
-            )
-        )
+        status=CATEGORY_PRODUCT_STATUS.ACTIVE
+    ).select_related(
+        "category",       
+        "delivery_charge" 
+    ).prefetch_related(
+        Prefetch("variants", queryset=ProductVariant.objects.filter(is_active=True)),
+        Prefetch("gift_product", queryset=ProductGifting.objects.all()), 
+        Prefetch("images", queryset=ProductImage.objects.all()),          
+    )
 
         category = self.request.query_params.get("category")
         search = self.request.query_params.get("search")
+        landing_page_code = self.request.query_params.get("landing_page_code")
         min_price = self.request.query_params.get("min_price")
         max_price = self.request.query_params.get("max_price")
         ordering = self.request.query_params.get("ordering", "-created_at")
@@ -368,6 +370,30 @@ class GlobalProductViewSet(viewsets.ReadOnlyModelViewSet):
 
         if max_price:
             queryset = queryset.filter(price__lte=Decimal(max_price))
+
+        if landing_page_code:
+            try:
+                landing_page = LandingPageProduct.objects.get(code=landing_page_code)
+                product_ids = []
+                if landing_page.main_product:
+                    product_ids.append(landing_page.main_product.id)
+                # add sub products, excluding main if already added
+                product_ids += list(
+                    landing_page.product.exclude(id=landing_page.main_product.id if landing_page.main_product else None)
+                        .values_list("id", flat=True)
+                )
+
+                if product_ids:
+                    preserved_order = Case(*[
+                        When(id=pk, then=pos) for pos, pk in enumerate(product_ids)
+                    ])
+                    queryset = queryset.filter(id__in=product_ids).order_by(preserved_order)
+                else:
+                    queryset = queryset.none()
+            except LandingPageProduct.DoesNotExist:
+                queryset = queryset.none()
+    
+            return queryset
 
         return queryset.order_by(ordering)
 
@@ -434,6 +460,10 @@ class GlobalOrderCreateApi(views.APIView):
                         if variant.inventory_quantity < quantity:
                             raise ValueError("Insufficient stock")
 
+
+                        if not product.has_variants:
+                            raise ValueError("This product does not support variants")
+
                         unit_price = variant.discount_price or variant.price
                         variant.inventory_quantity -= quantity
                         variant.save()
@@ -451,6 +481,9 @@ class GlobalOrderCreateApi(views.APIView):
 
                         if product.inventory_quantity < quantity:
                             raise ValueError("Insufficient stock")
+
+                        if product.has_variants:
+                            raise ValueError("Variant must be selected for this product")
 
                         unit_price = product.discount_price or product.price
                         product.inventory_quantity -= quantity
