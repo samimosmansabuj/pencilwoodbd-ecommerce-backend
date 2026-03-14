@@ -30,6 +30,7 @@ class OrderCreateAPIView(views.APIView):
 
     # CREATE ORDER ITEM
     def create_order_item(self, order: object, products, amount):
+        print("products: ", products)
         order_items = []
         for product in products:
             prod = Product.objects.get(pk=product.get("id"))
@@ -121,6 +122,7 @@ class OrderCreateAPIView(views.APIView):
                     }, status=status.HTTP_201_CREATED
                 )
         except Exception as e:
+            print("error: ", str(e))
             return Response(
                 {
                     "success": False,
@@ -140,7 +142,7 @@ class OrderCreateAPIView(views.APIView):
             data["deliveryCharge"] = input_delivery_charge
             return missing_fields
         else:
-            raise Exception("Customer data must be set.")
+            raise Exception("Customer amount must be set.")
 
     # VERIFY ORDER CUSTOMER INFORMATION
     def verify_input_customer(self, data):
@@ -156,6 +158,7 @@ class OrderCreateAPIView(views.APIView):
     # HANDLING MISSING FIELD AND SEND ERROR 
     def handle_missing_field(self, data):
         customer_missing_fields = self.verify_input_customer(data.get("customer", {}))
+        print("customer_missing_fields: ", customer_missing_fields)
         if customer_missing_fields:
             raise Exception(f"The following fields must be filled: {', '.join(customer_missing_fields)}")
         
