@@ -8,7 +8,7 @@ from pencilwoodbd.choices import PRODUCT_GIFT_TYPE
 from django.db import transaction
 from order.models import Order, OrderItem, Shipment
 from .utils import OrderConfirmatinoEmailSend
-from site_app.models import DeliveryOption
+from site_app.models import DeliveryOption, OTPVerification
 from .serializers import DeliveryOptionSerializer, ShipmentSerializer
 
 class OrderCreateAPIView(views.APIView):
@@ -98,6 +98,24 @@ class OrderCreateAPIView(views.APIView):
                 data = request.data
                 self.handle_missing_field(data)
 
+                otp_verified = None
+                otp_required = bool(data.get("otp_required", False))
+                
+                if otp_required:
+                    customer_data = data.get("customer", {})
+                    phone = customer_data.get("phone")
+
+                    otp_verified = OTPVerification.objects.filter(
+                        phone=phone,
+                        is_verified=True
+                    ).last()
+
+                    if not otp_verified:
+                        raise Exception("OTP not verified")
+
+                    if otp_verified.is_expired():
+                        raise Exception("OTP expired")
+
                 customer = self.get_customer(data.get("customer", {}))
                 address = self.get_make_address(data.get("customer", {}))
                 products = self.get_product_and_verify(data.get("products", {}))
@@ -110,6 +128,10 @@ class OrderCreateAPIView(views.APIView):
                     total_cost=amount.get("totalAmount" or 0)
                 )
                 order_item = self.create_order_item(order, data.get("products", {}), amount)
+
+                # ✅ OTP delete after successful order
+                if otp_required and otp_verified:
+                    otp_verified.delete()
 
                 if data.get("customer", {}).get("email", None):
                     send_mail = OrderConfirmatinoEmailSend(order, data.get("customer", {}).get("email", None))
