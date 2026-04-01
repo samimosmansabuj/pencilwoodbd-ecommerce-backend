@@ -227,6 +227,3 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'authentication.CustomUser'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGIN_URL = 'login'
-
-SMSQ_USERNAME = os.getenv("SMSQ_USERNAME")
-SMSQ_PASSWORD = os.getenv("SMSQ_PASSWORD")

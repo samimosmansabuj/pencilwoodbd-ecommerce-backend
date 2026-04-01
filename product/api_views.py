@@ -127,6 +127,7 @@ class LandingPageProductViews(views.APIView):
             )
 
   # ================= Tissue Box Landing Order =================
+
 @method_decorator(csrf_exempt, name='dispatch')
 class LandingPageOrderAPI(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -573,61 +574,75 @@ class GlobalOrderCreateApi(views.APIView):
 
 
 # otp/views.py
+import os
 class SendOTPAPIView(APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def get_phone_number(self, request):
+        phone = request.data.get("phone", "").strip()
+        phone = phone.strip()
+        if not phone.startswith("88"):
+            phone = "88" + phone
+        return phone
+    
+    def send_message(self, phone, otp):
+        url = "https://console.smsq.global/api/v3/SendSMS"
+        payload = {
+            "senderId": os.getenv("sender_id"),
+            "is_Unicode": True,
+            "is_Flash": False,
+            "message": f"Number Verification OTP {otp} for PencilwoodBD. Do not share this OTP with anyone.",
+            "mobileNumbers": phone,
+            "apiKey": os.getenv("api_key"),
+            "clientId": os.getenv("client_id")
+        }
+        response = requests.post(url, json=payload)
+        response.raise_for_status()
+        return response.json()
+    
     def post(self, request):
-        phone = request.data.get("phone")
-
+        phone = self.get_phone_number(request)
         otp = str(random.randint(100000, 999999))
-
-        OTPVerification.objects.create(
-            phone=phone,
-            otp=otp
-        )
-
+        OTPVerification.objects.create(phone=phone, otp=otp)
         try:
-            url = "http://console.smsq.global/api/v2/SendSMS"
-
-            payload = {
-                "UserName": settings.SMSQ_USERNAME,
-                "Password": settings.SMSQ_PASSWORD,
-                "Message": f"আপনার OTP: {otp}",
-                "MobileNumbers": phone,
-            }
-
-            response = requests.post(url, json=payload)
-
-            print("SMSQ Response:", response.text)
-
+            response = self.send_message(phone, otp)
+            if (
+                response.get("ErrorCode") == 0 and
+                response.get("Data") and
+                response["Data"][0].get("MessageErrorCode") == 0 and
+                response["Data"][0].get("MessageErrorDescription") == "Success"
+            ):
+                return Response({"success": True, "message": "OTP Sent"})
+            else:
+                return Response({"success": False, "message": "OTP Sending Failed", "response": response})
         except Exception as e:
             return Response({"success": False, "message": str(e)})
-
-        return Response({"success": True, "message": "OTP Sent"})
-
+        
 
 class VerifyOTPAPIView(APIView):
-    permission_classes = []
-
+    permission_classes = [permissions.AllowAny]
+    
+    def get_phone_number(self, request):
+        phone = request.data.get("phone", "").strip()
+        phone = phone.strip()
+        if not phone.startswith("88"):
+            phone = "88" + phone
+        return phone
+    
     def post(self, request):
-        phone = request.data.get("phone")
+        phone = self.get_phone_number(request)
         otp = request.data.get("otp")
-
         try:
             otp_obj = OTPVerification.objects.filter(phone=phone).last()
-
             if not otp_obj:
                 return Response({"verified": False, "message": "No OTP found"})
-
             if otp_obj.is_expired():
                 return Response({"verified": False, "message": "OTP expired"})
-
             if otp_obj.otp != otp:
                 return Response({"verified": False, "message": "Invalid OTP"})
-
             otp_obj.is_verified = True
             otp_obj.save()
-
             return Response({"verified": True})
-
         except Exception as e:
             return Response({"verified": False, "message": str(e)})
 

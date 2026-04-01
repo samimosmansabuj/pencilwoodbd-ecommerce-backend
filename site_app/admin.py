@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (
-    HomeSlider, SiteContent, SiteColorSection, NewsFeed, SocialLink, FooterTagLink, 
+    HomeSlider, OTPVerification, SiteContent, SiteColorSection, NewsFeed, SocialLink, FooterTagLink, 
     AboutUs, About_WhyChooseUs, ContactInformation, RefundPolicy, TermsAndCondition, 
     PrivacyPolicy, FAQ_List, LandingPageProduct, DeliveryOption
 )
@@ -77,4 +77,5 @@ class FAQListAdmin(admin.ModelAdmin):
 
 admin.site.register(LandingPageProduct)
 admin.site.register(DeliveryOption)
+admin.site.register(OTPVerification)
 
