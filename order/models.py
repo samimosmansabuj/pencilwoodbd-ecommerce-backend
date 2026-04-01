@@ -138,35 +138,60 @@ class OrderItem(models.Model):
     
 
     def save(self, *args, **kwargs):
+
         if self.variant:
             self.product = self.variant.product
-            self.product_name = self.variant.product.name
-            self.sku = self.variant.sku
-            self.price = self.variant.price
-            self.discount_price = self.variant.discount_price
-            self.snapshot = {
-                "product_id": self.product.id,
-                "product_name": self.product.name,
-                "variant": self.variant.attributes,
-                "sku": self.variant.sku,
-                "price": str(self.price),
-                "discount_price": str(self.discount_price),
-            }
-        elif self.product:
-            self.product_name = self.product.name
-            self.sku = self.product.sku
-            self.price = self.product.price
-            self.discount_price = self.product.discount_price
-            self.snapshot = {
-                "product_id": self.product.id,
-                "product_name": self.product.name,
-                "variant": None,
-                "sku": self.sku,
-                "price": str(self.price),
-                "discount_price": str(self.discount_price),
-            }
 
-        self.discount_total_price = (self.discount_price or self.price) * self.quantity
+            if not self.product_name:
+                self.product_name = self.variant.product.name
+
+            if not self.sku:
+                self.sku = self.variant.sku
+
+            if self.price is None:
+                self.price = self.variant.price
+
+            if self.discount_price is None:
+                self.discount_price = self.variant.discount_price
+
+            if not self.snapshot:
+                self.snapshot = {
+                    "product_id": self.product.id,
+                    "product_name": self.product.name,
+                    "variant": self.variant.attributes,
+                    "sku": self.variant.sku,
+                    "price": str(self.variant.price),
+                    "discount_price": str(self.variant.discount_price),
+                }
+
+        elif self.product:
+
+            if not self.product_name:
+                self.product_name = self.product.name
+
+            if not self.sku:
+                self.sku = self.product.sku
+
+            if self.price is None:
+                self.price = self.product.price
+
+            if self.discount_price is None:
+                self.discount_price = self.product.discount_price
+
+            if not self.snapshot:
+                self.snapshot = {
+                    "product_id": self.product.id,
+                    "product_name": self.product.name,
+                    "variant": None,
+                    "sku": self.product.sku,
+                    "price": str(self.product.price),
+                    "discount_price": str(self.product.discount_price),
+                }
+
+        final_price = self.discount_price if self.discount_price else self.price
+        if final_price:
+            self.discount_total_price = final_price * self.quantity
+
         super().save(*args, **kwargs)
     
     def clean(self):
