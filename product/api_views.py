@@ -2,7 +2,7 @@ from rest_framework import views, status, permissions, viewsets
 from .models import Category, ProductGifting, ProductImage, ProductVariant
 from rest_framework.response import Response
 from .serializers import ProductSerializer, CategorySerializer
-from site_app.models import LandingPageProduct
+from site_app.models import LandingPageProduct, OTPVerification
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from authentication.models import Customer
@@ -17,6 +17,10 @@ from django.db.models import Q
 from django.db.models import Prefetch
 from django.db.models import Prefetch, Case, When
 
+import random
+import requests
+from rest_framework.views import APIView
+from django.conf import settings
 
 class CategoryAPIViews(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -568,8 +572,64 @@ class GlobalOrderCreateApi(views.APIView):
         
 
 
+# otp/views.py
+class SendOTPAPIView(APIView):
+    def post(self, request):
+        phone = request.data.get("phone")
+
+        otp = str(random.randint(100000, 999999))
+
+        OTPVerification.objects.create(
+            phone=phone,
+            otp=otp
+        )
+
+        try:
+            url = "http://console.smsq.global/api/v2/SendSMS"
+
+            payload = {
+                "UserName": settings.SMSQ_USERNAME,
+                "Password": settings.SMSQ_PASSWORD,
+                "Message": f"আপনার OTP: {otp}",
+                "MobileNumbers": phone,
+            }
+
+            response = requests.post(url, json=payload)
+
+            print("SMSQ Response:", response.text)
+
+        except Exception as e:
+            return Response({"success": False, "message": str(e)})
+
+        return Response({"success": True, "message": "OTP Sent"})
 
 
+class VerifyOTPAPIView(APIView):
+    permission_classes = []
+
+    def post(self, request):
+        phone = request.data.get("phone")
+        otp = request.data.get("otp")
+
+        try:
+            otp_obj = OTPVerification.objects.filter(phone=phone).last()
+
+            if not otp_obj:
+                return Response({"verified": False, "message": "No OTP found"})
+
+            if otp_obj.is_expired():
+                return Response({"verified": False, "message": "OTP expired"})
+
+            if otp_obj.otp != otp:
+                return Response({"verified": False, "message": "Invalid OTP"})
+
+            otp_obj.is_verified = True
+            otp_obj.save()
+
+            return Response({"verified": True})
+
+        except Exception as e:
+            return Response({"verified": False, "message": str(e)})
 
 # class TagAPIViews(views.APIView):
 #     permission_classes = [permissions.AllowAny]

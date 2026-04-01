@@ -1,5 +1,5 @@
 from django.urls import path, include
-from .api_views import CategoryAPIViews, CradleProductViews, LandingPageProductViews, LandingPageOrderAPI, GlobalCategoryViewSet, GlobalProductViewSet, GlobalOrderCreateApi
+from .api_views import CategoryAPIViews, CradleProductViews, LandingPageProductViews, LandingPageOrderAPI, GlobalCategoryViewSet, GlobalProductViewSet, GlobalOrderCreateApi, SendOTPAPIView, VerifyOTPAPIView 
 from rest_framework.routers import DefaultRouter
 
 global_api_router = DefaultRouter()
@@ -18,5 +18,8 @@ urlpatterns = [
     
     path("api/", include(global_api_router.urls)),
     path("api/order/create/", GlobalOrderCreateApi.as_view(),name="global-order-create" ),
+
+    path('api/send-otp/', SendOTPAPIView.as_view()),
+    path('api/verify-otp/', VerifyOTPAPIView.as_view()),
 ]
 
