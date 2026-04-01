@@ -239,7 +239,9 @@ class OTPVerification(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def is_expired(self):
-        return timezone.now() > self.created_at + timedelta(minutes=5)
+        current_time = timezone.localtime(timezone.now())  # Asia/Dhaka local time
+        created_time = timezone.localtime(self.created_at)
+        return current_time > created_time + timedelta(minutes=5)
 
     def __str__(self):
         return f"{self.phone} - {self.otp}"
