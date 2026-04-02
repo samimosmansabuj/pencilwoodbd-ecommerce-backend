@@ -98,7 +98,7 @@ class Order(models.Model):
         discount_percentage = (discount_amount / self.get_current_total) * 100
         return round(discount_percentage, 2)
     
-    def generate_payment_id(self):
+    def generate_order_id(self):
         chars = string.ascii_uppercase + string.digits
         while True:
             code = ''.join(secrets.choice(chars) for _ in range(4))
@@ -109,7 +109,7 @@ class Order(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.order_id:
-            self.order_id = self.generate_payment_id()
+            self.order_id = self.generate_order_id()
         super().save(*args, **kwargs)
 
     def __str__(self):

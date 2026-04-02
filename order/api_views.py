@@ -131,7 +131,6 @@ class OrderCreateAPIView(views.APIView):
                 )
                 order_item = self.create_order_item(order, data.get("products", {}), amount)
 
-                # ✅ OTP delete after successful order
                 if otp_required and otp_verified:
                     otp_verified.delete()
 
