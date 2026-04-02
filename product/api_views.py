@@ -162,40 +162,39 @@ class LandingPageOrderAPI(views.APIView):
     
     # ================= Corrected check_order_amount =================
     def check_order_amount(self, variant, product, data):
-        unit_price = data.get("unit_price")
-        subtotal = data.get("subtotal")
+        unit_price = Decimal(str(data.get("unit_price")))
+        subtotal = Decimal(str(data.get("subtotal")))
         district = data.get("district")
-        delivery = data.get("delivery")
-        total = data.get("total")
+        delivery = Decimal(str(data.get("delivery")))
+        total = Decimal(str(data.get("total")))
 
-        unit_price_expected = 0
+        # unit_price_expected = 0
         if variant:
             unit_price_expected = variant.discount_price or variant.price
         else:
             unit_price_expected = product.discount_price or product.price
 
-        if Decimal(str(unit_price)) != unit_price_expected:
+        if unit_price != unit_price_expected:
             raise ValueError("Unit price doesn't match with product price")
 
         district_lower = district.lower().strip()
-        if district_lower == "dhaka" and float(delivery) != 60:
+        if district_lower == "dhaka" and delivery != Decimal("60"):
             raise ValueError("Delivery charge for Dhaka should be 60")
-        elif district_lower == "chattogram" and float(delivery) != 120:
+        elif district_lower == "chattogram" and delivery != Decimal("120"):
             raise ValueError("Delivery charge for outside Chattogram should be 120")
-        elif district_lower not in ["dhaka", "chattogram"] and float(delivery) != 150:
+        elif district_lower not in ["dhaka", "chattogram"] and delivery != Decimal("150"):
             raise ValueError("Delivery charge for outside Dhaka and Chattogram should be 150")
 
         quantity = int(data.get("quantity", 1))
         subtotal_expected = unit_price_expected * quantity
-        if Decimal(str(subtotal)) != subtotal_expected:
+        if subtotal != subtotal_expected:
             raise ValueError("Subtotal doesn't match with product price")
-        total_expected = subtotal_expected + float(delivery)
-        if Decimal(str(total)) != total_expected:
+        total_expected = subtotal_expected + delivery
+        if total != total_expected:
             raise ValueError("Total doesn't match with subtotal + delivery")
-        total_cost = subtotal_expected
+        # total_cost = subtotal_expected
 
-        return total_cost, quantity, subtotal_expected, float(delivery)
-        
+        return total_expected, quantity, subtotal_expected, float(delivery)
     
     def post(self, request, *args, **kwargs):
         try:
@@ -273,6 +272,7 @@ class LandingPageOrderAPI(views.APIView):
                     status=status.HTTP_201_CREATED
                 )
         except Exception as e:
+            print("Error in LandingPageOrderAPI: ", str(e))
             return Response({"status": False, "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
