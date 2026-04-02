@@ -103,7 +103,10 @@ class OrderCreateAPIView(views.APIView):
                 
                 if otp_required:
                     customer_data = data.get("customer", {})
-                    phone = customer_data.get("phone")
+                    
+                    phone = customer_data.get("phone", "").strip()
+                    if not phone.startswith("88"):
+                        phone = "88" + phone
 
                     otp_verified = OTPVerification.objects.filter(
                         phone=phone,
@@ -115,7 +118,6 @@ class OrderCreateAPIView(views.APIView):
 
                     if otp_verified.is_expired():
                         raise Exception("OTP expired")
-
                 customer = self.get_customer(data.get("customer", {}))
                 address = self.get_make_address(data.get("customer", {}))
                 products = self.get_product_and_verify(data.get("products", {}))
