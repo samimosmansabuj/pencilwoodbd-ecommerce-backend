@@ -603,18 +603,19 @@ class SendOTPAPIView(APIView):
     def post(self, request):
         phone = self.get_phone_number(request)
         otp = str(random.randint(100000, 999999))
-        OTPVerification.objects.create(phone=phone, otp=otp)
         try:
-            response = self.send_message(phone, otp)
-            if (
-                response.get("ErrorCode") == 0 and
-                response.get("Data") and
-                response["Data"][0].get("MessageErrorCode") == 0 and
-                response["Data"][0].get("MessageErrorDescription") == "Success"
-            ):
-                return Response({"success": True, "message": "OTP Sent"})
-            else:
-                return Response({"success": False, "message": "OTP Sending Failed", "response": response})
+            with transaction.atomic():
+                response = self.send_message(phone, otp)
+                if (
+                    response.get("ErrorCode") == 0 and
+                    response.get("Data") and
+                    response["Data"][0].get("MessageErrorCode") == 0 and
+                    response["Data"][0].get("MessageErrorDescription") == "Success"
+                ):
+                    OTPVerification.objects.create(phone=phone, otp=otp)
+                    return Response({"success": True, "message": "OTP Sent"})
+                else:
+                    return Response({"success": False, "message": "OTP Sending Failed", "response": response})
         except Exception as e:
             return Response({"success": False, "message": str(e)})
         
