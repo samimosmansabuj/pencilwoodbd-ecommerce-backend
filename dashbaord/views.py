@@ -95,17 +95,17 @@ class DashboardView(LoginRequiredMixin, View):
         context = {
             "orders": orders[:10],
             "today_order_count": self.get_today_order_count(orders),
-            "today_sales_amount": self.get_today_sales_amount(orders),
             "new_orders_count": self.new_orders_count(orders),
             "status_amounts": self.get_status_amounts(orders),
+            "total_orders": orders.count(),
         }
 
         if not is_staff:
             context["total_order_amount"] = self.get_total_order_amount(orders)
-            context["total_orders"] = orders.count()
+            context["today_sales_amount"] = self.get_today_sales_amount(orders)
         else:
             context["total_order_amount"] = None
-            context["total_orders"] = None
+            context["today_sales_amount"] = None
 
         if request.htmx:
             return render(request, "db_home/main_wrapper.html", context)

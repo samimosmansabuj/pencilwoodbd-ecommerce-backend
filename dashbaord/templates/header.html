@@ -7,86 +7,30 @@
 
         <!-- Search Bar Template ================ -->
         <div class="search-bar flex-grow-1">
-
             <div class="position-relative">
-                <!-- <input class="form-control rounded-5 px-5 search-control d-lg-block d-none" type="text"
-                    placeholder="Search">
-                <span
-                    class="material-icons-outlined position-absolute d-lg-block d-none ms-3 translate-middle-y start-0 top-50">search</span>
-                <span
-                    class="material-icons-outlined position-absolute me-3 translate-middle-y end-0 top-50 search-close">close</span>
+                <form method="GET" action="{% url 'order_list' %}" class="w-100 d-flex align-items-center">
+                    <input 
+                        class="form-control rounded-5 px-5 search-control"
+                        type="text"
+                        name="q"
+                        value="{{ current_search }}"
+                        placeholder="Search orders (ID, name, phone...)"
+                        onkeydown="if(event.key==='Enter'){ this.form.submit(); }"
+                    >
+        
+                    <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50">
+                        search
+                    </span>
+                </form>
+                <span class="material-icons-outlined position-absolute me-3 translate-middle-y end-0 top-50 search-close">
+                    close
+                </span>
                 <div class="search-popup p-3">
                     <div class="card rounded-4 overflow-hidden">
-                        <div class="card-header d-lg-none">
-                            <div class="position-relative">
-                                <input class="form-control rounded-5 px-5 mobile-search-control" type="text"
-                                    placeholder="Search">
-                                <span
-                                    class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50">search</span>
-                                <span
-                                    class="material-icons-outlined position-absolute me-3 translate-middle-y end-0 top-50 mobile-search-close">close</span>
-                            </div>
-                        </div>
                         <div class="card-body search-content">
-                            <p class="search-title">Recent Searches</p>
-                            <div class="d-flex align-items-start flex-wrap gap-2 kewords-wrapper">
-                                <a href="javascript:;" class="kewords"><span>Angular Template</span><i
-                                        class="material-icons-outlined fs-6">search</i></a>
-                            </div>
-                            <hr>
-                            <p class="search-title">Tutorials</p>
-                            <div class="search-list d-flex flex-column gap-2">
-                                <div class="search-list-item d-flex align-items-center gap-3">
-                                    <div class="list-icon">
-                                        <i class="material-icons-outlined fs-5">play_circle</i>
-                                    </div>
-                                    <div class="">
-                                        <h5 class="mb-0 search-list-title ">Wordpress Tutorials</h5>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <hr>
-                            <p class="search-title">Members</p>
-
-                            <div class="search-list d-flex flex-column gap-2">
-                                <div class="search-list-item d-flex align-items-center gap-3">
-                                    <div class="memmber-img">
-                                        <img src="https://placehold.co/110x110/png" width="32" height="32"
-                                            class="rounded-circle" alt="">
-                                    </div>
-                                    <div class="">
-                                        <h5 class="mb-0 search-list-title ">Andrew Stark</h5>
-                                    </div>
-                                </div>
-
-                            </div>
-                        </div>
-                        <div class="card-footer text-center bg-transparent">
-                            <a href="javascript:;" class="btn w-100">See All Search Results</a>
                         </div>
                     </div>
-                </div> -->
-                <form method="GET" action="{% url 'order_list' %}" class="w-100 d-flex align-items-center">
-                    <div class="position-relative w-100">
-            
-                        <input 
-                            class="form-control rounded-5 px-5 search-control"
-                            type="text"
-                            name="q"
-                            value="{{ current_search }}"
-                            placeholder="Search orders (ID, name, phone...)"
-                            onkeydown="if(event.key==='Enter'){ this.form.submit(); }"
-                        >
-            
-                        <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50">
-                            search
-                        </span>
-            
-                    </div>
-                </form>
-
-
+                </div>
             </div>
             
         </div>
