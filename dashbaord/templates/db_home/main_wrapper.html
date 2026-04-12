@@ -32,14 +32,16 @@
                         <div class="d-flex align-items-center gap-4">
                             <div class="">
                                 <p class="mb-0 data-attributes">
-                                    <span
-                                        data-peity='{ "fill": ["#2196f3", "rgb(255 255 255 / 12%)"], "innerRadius": 32, "radius": 40 }'>{{
-                                        today_order_count }}/{{ total_orders }}</span>
+                                    <span data-peity='{ "fill": ["#2196f3", "rgb(255 255 255 / 12%)"], "innerRadius": 32, "radius": 40 }'>
+                                        {{ today_order_count }}/{{ total_orders }}
+                                    </span>
                                 </p>
                             </div>
                             <div class="">
                                 <p class="mb-1 fs-6 fw-bold">Today</p>
-                                <h2 class="mb-0">{{ today_order_count }}</h2>
+                                <h2 class="mb-0">
+                                    {{ today_order_count }}
+                                </h2>
                                 <!-- <p class="mb-0"><span class="text-success me-2 fw-medium">16.5%</span><span>55.21 USD</span></p> -->
                             </div>
                         </div>
@@ -47,9 +49,9 @@
                         <div class="d-flex align-items-center gap-4">
                             <div class="">
                                 <p class="mb-0 data-attributes">
-                                    <span
-                                        data-peity='{ "fill": ["#ffd200", "rgb(255 255 255 / 12%)"], "innerRadius": 32, "radius": 40 }'>{{
-                                        new_orders_count }}/{{ total_orders }}</span>
+                                    <span data-peity='{ "fill": ["#ffd200", "rgb(255 255 255 / 12%)"], "innerRadius": 32, "radius": 40 }'>
+                                        {{ new_orders_count }}/{{ total_orders }}
+                                    </span>
                                 </p>
                             </div>
                             <div class="">
@@ -71,16 +73,11 @@
                             <span class="material-icons-outlined fs-5">shopping_cart</span>
                         </div>
                         <div>
-                            <span class="text-success d-flex align-items-center">+24%<i
-                                    class="material-icons-outlined">expand_less</i></span>
+                            <span class="text-success d-flex align-items-center">+24%<i class="material-icons-outlined">expand_less</i></span>
                         </div>
                     </div>
                     <div>
-                        {% if total_orders is not None %}
                         <h4 class="mb-0">{{ total_orders }}</h4>
-                        {% else %}
-                        <h4 class="mb-0">Not available for staff</h4>
-                        {% endif %}
                         <p class="mb-3">Total Orders</p>
                         <div id="chart1"></div>
                     </div>
@@ -104,7 +101,7 @@
                         {% if total_order_amount is not None %}
                         <h4 class="mb-0">৳{{ total_order_amount }}</h4>
                         {% else %}
-                        <h4 class="mb-0">Not available for staff</h4>
+                        <h6 class="mb-0">Not available for staff</h6>
                         {% endif %}
                         <p class="mb-3">Total Sales</p>
                         <div id="chart2"></div>
@@ -145,7 +142,11 @@
                     <div class="mb-2">
                         <span class="material-icons-outlined fs-3 text-primary">today</span>
                     </div>
+                    {% if today_sales_amount is not None %}
                     <h4 class="mb-0">৳{{ today_sales_amount|default:0 }}</h4>
+                    {% else %}
+                    <h6 class="mb-0">Not available for staff</h6>
+                    {% endif %}
                     <p class="mb-0 fs-6 fw-bold">Today's Sales</p>
                 </div>
             </div>
