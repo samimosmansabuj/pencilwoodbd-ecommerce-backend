@@ -7,8 +7,9 @@
 
         <!-- Search Bar Template ================ -->
         <div class="search-bar flex-grow-1">
+
             <div class="position-relative">
-                <input class="form-control rounded-5 px-5 search-control d-lg-block d-none" type="text"
+                <!-- <input class="form-control rounded-5 px-5 search-control d-lg-block d-none" type="text"
                     placeholder="Search">
                 <span
                     class="material-icons-outlined position-absolute d-lg-block d-none ms-3 translate-middle-y start-0 top-50">search</span>
@@ -65,8 +66,29 @@
                             <a href="javascript:;" class="btn w-100">See All Search Results</a>
                         </div>
                     </div>
-                </div>
+                </div> -->
+                <form method="GET" action="{% url 'order_list' %}" class="w-100 d-flex align-items-center">
+                    <div class="position-relative w-100">
+            
+                        <input 
+                            class="form-control rounded-5 px-5 search-control"
+                            type="text"
+                            name="q"
+                            value="{{ current_search }}"
+                            placeholder="Search orders (ID, name, phone...)"
+                            onkeydown="if(event.key==='Enter'){ this.form.submit(); }"
+                        >
+            
+                        <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50">
+                            search
+                        </span>
+            
+                    </div>
+                </form>
+
+
             </div>
+            
         </div>
 
 

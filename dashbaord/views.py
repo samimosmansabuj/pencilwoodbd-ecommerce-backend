@@ -88,19 +88,29 @@ class DashboardView(LoginRequiredMixin, View):
 
     def get(self, request):
         orders = Order.objects.all().order_by("-created_at")
+
+        is_staff = request.user.user_type == USER_TYPE.STAFF
+        is_admin = request.user.user_type in [USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN]
+
         context = {
             "orders": orders[:10],
-            "total_order_amount": self.get_total_order_amount(orders),
-            "total_orders": orders.count(),
             "today_order_count": self.get_today_order_count(orders),
             "today_sales_amount": self.get_today_sales_amount(orders),
             "new_orders_count": self.new_orders_count(orders),
             "status_amounts": self.get_status_amounts(orders),
         }
+
+        if not is_staff:
+            context["total_order_amount"] = self.get_total_order_amount(orders)
+            context["total_orders"] = orders.count()
+        else:
+            context["total_order_amount"] = None
+            context["total_orders"] = None
+
         if request.htmx:
             return render(request, "db_home/main_wrapper.html", context)
-        return render(request, "dashboard.html", context)
 
+        return render(request, "dashboard.html", context)
 
 class UserLoginView(View):
     def get(self, request):
@@ -461,7 +471,7 @@ class OrderView(LoginRequiredMixin, View):
         start_date = request.GET.get("start_date")
         end_date = request.GET.get("end_date")
 
-        if order_status and order_status in STATUS.values:
+        if order_status and order_status in [x[0] for x in STATUS.choices]:
             orders = orders.filter(status=order_status)
         
         if product_slug:
@@ -478,15 +488,17 @@ class OrderView(LoginRequiredMixin, View):
             orders = orders.filter(created_at__date__lte=end_date)
 
         if search:
+            search = search.strip()
             orders = orders.filter(
-                Q(order_id__icontains=search)
-                | Q(customer__name__icontains=search)
-                | Q(customer__phone__icontains=search)
-                | Q(status__icontains=search)
-                | Q(payment_status__icontains=search)
-                | Q(delivery_type__icontains=search)
-                | Q(shipping_address__icontains=search)
-            )
+                Q(order_id__icontains=search) |
+                Q(customer__name__icontains=search) |
+                Q(customer__phone__icontains=search) |
+                Q(shipping_address__icontains=search) |
+                Q(status__iexact=search) |
+                Q(payment_status__iexact=search) |
+                Q(delivery_type__iexact=search)
+            ).distinct()
+            print("SEARCH QUERY:", search)
 
         page_number = request.GET.get("page", 1)
         per_page = int(request.GET.get("per_page", 10))

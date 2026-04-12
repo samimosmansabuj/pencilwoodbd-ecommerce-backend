@@ -57,11 +57,15 @@
         <!-- Search -->
         <div class="col-auto">
             <div class="position-relative">
-                <input class="form-control px-5" type="search" name="q" placeholder="Search Orders" value="{{ current_search }}"
-                       hx-get="{% url 'order_list' %}?status={{ current_status }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_pa
-                       hx-trigger="keyup changed delay:400ms"
-                       hx-target="#content-area"
-                       hx-push-url="true">
+                <input class="form-control px-5"
+                    type="search"
+                    name="q"
+                    placeholder="Search Orders"
+                    value="{{ current_search }}"
+                    hx-get="{% url 'order_list' %}?status={{ current_status }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                    hx-trigger="keyup changed delay:400ms"
+                    hx-target="#content-area"
+                    hx-push-url="true">
                 <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">
                     search
                 </span>

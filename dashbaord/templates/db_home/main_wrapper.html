@@ -33,7 +33,8 @@
                             <div class="">
                                 <p class="mb-0 data-attributes">
                                     <span
-                                        data-peity='{ "fill": ["#2196f3", "rgb(255 255 255 / 12%)"], "innerRadius": 32, "radius": 40 }'>{{ today_order_count }}/{{ total_orders }}</span>
+                                        data-peity='{ "fill": ["#2196f3", "rgb(255 255 255 / 12%)"], "innerRadius": 32, "radius": 40 }'>{{
+                                        today_order_count }}/{{ total_orders }}</span>
                                 </p>
                             </div>
                             <div class="">
@@ -46,7 +47,9 @@
                         <div class="d-flex align-items-center gap-4">
                             <div class="">
                                 <p class="mb-0 data-attributes">
-                                    <span data-peity='{ "fill": ["#ffd200", "rgb(255 255 255 / 12%)"], "innerRadius": 32, "radius": 40 }'>{{ new_orders_count }}/{{ total_orders }}</span>
+                                    <span
+                                        data-peity='{ "fill": ["#ffd200", "rgb(255 255 255 / 12%)"], "innerRadius": 32, "radius": 40 }'>{{
+                                        new_orders_count }}/{{ total_orders }}</span>
                                 </p>
                             </div>
                             <div class="">
@@ -63,7 +66,8 @@
             <div class="card rounded-4 w-100">
                 <div class="card-body">
                     <div class="mb-3 d-flex align-items-center justify-content-between">
-                        <div class="wh-42 d-flex align-items-center justify-content-center rounded-circle bg-primary bg-opacity-10 text-primary">
+                        <div
+                            class="wh-42 d-flex align-items-center justify-content-center rounded-circle bg-primary bg-opacity-10 text-primary">
                             <span class="material-icons-outlined fs-5">shopping_cart</span>
                         </div>
                         <div>
@@ -72,7 +76,11 @@
                         </div>
                     </div>
                     <div>
+                        {% if total_orders is not None %}
                         <h4 class="mb-0">{{ total_orders }}</h4>
+                        {% else %}
+                        <h4 class="mb-0">Not available for staff</h4>
+                        {% endif %}
                         <p class="mb-3">Total Orders</p>
                         <div id="chart1"></div>
                     </div>
@@ -93,7 +101,11 @@
                         </div>
                     </div>
                     <div>
+                        {% if total_order_amount is not None %}
                         <h4 class="mb-0">৳{{ total_order_amount }}</h4>
+                        {% else %}
+                        <h4 class="mb-0">Not available for staff</h4>
+                        {% endif %}
                         <p class="mb-3">Total Sales</p>
                         <div id="chart2"></div>
                     </div>
@@ -123,94 +135,94 @@
         </div>
     </div><!--end row-->
 
-<!-- ORDER STATUS -->
-<div class="row mt-4 g-3">
+    <!-- ORDER STATUS -->
+    <div class="row mt-4 g-3">
 
-    <!-- Today Sales -->
-    <div class="col-12 col-lg-2 d-flex">
-        <div class="card rounded-4 w-100">
-            <div class="card-body text-center">
-                <div class="mb-2">
-                    <span class="material-icons-outlined fs-3 text-primary">today</span>
+        <!-- Today Sales -->
+        <div class="col-12 col-lg-2 d-flex">
+            <div class="card rounded-4 w-100">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <span class="material-icons-outlined fs-3 text-primary">today</span>
+                    </div>
+                    <h4 class="mb-0">৳{{ today_sales_amount|default:0 }}</h4>
+                    <p class="mb-0 fs-6 fw-bold">Today's Sales</p>
                 </div>
-                <h4 class="mb-0">৳{{ today_sales_amount|default:0 }}</h4>
-                <p class="mb-0 fs-6 fw-bold">Today's Sales</p>
             </div>
         </div>
-    </div>
 
-    <!-- Followup -->
-    <div class="col-12 col-lg-2 d-flex">
-        <div class="card rounded-4 w-100">
-            <div class="card-body text-center">
-                <div class="mb-2">
-                    <span class="material-icons-outlined fs-3 text-info">hourglass_top</span>
+        <!-- Followup -->
+        <div class="col-12 col-lg-2 d-flex">
+            <div class="card rounded-4 w-100">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <span class="material-icons-outlined fs-3 text-info">hourglass_top</span>
+                    </div>
+                    <h4 class="mb-0">৳{{ status_amounts.follow_up|default:0 }}</h4>
+                    <p class="mb-0 fs-6 fw-bold">Followup</p>
                 </div>
-                <h4 class="mb-0">৳{{ status_amounts.follow_up|default:0 }}</h4>
-                <p class="mb-0 fs-6 fw-bold">Followup</p>
             </div>
         </div>
-    </div>
 
-    <!-- Confirm + Shipped -->
-    <div class="col-12 col-lg-2 d-flex">
-        <div class="card rounded-4 w-100">
-            <div class="card-body text-center">
-                <div class="mb-2">
-                    <span class="material-icons-outlined fs-3 text-success">local_shipping</span>
+        <!-- Confirm + Shipped -->
+        <div class="col-12 col-lg-2 d-flex">
+            <div class="card rounded-4 w-100">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <span class="material-icons-outlined fs-3 text-success">local_shipping</span>
+                    </div>
+                    <h4 class="mb-0">৳{{ status_amounts.confirmed|default:0|add:status_amounts.shipped|default:0 }}</h4>
+                    <p class="mb-0 fs-6 fw-bold">Confirm + Shipped</p>
                 </div>
-                <h4 class="mb-0">৳{{ status_amounts.confirmed|default:0|add:status_amounts.shipped|default:0 }}</h4>
-                <p class="mb-0 fs-6 fw-bold">Confirm + Shipped</p>
             </div>
         </div>
-    </div>
 
-    <!-- Delivered -->
-    <div class="col-12 col-lg-2 d-flex">
-        <div class="card rounded-4 w-100">
-            <div class="card-body text-center">
-                <div class="mb-2">
-                    <span class="material-icons-outlined fs-3 text-purple">done_all</span>
+        <!-- Delivered -->
+        <div class="col-12 col-lg-2 d-flex">
+            <div class="card rounded-4 w-100">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <span class="material-icons-outlined fs-3 text-purple">done_all</span>
+                    </div>
+                    <h4 class="mb-0">৳{{ status_amounts.delivered|default:0 }}</h4>
+                    <p class="mb-0 fs-6 fw-bold">Delivered</p>
                 </div>
-                <h4 class="mb-0">৳{{ status_amounts.delivered|default:0 }}</h4>
-                <p class="mb-0 fs-6 fw-bold">Delivered</p>
             </div>
         </div>
-    </div>
 
-    <!-- Cancelled -->
-    <div class="col-12 col-lg-2 d-flex">
-        <div class="card rounded-4 w-100">
-            <div class="card-body text-center">
-                <div class="mb-2">
-                    <span class="material-icons-outlined fs-3 text-danger">cancel</span>
+        <!-- Cancelled -->
+        <div class="col-12 col-lg-2 d-flex">
+            <div class="card rounded-4 w-100">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <span class="material-icons-outlined fs-3 text-danger">cancel</span>
+                    </div>
+                    <h4 class="mb-0">৳{{ status_amounts.cancelled|default:0 }}</h4>
+                    <p class="mb-0 fs-6 fw-bold">Cancelled</p>
                 </div>
-                <h4 class="mb-0">৳{{ status_amounts.cancelled|default:0 }}</h4>
-                <p class="mb-0 fs-6 fw-bold">Cancelled</p>
             </div>
         </div>
-    </div>
 
-    <!-- Returned + Refund -->
-    <div class="col-12 col-lg-2 d-flex">
-        <div class="card rounded-4 w-100">
-            <div class="card-body text-center">
-                <div class="mb-2">
-                    <span class="material-icons-outlined fs-3 text-warning">undo</span>
+        <!-- Returned + Refund -->
+        <div class="col-12 col-lg-2 d-flex">
+            <div class="card rounded-4 w-100">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <span class="material-icons-outlined fs-3 text-warning">undo</span>
+                    </div>
+                    <h4 class="mb-0">৳{{ status_amounts.returned_refund|default:0 }}</h4>
+                    <p class="mb-0 fs-6 fw-bold">Returned + Refund</p>
                 </div>
-                <h4 class="mb-0">৳{{ status_amounts.returned_refund|default:0 }}</h4>
-                <p class="mb-0 fs-6 fw-bold">Returned + Refund</p>
             </div>
         </div>
+
     </div>
 
-</div>
+
+    <!-- END ORDER Staus -->
 
 
-<!-- END ORDER Staus -->
-    
-    
-    
+
     <div class="card mt-4">
         <div class="card-body">
             <div class="customer-table">
@@ -237,19 +249,18 @@
 
                                 <td>
                                     <a href="{% url 'order_detail' order.id %}"
-                                       hx-get="{% url 'order_detail' order.id %}"
-                                       hx-target="#content-area"
-                                       hx-push-url="true"
-                                       hx-trigger="click, refreshReturnOrderDetailView from:body"
-                                       hx-swap="innerHTML">
-                                        #{{ order.order_id  }}
+                                        hx-get="{% url 'order_detail' order.id %}" hx-target="#content-area"
+                                        hx-push-url="true" hx-trigger="click, refreshReturnOrderDetailView from:body"
+                                        hx-swap="innerHTML">
+                                        #{{ order.order_id }}
                                     </a>
                                 </td>
-                                
+
                                 <td>
                                     <a class="d-flex align-items-center gap-3" href="javascript:;">
                                         <div class="customer-pic">
-                                            <img src="https://placehold.co/110x110/png" class="rounded-circle" width="40" height="40">
+                                            <img src="https://placehold.co/110x110/png" class="rounded-circle"
+                                                width="40" height="40">
                                         </div>
                                         <p class="mb-0 customer-name fw-bold">
                                             {{ order.customer.name }}
@@ -264,7 +275,8 @@
                                 <td>৳{{ order.total_cost }}</td>
 
                                 <td>
-                                    <span class="lable-table bg-success-subtle text-success rounded border border-success-subtle font-text2 fw-bold">
+                                    <span
+                                        class="lable-table bg-success-subtle text-success rounded border border-success-subtle font-text2 fw-bold">
                                         {{ order.status }}
                                     </span>
                                 </td>
@@ -285,27 +297,26 @@
 
                                 <td>
                                     <div class="dropdown">
-                                        <button class="btn btn-sm btn-filter edit-order-btn"
-                                                data-id="{{ order.id }}"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#OrderFormModal">
+                                        <button class="btn btn-sm btn-filter edit-order-btn" data-id="{{ order.id }}"
+                                            data-bs-toggle="modal" data-bs-target="#OrderFormModal">
                                             <i class="bi bi-pencil"></i>
                                         </button>
 
                                         {% include 'db_order/modal/delivery_option_modal.html' %}
-                                        <button class="btn btn-sm btn-filter delivery-option-btn" data-id="{{ order.id }}" data-bs-toggle="modal" data-bs-target="#deliveryOptionModal">
+                                        <button class="btn btn-sm btn-filter delivery-option-btn"
+                                            data-id="{{ order.id }}" data-bs-toggle="modal"
+                                            data-bs-target="#deliveryOptionModal">
                                             <i class="lni lni-delivery"></i>
                                         </button>
 
-                                        <button class="btn btn-sm btn-filter delete-order-btn"
-                                                data-id="{{ order.id }}"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#deleteOrderModal">
+                                        <button class="btn btn-sm btn-filter delete-order-btn" data-id="{{ order.id }}"
+                                            data-bs-toggle="modal" data-bs-target="#deleteOrderModal">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                         {% include "db_order/modal/delete_order_modal.html" %}
                                         <button type="button" class="btn btn-sm btn-filter delete-order-btn">
-                                            <i class="material-icons-outlined" onclick="printInvoice({{ order.id }})">print</i>
+                                            <i class="material-icons-outlined"
+                                                onclick="printInvoice({{ order.id }})">print</i>
                                         </button>
                                     </div>
                                 </td>
