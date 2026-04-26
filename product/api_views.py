@@ -7,11 +7,11 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from authentication.models import Customer
 from order.models import Order, OrderItem
-from product.models import Product
+from product.models import Product, Category, ProductVariant, ProductImage
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from decimal import Decimal
-from pencilwoodbd.choices import STATUS, PAYMENT_TYPE, PAYMENT_STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE
+from pencilwoodbd.choices import STATUS, PAYMENT_TYPE, PAYMENT_STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, PRODUCT_GIFT_TYPE
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
 from django.db.models import Prefetch
@@ -21,6 +21,8 @@ import random
 import requests
 from rest_framework.views import APIView
 from django.conf import settings
+from rest_framework.permissions import AllowAny
+
 
 class CategoryAPIViews(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -58,6 +60,319 @@ class CategoryAPIViews(views.APIView):
                     "message": str(e)
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class UnifiedLandingProductAPIView(views.APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        try:
+            code = request.query_params.get("code")
+
+            landing_page = (
+                LandingPageProduct.objects.filter(code=code).first()
+                if code else LandingPageProduct.objects.first()
+            )
+
+            if not landing_page:
+                return Response(
+                    {"status": False, "message": "Landing page product not setup."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            main_product = landing_page.main_product
+            sub_products = landing_page.product.all()
+
+            if main_product:
+                sub_products = sub_products.exclude(id=main_product.id)
+
+            products = []
+
+            if main_product:
+                products.append(main_product)
+
+            products.extend(list(sub_products))
+
+            return Response(
+                {
+                    "status": True,
+                    "data": ProductSerializer(
+                        products,
+                        many=True,
+                        context={"request": request}
+                    ).data
+                },
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"status": False, "message": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class UnifiedLandingOrderAPIView(views.APIView):
+    permission_classes = [permissions.AllowAny]
+
+    # ================= CUSTOMER =================
+    def get_customer(self, data):
+        phone = data.get("phone")
+        name = data.get("name")
+
+        if not phone or not name:
+            raise ValueError("Name and phone required")
+
+        customer, _ = Customer.objects.get_or_create(
+            phone=phone,
+            defaults={"name": name}
+        )
+        return customer
+
+    # ================= ADDRESS =================
+    def get_address(self, data):
+        address = data.get("address")
+        district = data.get("district")
+
+        if not address or not district:
+            raise ValueError("Address and district required")
+
+        return f"{address}, {district}"
+
+    # ================= FREE PRODUCT CHECK =================
+    def check_free_product(self, reference_product_id, product):
+        if not reference_product_id:
+            return False
+
+        reference = Product.objects.filter(id=reference_product_id).first()
+        if not reference:
+            return False
+
+        return reference.gift_product.filter(
+            gift_type=PRODUCT_GIFT_TYPE.FREE,
+            gift_product_id=product.id
+        ).exists()
+
+    # ================= CART VALIDATION =================
+    def validate_cart_products(self, product_data):
+        items = []
+        total = Decimal("0")
+
+        for prod in product_data:
+
+            product = Product.objects.select_for_update().filter(
+                id=prod.get("id")
+            ).first()
+
+            if not product:
+                raise ValueError("Product not found")
+
+            qty = int(prod.get("quantity") or 1)
+
+            actual_price = Decimal(str(product.discount_price or product.price))
+
+            try:
+                sent_price = (
+                    Decimal(str(prod.get("price")))
+                    if prod.get("price") not in [None, ""]
+                    else actual_price
+                )
+            except:
+                raise ValueError("Invalid price format")
+
+            # FREE CHECK
+            if prod.get("product_type") == "FREE":
+                if not self.check_free_product(
+                    prod.get("reference_product"),
+                    product
+                ):
+                    raise ValueError("Invalid free product")
+
+            # PRICE LOCK
+            if sent_price != actual_price:
+                raise ValueError("Price mismatch")
+
+            # STOCK CHECK
+            if product.inventory_quantity < qty:
+                raise ValueError("Out of stock")
+
+            items.append((product, qty))
+            total += actual_price * qty
+
+        return items, total
+
+    # ================= LANDING VALIDATION =================
+    def validate_landing_order(self, variant, product, data):
+        try:
+            unit_price = Decimal(str(data.get("unit_price") or 0))
+            subtotal = Decimal(str(data.get("subtotal") or 0))
+            delivery = Decimal(str(data.get("delivery") or 0))
+            total = Decimal(str(data.get("total") or 0))
+        except:
+            raise ValueError("Invalid price format")
+
+        qty = int(data.get("quantity") or 1)
+
+        expected_price = Decimal(str(
+            variant.discount_price if variant else (product.discount_price or product.price)
+        ))
+
+        if expected_price <= 0:
+            raise ValueError("Invalid product price")
+
+        if unit_price != expected_price:
+            raise ValueError("Unit price mismatch")
+
+        if subtotal != expected_price * qty:
+            raise ValueError("Subtotal mismatch")
+
+        if total != subtotal + delivery:
+            raise ValueError("Total mismatch")
+
+        return total, qty, delivery, expected_price
+
+    # ================= MAIN =================
+    def post(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                data = request.data
+
+                # ================= CART FLOW =================
+                if data.get("products"):
+                    customer = self.get_customer(data.get("customer", {}))
+                    address = self.get_address(data.get("customer", {}))
+
+                    items, product_total = self.validate_cart_products(
+                        data.get("products")
+                    )
+
+                    amount = data.get("amount", {})
+
+                    product_total_sent = Decimal(str(amount.get("productTotal") or 0))
+                    delivery = Decimal(str(amount.get("deliveryCharge") or 0))
+                    total_sent = Decimal(str(amount.get("totalAmount") or 0))
+
+                    if product_total_sent != product_total:
+                        raise ValueError("Product total mismatch")
+
+                    if total_sent != product_total + delivery:
+                        raise ValueError("Final total mismatch")
+
+                    order = Order.objects.create(
+                        customer=customer,
+                        shipping_address=address,
+                        shipping_total=delivery,
+                        total_cost=total_sent,
+                        status=STATUS.NEW
+                    )
+
+                    for product, qty in items:
+                        price = Decimal(str(product.discount_price or product.price))
+
+                        OrderItem.objects.create(
+                            order=order,
+                            product=product,
+                            quantity=qty,
+                            price=price,
+                            discount_price=price,
+                            discount_total_price=price * qty
+                        )
+
+                        # SAFE INVENTORY UPDATE
+                        product.inventory_quantity = max(
+                            0,
+                            product.inventory_quantity - qty
+                        )
+                        product.save(update_fields=["inventory_quantity"])
+
+                    return Response(
+                        {"status": True, "message": "Order Created"},
+                        status=status.HTTP_201_CREATED
+                    )
+
+                # ================= LANDING FLOW =================
+                variant_id = data.get("variant_id")
+                product_id = data.get("product_id")
+
+                if not variant_id and not product_id:
+                    raise ValueError("Product or variant required")
+
+                if variant_id:
+                    variant = ProductVariant.objects.select_for_update().select_related("product").filter(
+                        id=variant_id
+                    ).first()
+
+                    if not variant:
+                        raise ValueError("Variant not found")
+
+                    product = variant.product
+
+                else:
+                    product = Product.objects.select_for_update().filter(
+                        id=product_id
+                    ).first()
+
+                    if not product:
+                        raise ValueError("Product not found")
+
+                    if product.has_variants:
+                        variant = product.variants.filter(is_active=True).first()
+                        if not variant:
+                            raise ValueError("No active variant found")
+                    else:
+                        variant = None
+
+                total, qty, delivery, price = self.validate_landing_order(
+                    variant, product, data
+                )
+
+                customer = self.get_customer(data)
+                address = self.get_address(data)
+
+                order = Order.objects.create(
+                    customer=customer,
+                    shipping_address=address,
+                    shipping_total=delivery,
+                    total_cost=total,
+                    status=STATUS.NEW
+                )
+
+                OrderItem.objects.create(
+                    order=order,
+                    product=product,
+                    variant=variant,
+                    quantity=qty,
+                    price=price,
+                    discount_price=price,
+                    discount_total_price=price * qty
+                )
+
+                # SAFE INVENTORY UPDATE
+                if variant:
+                    variant.inventory_quantity = max(0, variant.inventory_quantity - qty)
+                    variant.save()
+
+                    product.inventory_quantity = sum(
+                        v.inventory_quantity for v in product.variants.filter(is_active=True)
+                    )
+                    product.save(update_fields=["inventory_quantity"])
+                else:
+                    product.inventory_quantity = max(0, product.inventory_quantity - qty)
+                    product.save(update_fields=["inventory_quantity"])
+
+                return Response(
+                    {"status": True, "message": "Order received successfully"},
+                    status=status.HTTP_201_CREATED
+                )
+
+        except Exception as e:
+            return Response(
+                {"status": False, "message": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
 
 class CradleProductViews(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -710,3 +1025,186 @@ class VerifyOTPAPIView(APIView):
 #                     "message": str(e)
 #                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
 #             )
+
+
+
+
+
+
+
+
+
+# =========================
+# CATEGORY LIST (TREE)
+# =========================
+class CategoryListAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            parent_id = request.query_params.get("parent")
+
+            if parent_id:
+                categories = Category.objects.filter(parent_id=parent_id, status="ACTIVE")
+            else:
+                categories = Category.objects.filter(parent__isnull=True, status="ACTIVE")
+
+            data = [
+                {
+                    "id": c.id,
+                    "name": c.name,
+                    "slug": c.slug,
+                    "icon": c.icon,
+                    "banner": c.banner_image.url if c.banner_image else None,
+                }
+                for c in categories
+            ]
+
+            return Response(
+                {"status": True, "data": data},
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"status": False, "message": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+# =========================
+# PRODUCT LIST (FILTER + SEARCH)
+# =========================
+class ProductListAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            queryset = Product.objects.filter(status="ACTIVE")
+
+            # ===== FILTER =====
+            category = request.query_params.get("category")
+            search = request.query_params.get("search")
+            min_price = request.query_params.get("min_price")
+            max_price = request.query_params.get("max_price")
+
+            if category:
+                queryset = queryset.filter(category_id=category)
+
+            if search:
+                queryset = queryset.filter(
+                    Q(name__icontains=search) |
+                    Q(tags__icontains=search)
+                )
+
+            if min_price:
+                queryset = queryset.filter(price__gte=min_price)
+
+            if max_price:
+                queryset = queryset.filter(price__lte=max_price)
+
+            # ===== SORT =====
+            sort = request.query_params.get("sort")
+
+            if sort == "low_to_high":
+                queryset = queryset.order_by("price")
+            elif sort == "high_to_low":
+                queryset = queryset.order_by("-price")
+            else:
+                queryset = queryset.order_by("-id")
+
+            # ===== DATA FORMAT =====
+            data = []
+            for p in queryset:
+                data.append({
+                    "id": p.id,
+                    "name": p.name,
+                    "slug": p.slug,
+                    "price": p.price,
+                    "discount_price": p.discount_price,
+                    "effective_price": p.effective_price,
+                    "image": p.primary_image,
+                    "has_variants": p.has_variants,
+                    "stock": p.inventory_quantity,
+                })
+
+            return Response(
+                {"status": True, "data": data},
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"status": False, "message": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+# =========================
+# PRODUCT DETAIL
+# =========================
+class ProductDetailAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug):
+        try:
+            product = Product.objects.filter(slug=slug, status="ACTIVE").first()
+
+            if not product:
+                return Response(
+                    {"status": False, "message": "Product not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # ===== IMAGES =====
+            images = [
+                img.image.url for img in product.images.all()
+                if img.image
+            ]
+
+            # ===== VARIANTS =====
+            variants = []
+            if product.has_variants:
+                for v in product.active_variants:
+                    variants.append({
+                        "id": v.id,
+                        "sku": v.sku,
+                        "price": v.price,
+                        "discount_price": v.discount_price,
+                        "attributes": v.attributes,
+                        "stock": v.inventory_quantity,
+                    })
+
+            # ===== DELIVERY =====
+            delivery = None
+            if hasattr(product, "delivery_charge"):
+                delivery = product.delivery_charge.area_and_charge
+
+            data = {
+                "id": product.id,
+                "name": product.name,
+                "slug": product.slug,
+                "description": product.details,
+                "short_description": product.short_description,
+                "price": product.price,
+                "discount_price": product.discount_price,
+                "effective_price": product.effective_price,
+                "stock": product.inventory_quantity,
+                "category": product.category.name if product.category else None,
+                "category_path": product.category_path,
+                "images": images,
+                "variants": variants,
+                "has_variants": product.has_variants,
+                "delivery_charge": delivery,
+            }
+
+            return Response(
+                {"status": True, "data": data},
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"status": False, "message": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
