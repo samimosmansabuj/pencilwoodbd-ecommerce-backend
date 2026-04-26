@@ -7,7 +7,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from authentication.models import Customer
 from order.models import Order, OrderItem
-from product.models import Product
+from product.models import Product, Category, ProductVariant, ProductImage
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from decimal import Decimal
@@ -21,6 +21,8 @@ import random
 import requests
 from rest_framework.views import APIView
 from django.conf import settings
+from rest_framework.permissions import AllowAny
+
 
 class CategoryAPIViews(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -1023,3 +1025,186 @@ class VerifyOTPAPIView(APIView):
 #                     "message": str(e)
 #                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
 #             )
+
+
+
+
+
+
+
+
+
+# =========================
+# CATEGORY LIST (TREE)
+# =========================
+class CategoryListAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            parent_id = request.query_params.get("parent")
+
+            if parent_id:
+                categories = Category.objects.filter(parent_id=parent_id, status="ACTIVE")
+            else:
+                categories = Category.objects.filter(parent__isnull=True, status="ACTIVE")
+
+            data = [
+                {
+                    "id": c.id,
+                    "name": c.name,
+                    "slug": c.slug,
+                    "icon": c.icon,
+                    "banner": c.banner_image.url if c.banner_image else None,
+                }
+                for c in categories
+            ]
+
+            return Response(
+                {"status": True, "data": data},
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"status": False, "message": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+# =========================
+# PRODUCT LIST (FILTER + SEARCH)
+# =========================
+class ProductListAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            queryset = Product.objects.filter(status="ACTIVE")
+
+            # ===== FILTER =====
+            category = request.query_params.get("category")
+            search = request.query_params.get("search")
+            min_price = request.query_params.get("min_price")
+            max_price = request.query_params.get("max_price")
+
+            if category:
+                queryset = queryset.filter(category_id=category)
+
+            if search:
+                queryset = queryset.filter(
+                    Q(name__icontains=search) |
+                    Q(tags__icontains=search)
+                )
+
+            if min_price:
+                queryset = queryset.filter(price__gte=min_price)
+
+            if max_price:
+                queryset = queryset.filter(price__lte=max_price)
+
+            # ===== SORT =====
+            sort = request.query_params.get("sort")
+
+            if sort == "low_to_high":
+                queryset = queryset.order_by("price")
+            elif sort == "high_to_low":
+                queryset = queryset.order_by("-price")
+            else:
+                queryset = queryset.order_by("-id")
+
+            # ===== DATA FORMAT =====
+            data = []
+            for p in queryset:
+                data.append({
+                    "id": p.id,
+                    "name": p.name,
+                    "slug": p.slug,
+                    "price": p.price,
+                    "discount_price": p.discount_price,
+                    "effective_price": p.effective_price,
+                    "image": p.primary_image,
+                    "has_variants": p.has_variants,
+                    "stock": p.inventory_quantity,
+                })
+
+            return Response(
+                {"status": True, "data": data},
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"status": False, "message": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+# =========================
+# PRODUCT DETAIL
+# =========================
+class ProductDetailAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug):
+        try:
+            product = Product.objects.filter(slug=slug, status="ACTIVE").first()
+
+            if not product:
+                return Response(
+                    {"status": False, "message": "Product not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # ===== IMAGES =====
+            images = [
+                img.image.url for img in product.images.all()
+                if img.image
+            ]
+
+            # ===== VARIANTS =====
+            variants = []
+            if product.has_variants:
+                for v in product.active_variants:
+                    variants.append({
+                        "id": v.id,
+                        "sku": v.sku,
+                        "price": v.price,
+                        "discount_price": v.discount_price,
+                        "attributes": v.attributes,
+                        "stock": v.inventory_quantity,
+                    })
+
+            # ===== DELIVERY =====
+            delivery = None
+            if hasattr(product, "delivery_charge"):
+                delivery = product.delivery_charge.area_and_charge
+
+            data = {
+                "id": product.id,
+                "name": product.name,
+                "slug": product.slug,
+                "description": product.details,
+                "short_description": product.short_description,
+                "price": product.price,
+                "discount_price": product.discount_price,
+                "effective_price": product.effective_price,
+                "stock": product.inventory_quantity,
+                "category": product.category.name if product.category else None,
+                "category_path": product.category_path,
+                "images": images,
+                "variants": variants,
+                "has_variants": product.has_variants,
+                "delivery_charge": delivery,
+            }
+
+            return Response(
+                {"status": True, "data": data},
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"status": False, "message": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

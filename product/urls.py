@@ -1,5 +1,5 @@
 from django.urls import path, include
-from .api_views import CategoryAPIViews, CradleProductViews, LandingPageProductViews, LandingPageOrderAPI, GlobalCategoryViewSet, GlobalProductViewSet, GlobalOrderCreateApi, SendOTPAPIView, VerifyOTPAPIView, UnifiedLandingProductAPIView, UnifiedLandingOrderAPIView
+from .api_views import CategoryAPIViews, CradleProductViews, LandingPageProductViews, LandingPageOrderAPI, GlobalCategoryViewSet, GlobalProductViewSet, GlobalOrderCreateApi, SendOTPAPIView, VerifyOTPAPIView, UnifiedLandingProductAPIView, UnifiedLandingOrderAPIView, CategoryListAPIView, ProductListAPIView, ProductDetailAPIView
 from rest_framework.routers import DefaultRouter
 
 global_api_router = DefaultRouter()
@@ -24,6 +24,13 @@ urlpatterns = [
 
     path('products/', UnifiedLandingProductAPIView.as_view()),
     path('order/', UnifiedLandingOrderAPIView.as_view()),
+
+    # ================= CATEGORY =================
+    path('api/ecom/categories/', CategoryListAPIView.as_view(), name='category_list'),
+
+    # ================= PRODUCTS =================
+    path('api/ecom/products/', ProductListAPIView.as_view(), name='product_list'),
+    path('api/ecom/products/<slug:slug>/', ProductDetailAPIView.as_view(), name='product_detail'),
 
 ]
 
