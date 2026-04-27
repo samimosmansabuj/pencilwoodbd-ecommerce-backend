@@ -1,5 +1,4 @@
 from rest_framework import views, status, permissions, viewsets
-from .models import Category, ProductGifting, ProductImage, ProductVariant
 from rest_framework.response import Response
 from .serializers import ProductSerializer, CategorySerializer
 from site_app.models import LandingPageProduct, OTPVerification
@@ -7,7 +6,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from authentication.models import Customer
 from order.models import Order, OrderItem
-from product.models import Product, Category, ProductVariant, ProductImage
+from product.models import Product, Category, ProductVariant, ProductImage, AddToCart
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from decimal import Decimal
@@ -22,6 +21,8 @@ import requests
 from rest_framework.views import APIView
 from django.conf import settings
 from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
+
 
 
 class CategoryAPIViews(views.APIView):
@@ -1034,177 +1035,199 @@ class VerifyOTPAPIView(APIView):
 
 
 
-# =========================
-# CATEGORY LIST (TREE)
-# =========================
+
+class ProductPagination(PageNumberPagination):
+    page_size = 10
+
+
 class CategoryListAPIView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        try:
-            parent_id = request.query_params.get("parent")
+        parent = request.query_params.get("parent")
 
-            if parent_id:
-                categories = Category.objects.filter(parent_id=parent_id, status="ACTIVE")
-            else:
-                categories = Category.objects.filter(parent__isnull=True, status="ACTIVE")
+        qs = Category.objects.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE)
 
-            data = [
+        if parent:
+            qs = qs.filter(parent_id=parent)
+        else:
+            qs = qs.filter(parent__isnull=True)
+
+        return Response({
+            "status": True,
+            "data": [
                 {
                     "id": c.id,
                     "name": c.name,
                     "slug": c.slug,
                     "icon": c.icon,
-                    "banner": c.banner_image.url if c.banner_image else None,
-                }
-                for c in categories
+                    "banner": c.banner_image.url if c.banner_image else None
+                } for c in qs
             ]
-
-            return Response(
-                {"status": True, "data": data},
-                status=status.HTTP_200_OK
-            )
-
-        except Exception as e:
-            return Response(
-                {"status": False, "message": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        })
 
 
-# =========================
-# PRODUCT LIST (FILTER + SEARCH)
-# =========================
 class ProductListAPIView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        try:
-            queryset = Product.objects.filter(status="ACTIVE")
+        qs = Product.objects.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE)
 
-            # ===== FILTER =====
-            category = request.query_params.get("category")
-            search = request.query_params.get("search")
-            min_price = request.query_params.get("min_price")
-            max_price = request.query_params.get("max_price")
+        category = request.query_params.get("category")
+        search = request.query_params.get("search")
 
-            if category:
-                queryset = queryset.filter(category_id=category)
+        if category:
+            qs = qs.filter(category_id=category)
 
-            if search:
-                queryset = queryset.filter(
-                    Q(name__icontains=search) |
-                    Q(tags__icontains=search)
-                )
+        if search:
+            qs = qs.filter(name__icontains=search)
 
-            if min_price:
-                queryset = queryset.filter(price__gte=min_price)
+        paginator = ProductPagination()
+        page = paginator.paginate_queryset(qs, request)
 
-            if max_price:
-                queryset = queryset.filter(price__lte=max_price)
-
-            # ===== SORT =====
-            sort = request.query_params.get("sort")
-
-            if sort == "low_to_high":
-                queryset = queryset.order_by("price")
-            elif sort == "high_to_low":
-                queryset = queryset.order_by("-price")
-            else:
-                queryset = queryset.order_by("-id")
-
-            # ===== DATA FORMAT =====
-            data = []
-            for p in queryset:
-                data.append({
+        return paginator.get_paginated_response({
+            "status": True,
+            "data": [
+                {
                     "id": p.id,
                     "name": p.name,
-                    "slug": p.slug,
                     "price": p.price,
                     "discount_price": p.discount_price,
-                    "effective_price": p.effective_price,
                     "image": p.primary_image,
-                    "has_variants": p.has_variants,
-                    "stock": p.inventory_quantity,
-                })
-
-            return Response(
-                {"status": True, "data": data},
-                status=status.HTTP_200_OK
-            )
-
-        except Exception as e:
-            return Response(
-                {"status": False, "message": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+                } for p in page
+            ]
+        })
 
 
-# =========================
-# PRODUCT DETAIL
-# =========================
 class ProductDetailAPIView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, slug):
-        try:
-            product = Product.objects.filter(slug=slug, status="ACTIVE").first()
+        p = Product.objects.filter(slug=slug).first()
 
-            if not product:
-                return Response(
-                    {"status": False, "message": "Product not found"},
-                    status=status.HTTP_404_NOT_FOUND
+        if not p:
+            return Response({"status": False}, status=404)
+
+        return Response({
+            "status": True,
+            "data": {
+                "id": p.id,
+                "name": p.name,
+                "price": p.price,
+                "images": [i.image.url for i in p.images.all() if i.image],
+                "variants": [
+                    {
+                        "id": v.id,
+                        "price": v.price,
+                        "stock": v.inventory_quantity
+                    } for v in p.variants.all()
+                ]
+            }
+        })
+    
+class AddToCartAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            with transaction.atomic():
+                customer = request.user.customer_profile
+
+                product_id = request.data.get("product_id")
+                variant_id = request.data.get("variant_id")
+                quantity = int(request.data.get("quantity", 1))
+
+                product = Product.objects.get(id=product_id)
+                variant = None
+
+                if product.has_variants:
+                    if not variant_id:
+                        return Response({"status": False, "message": "Variant required"}, status=400)
+
+                    variant = ProductVariant.objects.get(id=variant_id)
+
+                cart_item, created = AddToCart.objects.get_or_create(
+                    customer=customer,
+                    product=product,
+                    variant=variant,
+                    defaults={"quantity": quantity}
                 )
 
-            # ===== IMAGES =====
-            images = [
-                img.image.url for img in product.images.all()
-                if img.image
-            ]
+                if not created:
+                    cart_item.quantity += quantity
+                    cart_item.save()
 
-            # ===== VARIANTS =====
-            variants = []
-            if product.has_variants:
-                for v in product.active_variants:
-                    variants.append({
-                        "id": v.id,
-                        "sku": v.sku,
-                        "price": v.price,
-                        "discount_price": v.discount_price,
-                        "attributes": v.attributes,
-                        "stock": v.inventory_quantity,
-                    })
-
-            # ===== DELIVERY =====
-            delivery = None
-            if hasattr(product, "delivery_charge"):
-                delivery = product.delivery_charge.area_and_charge
-
-            data = {
-                "id": product.id,
-                "name": product.name,
-                "slug": product.slug,
-                "description": product.details,
-                "short_description": product.short_description,
-                "price": product.price,
-                "discount_price": product.discount_price,
-                "effective_price": product.effective_price,
-                "stock": product.inventory_quantity,
-                "category": product.category.name if product.category else None,
-                "category_path": product.category_path,
-                "images": images,
-                "variants": variants,
-                "has_variants": product.has_variants,
-                "delivery_charge": delivery,
-            }
-
-            return Response(
-                {"status": True, "data": data},
-                status=status.HTTP_200_OK
-            )
+                return Response({
+                    "status": True,
+                    "message": "Added to cart"
+                })
 
         except Exception as e:
-            return Response(
-                {"status": False, "message": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({"status": False, "message": str(e)}, status=400)
+        
+
+class CartListAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            customer = request.user.customer_profile
+
+            cart_items = AddToCart.objects.filter(customer=customer)
+
+            data = []
+            total = Decimal("0")
+
+            for item in cart_items:
+                data.append({
+                    "id": item.id,
+                    "product": item.product.name,
+                    "variant": item.variant.attributes if item.variant else None,
+                    "quantity": item.quantity,
+                    "price": item.price,
+                    "total": item.total_price
+                })
+                total += item.total_price
+
+            return Response({
+                "status": True,
+                "data": data,
+                "cart_total": total
+            })
+
+        except Exception as e:
+            return Response({"status": False, "message": str(e)}, status=400)
+        
+
+class UpdateCartAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, cart_id):
+        try:
+            customer = request.user.customer_profile
+            quantity = int(request.data.get("quantity"))
+
+            cart_item = AddToCart.objects.get(id=cart_id, customer=customer)
+            cart_item.quantity = quantity
+            cart_item.save()
+
+            return Response({"status": True, "message": "Cart updated"})
+
+        except Exception as e:
+            return Response({"status": False, "message": str(e)}, status=400)
+        
+
+class RemoveCartAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, cart_id):
+        try:
+            customer = request.user.customer_profile
+
+            cart_item = AddToCart.objects.get(id=cart_id, customer=customer)
+            cart_item.delete()
+
+            return Response({"status": True, "message": "Removed from cart"})
+
+        except Exception as e:
+            return Response({"status": False, "message": str(e)}, status=400)

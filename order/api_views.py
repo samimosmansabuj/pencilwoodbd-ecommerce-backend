@@ -6,10 +6,16 @@ from django.http import JsonResponse
 from product.models import Product
 from pencilwoodbd.choices import PRODUCT_GIFT_TYPE
 from django.db import transaction
-from order.models import Order, OrderItem, Shipment
+from order.models import Order, OrderItem, Shipment, Address
 from .utils import OrderConfirmatinoEmailSend
 from site_app.models import DeliveryOption, OTPVerification
 from .serializers import DeliveryOptionSerializer, ShipmentSerializer
+from product.models import Product, ProductVariant
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from decimal import Decimal
+from rest_framework.views import APIView
+from rest_framework.response import Response
+
 
 class OrderCreateAPIView(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -239,3 +245,159 @@ class ShipmentSerializerAPIView(views.APIView):
                     "message": str(e)
                 }, status=status.HTTP_400_BAD_REQUEST
             )
+
+
+
+
+
+class EcomOrderCreateAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        try:
+            with transaction.atomic():
+
+                data = request.data
+                items = data.get("items", [])
+
+                if not items:
+                    return Response({"status": False, "message": "No items"}, status=400)
+
+                total = Decimal("0")
+                order_items = []
+
+                customer = None
+                if request.user.is_authenticated:
+                    customer = getattr(request.user, "customer_profile", None)
+                else:
+                    customer, _ = Customer.objects.get_or_create(
+                        phone=data.get("phone"),
+                        defaults={"name": data.get("name")}
+                    )
+
+                address = Address.objects.create(
+                    customer=customer,
+                    street_01=data.get("address"),
+                    upazila=data.get("upazila"),
+                    district=data.get("district"),
+                )
+
+                order = Order.objects.create(
+                    customer=customer,
+                    shipping_address=f"{address.street_01}, {address.district}"
+                )
+
+                for item in items:
+                    product = Product.objects.filter(id=item["product_id"]).first()
+                    variant = None
+
+                    if item.get("variant_id"):
+                        variant = ProductVariant.objects.filter(id=item["variant_id"]).first()
+                        price = variant.price
+                        variant.inventory_quantity -= item["quantity"]
+                        variant.save()
+                    else:
+                        price = product.price
+                        product.inventory_quantity -= item["quantity"]
+                        product.save()
+
+                    total += price * item["quantity"]
+
+                    OrderItem.objects.create(
+                        order=order,
+                        product=product,
+                        variant=variant,
+                        quantity=item["quantity"],
+                        price=price
+                    )
+
+                order.total_cost = total
+                order.save()
+
+                return Response({
+                    "status": True,
+                    "order_id": order.order_id
+                })
+
+        except Exception as e:
+            return Response({"status": False, "message": str(e)}, status=400)
+
+
+class OrderListAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        customer = getattr(request.user, "customer_profile", None)
+
+        orders = Order.objects.filter(customer=customer)
+
+        return Response({
+            "status": True,
+            "data": [
+                {
+                    "order_id": o.order_id,
+                    "total": o.total_cost,
+                    "status": o.status
+                } for o in orders
+            ]
+        })
+
+
+class OrderDetailAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, order_id):
+        order = Order.objects.filter(order_id=order_id).first()
+
+        if not order:
+            return Response({"status": False}, status=404)
+
+        return Response({
+            "status": True,
+            "data": {
+                "order_id": order.order_id,
+                "total": order.total_cost,
+                "items": [
+                    {
+                        "product": i.product.name,
+                        "qty": i.quantity,
+                        "price": i.price
+                    } for i in order.order_items.all()
+                ]
+            }
+        })
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, order_id):
+        try:
+            customer = getattr(request.user, "customer_profile", None)
+
+            if not customer:
+                return Response({"status": False, "message": "Customer not found"}, status=404)
+
+            order = get_object_or_404(Order, order_id=order_id, customer=customer)
+
+            items = [
+                {
+                    "product_name": i.product_name,
+                    "quantity": i.quantity,
+                    "price": i.price,
+                    "total": i.discount_total_price,
+                }
+                for i in order.order_items.all()
+            ]
+
+            data = {
+                "order_id": order.order_id,
+                "status": order.status,
+                "total": order.total_cost,
+                "delivery": order.shipping_total,
+                "items": items,
+                "address": order.shipping_address,
+                "date": order.created_at,
+            }
+
+            return Response({"status": True, "data": data})
+
+        except Exception as e:
+            return Response({"status": False, "message": str(e)}, status=500)
