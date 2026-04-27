@@ -1,10 +1,12 @@
 from django.urls import path
-from .api_views import DeliveryOptionListAPIView, OrderCreateAPIView, ShipmentSerializerAPIView
+from .api_views import DeliveryOptionListAPIView, OrderCreateAPIView, ShipmentSerializerAPIView, EcomOrderCreateAPIView, OrderListAPIView, OrderDetailAPIView
 
 urlpatterns = [
     
     
-    
+    path('api/order/create/', EcomOrderCreateAPIView.as_view(), name='order_create'),
+    path('api/order/my-orders/', OrderListAPIView.as_view(), name='my_orders'),
+    path('api/order/<str:order_id>/', OrderDetailAPIView.as_view(), name='order_detail'),
     
     
     path('api/create-order/', OrderCreateAPIView.as_view(), name="create-order"),

@@ -1,5 +1,24 @@
 from django.urls import path, include
-from .api_views import CategoryAPIViews, CradleProductViews, LandingPageProductViews, LandingPageOrderAPI, GlobalCategoryViewSet, GlobalProductViewSet, GlobalOrderCreateApi, SendOTPAPIView, VerifyOTPAPIView, UnifiedLandingProductAPIView, UnifiedLandingOrderAPIView, CategoryListAPIView, ProductListAPIView, ProductDetailAPIView
+from .api_views import (
+    CategoryAPIViews, 
+    CradleProductViews, 
+    LandingPageProductViews, 
+    LandingPageOrderAPI, 
+    GlobalCategoryViewSet, 
+    GlobalProductViewSet, 
+    GlobalOrderCreateApi, 
+    SendOTPAPIView, 
+    VerifyOTPAPIView, 
+    UnifiedLandingProductAPIView, 
+    UnifiedLandingOrderAPIView, 
+    CategoryListAPIView, 
+    ProductListAPIView, 
+    ProductDetailAPIView, 
+    AddToCartAPIView,
+    CartListAPIView,
+    UpdateCartAPIView,
+    RemoveCartAPIView
+)
 from rest_framework.routers import DefaultRouter
 
 global_api_router = DefaultRouter()
@@ -31,6 +50,11 @@ urlpatterns = [
     # ================= PRODUCTS =================
     path('api/ecom/products/', ProductListAPIView.as_view(), name='product_list'),
     path('api/ecom/products/<slug:slug>/', ProductDetailAPIView.as_view(), name='product_detail'),
+
+    path("cart/add/", AddToCartAPIView.as_view()),
+    path("cart/", CartListAPIView.as_view()),
+    path("cart/update/<int:cart_id>/", UpdateCartAPIView.as_view()),
+    path("cart/remove/<int:cart_id>/", RemoveCartAPIView.as_view()),
 
 ]
 

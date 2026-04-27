@@ -1,6 +1,4 @@
-from django.contrib.auth import authenticate
 from django.db import transaction
-
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -10,9 +8,6 @@ from rest_framework.authtoken.models import Token
 from .models import CustomUser, Customer, Role
 
 
-# =========================
-# REGISTER
-# =========================
 class AuthRegisterAPIView(APIView):
     permission_classes = [AllowAny]
 
@@ -24,24 +19,23 @@ class AuthRegisterAPIView(APIView):
             username = data.get("username")
             password = data.get("password")
 
-            name = data.get("name")
-            phone = data.get("phone")
-            whatsapp = data.get("whatsapp")
+            name = data.get("name", "")
+            phone = data.get("phone", "")
+            whatsapp = data.get("whatsapp", "")
 
             if not email or not password:
                 return Response(
                     {"status": False, "message": "Email and password required"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=400
                 )
 
             if CustomUser.objects.filter(email=email).exists():
                 return Response(
                     {"status": False, "message": "Email already exists"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=400
                 )
 
             with transaction.atomic():
-
                 user = CustomUser.objects.create_user(
                     username=username or email.split("@")[0],
                     email=email,
@@ -51,33 +45,23 @@ class AuthRegisterAPIView(APIView):
 
                 Customer.objects.create(
                     user=user,
-                    name=name or "",
-                    phone=phone or "",
-                    whatsapp=whatsapp or "",
+                    name=name,
+                    phone=phone,
+                    whatsapp=whatsapp,
                     email=email
                 )
 
                 token, _ = Token.objects.get_or_create(user=user)
 
-            return Response(
-                {
-                    "status": True,
-                    "message": "User registered successfully",
-                    "token": token.key
-                },
-                status=status.HTTP_201_CREATED
-            )
+            return Response({
+                "status": True,
+                "token": token.key
+            }, status=201)
 
         except Exception as e:
-            return Response(
-                {"status": False, "message": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({"status": False, "message": str(e)}, status=500)
 
 
-# =========================
-# LOGIN
-# =========================
 class AuthLoginAPIView(APIView):
     permission_classes = [AllowAny]
 
@@ -86,112 +70,66 @@ class AuthLoginAPIView(APIView):
             email = request.data.get("email")
             password = request.data.get("password")
 
-            if not email or not password:
-                return Response(
-                    {"status": False, "message": "Email and password required"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            user = CustomUser.objects.filter(email=email).first()
 
-            # IMPORTANT: email login fix
-            user = authenticate(username=email, password=password)
-
-            if not user:
+            if not user or not user.check_password(password):
                 return Response(
                     {"status": False, "message": "Invalid credentials"},
-                    status=status.HTTP_401_UNAUTHORIZED
+                    status=401
                 )
 
             token, _ = Token.objects.get_or_create(user=user)
 
-            return Response(
-                {
-                    "status": True,
-                    "message": "Login successful",
-                    "token": token.key
-                },
-                status=status.HTTP_200_OK
-            )
+            return Response({
+                "status": True,
+                "token": token.key
+            })
 
         except Exception as e:
-            return Response(
-                {"status": False, "message": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({"status": False, "message": str(e)}, status=500)
 
 
-# =========================
-# PROFILE (GET / UPDATE)
-# =========================
 class UserProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        try:
-            user = request.user
-            customer = Customer.objects.filter(user=user).first()
+        user = request.user
+        customer = getattr(user, "customer_profile", None)
 
-            return Response(
-                {
-                    "status": True,
-                    "data": {
-                        "email": user.email,
-                        "username": user.username,
-                        "user_type": user.user_type,
-                        "name": customer.name if customer else "",
-                        "phone": customer.phone if customer else "",
-                        "whatsapp": customer.whatsapp if customer else ""
-                    }
-                },
-                status=status.HTTP_200_OK
-            )
-
-        except Exception as e:
-            return Response(
-                {"status": False, "message": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        return Response({
+            "status": True,
+            "data": {
+                "email": user.email,
+                "username": user.username,
+                "name": customer.name if customer else "",
+                "phone": customer.phone if customer else "",
+                "whatsapp": customer.whatsapp if customer else ""
+            }
+        })
 
     def put(self, request):
-        try:
-            user = request.user
-            data = request.data
+        customer = getattr(request.user, "customer_profile", None)
 
-            customer = Customer.objects.filter(user=user).first()
+        if not customer:
+            return Response({"status": False, "message": "Not found"}, status=404)
 
-            if not customer:
-                return Response(
-                    {"status": False, "message": "Customer profile not found"},
-                    status=status.HTTP_404_NOT_FOUND
-                )
+        customer.name = request.data.get("name", customer.name)
+        customer.phone = request.data.get("phone", customer.phone)
+        customer.whatsapp = request.data.get("whatsapp", customer.whatsapp)
+        customer.save()
 
-            customer.name = data.get("name", customer.name)
-            customer.phone = data.get("phone", customer.phone)
-            customer.whatsapp = data.get("whatsapp", customer.whatsapp)
-            customer.save()
-
-            return Response(
-                {"status": True, "message": "Profile updated successfully"},
-                status=status.HTTP_200_OK
-            )
-
-        except Exception as e:
-            return Response(
-                {"status": False, "message": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        return Response({"status": True})
 
 
-# =========================
-# ROLE (OPTIONAL ADMIN FUTURE USE)
-# =========================
 class RoleListAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        try:
-            roles = Role.objects.all()
+        roles = Role.objects.all()
 
-            data = [
+        return Response({
+            "status": True,
+            "data": [
                 {
                     "id": r.id,
                     "name": r.name,
@@ -199,17 +137,6 @@ class RoleListAPIView(APIView):
                     "can_add": r.can_add,
                     "can_edit": r.can_edit,
                     "can_delete": r.can_delete
-                }
-                for r in roles
+                } for r in roles
             ]
-
-            return Response(
-                {"status": True, "data": data},
-                status=status.HTTP_200_OK
-            )
-
-        except Exception as e:
-            return Response(
-                {"status": False, "message": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        })
