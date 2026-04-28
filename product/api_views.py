@@ -1071,10 +1071,15 @@ class ProductListAPIView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        qs = Product.objects.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE)
+        qs = Product.objects.filter(
+            status=CATEGORY_PRODUCT_STATUS.ACTIVE
+        ).select_related("category").prefetch_related("images", "variants")
 
+        # FILTERS
         category = request.query_params.get("category")
         search = request.query_params.get("search")
+        min_price = request.query_params.get("min_price")
+        max_price = request.query_params.get("max_price")
 
         if category:
             qs = qs.filter(category_id=category)
@@ -1082,6 +1087,25 @@ class ProductListAPIView(APIView):
         if search:
             qs = qs.filter(name__icontains=search)
 
+        if min_price:
+            qs = qs.filter(price__gte=min_price)
+
+        if max_price:
+            qs = qs.filter(price__lte=max_price)
+
+        # SORTING
+        sort = request.query_params.get("sort")
+
+        if sort == "price_low":
+            qs = qs.order_by("price")
+        elif sort == "price_high":
+            qs = qs.order_by("-price")
+        elif sort == "newest":
+            qs = qs.order_by("-created_at")
+        else:
+            qs = qs.order_by("-id")
+
+        # PAGINATION
         paginator = ProductPagination()
         page = paginator.paginate_queryset(qs, request)
 
@@ -1094,7 +1118,9 @@ class ProductListAPIView(APIView):
                     "price": p.price,
                     "discount_price": p.discount_price,
                     "image": p.primary_image,
-                } for p in page
+                    "has_variants": p.has_variants
+                }
+                for p in page
             ]
         })
 
@@ -1103,27 +1129,46 @@ class ProductDetailAPIView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, slug):
-        p = Product.objects.filter(slug=slug).first()
+        try:
+            p = Product.objects.prefetch_related(
+                "images",
+                "variants",
+                "variants__images"
+            ).filter(slug=slug).first()
 
-        if not p:
-            return Response({"status": False}, status=404)
+            if not p:
+                return Response({"status": False}, status=404)
 
-        return Response({
-            "status": True,
-            "data": {
-                "id": p.id,
-                "name": p.name,
-                "price": p.price,
-                "images": [i.image.url for i in p.images.all() if i.image],
-                "variants": [
-                    {
-                        "id": v.id,
-                        "price": v.price,
-                        "stock": v.inventory_quantity
-                    } for v in p.variants.all()
-                ]
-            }
-        })
+            return Response({
+                "status": True,
+                "data": {
+                    "id": p.id,
+                    "name": p.name,
+                    "price": p.price,
+                    "discount_price": p.discount_price,
+                    "description": p.short_description,
+                    "images": [
+                        i.image.url for i in p.images.all() if i.image
+                    ],
+                    "variants": [
+                        {
+                            "id": v.id,
+                            "attributes": v.attributes,
+                            "price": v.price,
+                            "discount_price": v.discount_price,
+                            "stock": v.inventory_quantity
+                        }
+                        for v in p.variants.all()
+                    ]
+                }
+            })
+
+        except Exception as e:
+            return Response(
+                {"status": False, "message": str(e)},
+                status=500
+            )
+        
     
 class AddToCartAPIView(APIView):
     permission_classes = [IsAuthenticated]
