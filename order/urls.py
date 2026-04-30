@@ -1,7 +1,7 @@
 from django.urls import path
 from .api_views import (
     DeliveryOptionListAPIView, 
-    OrderCreateAPIView, 
+     
     ShipmentSerializerAPIView, 
     OrderListAPIView, 
     OrderDetailAPIView,
@@ -18,7 +18,7 @@ urlpatterns = [
     path('api/order/<str:order_id>/', OrderDetailAPIView.as_view(), name='order_detail'),
     
     
-    path('api/create-order/', OrderCreateAPIView.as_view(), name="create-order"),
+    # path('api/create-order/', OrderCreateAPIView.as_view(), name="create-order"),
     path('api/v1/delivery-options/', DeliveryOptionListAPIView.as_view(), name="delivery-options"),
     path('api/v1/shipment-info/<int:order_id>/', ShipmentSerializerAPIView.as_view(), name="shipment-info"),
 ]
