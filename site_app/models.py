@@ -1,7 +1,7 @@
 from typing import Iterable
 from django.db import models
 from pencilwoodbd.extra_module import image_delete_os, previous_image_delete_os
-from product.models import Product
+from product.models import Product, ProductVariant
 from django.core.validators import FileExtensionValidator
 from django.utils import timezone
 from datetime import timedelta
@@ -202,18 +202,48 @@ class FAQ_List(models.Model):
 
 
 class LandingPageProduct(models.Model):
-    page_name = models.CharField(max_length=30, blank=True, null=True)
-    code = models.CharField(max_length=30, blank=True, null=True)
-    main_product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="landing_page", blank=True, null=True)
+    page_name = models.CharField(max_length=100, blank=True, null=True)
+
+    code = models.CharField(
+        max_length=30,
+        null=True,
+        blank=True,
+        unique=True
+    )
+
+    main_product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="landing_page",
+        null=True,
+        blank=True
+    )
+
     product = models.ManyToManyField(Product, blank=True)
-    
-    def save(self, *args, **kwargs):
-        if self.code and LandingPageProduct.objects.filter(code=self.code).exclude(pk=self.pk).exists():
-            raise Exception("Please submit unique landing page code.")
-        super().save(*args, **kwargs)
-    
+
+    variant = models.ForeignKey(
+        ProductVariant,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    title = models.CharField(max_length=255, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+
+    price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+    image = models.ImageField(upload_to="landing/", blank=True, null=True)
+
+    delivery_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
     def __str__(self):
-        return self.page_name
+        return f"{self.page_name} ({self.code})"
 
 
 class DeliveryOption(models.Model):
