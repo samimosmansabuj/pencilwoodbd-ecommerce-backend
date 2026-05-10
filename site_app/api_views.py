@@ -1,16 +1,25 @@
+from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
-
+from rest_framework import status
 from django.db import transaction
 from django.db.models import F
 from decimal import Decimal
-
+from product.serializers import ProductSerializer
 from .models import HomeSlider, NewsFeed, LandingPageProduct
-from product.models import Product, Category
-from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS, STATUS
+from product.models import Product, Category, ProductVariant
+from pencilwoodbd.choices import (
+    CATEGORY_PRODUCT_STATUS,
+    STATUS,
+    PRODUCT_GIFT_TYPE,
+    PAYMENT_TYPE,
+    PAYMENT_STATUS,
+)
 from order.models import Order, OrderItem
 from authentication.models import Customer
+from site_app.models import OTPVerification
+from order.utils import OrderConfirmatinoEmailSend
 
 
 # =========================
@@ -23,186 +32,412 @@ class HomePageAPIView(APIView):
         sliders = HomeSlider.objects.filter(is_active=True)
         news = NewsFeed.objects.filter(is_active=True)
 
-        products = Product.objects.filter(
-            status=CATEGORY_PRODUCT_STATUS.ACTIVE
-        )[:10]
+        products = Product.objects.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE)[:10]
 
         categories = Category.objects.filter(
-            status=CATEGORY_PRODUCT_STATUS.ACTIVE,
-            parent__isnull=True
+            status=CATEGORY_PRODUCT_STATUS.ACTIVE, parent__isnull=True
         )
 
-        return Response({
-            "status": True,
-            "data": {
-                "sliders": [{"image": s.image.url if s.image else None} for s in sliders],
-                "news": [{"text": n.news} for n in news],
-                "products": [
-                    {"id": p.id, "name": p.name, "price": p.price}
-                    for p in products
-                ],
-                "categories": [
-                    {"id": c.id, "name": c.name}
-                    for c in categories
-                ]
+        return Response(
+            {
+                "status": True,
+                "data": {
+                    "sliders": [
+                        {"image": s.image.url if s.image else None} for s in sliders
+                    ],
+                    "news": [{"text": n.news} for n in news],
+                    "products": [
+                        {"id": p.id, "name": p.name, "price": p.price} for p in products
+                    ],
+                    "categories": [{"id": c.id, "name": c.name} for c in categories],
+                },
             }
-        })
+        )
 
 
 # =========================
 # LANDING PAGE (READ ONLY)
 # =========================
-class LandingPageAPIView(APIView):
+class LandingPageProductViews(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request):
-        code = request.query_params.get("code")
-
-        if not code:
-            return Response({"status": False, "message": "Code is required"}, status=400)
-
-        landing = LandingPageProduct.objects.select_related(
-            "main_product"
-        ).prefetch_related(
-            "main_product__variants",
-            "product"
-        ).filter(code=code, is_active=True).first()
-
-        if not landing or not landing.main_product:
-            return Response({"status": False, "message": "Invalid landing page"}, status=404)
-
-        product = landing.main_product
-
-        return Response({
-            "status": True,
-            "data": {
-                "code": landing.code,
-                "page_name": landing.page_name,
-                "title": landing.title,
-                "description": landing.description,
-
-                "product": {
-                    "id": product.id,
-                    "name": product.name,
-                    "price": landing.price or product.price,
-                    "discount_price": landing.discount_price or product.discount_price,
-                    "image": landing.image.url if landing.image else product.primary_image,
-
-                    "variants": [
-                        {
-                            "id": v.id,
-                            "attributes": v.attributes,
-                            "price": v.price,
-                            "discount_price": v.discount_price,
-                            "stock": v.inventory_quantity
-                        }
-                        for v in product.variants.filter(is_active=True)
-                    ],
-                },
-
-                "upsell_products": [
+    def get(self, request, code, *args, **kwargs):
+        try:
+            landing_page = LandingPageProduct.objects.get(code=code)
+            if landing_page:
+                main = [landing_page.main_product] if landing_page.main_product else []
+                many = list(landing_page.product.all())
+                product = main + many
+                return Response(
                     {
-                        "id": p.id,
-                        "name": p.name,
-                        "price": p.price,
-                        "image": p.primary_image
-                    }
-                    for p in landing.product.all()
-                ],
-
-                "delivery_charge": landing.delivery_charge,
-            }
-        })
+                        "status": True,
+                        "data": {
+                            "code": landing_page.code,
+                            "title": landing_page.title,
+                            "description": landing_page.description,
+                            "product": ProductSerializer(
+                                product, many=True, context={"request": request}
+                            ).data,
+                        },
+                    },
+                    status=status.HTTP_200_OK,
+                )
+            else:
+                return Response(
+                    {"status": False, "message": "Landing page product not setup."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+        except LandingPageProduct.DoesNotExist:
+            return Response(
+                {
+                    "status": False,
+                    "message": "Product ID doesn't match, Please use valid product id.",
+                }
+            )
+        except Exception as e:
+            return Response(
+                {"status": False, "message": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 # =========================
 # LANDING ORDER (SAFE FINAL VERSION)
 # =========================
-class LandingOrderAPIView(APIView):
-    permission_classes = [AllowAny]
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
-    def post(self, request):
+@method_decorator(csrf_exempt, name='dispatch')
+class LandingPageOrderAPI(APIView):
+    permission_classes = [AllowAny]
+    
+    def get_customer_data(self, data):
+        name = data.get("name")
+        phone = data.get("phone")
+        whatsapp = data.get("whatsapp_number", "")
+        if not name or not phone:
+            raise ValueError("Name and phone are required")
+        customer, created = Customer.objects.get_or_create(
+            phone=phone,
+            defaults={"name": name, "whatsapp": whatsapp}
+        )
+        return customer
+
+    def get_address(self, data):
+        address = data.get("address")
+        district = data.get("district")
+        if not address:
+            raise ValueError("Address is required")
+        if not district:
+            raise ValueError("District is required")
+        return f"{address}, {district}"
+    
+    def get_product_object(self, id):
+        try:
+            variant = ProductVariant.objects.select_related("product").get(id=id)
+            return variant
+        except ProductVariant.DoesNotExist:
+            raise ValueError("Variant not found")
+    
+    # ================= Corrected check_order_amount =================
+    def check_order_amount(self, variant, product, data):
+        unit_price = Decimal(str(data.get("unit_price")))
+        subtotal = Decimal(str(data.get("subtotal")))
+        district = data.get("district")
+        delivery = Decimal(str(data.get("delivery")))
+        total = Decimal(str(data.get("total")))
+
+        # unit_price_expected = 0
+        if variant:
+            unit_price_expected = variant.discount_price or variant.price
+        else:
+            unit_price_expected = product.discount_price or product.price
+
+        if unit_price != unit_price_expected:
+            raise ValueError("Unit price doesn't match with product price")
+
+        district_lower = district.lower().strip()
+        if district_lower == "dhaka" and delivery != Decimal("60"):
+            raise ValueError("Delivery charge for Dhaka should be 60")
+        elif district_lower == "chattogram" and delivery != Decimal("120"):
+            raise ValueError("Delivery charge for outside Chattogram should be 120")
+        elif district_lower not in ["dhaka", "chattogram"] and delivery != Decimal("150"):
+            raise ValueError("Delivery charge for outside Dhaka and Chattogram should be 150")
+
+        quantity = int(data.get("quantity", 1))
+        subtotal_expected = unit_price_expected * quantity
+        if subtotal != subtotal_expected:
+            raise ValueError("Subtotal doesn't match with product price")
+        total_expected = subtotal_expected + delivery
+        if total != total_expected:
+            raise ValueError("Total doesn't match with subtotal + delivery")
+        # total_cost = subtotal_expected
+
+        return total_expected, quantity, subtotal_expected, float(delivery)
+    
+    def post(self, request, *args, **kwargs):
         try:
             with transaction.atomic():
-
                 data = request.data
+                print("data: ", data)
+                # Payment validation ----
+                payment_type = data.get("payment_type", "COD")
+                payment_status = data.get("payment_status", "Unpaid")
 
-                code = data.get("code")
-                name = data.get("name")
-                phone = data.get("phone")
-                address = data.get("address")
-                district = data.get("district")
-                quantity = int(data.get("quantity", 1))
+                if payment_type not in [pt.value for pt in PAYMENT_TYPE]:
+                    raise ValueError("Invalid payment type")
+                if payment_status not in [ps.value for ps in PAYMENT_STATUS]:
+                    raise ValueError("Invalid payment status")
 
-                # ---------------- VALIDATION ----------------
-                if not all([code, name, phone, address, district]):
-                    return Response({"status": False, "message": "Missing fields"}, status=400)
 
-                if quantity < 1 or quantity > 5:
-                    return Response({"status": False, "message": "Invalid quantity"}, status=400)
+                # Product Section---
+                items = data.get("items")
+                
+                variant_id = data.get("variant_id")
+                product_id = data.get("product_id")
 
-                # ---------------- LOCK LANDING ----------------
-                landing = LandingPageProduct.objects.select_related(
-                    "main_product"
-                ).select_for_update().filter(
-                    code=code,
-                    is_active=True
-                ).first()
+                if variant_id:
+                    variant = self.get_product_object(variant_id)
+                    product = variant.product
+                elif product_id:
+                    product = get_object_or_404(Product, id=product_id)
+                    variant = product.variants.filter(is_active=True).first() if product.has_variants else None
+                    if product.has_variants and not variant:
+                        raise ValueError("No active variant available for this product")  
+                
+                total_cost, quantity, subtotal, delivery = self.check_order_amount(variant, product, data)
 
-                if not landing or not landing.main_product:
-                    return Response({"status": False, "message": "Invalid landing page"}, status=404)
 
-                product = Product.objects.select_for_update().get(id=landing.main_product.id)
-
-                # ---------------- PRICE ----------------
-                price = landing.discount_price or landing.price or product.discount_price or product.price
-                unit_price = Decimal(str(price))
-                subtotal = unit_price * quantity
-
-                # ---------------- SAFE STOCK CHECK + UPDATE ----------------
-                updated = Product.objects.filter(
-                    id=product.id,
-                    inventory_quantity__gte=quantity
-                ).update(
-                    inventory_quantity=F("inventory_quantity") - quantity
-                )
-
-                if not updated:
-                    return Response({"status": False, "message": "Out of stock"}, status=400)
-
-                # ---------------- CUSTOMER ----------------
-                customer, _ = Customer.objects.get_or_create(
-                    phone=phone,
-                    defaults={"name": name}
-                )
-
-                delivery = Decimal(str(landing.delivery_charge or 0))
-                total = subtotal + delivery
-
-                # ---------------- ORDER ----------------
+                # Customer Section---
+                customer = self.get_customer_data(data)
+                address = self.get_address(data)
+                
                 order = Order.objects.create(
                     customer=customer,
-                    shipping_address=f"{address}, {district}",
+                    shipping_address=address,
+                    note=data.get("note", ""),
                     shipping_total=delivery,
-                    total_cost=total,
-                    status=STATUS.NEW
+                    total_cost=total_cost,
+                    payment_type=payment_type,        
+                    payment_status=payment_status,    
+                    status=STATUS.NEW  
                 )
 
+                # Create OrderItem
+                unit_price = variant.discount_price or variant.price if variant else product.discount_price or product.price
                 OrderItem.objects.create(
                     order=order,
+                    variant=variant,
                     product=product,
-                    variant=None,
                     quantity=quantity,
+                    product_name=product.name,
+                    sku=variant.sku if variant else product.sku,
                     price=unit_price,
                     discount_price=unit_price,
-                    discount_total_price=subtotal
+                    discount_total_price=unit_price * quantity,
                 )
 
-                return Response({
-                    "status": True,
-                    "message": "Order placed successfully",
-                    "order_id": order.order_id
-                })
+                # Inventory Deduction -----
+                if variant:
+                    variant.inventory_quantity -= quantity
+                    variant.save()
+                    product.inventory_quantity = sum(v.inventory_quantity for v in product.variants.filter(is_active=True))
+                else:
+                    if product.inventory_quantity < quantity:
+                        raise ValueError(f"Not enough inventory for product {product.sku}")
+                    product.inventory_quantity -= quantity
+                product.save()
 
+                return Response(
+                    {"status": True, "message": "Order received successfully"},
+                    status=status.HTTP_201_CREATED
+                )
         except Exception as e:
-            return Response({"status": False, "message": str(e)}, status=500)
+            print("Error in LandingPageOrderAPI: ", str(e))
+            return Response({"status": False, "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class OrderCreateAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        return Response(
+            {"success": False, "message": "Get method not allowed!"},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
+    # AMOUNT CHECK BETWEEN DATA AND PRODUCT
+    def amount_check(self, data: dict) -> dict:
+        if self.productTotal == data.get("productTotal" or 0):
+            return data
+        raise Exception("Total product amount not same.")
+
+    # CREATE ORDER ITEM
+    def create_order_item(self, order: object, products, amount):
+        print("products: ", products)
+        order_items = []
+        for product in products:
+            prod = Product.objects.get(pk=product.get("id"))
+            order_item = OrderItem.objects.create(
+                order=order,
+                product=prod,
+                quantity=product.get("quantity" or 1),
+                price=prod.price,
+                discount_price=product.get("price" or 0),
+                discount_total_price=float(product.get("quantity" or 1))
+                * float(product.get("price" or 0)),
+            )
+            order_items.append(order_item)
+        return order_items
+
+    # CHECK FREE PRODUCT FOR MAIN PRODUCT
+    def check_free_product(self, reference_product: int, product: object):
+        reference = Product.objects.get(pk=reference_product)
+        if not reference:
+            return False
+        for gift_product_object in reference.gift_product.filter(
+            gift_type=PRODUCT_GIFT_TYPE.FREE
+        ):
+            if product == gift_product_object.gift_product:
+                return True
+        return False
+
+    # GET AND VERIFY PRODUCT AND PRICE DETAILS
+    def get_product_and_verify(self, product_data: dict) -> object:
+        products = []
+        self.productTotal = 0
+        for prod in product_data:
+            product = get_object_or_404(Product, pk=prod.get("id", None))
+            if not product:
+                raise Exception("No Product Found.")
+
+            product_type = prod.get("product_type")
+            reference_product = prod.get("reference_product" or None)
+            if product_type == "FREE" and reference_product:
+                if self.check_free_product(reference_product, product) is False:
+                    raise Exception("Free Product not available.")
+                products.append(product)
+            elif product.discount_price != float(prod.get("price")):
+                raise Exception("Product price and given price are not same.")
+            elif product.inventory_quantity < prod.get("quantity"):
+                raise Exception("Product not available in our Inventory.")
+            else:
+                self.productTotal += product.discount_price * prod.get("quantity")
+                products.append(product)
+        return products
+
+    # MAKE ADDRESS
+    def get_make_address(self, data):
+        address = f"{data.get('address')}, {data.get('district')}"
+        return address
+
+    # GET AND CREATE CUSTOMER OBJECT
+    def get_customer(self, data):
+        customer, created = Customer.objects.get_or_create(
+            phone=data.get("phone"), defaults={"name": data.get("name")}
+        )
+        return customer
+
+    def post(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                data = request.data
+                print("data: ", data)
+                self.handle_missing_field(data)
+
+                otp_verified = None
+                otp_required = bool(data.get("otp_required", False))
+
+                if otp_required:
+                    customer_data = data.get("customer", {})
+
+                    phone = customer_data.get("phone", "").strip()
+                    if not phone.startswith("88"):
+                        phone = "88" + phone
+
+                    otp_verified = OTPVerification.objects.filter(
+                        phone=phone, is_verified=True
+                    ).last()
+
+                    if not otp_verified:
+                        raise Exception("OTP not verified")
+
+                    if otp_verified.is_expired():
+                        raise Exception("OTP expired")
+                customer = self.get_customer(data.get("customer", {}))
+                address = self.get_make_address(data.get("customer", {}))
+                products = self.get_product_and_verify(data.get("products", {}))
+                amount = self.amount_check(data.get("amount", {}))
+
+                order = Order.objects.create(
+                    customer=customer,
+                    shipping_address=address,
+                    shipping_total=amount.get("deliveryCharge" or 0),
+                    total_cost=amount.get("totalAmount" or 0),
+                )
+                order_item = self.create_order_item(
+                    order, data.get("products", {}), amount
+                )
+
+                if otp_required and otp_verified:
+                    otp_verified.delete()
+
+                if data.get("customer", {}).get("email", None):
+                    send_mail = OrderConfirmatinoEmailSend(
+                        order, data.get("customer", {}).get("email", None)
+                    )
+                    send_mail.order_confirmation_mail_send()
+
+                return Response(
+                    {"success": True, "message": "Order Created"},
+                    status=status.HTTP_201_CREATED,
+                )
+        except Exception as e:
+            print("error: ", str(e))
+            return Response(
+                {"success": False, "message": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    # VERIFY ORDER AMOUNT
+    def verify_input_amount(self, data):
+        if data:
+            input_delivery_charge = data["deliveryCharge"]
+            data["deliveryCharge"] = (
+                "FREE" if input_delivery_charge == 0 else input_delivery_charge
+            )
+            required_fields = ["productTotal", "deliveryCharge", "totalAmount"]
+            missing_fields = [field for field in required_fields if not data.get(field)]
+            data["deliveryCharge"] = input_delivery_charge
+            return missing_fields
+        else:
+            raise Exception("Customer amount must be set.")
+
+    # VERIFY ORDER CUSTOMER INFORMATION
+    def verify_input_customer(self, data):
+        if data:
+            required_fields = [
+                "name",
+                "phone",
+                "address",
+                "district",
+            ]
+            missing_fields = [field for field in required_fields if not data.get(field)]
+            return missing_fields
+        else:
+            raise Exception("Customer data must be set.")
+
+    # HANDLING MISSING FIELD AND SEND ERROR
+    def handle_missing_field(self, data):
+        customer_missing_fields = self.verify_input_customer(data.get("customer", {}))
+        print("customer_missing_fields: ", customer_missing_fields)
+        if customer_missing_fields:
+            raise Exception(
+                f"The following fields must be filled: {', '.join(customer_missing_fields)}"
+            )
+
+        amount_missing_fields = self.verify_input_amount(data.get("amount", {}))
+        if amount_missing_fields:
+            raise Exception(
+                f"The following fields must be set: {', '.join(amount_missing_fields)}"
+            )
