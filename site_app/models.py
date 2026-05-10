@@ -202,48 +202,19 @@ class FAQ_List(models.Model):
 
 
 class LandingPageProduct(models.Model):
-    page_name = models.CharField(max_length=100, blank=True, null=True)
-
-    code = models.CharField(
-        max_length=30,
-        null=True,
-        blank=True,
-        unique=True
-    )
-
-    main_product = models.ForeignKey(
-        Product,
-        on_delete=models.CASCADE,
-        related_name="landing_page",
-        null=True,
-        blank=True
-    )
-
-    product = models.ManyToManyField(Product, blank=True)
-
-    variant = models.ForeignKey(
-        ProductVariant,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True
-    )
-
     title = models.CharField(max_length=255, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
-
-    price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-
     image = models.ImageField(upload_to="landing/", blank=True, null=True)
-
-    delivery_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-
+    code = models.CharField(max_length=30, null=True, blank=True, unique=True)
+    main_product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="landing_page", null=True, blank=True)
+    product = models.ManyToManyField(Product, blank=True)
+    need_otp_verified = models.BooleanField(default=False)
+    area_and_charge = models.JSONField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
-
     created_at = models.DateTimeField(auto_now_add=True, null=True)
 
     def __str__(self):
-        return f"{self.page_name} ({self.code})"
+        return f"{self.title} ({self.code})"
 
 
 class DeliveryOption(models.Model):

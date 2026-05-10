@@ -61,8 +61,6 @@ class Category(models.Model):
 
     def __str__(self):
         return self.name
-    
-
 
 class Brand(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -80,7 +78,6 @@ class Brand(models.Model):
 
     def __str__(self):
         return self.name
-
 
 class Attribute(models.Model):
     name = models.CharField(max_length=255)
@@ -109,6 +106,7 @@ class AttributeValue(models.Model):
 
     def __str__(self):
         return f"{self.attribute.name}: {self.value}"
+
 
 
 class Product(models.Model):
@@ -181,8 +179,6 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
-
-
 class ProductVariant(models.Model):  # New model
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')  
     sku = models.CharField(max_length=128,blank=True, null=False)  
@@ -225,7 +221,6 @@ class ProductVariant(models.Model):  # New model
 
     def __str__(self):  # new
         return f"{self.product.name} - {self.sku or self.pk}"
-
 
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
@@ -353,7 +348,6 @@ class AddToCart(models.Model):
     #     if category_products % 2 == 0:
     #         FreeAddToCart.objects.create(customer=self.customer, product=self.product)
 
-
 class Wishlist(models.Model):
     customer = models.ForeignKey(
         Customer,
@@ -372,3 +366,4 @@ class Wishlist(models.Model):
 
     def __str__(self):
         return f"{self.customer} - {self.product}"
+
