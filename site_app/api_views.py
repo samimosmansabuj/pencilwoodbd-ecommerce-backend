@@ -256,6 +256,7 @@ class LandingPageOrderAPI(APIView):
             print("Error in LandingPageOrderAPI: ", str(e))
             return Response({"status": False, "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+from decimal import Decimal
 
 class OrderCreateAPIView(APIView):
     permission_classes = [AllowAny]
@@ -268,7 +269,7 @@ class OrderCreateAPIView(APIView):
 
     # AMOUNT CHECK BETWEEN DATA AND PRODUCT
     def amount_check(self, data: dict) -> dict:
-        if self.productTotal == data.get("productTotal" or 0):
+        if Decimal(str(self.productTotal)) == Decimal(str(data.get("productTotal"))):
             return data
         raise Exception("Total product amount not same.")
 
@@ -281,11 +282,10 @@ class OrderCreateAPIView(APIView):
             order_item = OrderItem.objects.create(
                 order=order,
                 product=prod,
-                quantity=product.get("quantity" or 1),
+                quantity=int(product.get("quantity", 1)),
                 price=prod.price,
-                discount_price=product.get("price" or 0),
-                discount_total_price=float(product.get("quantity" or 1))
-                * float(product.get("price" or 0)),
+                discount_price=Decimal(str(product.get("price", 0))),
+                discount_total_price=int(product.get("quantity", 1)) * Decimal(str(product.get("price", 0))),
             )
             order_items.append(order_item)
         return order_items
@@ -312,7 +312,7 @@ class OrderCreateAPIView(APIView):
                 raise Exception("No Product Found.")
 
             product_type = prod.get("product_type")
-            reference_product = prod.get("reference_product" or None)
+            reference_product = prod.get("reference_product", None)
             if product_type == "FREE" and reference_product:
                 if self.check_free_product(reference_product, product) is False:
                     raise Exception("Free Product not available.")
@@ -322,7 +322,7 @@ class OrderCreateAPIView(APIView):
             elif product.inventory_quantity < prod.get("quantity"):
                 raise Exception("Product not available in our Inventory.")
             else:
-                self.productTotal += product.discount_price * prod.get("quantity")
+                self.productTotal += Decimal(str(product.discount_price)) * Decimal(str(prod.get("quantity", 1)))
                 products.append(product)
         return products
 
@@ -364,6 +364,7 @@ class OrderCreateAPIView(APIView):
 
                     if otp_verified.is_expired():
                         raise Exception("OTP expired")
+                
                 customer = self.get_customer(data.get("customer", {}))
                 address = self.get_make_address(data.get("customer", {}))
                 products = self.get_product_and_verify(data.get("products", {}))
@@ -372,8 +373,8 @@ class OrderCreateAPIView(APIView):
                 order = Order.objects.create(
                     customer=customer,
                     shipping_address=address,
-                    shipping_total=amount.get("deliveryCharge" or 0),
-                    total_cost=amount.get("totalAmount" or 0),
+                    shipping_total=Decimal(str(amount.get("deliveryCharge", 0))),
+                    total_cost=Decimal(str(amount.get("totalAmount", 0))),
                 )
                 order_item = self.create_order_item(
                     order, data.get("products", {}), amount
@@ -382,18 +383,18 @@ class OrderCreateAPIView(APIView):
                 if otp_required and otp_verified:
                     otp_verified.delete()
 
-                if data.get("customer", {}).get("email", None):
-                    send_mail = OrderConfirmatinoEmailSend(
-                        order, data.get("customer", {}).get("email", None)
-                    )
-                    send_mail.order_confirmation_mail_send()
+                # if data.get("customer", {}).get("email", None):
+                #     send_mail = OrderConfirmatinoEmailSend(
+                #         order, data.get("customer", {}).get("email", None)
+                #     )
+                #     send_mail.order_confirmation_mail_send()
 
                 return Response(
                     {"success": True, "message": "Order Created"},
                     status=status.HTTP_201_CREATED,
                 )
         except Exception as e:
-            print("error: ", str(e))
+            print("error: ", e)
             return Response(
                 {"success": False, "message": str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
