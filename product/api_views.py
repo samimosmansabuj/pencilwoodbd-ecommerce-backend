@@ -502,7 +502,7 @@ class ProductListAPIView(APIView):
     def get(self, request):
         qs = Product.objects.filter(
             status=CATEGORY_PRODUCT_STATUS.ACTIVE
-        ).select_related("category").prefetch_related("images", "variants")
+        ).select_related("category").prefetch_related("images", "variants").order_by("-id")
 
         # FILTERS
         category = request.query_params.get("category")
