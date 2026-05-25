@@ -3,6 +3,7 @@ from .api_views import (
     AuthRegisterAPIView,
     AuthLoginAPIView,
     UserProfileAPIView,
+    LogoutAPIView,
     
 )
 
@@ -14,5 +15,5 @@ urlpatterns = [
     # ================= PROFILE =================
     path('api/auth/profile/', UserProfileAPIView.as_view(), name='user_profile'),
 
-
+    path('api/auth/logout/', LogoutAPIView.as_view(), name='auth_logout'),
 ]
