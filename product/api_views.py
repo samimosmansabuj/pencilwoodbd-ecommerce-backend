@@ -656,6 +656,7 @@ class CartListAPIView(APIView):
                 data.append({
                     "id": item.id,
                     "product": item.product.name,
+                    "image": item.product.primary_image,
                     "variant": item.variant.attributes if item.variant else None,
                     "quantity": item.quantity,
                     "price": item.price,

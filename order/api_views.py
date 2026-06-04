@@ -80,45 +80,90 @@ class CheckoutSummaryAPIView(APIView):
         try:
             customer = request.user.customer_profile
 
-            cart_items = AddToCart.objects.filter(customer=customer)
+            cart_ids = request.query_params.getlist("cart_ids")
+
+            cart_items = AddToCart.objects.filter(
+                customer=customer
+            )
+
+            if cart_ids:
+                cart_items = cart_items.filter(
+                    id__in=cart_ids
+                )
 
             if not cart_items.exists():
                 return Response(
-                    {"status": False, "message": "Cart empty"},
+                    {
+                        "status": False,
+                        "message": "Cart empty"
+                    },
                     status=400
                 )
 
             items_data = []
             subtotal = Decimal("0")
+            highest_delivery_charge = Decimal("0")
 
             for item in cart_items:
+
+                product = item.product
+
+                product_delivery_charge = Decimal("0")
+
+                if hasattr(product, "delivery_charge"):
+
+                    area_charge = (
+                        product.delivery_charge.area_and_charge
+                        or {}
+                    )
+
+                    if "all" in area_charge:
+                        product_delivery_charge = Decimal(
+                            str(area_charge["all"])
+                        )
+
+                highest_delivery_charge = max(
+                    highest_delivery_charge,
+                    product_delivery_charge
+                )
+
                 items_data.append({
-                    "product": item.product.name,
+                    "cart_id": item.id,
+                    "product_id": product.id,
+                    "product": product.name,
                     "quantity": item.quantity,
                     "price": item.price,
-                    "total": item.total_price
+                    "total": item.total_price,
+                    "delivery_charge": float(
+                        product_delivery_charge
+                    )
                 })
 
                 subtotal += item.total_price
 
-            delivery_charge = Decimal("60")
+            grand_total = (
+                subtotal +
+                highest_delivery_charge
+            )
 
             return Response({
                 "status": True,
                 "data": {
                     "items": items_data,
                     "subtotal": subtotal,
-                    "delivery_charge": delivery_charge,
-                    "grand_total": subtotal + delivery_charge
+                    "delivery_charge": highest_delivery_charge,
+                    "grand_total": grand_total
                 }
             })
 
         except Exception as e:
             return Response(
-                {"status": False, "message": str(e)},
+                {
+                    "status": False,
+                    "message": str(e)
+                },
                 status=500
             )
-
 
 class PlaceOrderAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -129,10 +174,24 @@ class PlaceOrderAPIView(APIView):
 
                 customer = request.user.customer_profile
 
+                cart_ids = request.data.get("cart_ids", [])
+
+                if not cart_ids:
+                    return Response(
+                        {
+                            "status": False,
+                            "message": "No cart items selected"
+                        },
+                        status=400
+                    )
+
                 cart_items = AddToCart.objects.select_related(
                     "product",
                     "variant"
-                ).filter(customer=customer)
+                ).filter(
+                    customer=customer,
+                    id__in=cart_ids
+                )
 
                 if not cart_items.exists():
                     return Response(
@@ -142,7 +201,7 @@ class PlaceOrderAPIView(APIView):
 
                 address_text = request.data.get("address")
                 district = request.data.get("district")
-                upazila = request.data.get("upazila")
+                upazila = request.data.get("upazila") or "N/A"
 
                 if not address_text or not district:
                     return Response(
@@ -223,7 +282,7 @@ class PlaceOrderAPIView(APIView):
                 order.shipping_total = delivery_charge
                 order.save()
 
-                # CLEAR CART
+                # CLEAR SELECTED CART ITEMS ONLY
                 cart_items.delete()
 
                 return Response({
@@ -237,7 +296,6 @@ class PlaceOrderAPIView(APIView):
                 {"status": False, "message": str(e)},
                 status=500
             )
-
 
 class OrderListAPIView(APIView):
     permission_classes = [IsAuthenticated]
