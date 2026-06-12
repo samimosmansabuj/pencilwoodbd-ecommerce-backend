@@ -80,45 +80,103 @@ class CheckoutSummaryAPIView(APIView):
         try:
             customer = request.user.customer_profile
 
-            cart_items = AddToCart.objects.filter(customer=customer)
+            cart_ids = request.query_params.getlist("cart_ids")
+
+            cart_items = AddToCart.objects.filter(
+                customer=customer
+            )
+
+            if cart_ids:
+                cart_items = cart_items.filter(
+                    id__in=cart_ids
+                )
 
             if not cart_items.exists():
                 return Response(
-                    {"status": False, "message": "Cart empty"},
+                    {
+                        "status": False,
+                        "message": "Cart empty"
+                    },
                     status=400
                 )
 
             items_data = []
             subtotal = Decimal("0")
+            total_delivery_charge = Decimal("0")
+
+            selected_district = request.query_params.get("district")
 
             for item in cart_items:
+
+                product = item.product
+
+                product_delivery_charge = Decimal("0")
+
+                if hasattr(product, "delivery_charge"):
+
+                    area_charge = (
+                        product.delivery_charge.area_and_charge
+                        or {}
+                    )
+
+                    if area_charge:
+
+                        if (
+                            selected_district and
+                            selected_district in area_charge
+                        ):
+                            product_delivery_charge = Decimal(
+                                str(
+                                    area_charge[selected_district]
+                                )
+                            )
+
+                        elif "all" in area_charge:
+                            product_delivery_charge = Decimal(
+                                str(area_charge["all"])
+                            )
+
+                total_delivery_charge += (
+                    product_delivery_charge
+                )
+
                 items_data.append({
-                    "product": item.product.name,
+                    "cart_id": item.id,
+                    "product_id": product.id,
+                    "product": product.name,
                     "quantity": item.quantity,
                     "price": item.price,
-                    "total": item.total_price
+                    "total": item.total_price,
+                    "delivery_charge": float(
+                        product_delivery_charge
+                    )
                 })
 
                 subtotal += item.total_price
 
-            delivery_charge = Decimal("60")
+            grand_total = (
+                subtotal +
+                total_delivery_charge
+            )
 
             return Response({
                 "status": True,
                 "data": {
                     "items": items_data,
                     "subtotal": subtotal,
-                    "delivery_charge": delivery_charge,
-                    "grand_total": subtotal + delivery_charge
+                    "delivery_charge": total_delivery_charge,
+                    "grand_total": grand_total
                 }
             })
 
         except Exception as e:
             return Response(
-                {"status": False, "message": str(e)},
+                {
+                    "status": False,
+                    "message": str(e)
+                },
                 status=500
             )
-
 
 class PlaceOrderAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -129,10 +187,24 @@ class PlaceOrderAPIView(APIView):
 
                 customer = request.user.customer_profile
 
+                cart_ids = request.data.get("cart_ids", [])
+
+                if not cart_ids:
+                    return Response(
+                        {
+                            "status": False,
+                            "message": "No cart items selected"
+                        },
+                        status=400
+                    )
+
                 cart_items = AddToCart.objects.select_related(
                     "product",
                     "variant"
-                ).filter(customer=customer)
+                ).filter(
+                    customer=customer,
+                    id__in=cart_ids
+                )
 
                 if not cart_items.exists():
                     return Response(
@@ -142,7 +214,7 @@ class PlaceOrderAPIView(APIView):
 
                 address_text = request.data.get("address")
                 district = request.data.get("district")
-                upazila = request.data.get("upazila")
+                upazila = request.data.get("upazila") or "N/A"
 
                 if not address_text or not district:
                     return Response(
@@ -166,11 +238,38 @@ class PlaceOrderAPIView(APIView):
                 )
 
                 total = Decimal("0")
+                total_delivery_charge = Decimal("0")
 
                 for item in cart_items:
 
                     product = item.product
                     variant = item.variant
+
+                    # DELIVERY CHARGE
+                    product_delivery_charge = Decimal("0")
+
+                    if hasattr(product, "delivery_charge"):
+
+                        area_charge = (
+                            product.delivery_charge.area_and_charge
+                            or {}
+                        )
+
+                        if district in area_charge:
+
+                            product_delivery_charge = Decimal(
+                                str(area_charge[district])
+                            )
+
+                        elif "all" in area_charge:
+
+                            product_delivery_charge = Decimal(
+                                str(area_charge["all"])
+                            )
+
+                    total_delivery_charge += (
+                        product_delivery_charge
+                    )
 
                     # STOCK CHECK
                     if variant:
@@ -187,7 +286,10 @@ class PlaceOrderAPIView(APIView):
                         variant.inventory_quantity -= item.quantity
                         variant.save()
 
-                        price = variant.discount_price or variant.price
+                        price = (
+                            variant.discount_price
+                            or variant.price
+                        )
 
                     else:
 
@@ -203,7 +305,10 @@ class PlaceOrderAPIView(APIView):
                         product.inventory_quantity -= item.quantity
                         product.save()
 
-                        price = product.discount_price or product.price
+                        price = (
+                            product.discount_price
+                            or product.price
+                        )
 
                     OrderItem.objects.create(
                         order=order,
@@ -212,18 +317,24 @@ class PlaceOrderAPIView(APIView):
                         quantity=item.quantity,
                         price=price,
                         discount_price=price,
-                        discount_total_price=price * item.quantity
+                        discount_total_price=(
+                            price * item.quantity
+                        )
                     )
 
                     total += price * item.quantity
 
-                delivery_charge = Decimal("60")
+                order.total_cost = (
+                    total +
+                    total_delivery_charge
+                )
 
-                order.total_cost = total + delivery_charge
-                order.shipping_total = delivery_charge
+                order.shipping_total = (
+                    total_delivery_charge
+                )
+
                 order.save()
 
-                # CLEAR CART
                 cart_items.delete()
 
                 return Response({
@@ -234,50 +345,86 @@ class PlaceOrderAPIView(APIView):
 
         except Exception as e:
             return Response(
-                {"status": False, "message": str(e)},
+                {
+                    "status": False,
+                    "message": str(e)
+                },
                 status=500
             )
-
 
 class OrderListAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        customer = getattr(request.user, "customer_profile", None)
 
-        orders = Order.objects.filter(
-            customer=customer
-        ).order_by("-id")
+        customer = request.user.customer_profile
+
+        orders = (
+            Order.objects
+            .filter(customer=customer)
+            .prefetch_related(
+                "order_items",
+                "order_items__product",
+                "order_items__product__images"
+            )
+            .order_by("-created_at")
+        )
+
+        data = []
+
+        for order in orders:
+
+            items = []
+
+            for item in order.order_items.all():
+
+                image = ""
+
+                if item.product and item.product.primary_image:
+                    image = request.build_absolute_uri(
+                        item.product.primary_image
+                    )
+
+                items.append({
+                    "name": item.product_name,
+                    "qty": item.quantity,
+                    "price": item.price,
+                    "image": image
+                })
+
+            data.append({
+                "order_id": order.order_id,
+                "date": order.created_at.strftime("%d %b %Y"),
+                "status": order.status,
+                "payment_status": order.payment_status,
+                "total": order.total_cost,
+
+                # Reference UI er jonno
+                "items": items,
+
+                # First product image
+                "thumbnail": items[0]["image"] if items else "",
+
+                # Product count
+                "item_count": order.get_total_quantity
+            })
 
         return Response({
             "status": True,
-            "data": [
-                {
-                    "order_id": o.order_id,
-                    "total": o.total_cost,
-                    "status": o.status,
-                    "payment_status": o.payment_status
-                }
-                for o in orders
-            ]
+            "data": data
         })
+    
+
 
 
 class OrderDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, order_id):
-        try:
-            customer = getattr(request.user, "customer_profile", None)
 
-            if not customer:
-                return Response(
-                    {
-                        "status": False,
-                        "message": "Customer not found"
-                    },
-                    status=404
-                )
+        try:
+
+            customer = request.user.customer_profile
 
             order = get_object_or_404(
                 Order,
@@ -285,24 +432,88 @@ class OrderDetailAPIView(APIView):
                 customer=customer
             )
 
+            items = []
+            subtotal = Decimal("0")
+
+            for item in order.order_items.all():
+
+                item_total = (
+                    item.discount_total_price
+                    if item.discount_total_price
+                    else item.price * item.quantity
+                )
+
+                subtotal += item_total
+
+                image = None
+
+                try:
+
+                    if (
+                        item.product and
+                        item.product.primary_image
+                    ):
+                        image = request.build_absolute_uri(
+                            item.product.primary_image
+                        )
+
+                except Exception:
+                    image = None
+
+                items.append({
+                    "name": (
+                        item.product_name
+                        or (
+                            item.product.name
+                            if item.product
+                            else "Product"
+                        )
+                    ),
+
+                    "image": image,
+
+                    "qty": item.quantity,
+
+                    "price": item.price,
+
+                    "total": item_total,
+
+                    "variant": (
+                        item.variant.attributes
+                        if item.variant
+                        else None
+                    )
+                })
+
             data = {
                 "order_id": order.order_id,
-                "status": order.status,
-                "payment_status": order.payment_status,
-                "total": order.total_cost,
-                "delivery": order.shipping_total,
-                "address": order.shipping_address,
+
                 "date": order.created_at,
-                "items": [
-                    {
-                        "product": i.product.name,
-                        "variant": i.variant.attributes if i.variant else None,
-                        "quantity": i.quantity,
-                        "price": i.price,
-                        "total": i.discount_total_price
-                    }
-                    for i in order.order_items.all()
-                ]
+
+                "status": order.status,
+
+                "payment_status": order.payment_status,
+                "payment_type": order.payment_type,
+
+                "subtotal": subtotal,
+                "shipping": order.shipping_total,
+                "total": order.total_cost,
+
+                "customer_name": (
+                    customer.name
+                    if customer
+                    else ""
+                ),
+
+                "customer_phone": (
+                    customer.phone
+                    if customer
+                    else ""
+                ),
+
+                "address": order.shipping_address,
+
+                "items": items
             }
 
             return Response({
@@ -311,12 +522,14 @@ class OrderDetailAPIView(APIView):
             })
 
         except Exception as e:
+
             return Response(
-                {"status": False, "message": str(e)},
+                {
+                    "status": False,
+                    "message": str(e)
+                },
                 status=500
             )
-
-
 class PaymentMethodListAPIView(APIView):
     permission_classes = [AllowAny]
 

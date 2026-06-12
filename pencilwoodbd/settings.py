@@ -26,7 +26,7 @@ INSTALLED_APPS = [
     #install apps
     'rest_framework', 'rest_framework_simplejwt', 'rest_framework_simplejwt.token_blacklist',
     'corsheaders', 'django_extensions', 'django_filters', 'django_htmx',
-    'channels',
+    'channels','rest_framework.authtoken',
     
     #Custom Apps
     'authentication', 'order', 'product','live_chat', 'site_app', 'dashbaord', 'marketing',"django_json_widget",

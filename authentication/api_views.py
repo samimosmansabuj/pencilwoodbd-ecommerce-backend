@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.authtoken.models import Token
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import CustomUser, Customer, Role
 
@@ -51,13 +51,13 @@ class AuthRegisterAPIView(APIView):
                     email=email
                 )
 
-                token, _ = Token.objects.get_or_create(user=user)
+                refresh = RefreshToken.for_user(user)
 
             return Response({
                 "status": True,
-                "token": token.key
+                "access": str(refresh.access_token),
+                "refresh": str(refresh)
             }, status=201)
-
         except Exception as e:
             return Response({"status": False, "message": str(e)}, status=500)
 
@@ -78,11 +78,12 @@ class AuthLoginAPIView(APIView):
                     status=401
                 )
 
-            token, _ = Token.objects.get_or_create(user=user)
+            refresh = RefreshToken.for_user(user)
 
             return Response({
                 "status": True,
-                "token": token.key
+                "access": str(refresh.access_token),
+                "refresh": str(refresh)
             })
 
         except Exception as e:
@@ -140,3 +141,35 @@ class RoleListAPIView(APIView):
                 } for r in roles
             ]
         })
+    
+
+class LogoutAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+
+            refresh_token = request.data.get("refresh")
+
+            if not refresh_token:
+
+                return Response({
+                    "status": False,
+                    "message": "Refresh token required"
+                }, status=400)
+
+            token = RefreshToken(refresh_token)
+
+            token.blacklist()
+
+            return Response({
+                "status": True,
+                "message": "Logged out successfully"
+            })
+
+        except Exception as e:
+
+            return Response({
+                "status": False,
+                "message": str(e)
+            }, status=400)

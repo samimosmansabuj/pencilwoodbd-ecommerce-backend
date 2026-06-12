@@ -24,8 +24,6 @@ from rest_framework.permissions import AllowAny
 from rest_framework.permissions import IsAuthenticated
 from .models import Wishlist
 
-
-
 class CategoryAPIViews(views.APIView):
     permission_classes = [permissions.AllowAny]
     def get(self, request, *args, **kwargs):
@@ -62,6 +60,450 @@ class CategoryAPIViews(views.APIView):
                     "message": str(e)
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+
+
+
+
+# otp/views.py
+import os
+class SendOTPAPIView(APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def get_phone_number(self, request):
+        phone = request.data.get("phone", "").strip()
+        phone = phone.strip()
+        if not phone.startswith("88"):
+            phone = "88" + phone
+        return phone
+    
+    def send_message(self, phone, otp):
+        url = "https://console.smsq.global/api/v3/SendSMS"
+        payload = {
+            "senderId": os.getenv("sender_id"),
+            "is_Unicode": True,
+            "is_Flash": False,
+            "message": f"Number Verification OTP {otp} for PencilwoodBD. Do not share this OTP with anyone.",
+            "mobileNumbers": phone,
+            "apiKey": os.getenv("api_key"),
+            "clientId": os.getenv("client_id")
+        }
+        response = requests.post(url, json=payload)
+        response.raise_for_status()
+        return response.json()
+    
+    def post(self, request):
+        phone = self.get_phone_number(request)
+        otp = str(random.randint(100000, 999999))
+        try:
+            with transaction.atomic():
+                response = self.send_message(phone, otp)
+                if (
+                    response.get("ErrorCode") == 0 and
+                    response.get("Data") and
+                    response["Data"][0].get("MessageErrorCode") == 0 and
+                    response["Data"][0].get("MessageErrorDescription") == "Success"
+                ):
+                    OTPVerification.objects.create(phone=phone, otp=otp)
+                    return Response({"success": True, "message": "OTP Sent"})
+                else:
+                    return Response({"success": False, "message": "OTP Sending Failed", "response": response})
+        except Exception as e:
+            return Response({"success": False, "message": str(e)})
+        
+
+class VerifyOTPAPIView(APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def get_phone_number(self, request):
+        phone = request.data.get("phone", "").strip()
+        phone = phone.strip()
+        if not phone.startswith("88"):
+            phone = "88" + phone
+        return phone
+    
+    def post(self, request):
+        phone = self.get_phone_number(request)
+        otp = request.data.get("otp")
+        try:
+            otp_obj = OTPVerification.objects.filter(phone=phone).last()
+            if not otp_obj:
+                return Response({"verified": False, "message": "No OTP found"})
+            if otp_obj.is_expired():
+                return Response({"verified": False, "message": "OTP expired"})
+            if otp_obj.otp != otp:
+                return Response({"verified": False, "message": "Invalid OTP"})
+            otp_obj.is_verified = True
+            otp_obj.save()
+            return Response({"verified": True})
+        except Exception as e:
+            return Response({"verified": False, "message": str(e)})
+
+
+
+class ProductPagination(PageNumberPagination):
+    page_size = 10
+
+
+class CategoryListAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        parent = request.query_params.get("parent")
+
+        qs = Category.objects.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE)
+
+        if parent:
+            qs = qs.filter(parent_id=parent)
+        else:
+            qs = qs.filter(parent__isnull=True)
+
+        return Response({
+            "status": True,
+            "data": [
+                {
+                    "id": c.id,
+                    "name": c.name,
+                    "slug": c.slug,
+                    "icon": c.icon,
+                    "banner": c.banner_image.url if c.banner_image else None
+                } for c in qs
+            ]
+        })
+
+
+class ProductListAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        qs = Product.objects.filter(
+            status=CATEGORY_PRODUCT_STATUS.ACTIVE
+        ).select_related("category").prefetch_related("images", "variants").order_by("-id")
+
+        # FILTERS
+        category = request.query_params.get("category")
+        search = request.query_params.get("search")
+        min_price = request.query_params.get("min_price")
+        max_price = request.query_params.get("max_price")
+
+        if category:
+            qs = qs.filter(category_id=category)
+
+        if search:
+            qs = qs.filter(
+                Q(name__icontains=search) |
+                Q(short_description__icontains=search) |
+                Q(category__name__icontains=search) |
+                Q(slug__icontains=search)
+            )
+
+        if min_price:
+            qs = qs.filter(price__gte=min_price)
+
+        if max_price:
+            qs = qs.filter(price__lte=max_price)
+
+        # SORTING
+        sort = request.query_params.get("sort")
+
+        if sort == "price_low":
+            qs = qs.order_by("price")
+        elif sort == "price_high":
+            qs = qs.order_by("-price")
+        elif sort == "newest":
+            qs = qs.order_by("-created_at")
+        else:
+            qs = qs.order_by("-id")
+
+        # PAGINATION
+        paginator = ProductPagination()
+        page = paginator.paginate_queryset(qs, request)
+
+        return paginator.get_paginated_response({
+            "status": True,
+            "data": [
+                {
+                "id": p.id,
+                "slug": p.slug,
+                "name": p.name,
+                "price": p.price,
+                "discount_price": p.discount_price,
+                "image": p.primary_image,
+                "has_variants": p.has_variants,
+                "category": {
+                    "id": p.category.id if p.category else None,
+                    "name": p.category.name if p.category else ""
+                }
+            }
+                for p in page
+            ]
+        })
+
+
+class ProductDetailAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug):
+        try:
+            p = Product.objects.prefetch_related(
+                "images",
+                "variants",
+                "variants__images"
+            ).filter(slug=slug).first()
+
+            if not p:
+                return Response({"status": False}, status=404)
+
+            # Stock Calculation
+            if p.has_variants:
+                stock = sum(
+                    v.inventory_quantity
+                    for v in p.variants.filter(is_active=True)
+                )
+            else:
+                stock = p.inventory_quantity
+
+            return Response({
+                "status": True,
+                "data": {
+                    "id": p.id,
+                    "slug": p.slug,
+                    "name": p.name,
+                    "price": p.price,
+                    "discount_price": p.discount_price,
+                    "stock": stock,
+                    "description": p.short_description,
+                    "images": [
+                        i.image.url for i in p.images.all() if i.image
+                    ],
+                    "variants": [
+                        {
+                            "id": v.id,
+                            "attributes": v.attributes,
+                            "price": v.price,
+                            "discount_price": v.discount_price,
+                            "stock": v.inventory_quantity
+                        }
+                        for v in p.variants.all()
+                    ]
+                }
+            })
+
+        except Exception as e:
+            return Response(
+                {"status": False, "message": str(e)},
+                status=500
+            )
+    
+class AddToCartAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            with transaction.atomic():
+                customer = request.user.customer_profile
+
+                product_id = request.data.get("product_id")
+                variant_id = request.data.get("variant_id")
+                quantity = int(request.data.get("quantity", 1))
+
+                product = Product.objects.get(id=product_id)
+                variant = None
+
+                if product.has_variants:
+                    if not variant_id:
+                        return Response({"status": False, "message": "Variant required"}, status=400)
+
+                    variant = ProductVariant.objects.get(id=variant_id)
+
+                cart_item, created = AddToCart.objects.get_or_create(
+                    customer=customer,
+                    product=product,
+                    variant=variant,
+                    defaults={"quantity": quantity}
+                )
+
+                if not created:
+                    cart_item.quantity += quantity
+                    cart_item.save()
+
+                return Response({
+                    "status": True,
+                    "message": "Added to cart"
+                })
+
+        except Exception as e:
+            return Response({"status": False, "message": str(e)}, status=400)
+        
+
+class CartListAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            customer = request.user.customer_profile
+
+            cart_items = AddToCart.objects.filter(customer=customer)
+
+            data = []
+            total = Decimal("0")
+
+            for item in cart_items:
+                data.append({
+                    "id": item.id,
+                    "product": item.product.name,
+                    "image": item.product.primary_image,
+                    "variant": item.variant.attributes if item.variant else None,
+                    "quantity": item.quantity,
+                    "price": item.price,
+                    "total": item.total_price
+                })
+                total += item.total_price
+
+            return Response({
+                "status": True,
+                "data": data,
+                "cart_total": total
+            })
+
+        except Exception as e:
+            return Response({"status": False, "message": str(e)}, status=400)
+        
+
+class UpdateCartAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, cart_id):
+        try:
+            customer = request.user.customer_profile
+            quantity = int(request.data.get("quantity"))
+
+            cart_item = AddToCart.objects.get(id=cart_id, customer=customer)
+            cart_item.quantity = quantity
+            cart_item.save()
+
+            return Response({"status": True, "message": "Cart updated"})
+
+        except Exception as e:
+            return Response({"status": False, "message": str(e)}, status=400)
+        
+
+class RemoveCartAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, cart_id):
+        try:
+            customer = request.user.customer_profile
+
+            cart_item = AddToCart.objects.get(id=cart_id, customer=customer)
+            cart_item.delete()
+
+            return Response({"status": True, "message": "Removed from cart"})
+
+        except Exception as e:
+            return Response({"status": False, "message": str(e)}, status=400)
+        
+
+
+class AddToWishlistAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            customer = request.user.customer_profile
+            product_id = request.data.get("product_id")
+
+            product = get_object_or_404(Product, id=product_id)
+
+            obj, created = Wishlist.objects.get_or_create(
+                customer=customer,
+                product=product
+            )
+
+            if not created:
+                return Response({
+                    "status": False,
+                    "message": "Already in wishlist"
+                }, status=400)
+
+            return Response({
+                "status": True,
+                "message": "Added to wishlist"
+            })
+
+        except Exception as e:
+            return Response(
+                {"status": False, "message": str(e)},
+                status=500
+            )
+        
+
+
+class WishlistAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            customer = request.user.customer_profile
+
+            items = Wishlist.objects.filter(customer=customer).select_related("product")
+
+            data = []
+
+            for item in items:
+                p = item.product
+
+                data.append({
+                    "id": item.id,
+                    "product_id": p.id,
+                    "slug": p.slug,
+                    "name": p.name,
+                    "price": p.price,
+                    "discount_price": p.discount_price,
+                    "image": p.primary_image,
+                })
+
+            return Response({
+                "status": True,
+                "data": data
+            })
+
+        except Exception as e:
+            return Response(
+                {"status": False, "message": str(e)},
+                status=500
+            )
+        
+
+class RemoveWishlistAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, wishlist_id):
+        try:
+            customer = request.user.customer_profile
+
+            item = get_object_or_404(
+                Wishlist,
+                id=wishlist_id,
+                customer=customer
+            )
+
+            item.delete()
+
+            return Response({
+                "status": True,
+                "message": "Removed from wishlist"
+            })
+
+        except Exception as e:
+            return Response(
+                {"status": False, "message": str(e)},
+                status=500
+            )
+        
+
+
 
 
 # class UnifiedLandingProductAPIView(views.APIView):
@@ -378,426 +820,3 @@ class CategoryAPIViews(views.APIView):
 
 
 
-
-
-
-
-# otp/views.py
-import os
-class SendOTPAPIView(APIView):
-    permission_classes = [permissions.AllowAny]
-    
-    def get_phone_number(self, request):
-        phone = request.data.get("phone", "").strip()
-        phone = phone.strip()
-        if not phone.startswith("88"):
-            phone = "88" + phone
-        return phone
-    
-    def send_message(self, phone, otp):
-        url = "https://console.smsq.global/api/v3/SendSMS"
-        payload = {
-            "senderId": os.getenv("sender_id"),
-            "is_Unicode": True,
-            "is_Flash": False,
-            "message": f"Number Verification OTP {otp} for PencilwoodBD. Do not share this OTP with anyone.",
-            "mobileNumbers": phone,
-            "apiKey": os.getenv("api_key"),
-            "clientId": os.getenv("client_id")
-        }
-        response = requests.post(url, json=payload)
-        response.raise_for_status()
-        return response.json()
-    
-    def post(self, request):
-        phone = self.get_phone_number(request)
-        otp = str(random.randint(100000, 999999))
-        try:
-            with transaction.atomic():
-                response = self.send_message(phone, otp)
-                if (
-                    response.get("ErrorCode") == 0 and
-                    response.get("Data") and
-                    response["Data"][0].get("MessageErrorCode") == 0 and
-                    response["Data"][0].get("MessageErrorDescription") == "Success"
-                ):
-                    OTPVerification.objects.create(phone=phone, otp=otp)
-                    return Response({"success": True, "message": "OTP Sent"})
-                else:
-                    return Response({"success": False, "message": "OTP Sending Failed", "response": response})
-        except Exception as e:
-            return Response({"success": False, "message": str(e)})
-        
-
-class VerifyOTPAPIView(APIView):
-    permission_classes = [permissions.AllowAny]
-    
-    def get_phone_number(self, request):
-        phone = request.data.get("phone", "").strip()
-        phone = phone.strip()
-        if not phone.startswith("88"):
-            phone = "88" + phone
-        return phone
-    
-    def post(self, request):
-        phone = self.get_phone_number(request)
-        otp = request.data.get("otp")
-        try:
-            otp_obj = OTPVerification.objects.filter(phone=phone).last()
-            if not otp_obj:
-                return Response({"verified": False, "message": "No OTP found"})
-            if otp_obj.is_expired():
-                return Response({"verified": False, "message": "OTP expired"})
-            if otp_obj.otp != otp:
-                return Response({"verified": False, "message": "Invalid OTP"})
-            otp_obj.is_verified = True
-            otp_obj.save()
-            return Response({"verified": True})
-        except Exception as e:
-            return Response({"verified": False, "message": str(e)})
-
-
-
-
-
-
-
-
-
-
-class ProductPagination(PageNumberPagination):
-    page_size = 10
-
-
-class CategoryListAPIView(APIView):
-    permission_classes = [AllowAny]
-
-    def get(self, request):
-        parent = request.query_params.get("parent")
-
-        qs = Category.objects.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE)
-
-        if parent:
-            qs = qs.filter(parent_id=parent)
-        else:
-            qs = qs.filter(parent__isnull=True)
-
-        return Response({
-            "status": True,
-            "data": [
-                {
-                    "id": c.id,
-                    "name": c.name,
-                    "slug": c.slug,
-                    "icon": c.icon,
-                    "banner": c.banner_image.url if c.banner_image else None
-                } for c in qs
-            ]
-        })
-
-
-class ProductListAPIView(APIView):
-    permission_classes = [AllowAny]
-
-    def get(self, request):
-        qs = Product.objects.filter(
-            status=CATEGORY_PRODUCT_STATUS.ACTIVE
-        ).select_related("category").prefetch_related("images", "variants")
-
-        # FILTERS
-        category = request.query_params.get("category")
-        search = request.query_params.get("search")
-        min_price = request.query_params.get("min_price")
-        max_price = request.query_params.get("max_price")
-
-        if category:
-            qs = qs.filter(category_id=category)
-
-        if search:
-            qs = qs.filter(name__icontains=search)
-
-        if min_price:
-            qs = qs.filter(price__gte=min_price)
-
-        if max_price:
-            qs = qs.filter(price__lte=max_price)
-
-        # SORTING
-        sort = request.query_params.get("sort")
-
-        if sort == "price_low":
-            qs = qs.order_by("price")
-        elif sort == "price_high":
-            qs = qs.order_by("-price")
-        elif sort == "newest":
-            qs = qs.order_by("-created_at")
-        else:
-            qs = qs.order_by("-id")
-
-        # PAGINATION
-        paginator = ProductPagination()
-        page = paginator.paginate_queryset(qs, request)
-
-        return paginator.get_paginated_response({
-            "status": True,
-            "data": [
-                {
-                    "id": p.id,
-                    "name": p.name,
-                    "price": p.price,
-                    "discount_price": p.discount_price,
-                    "image": p.primary_image,
-                    "has_variants": p.has_variants
-                }
-                for p in page
-            ]
-        })
-
-
-class ProductDetailAPIView(APIView):
-    permission_classes = [AllowAny]
-
-    def get(self, request, slug):
-        try:
-            p = Product.objects.prefetch_related(
-                "images",
-                "variants",
-                "variants__images"
-            ).filter(slug=slug).first()
-
-            if not p:
-                return Response({"status": False}, status=404)
-
-            return Response({
-                "status": True,
-                "data": {
-                    "id": p.id,
-                    "name": p.name,
-                    "price": p.price,
-                    "discount_price": p.discount_price,
-                    "description": p.short_description,
-                    "images": [
-                        i.image.url for i in p.images.all() if i.image
-                    ],
-                    "variants": [
-                        {
-                            "id": v.id,
-                            "attributes": v.attributes,
-                            "price": v.price,
-                            "discount_price": v.discount_price,
-                            "stock": v.inventory_quantity
-                        }
-                        for v in p.variants.all()
-                    ]
-                }
-            })
-
-        except Exception as e:
-            return Response(
-                {"status": False, "message": str(e)},
-                status=500
-            )
-        
-    
-class AddToCartAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        try:
-            with transaction.atomic():
-                customer = request.user.customer_profile
-
-                product_id = request.data.get("product_id")
-                variant_id = request.data.get("variant_id")
-                quantity = int(request.data.get("quantity", 1))
-
-                product = Product.objects.get(id=product_id)
-                variant = None
-
-                if product.has_variants:
-                    if not variant_id:
-                        return Response({"status": False, "message": "Variant required"}, status=400)
-
-                    variant = ProductVariant.objects.get(id=variant_id)
-
-                cart_item, created = AddToCart.objects.get_or_create(
-                    customer=customer,
-                    product=product,
-                    variant=variant,
-                    defaults={"quantity": quantity}
-                )
-
-                if not created:
-                    cart_item.quantity += quantity
-                    cart_item.save()
-
-                return Response({
-                    "status": True,
-                    "message": "Added to cart"
-                })
-
-        except Exception as e:
-            return Response({"status": False, "message": str(e)}, status=400)
-        
-
-class CartListAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        try:
-            customer = request.user.customer_profile
-
-            cart_items = AddToCart.objects.filter(customer=customer)
-
-            data = []
-            total = Decimal("0")
-
-            for item in cart_items:
-                data.append({
-                    "id": item.id,
-                    "product": item.product.name,
-                    "variant": item.variant.attributes if item.variant else None,
-                    "quantity": item.quantity,
-                    "price": item.price,
-                    "total": item.total_price
-                })
-                total += item.total_price
-
-            return Response({
-                "status": True,
-                "data": data,
-                "cart_total": total
-            })
-
-        except Exception as e:
-            return Response({"status": False, "message": str(e)}, status=400)
-        
-
-class UpdateCartAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, cart_id):
-        try:
-            customer = request.user.customer_profile
-            quantity = int(request.data.get("quantity"))
-
-            cart_item = AddToCart.objects.get(id=cart_id, customer=customer)
-            cart_item.quantity = quantity
-            cart_item.save()
-
-            return Response({"status": True, "message": "Cart updated"})
-
-        except Exception as e:
-            return Response({"status": False, "message": str(e)}, status=400)
-        
-
-class RemoveCartAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def delete(self, request, cart_id):
-        try:
-            customer = request.user.customer_profile
-
-            cart_item = AddToCart.objects.get(id=cart_id, customer=customer)
-            cart_item.delete()
-
-            return Response({"status": True, "message": "Removed from cart"})
-
-        except Exception as e:
-            return Response({"status": False, "message": str(e)}, status=400)
-        
-
-
-class AddToWishlistAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        try:
-            customer = request.user.customer_profile
-            product_id = request.data.get("product_id")
-
-            product = get_object_or_404(Product, id=product_id)
-
-            obj, created = Wishlist.objects.get_or_create(
-                customer=customer,
-                product=product
-            )
-
-            if not created:
-                return Response({
-                    "status": False,
-                    "message": "Already in wishlist"
-                }, status=400)
-
-            return Response({
-                "status": True,
-                "message": "Added to wishlist"
-            })
-
-        except Exception as e:
-            return Response(
-                {"status": False, "message": str(e)},
-                status=500
-            )
-        
-
-
-class WishlistAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        try:
-            customer = request.user.customer_profile
-
-            items = Wishlist.objects.filter(customer=customer).select_related("product")
-
-            data = []
-
-            for item in items:
-                p = item.product
-                data.append({
-                    "id": item.id,
-                    "product_id": p.id,
-                    "name": p.name,
-                    "price": p.price,
-                    "discount_price": p.discount_price,
-                    "image": p.primary_image
-                })
-
-            return Response({
-                "status": True,
-                "data": data
-            })
-
-        except Exception as e:
-            return Response(
-                {"status": False, "message": str(e)},
-                status=500
-            )
-        
-
-class RemoveWishlistAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def delete(self, request, wishlist_id):
-        try:
-            customer = request.user.customer_profile
-
-            item = get_object_or_404(
-                Wishlist,
-                id=wishlist_id,
-                customer=customer
-            )
-
-            item.delete()
-
-            return Response({
-                "status": True,
-                "message": "Removed from wishlist"
-            })
-
-        except Exception as e:
-            return Response(
-                {"status": False, "message": str(e)},
-                status=500
-            )

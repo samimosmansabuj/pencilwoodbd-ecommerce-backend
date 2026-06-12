@@ -25,6 +25,8 @@ global_api_router = DefaultRouter()
 
 app_name = "api"
 
+
+
 urlpatterns = [
     path("api/category/", CategoryAPIViews.as_view(), name="category_api"),
     # path("api/product/", CradleProductViews.as_view(), name="product_api"),
@@ -59,4 +61,3 @@ urlpatterns = [
     path('wishlist/remove/<int:wishlist_id>/', RemoveWishlistAPIView.as_view()),
 
 ]
-
