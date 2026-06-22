@@ -530,6 +530,7 @@ class OrderDetailAPIView(APIView):
                 },
                 status=500
             )
+
 class PaymentMethodListAPIView(APIView):
     permission_classes = [AllowAny]
 
