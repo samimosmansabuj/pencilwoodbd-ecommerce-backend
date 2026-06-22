@@ -20,7 +20,7 @@ from django.views.generic import CreateView, UpdateView, DeleteView, ListView
 
 
 # Models
-from order.models import Order
+from order.models import Order, OrderItem
 from product.models import Product, Category, ProductImage, ProductVideo, Attribute, AttributeValue, ProductVariant
 from authentication.models import CustomUser
 from site_app.models import DeliveryOption
@@ -47,20 +47,39 @@ class DashboardView(LoginRequiredMixin, View):
     def get_today_sales_amount(self, orders):
         today = timezone.now().date()
         return orders.filter(created_at__date=today).aggregate(
-            total=Coalesce(Sum(F("order_items__discount_total_price") + F("shipping_total")), Value(0), output_field=DecimalField(max_digits=12, decimal_places=2))
+            total=Coalesce(Sum(
+                F("order_items__discount_price") * F("order_items__quantity") + F("shipping_total")
+            ), Value(0), output_field=DecimalField(max_digits=12, decimal_places=2))
         )["total"]
 
     def new_orders_count(self, orders):
         return orders.filter(status=STATUS.NEW).count()
 
     def get_total_order_amount(self, orders):
-        return orders.aggregate(
-            total_amount=Coalesce(
-                Sum(F("order_items__discount_total_price") + F("shipping_total")),
+        items_total = OrderItem.objects.filter(order__in=orders).aggregate(
+            total=Coalesce(
+                Sum(F("discount_price") * F("quantity")),
                 Value(0),
                 output_field=DecimalField(max_digits=12, decimal_places=2),
             )
-        )["total_amount"]
+        )["total"]
+
+        shipping_total = orders.aggregate(
+            total=Coalesce(
+                Sum("shipping_total"), Value(0),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            )
+        )["total"]
+
+        final_total = items_total + shipping_total
+        return final_total
+        # return orders.aggregate(
+        #     total_amount=Coalesce(
+        #         Sum(F("order_items__discount_total_price") + F("shipping_total")),
+        #         Value(0),
+        #         output_field=DecimalField(max_digits=12, decimal_places=2),
+        #     )
+        # )["total_amount"]
     
     def get_status_amounts(self, orders):
         """Return a dict with total Tk per status"""
@@ -68,7 +87,7 @@ class DashboardView(LoginRequiredMixin, View):
         for status_key, _ in STATUS.choices:
             amounts[status_key] = orders.filter(status=status_key).aggregate(
                 total=Coalesce(
-                    Sum(F("order_items__discount_total_price") + F("shipping_total")),
+                    Sum(F("order_items__discount_price") * F("order_items__quantity") + F("shipping_total")),
                     Value(0),
                     output_field=DecimalField(max_digits=12, decimal_places=2)
                 )
@@ -77,7 +96,7 @@ class DashboardView(LoginRequiredMixin, View):
         # Add Returned + Refund combined total
         amounts["returned_refund"] = orders.filter(status__in=["returned", "refund"]).aggregate(
             total=Coalesce(
-                Sum(F("order_items__discount_total_price") + F("shipping_total")),
+                Sum(F("order_items__discount_price") * F("order_items__quantity") + F("shipping_total")),
                 Value(0),
                 output_field=DecimalField(max_digits=12, decimal_places=2)
             )
