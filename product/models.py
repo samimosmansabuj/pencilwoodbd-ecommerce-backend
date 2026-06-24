@@ -367,3 +367,72 @@ class Wishlist(models.Model):
     def __str__(self):
         return f"{self.customer} - {self.product}"
 
+
+
+
+
+class ProductLandingPage(models.Model):
+    title = models.CharField(max_length=255)
+    slug = models.SlugField(unique=True)
+
+    code = models.CharField(max_length=30, unique=True, db_index=True)
+    subdomain = models.CharField(max_length=100, unique=True, help_text="cradle.pencilwoodbd.com")
+    description = models.TextField(blank=True, null=True)
+    image = models.ImageField(upload_to="landing/", blank=True, null=True)
+    main_product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="landing_main_product")
+    products = models.ManyToManyField(Product, blank=True, related_name="landing_products")
+    need_otp_verified = models.BooleanField(default=False)
+
+    # Status
+    is_active = models.BooleanField(default=True)
+    need_otp_verified = models.BooleanField(default=False)
+
+    # SEO
+    meta_title = models.CharField(max_length=255, blank=True, null=True)
+    meta_description = models.TextField(blank=True, null=True)
+    meta_keywords = models.TextField(blank=True, null=True)
+    og_image = models.ImageField(upload_to="landing/seo/", blank=True, null=True)
+
+    # Tracking Codes
+    facebook_pixel_id = models.CharField(max_length=100, blank=True, null=True)
+    tiktok_pixel_id = models.CharField(max_length=100, blank=True, null=True)
+    google_analytics_id = models.CharField(max_length=100, blank=True, null=True)
+    gtm_id = models.CharField(max_length=100, blank=True, null=True)
+
+    # Advanced Scripts
+    head_script = models.TextField( blank=True, null=True)
+    body_start_script = models.TextField( blank=True, null=True)
+    footer_script = models.TextField(blank=True,null=True)
+
+    # Conversion API
+    facebook_access_token = models.TextField(blank=True, null=True)
+    facebook_test_code = models.CharField(max_length=100, blank=True, null=True)
+
+    # Shipping
+    shipping_charge = models.JSONField(blank=True, null=True)
+
+    # Theme
+    theme_config = models.JSONField(blank=True, null=True)
+
+    # Order Form Config
+    order_form_config = models.JSONField(blank=True, null=True)
+
+    # Upsell Config
+    upsell_products = models.ManyToManyField(Product, blank=True, related_name="landing_upsells")
+
+    # Marketing Data
+    marketing_settings = models.JSONField(blank=True, null=True)
+
+    # Analytics
+    total_views = models.PositiveBigIntegerField(default=0)
+    total_orders = models.PositiveBigIntegerField(default=0)
+    total_revenue = models.DecimalField( max_digits=15, decimal_places=2, default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.title
+
+
+
