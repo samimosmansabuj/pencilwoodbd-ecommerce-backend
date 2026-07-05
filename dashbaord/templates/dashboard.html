@@ -191,6 +191,18 @@
 
 
   <div class="lobibox-notify-wrapper bottom right"></div>
+  {% include 'db_product/modal/add_product_modal.html' %}
+  <script>
+    document.addEventListener("click", function (e) {
+        const link = e.target.closest("a[href]");
+        if (!link) return;
+        if (link.href && !link.href.startsWith("javascript:") && link.getAttribute("data-bs-toggle") !== "modal") {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            window.location.assign(link.href);
+        }
+    }, true);
+    </script>
 </body>
 {% endblock for_invoice %}
 

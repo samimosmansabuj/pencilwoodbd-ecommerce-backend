@@ -32,6 +32,12 @@ class STATUS(models.TextChoices):
     RETURNED = "returned"
     REFUNDED = "refunded"
 
+class ORDER_REQUEST_STATUS(models.TextChoices):
+    PENDING = "pending", "Pending"
+    APPROVED = "approved", "Approved"
+    CANCELLED = "cancelled", "Cancelled"
+    CONVERTED = "converted", "Converted"
+
 class REVIEW_STATUS(models.TextChoices):
     PENDING = "Pending"
     APPROVED = "Approved"

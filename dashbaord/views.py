@@ -17,10 +17,12 @@ from django.utils import timezone
 from django.urls import reverse_lazy
 
 from django.views.generic import CreateView, UpdateView, DeleteView, ListView
+from decimal import Decimal, InvalidOperation
+import json as pyjson
 
 
 # Models
-from order.models import Order
+from order.models import Order, OrderRequest, OrderItem, OrderRequestItem
 from product.models import Product, Category, ProductImage, ProductVideo, Attribute, AttributeValue, ProductVariant
 from authentication.models import CustomUser
 from site_app.models import DeliveryOption
@@ -33,7 +35,7 @@ from django.forms import modelformset_factory
 from order.utils import SteadFastParcelAPI
 
 # Choices
-from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE
+from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, PAYMENT_TYPE, PAYMENT_STATUS
 
 
 # ------------------Dashboard--------
@@ -52,6 +54,11 @@ class DashboardView(LoginRequiredMixin, View):
 
     def new_orders_count(self, orders):
         return orders.filter(status=STATUS.NEW).count()
+    
+    def new_order_request_count(self):
+        return OrderRequest.objects.filter(
+            status=ORDER_REQUEST_STATUS.PENDING
+        ).count()
 
     def get_total_order_amount(self, orders):
         return orders.aggregate(
@@ -98,6 +105,7 @@ class DashboardView(LoginRequiredMixin, View):
             "new_orders_count": self.new_orders_count(orders),
             "status_amounts": self.get_status_amounts(orders),
             "total_orders": orders.count(),
+            "new_order_request_count": self.new_order_request_count(),
         }
 
         if not is_staff:
@@ -156,177 +164,387 @@ class ProductListView(LoginRequiredMixin, View):
 
     def get(self, request, *args, **kwargs):
         products = Product.objects.annotate(variant_count=Count("variants"))
-        return render(request, "db_product/product_list.html", {"products": products})
+        categories = Category.objects.all()
+        attributes = Attribute.objects.prefetch_related("values").all()
+        attributes_data = [
+            {"id": a.id, "name": a.name, "values": [{"id": v.id, "value": v.value} for v in a.values.all()]}
+            for a in attributes
+        ]
+
+        return render(request, "db_product/product_list.html", {
+            "products": products,
+            "categories": categories,
+            "attributes": attributes,
+            "attributes_data": attributes_data,
+            "existing_variants_data": [],
+        })
+
+def parse_decimal(value, default=Decimal("0")):
+    """Safely parse a POST value into Decimal, falling back on blank/invalid input."""
+    if value is None or str(value).strip() == "":
+        return default
+    try:
+        return Decimal(str(value))
+    except InvalidOperation:
+        return default
+
+
+def parse_int(value, default=0):
+    if value is None or str(value).strip() == "":
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 @login_required(login_url="admin_login")
 def add_product(request):
-    ImageFormSet = modelformset_factory(ProductImage, form=ProductImageForm, extra=3, can_delete=True)
-    VideoFormSet = modelformset_factory(ProductVideo, form=ProductVideoForm, extra=1, can_delete=True)
 
-    attributes = Attribute.objects.prefetch_related("attributevalue_set").all()  # for variant selection
+    attributes = Attribute.objects.prefetch_related("values").all()
+    attributes_data = [
+        {"id": a.id, "name": a.name, "values": [{"id": v.id, "value": v.value} for v in a.values.all()]}
+        for a in attributes
+    ]
 
     if request.method == "POST":
-        product_form = ProductForm(request.POST)
-        image_formset = ImageFormSet(request.POST, request.FILES, queryset=ProductImage.objects.none())
-        video_formset = VideoFormSet(request.POST, request.FILES, queryset=ProductVideo.objects.none())
+        try:
+            with transaction.atomic():
 
-        variant_data = request.POST.getlist("variants")  # expects JSON or structured variant input
+                category = None
+                category_id = request.POST.get("category")
 
-        if product_form.is_valid() and image_formset.is_valid() and video_formset.is_valid():
-            try:
-                with transaction.atomic():
-                    product = product_form.save()
+                if category_id:
+                    category = Category.objects.filter(id=category_id).first()
 
-                    # Images
-                    for img_form in image_formset.cleaned_data:
-                        if img_form and not img_form.get("DELETE", False):
-                            ProductImage.objects.create(
-                                product=product,
-                                image=img_form.get("image"),
-                                role=img_form.get("role","gallery"),
-                                position=img_form.get("position",0)
-                            )
+                # ---- Tags (safe parse) ----
+                try:
+                    tags = json.loads(request.POST.get("tags") or "[]")
+                    if not isinstance(tags, list):
+                        tags = []
+                except json.JSONDecodeError:
+                    tags = []
 
-                    # Videos
-                    for vid_form in video_formset.cleaned_data:
-                        if vid_form and vid_form.get("video"):
-                            ProductVideo.objects.create(
-                                product=product,
-                                video=vid_form.get("video")
-                            )
+                product = Product.objects.create(
+                    name=request.POST.get("name", "").strip(),
+                    category=category,
+                    short_description=request.POST.get("short_description", ""),
+                    details=request.POST.get("details", ""),
+                    price=parse_decimal(request.POST.get("price")),
+                    discount_price=parse_decimal(request.POST.get("discount_price")),
+                    inventory_quantity=parse_int(request.POST.get("inventory_quantity")),
+                    status=request.POST.get("status", CATEGORY_PRODUCT_STATUS.DRAFT),
+                    tags=tags,
+                )
 
-                    # Variants (optional)
-                    if variant_data:
-                        variant_fields = [f.name for f in ProductVariant._meta.fields 
-                                        if f.name not in ["id", "product", "sku", "created_at", "updated_at", "inventory_quantity"]]
-                        for variant_json in variant_data:
-                            attr_values = json.loads(variant_json)  # e.g., {"size":1, "color":4}
-                            variant_kwargs = {k: v for k, v in attr_values.items() if k in variant_fields}
-                            ProductVariant.objects.create(
-                                product=product,
-                                sku=f"{product.slug}-{random.randint(1000,9999)}",
-                                price=product.price,
-                                inventory_quantity=product.inventory_quantity,  # initialize same as product
-                                **variant_kwargs
-                            )
-                    # Sync product inventory
-                    product.inventory_quantity = sum(v.inventory_quantity for v in product.variants.filter(is_active=True))
+                if not product.name:
+                    raise ValueError("Product title is required.")
+
+                # ---------------- Images ----------------
+                image_files = request.FILES.getlist("images")
+                primary_image_id = request.POST.get("primary_image_index")  # optional, index-based
+
+                for index, image in enumerate(image_files):
+                    role = "primary" if (
+                        primary_image_id is not None
+                        and str(index) == str(primary_image_id)
+                    ) else "gallery"
+
+                    ProductImage.objects.create(
+                        product=product,
+                        image=image,
+                        role=role,
+                        position=index,
+                    )
+
+                # If nothing was explicitly marked primary, promote the first image
+                if image_files and not product.images.filter(role="primary").exists():
+                    first_img = product.images.order_by("position").first()
+                    if first_img:
+                        first_img.role = "primary"
+                        first_img.save(update_fields=["role"])
+
+                # ---------------- Video ----------------
+                video = request.FILES.get("video")
+                if video:
+                    ProductVideo.objects.create(product=product, video=video)
+
+                # ---------------- Variants ----------------
+                variant_data = request.POST.getlist("variants")
+
+                for variant_json in variant_data:
+                    try:
+                        data = json.loads(variant_json)
+                    except json.JSONDecodeError:
+                        continue  # skip malformed entries instead of crashing the whole request
+
+                    variant_attrs = data.get("attributes") or {}
+                    if not variant_attrs:
+                        continue  # a variant with no attributes isn't meaningful
+
+                    ProductVariant.objects.create(
+                        product=product,
+                        attributes=variant_attrs,
+                        price=parse_decimal(data.get("price"), default=product.price),
+                        discount_price=parse_decimal(
+                            data.get("discount_price"), default=product.discount_price
+                        ),
+                        inventory_quantity=parse_int(data.get("inventory_quantity")),
+                    )
+
+                # ---------------- Recompute stock if variants exist ----------------
+                if product.has_variants:
+                    product.inventory_quantity = sum(
+                        v.inventory_quantity
+                        for v in product.variants.filter(is_active=True)
+                    )
                     product.save(update_fields=["inventory_quantity"])
 
-                    messages.success(request, "Product added successfully!")
-                    return redirect("product_list")
-            except Exception as e:
-                messages.error(request, f"Error saving product: {e}")
-        else:
-            messages.error(request, "Please correct the errors below")
-    else:
-        product_form = ProductForm()
-        image_formset = ImageFormSet(queryset=ProductImage.objects.none())
-        video_formset = VideoFormSet(queryset=ProductVideo.objects.none())
+                messages.success(request, "Product added successfully")
+                return redirect("product_list")
 
-    return render(request, "db_product/add_product.html", {
-        "product_form": product_form,
-        "image_formset": image_formset,
-        "video_formset": video_formset,
-        "attributes": attributes,
-    })
+        except ValueError as e:
+            messages.error(request, str(e))
+        except Exception as e:
+            messages.error(request, f"Failed to create product: {e}")
+
+    return render(
+        request,
+        "db_product/add_product.html",
+        {
+            "categories": Category.objects.all(),
+            "attributes": attributes,
+            "attributes_data": attributes_data,
+            "existing_variants_data": [],
+        },
+    )
 
 
 @login_required(login_url="admin_login")
 def product_update(request, pk):
-    product = get_object_or_404(Product, pk=pk)
-    variants = ProductVariant.objects.filter(product=product)
-    ImageFormSet = modelformset_factory(ProductImage, form=ProductImageForm, extra=0, can_delete=True)
-    VideoFormSet = modelformset_factory(ProductVideo, form=ProductVideoForm, extra=0, can_delete=True)
 
-    attributes = Attribute.objects.prefetch_related("attributevalue_set").all()
+    product = get_object_or_404(Product, pk=pk)
+
+    attributes = Attribute.objects.prefetch_related("values").all()
+    attributes_data = [
+        {"id": a.id, "name": a.name, "values": [{"id": v.id, "value": v.value} for v in a.values.all()]}
+        for a in attributes
+    ]
+
+    existing_variants_data = [
+        {
+            "id": v.id,
+            "attributes": v.attributes,
+            "price": str(v.price),
+            "discount_price": str(v.discount_price),
+            "inventory_quantity": v.inventory_quantity,
+            "is_active": v.is_active,
+        }
+        for v in product.variants.all()
+    ]
 
     if request.method == "POST":
-        product_form = ProductForm(request.POST, instance=product)
-        image_formset = ImageFormSet(request.POST, request.FILES, queryset=ProductImage.objects.filter(product=product))
-        video_formset = VideoFormSet(request.POST, request.FILES, queryset=ProductVideo.objects.filter(product=product))
-        variant_data = request.POST.getlist("variants")  # same as add
 
-        if product_form.is_valid() and image_formset.is_valid() and video_formset.is_valid():
-            try:
-                with transaction.atomic():
-                    product_form.save()
+        try:
 
-                    # Images
-                    for form in image_formset:
-                        if form.cleaned_data.get("DELETE") and form.instance.pk:
-                            form.instance.delete()
-                        else:
-                            img = form.save(commit=False)
-                            img.product = product
-                            img.save()
+            with transaction.atomic():
 
-                    # Videos
-                    for form in video_formset:
-                        if form.cleaned_data.get("DELETE") and form.instance.pk:
-                            form.instance.delete()
-                        else:
-                            vid = form.save(commit=False)
-                            vid.product = product
-                            vid.save()
+                category = None
 
-                    # Variants
-                    existing_variants = {v.id: v for v in variants}
-                    for variant_json in variant_data:
-                        v_data = json.loads(variant_json)
-                        v_id = v_data.get("id")
-                        if v_id and v_id in existing_variants:
-                            variant = existing_variants[v_id]
-                            variant_fields = [f.name for f in ProductVariant._meta.fields 
-                                            if f.name not in ["id", "product", "sku", "created_at", "updated_at", "inventory_quantity"]]
-                            # update all fields dynamically
-                            for field in variant_fields:
-                                if field in v_data:
-                                    setattr(variant, field, v_data[field])
-                            variant.price = v_data.get("price", variant.price)
-                            variant.save()
-                        else:
-                            # optional attributes handled dynamically
-                            variant_fields = [f.name for f in ProductVariant._meta.fields 
-                                            if f.name not in ["id", "product", "sku", "created_at", "updated_at", "inventory_quantity"]]
+                category_id = request.POST.get("category")
 
-                            attrs = {k: v for k, v in v_data.items() if k in variant_fields}
-                            ProductVariant.objects.create(
-                                product=product,
-                                sku=f"{product.slug}-{random.randint(1000,9999)}",
-                                price=v_data.get("price", product.price),
-                                **attrs
-                            )
+                if category_id:
+                    category = Category.objects.filter(
+                        id=category_id
+                    ).first()
 
-                    # Sync product inventory BEFORE returning
-                    product.inventory_quantity = sum(
-                        v.inventory_quantity for v in product.variants.filter(is_active=True)
+                product.name = request.POST.get("name")
+                product.category = category
+                product.short_description = request.POST.get(
+                    "short_description"
+                )
+                product.details = request.POST.get("details")
+                product.price = request.POST.get("price") or 0
+                product.discount_price = request.POST.get(
+                    "discount_price"
+                ) or 0
+
+                product.status = request.POST.get(
+                    "status",
+                    product.status
+                )
+
+                product.tags = json.loads(
+                    request.POST.get("tags", "[]")
+                )
+
+                product.save()
+
+                # ---------------- Images ----------------
+
+                delete_images = request.POST.getlist(
+                    "delete_images"
+                )
+
+                if delete_images:
+                    ProductImage.objects.filter(
+                        id__in=delete_images,
+                        product=product
+                    ).delete()
+
+                image_files = request.FILES.getlist("images")
+
+                start_position = product.images.count()
+
+                for index, image in enumerate(image_files):
+                    ProductImage.objects.create(
+                        product=product,
+                        image=image,
+                        role="gallery",
+                        position=start_position + index
                     )
-                    product.save(update_fields=["inventory_quantity"])
 
-                    messages.success(request, "Product updated successfully")
-                    return redirect("product_list")
+                # ---------------- Video ----------------
 
-            except Exception as e:
-                messages.error(request, str(e))
-        else:
-            messages.error(request, "Please fix the errors below")
-    else:
-        product_form = ProductForm(instance=product)
-        image_formset = ImageFormSet(queryset=ProductImage.objects.filter(product=product))
-        video_formset = VideoFormSet(queryset=ProductVideo.objects.filter(product=product))
+                delete_video = request.POST.get(
+                    "delete_video"
+                )
 
-    return render(request, "db_product/add_product.html", {
-        "product_form": product_form,
-        "image_formset": image_formset,
-        "video_formset": video_formset,
-        "is_update": True,
-        "product": product,
-        "variants": variants,
-        "attributes": attributes,
-    })
+                if delete_video:
+                    ProductVideo.objects.filter(
+                        id=delete_video,
+                        product=product
+                    ).delete()
 
+                video = request.FILES.get("video")
+
+                if video:
+
+                    ProductVideo.objects.filter(
+                        product=product
+                    ).delete()
+
+                    ProductVideo.objects.create(
+                        product=product,
+                        video=video
+                    )
+
+                # ---------------- Variants ----------------
+
+                variant_data = request.POST.getlist(
+                    "variants"
+                )
+
+                existing_ids = []
+
+                for variant_json in variant_data:
+
+                    data = json.loads(variant_json)
+
+                    variant_id = data.get("id")
+
+                    if variant_id:
+
+                        variant = ProductVariant.objects.get(
+                            id=variant_id,
+                            product=product
+                        )
+
+                        variant.attributes = data.get(
+                            "attributes",
+                            {}
+                        )
+
+                        variant.price = data.get(
+                            "price",
+                            variant.price
+                        )
+
+                        variant.discount_price = data.get(
+                            "discount_price",
+                            variant.discount_price
+                        )
+
+                        variant.inventory_quantity = data.get(
+                            "inventory_quantity",
+                            variant.inventory_quantity
+                        )
+
+                        variant.save()
+
+                        existing_ids.append(
+                            variant.id
+                        )
+
+                    else:
+
+                        variant = ProductVariant.objects.create(
+                            product=product,
+                            attributes=data.get(
+                                "attributes",
+                                {}
+                            ),
+                            price=data.get(
+                                "price",
+                                product.price
+                            ),
+                            discount_price=data.get(
+                                "discount_price",
+                                product.discount_price
+                            ),
+                            inventory_quantity=data.get(
+                                "inventory_quantity",
+                                0
+                            )
+                        )
+
+                        existing_ids.append(
+                            variant.id
+                        )
+
+                ProductVariant.objects.filter(
+                    product=product
+                ).exclude(
+                    id__in=existing_ids
+                ).delete()
+
+                if product.has_variants:
+
+                    product.inventory_quantity = sum(
+                        v.inventory_quantity
+                        for v in product.variants.filter(
+                            is_active=True
+                        )
+                    )
+
+                    product.save(
+                        update_fields=["inventory_quantity"]
+                    )
+
+                messages.success(
+                    request,
+                    "Product updated successfully"
+                )
+
+                return redirect("product_list")
+
+        except Exception as e:
+
+            messages.error(request, str(e))
+            
+    return render(
+        request,
+        "db_product/add_product.html",
+        {
+            "product": product,
+            "variants": product.variants.all(),
+            "categories": Category.objects.all(),
+            "attributes": attributes,
+            "attributes_data": attributes_data,
+            "existing_variants_data": existing_variants_data,
+            "is_update": True,
+        }
+    )
 
 class ProductDeleteView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -451,143 +669,365 @@ def delete_category(request, id):
 
 
 # ------------------Order section CBV-------------
+class AddOrderView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+    template_name = "db_order/add_order.html"
+
+    def get(self, request):
+        context = {
+            "products": Product.objects.prefetch_related(
+                "variants"
+            ).order_by("name"),
+            "categories": Category.objects.order_by("name"),
+            "payment_types": PAYMENT_TYPE.choices,
+            "delivery_types": DELIVERY_TYPE.choices,
+            "status_choices": STATUS.choices,
+        }
+
+        return render(
+            request,
+            self.template_name,
+            context,
+        )
+
+    def post(self, request):
+
+        try:
+
+            with transaction.atomic():
+
+                data = request.POST
+
+                shipping_address = data.get(
+                    "shipping_address",
+                    ""
+                ).strip()
+
+                note = data.get(
+                    "note",
+                    ""
+                ).strip()
+
+                payment_type = data.get(
+                    "payment_type",
+                    PAYMENT_TYPE.COD,
+                )
+
+                delivery_type = data.get(
+                    "delivery_type",
+                    DELIVERY_TYPE.HOME_DELIVERY,
+                )
+
+                status = data.get(
+                    "status",
+                    STATUS.NEW,
+                )
+
+                try:
+                    shipping_total = Decimal(
+                        data.get(
+                            "shipping_total",
+                            "0",
+                        ) or "0"
+                    )
+                except (InvalidOperation, TypeError):
+                    shipping_total = Decimal("0")
+
+                try:
+                    items = json.loads(
+                        data.get(
+                            "items",
+                            "[]",
+                        )
+                    )
+                except json.JSONDecodeError:
+                    messages.error(
+                        request,
+                        "Invalid product data."
+                    )
+                    return redirect("add_order")
+
+                if not items:
+                    messages.error(
+                        request,
+                        "Please add at least one product.",
+                    )
+                    return redirect("add_order")
+
+                order = Order.objects.create(
+                    shipping_address=shipping_address,
+                    note=note,
+                    payment_type=payment_type,
+                    delivery_type=delivery_type,
+                    shipping_total=shipping_total,
+                    payment_status=PAYMENT_STATUS.Unpaid,
+                    status=status,
+                )
+
+                grand_total = shipping_total
+
+                for item in items:
+
+                    product = get_object_or_404(
+                        Product,
+                        id=item["product_id"],
+                    )
+
+                    variant = None
+
+                    if item.get("variant_id"):
+
+                        variant = get_object_or_404(
+                            ProductVariant,
+                            id=item["variant_id"],
+                            product=product,
+                        )
+
+                    quantity = max(
+                        int(item.get("quantity", 1)),
+                        1,
+                    )
+
+                    if variant:
+
+                        if variant.inventory_quantity < quantity:
+                            raise Exception(
+                                f"Insufficient stock for {product.name} ({variant})."
+                            )
+
+                        price = variant.price
+                        discount_price = variant.discount_price
+
+                    else:
+
+                        if product.inventory_quantity < quantity:
+                            raise Exception(
+                                f"Insufficient stock for {product.name}."
+                            )
+
+                        price = product.price
+                        discount_price = product.discount_price
+
+                    final_price = (
+                        discount_price
+                        if discount_price
+                        else price
+                    )
+
+                    line_total = final_price * quantity
+
+                    OrderItem.objects.create(
+                        order=order,
+                        product=product,
+                        variant=variant,
+                        quantity=quantity,
+                        price=price,
+                        discount_price=discount_price,
+                    )
+
+                    grand_total += line_total
+
+                order.total_cost = grand_total
+
+                order.save(
+                    update_fields=[
+                        "total_cost",
+                    ]
+                )
+
+                messages.success(
+                    request,
+                    f"Order {order.order_id} created successfully.",
+                )
+
+                return redirect(
+                    "order_list"
+                )
+
+        except Exception as e:
+
+            messages.error(
+                request,
+                str(e),
+            )
+
+            return redirect(
+                "add_order"
+            )
+
 class OrderView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
     def status_wise_order_count(self):
-        qs = Order.objects.values("status").annotate(total=Count("id"))
-        order_count = {status: 0 for status, _ in STATUS.choices}
+        qs = (
+            Order.objects
+            .values("status")
+            .annotate(total=Count("id"))
+        )
+
+        order_count = {
+            status: 0
+            for status, _ in STATUS.choices
+        }
+
         for row in qs:
             order_count[row["status"]] = row["total"]
+
         order_count["all"] = sum(order_count.values())
+
         return order_count
 
     def get_order_queryset(self, request):
+
         order_status = request.GET.get("status")
-        search = request.GET.get("q", "")
-        orders = Order.objects.all().order_by("-created_at")
-        
+        search = request.GET.get("q", "").strip()
+
         product_slug = request.GET.get("product")
         start_date = request.GET.get("start_date")
         end_date = request.GET.get("end_date")
 
-        if order_status and order_status in [x[0] for x in STATUS.choices]:
+        orders = (
+            Order.objects
+            .select_related("customer")
+            .prefetch_related(
+                "order_items",
+                "order_items__product",
+                "order_items__variant",
+            )
+            .order_by("-created_at")
+        )
+
+        valid_status = {
+            status
+            for status, _ in STATUS.choices
+        }
+
+        if order_status in valid_status:
             orders = orders.filter(status=order_status)
-        
+
         if product_slug:
-                orders = orders.filter(
-                    Q(order_items__variant__product__slug=product_slug) 
-                    | Q(order_items__product__slug=product_slug)                     
-                ).distinct()
-                    
+            orders = orders.filter(
+                Q(order_items__product__slug=product_slug)
+                |
+                Q(order_items__variant__product__slug=product_slug)
+            ).distinct()
+
         if start_date and end_date:
-            orders = orders.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
+            orders = orders.filter(
+                created_at__date__gte=start_date,
+                created_at__date__lte=end_date,
+            )
+
         elif start_date:
-            orders = orders.filter(created_at__date=start_date)
+            orders = orders.filter(
+                created_at__date=start_date,
+            )
+
         elif end_date:
-            orders = orders.filter(created_at__date__lte=end_date)
+            orders = orders.filter(
+                created_at__date__lte=end_date,
+            )
 
         if search:
-            search = search.strip()
             orders = orders.filter(
-                Q(order_id__icontains=search) |
-                Q(customer__name__icontains=search) |
-                Q(customer__phone__icontains=search) |
-                Q(shipping_address__icontains=search) |
-                Q(status__iexact=search) |
-                Q(payment_status__iexact=search) |
+                Q(order_id__icontains=search)
+                |
+                Q(customer__name__icontains=search)
+                |
+                Q(customer__phone__icontains=search)
+                |
+                Q(shipping_address__icontains=search)
+                |
+                Q(status__iexact=search)
+                |
+                Q(payment_status__iexact=search)
+                |
                 Q(delivery_type__iexact=search)
             ).distinct()
-            print("SEARCH QUERY:", search)
+
+        try:
+            per_page = int(request.GET.get("per_page", 10))
+        except (TypeError, ValueError):
+            per_page = 10
 
         page_number = request.GET.get("page", 1)
-        per_page = int(request.GET.get("per_page", 10))
-        paginator = Paginator(orders, per_page)
+
+        paginator = Paginator(
+            orders,
+            per_page,
+        )
+
         orders = paginator.get_page(page_number)
 
-        products = Product.objects.all().distinct()
-        return orders, paginator, per_page, page_number, products
+        products = Product.objects.order_by("name")
 
-    def permission_denied(self, request):
-        if not request.user.is_authenticated:
-            return redirect("product_landing_page")
-        elif request.user.user_type not in [
-            USER_TYPE.ADMIN,
-            USER_TYPE.STAFF,
-            USER_TYPE.SUPER_ADMIN,
-        ]:
-            return redirect("product_landing_page")
+        return (
+            orders,
+            paginator,
+            per_page,
+            page_number,
+            products,
+        )
 
     def get(self, request):
-        orders, paginator, per_page, page_number, products = self.get_order_queryset(request)
+
+        (
+            orders,
+            paginator,
+            per_page,
+            page_number,
+            products,
+        ) = self.get_order_queryset(request)
+
         context = {
             "orders": orders,
             "paginator": paginator,
             "per_page": per_page,
             "page_number": page_number,
+
             "order_count": self.status_wise_order_count(),
 
-            "current_status": request.GET.get("status", "all"),
-            "current_search": request.GET.get("q", ""),
-            "current_product_slug":  request.GET.get("product", ""),
-            "start_date":  request.GET.get("start_date", ""),
-            "end_date":  request.GET.get("end_date", ""),
+            "current_status": request.GET.get(
+                "status",
+                "all",
+            ),
+
+            "current_search": request.GET.get(
+                "q",
+                "",
+            ),
+
+            "current_product_slug": request.GET.get(
+                "product",
+                "",
+            ),
+
+            "start_date": request.GET.get(
+                "start_date",
+                "",
+            ),
+
+            "end_date": request.GET.get(
+                "end_date",
+                "",
+            ),
 
             "products": products,
         }
+
         if request.htmx:
-            return render(request, "db_order/partial/partial_order_list.html", context)
-        return render(request, "db_order/order_list.html", context)
-
-    def post(self, request):
-        if not request.user.is_authenticated:
-            return redirect("product_landing_page")
-        elif request.user.user_type not in [
-            USER_TYPE.ADMIN,
-            USER_TYPE.STAFF,
-            USER_TYPE.SUPER_ADMIN,
-        ]:
-            return redirect("product_landing_page")
-
-        try:
-            with transaction.atomic():
-                data = request.POST
-
-                if data.get("order_id"):
-                    order = Order.objects.get(id=data.get("order_id"))
-                    order.name = data.get("order_title")
-                    order.description = data.get("order_description")
-                    order.save()
-                    return JsonResponse(
-                        {"status": True, "message": "Order updated successfully"},
-                        status=HTTPStatus.OK,
-                    )
-
-                if data.get("order_title") == "":
-                    return JsonResponse(
-                        {"status": False, "message": "Order title is required"},
-                        status=HTTPStatus.BAD_REQUEST,
-                    )
-                if data.get("order_description") == "":
-                    return JsonResponse(
-                        {"status": False, "message": "Order description is required"},
-                        status=HTTPStatus.BAD_REQUEST,
-                    )
-                Order.objects.create(
-                    name=data.get("order_title"),
-                    description=data.get("order_description"),
-                    status=STATUS.Pending,
-                )
-                return JsonResponse(
-                    {"status": True, "message": "Order added successfully"},
-                    status=HTTPStatus.CREATED,
-                )
-        except Exception as e:
-            print("Exception", e)
-            return JsonResponse(
-                {"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST
+            return render(
+                request,
+                "db_order/partial/partial_order_list.html",
+                context,
             )
 
+        return render(
+            request,
+            "db_order/order_list.html",
+            context,
+        )
+    
 
 class OrderDetailView(LoginRequiredMixin, View):
     def get(self, request, id):
@@ -700,6 +1140,467 @@ class OrderInvoiceView(View):
         return redirect(request.META.get("HTTP_REFERER"))
 
 
+def create_order_from_request(order_request):
+    """
+    Convert an OrderRequest into a real Order.
+    """
+
+    if order_request.status != ORDER_REQUEST_STATUS.PENDING:
+        raise Exception("Only pending requests can be approved.")
+
+    if order_request.converted_order:
+        raise Exception("This request has already been converted.")
+
+    with transaction.atomic():
+
+        order = Order.objects.create(
+            customer=order_request.customer,
+            shipping_address=order_request.shipping_address,
+            note=order_request.note,
+            payment_type=order_request.payment_type,
+            delivery_type=order_request.delivery_type,
+            shipping_total=order_request.shipping_total,
+            total_cost=order_request.total_cost,
+        )
+
+        for item in order_request.request_items.all():
+
+            OrderItem.objects.create(
+                order=order,
+                product=item.product,
+                variant=item.variant,
+                product_name=item.product_name,
+                sku=item.sku,
+                quantity=item.quantity,
+                price=item.price,
+                discount_price=item.discount_price,
+                discount_total_price=item.discount_total_price,
+                snapshot=item.snapshot,
+            )
+
+        order_request.status = ORDER_REQUEST_STATUS.CONVERTED
+        order_request.converted_order = order
+        order_request.converted_at = timezone.now()
+
+        order_request.save(
+            update_fields=[
+                "status",
+                "converted_order",
+                "converted_at",
+            ]
+        )
+
+    return order
+
+class AddOrderRequestView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    template_name = "db_order_request/add_order_request.html"
+
+    def get(self, request):
+        context = {
+            "products": Product.objects.prefetch_related(
+                "variants",
+                "category",
+            ).order_by("name"),
+            "categories": Category.objects.all().order_by("name"),
+            "payment_types": PAYMENT_TYPE.choices,
+            "delivery_types": DELIVERY_TYPE.choices,
+        }
+
+        return render(
+            request,
+            self.template_name,
+            context,
+        )
+
+    def post(self, request):
+
+        try:
+
+            with transaction.atomic():
+
+                data = request.POST
+
+                shipping_address = data.get(
+                    "shipping_address",
+                    "",
+                )
+
+                note = data.get(
+                    "note",
+                    "",
+                )
+
+                payment_type = data.get(
+                    "payment_type",
+                    PAYMENT_TYPE.COD,
+                )
+
+                delivery_type = data.get(
+                    "delivery_type",
+                    DELIVERY_TYPE.HOME_DELIVERY,
+                )
+
+                shipping_total = float(
+                    data.get(
+                        "shipping_total",
+                        0,
+                    ) or 0
+                )
+
+                items = json.loads(
+                    data.get(
+                        "items",
+                        "[]",
+                    )
+                )
+
+                if not items:
+                    messages.error(
+                        request,
+                        "Please add at least one product.",
+                    )
+                    return redirect(
+                        "add_order_request"
+                    )
+
+                order_request = OrderRequest.objects.create(
+                    shipping_address=shipping_address,
+                    note=note,
+                    payment_type=payment_type,
+                    delivery_type=delivery_type,
+                    shipping_total=shipping_total,
+                )
+
+                grand_total = shipping_total
+
+                for item in items:
+
+                    product = Product.objects.get(
+                        id=item["product_id"]
+                    )
+
+                    variant = None
+
+                    if item.get("variant_id"):
+
+                        variant = ProductVariant.objects.get(
+                            id=item["variant_id"],
+                            product=product,
+                        )
+
+                    quantity = int(
+                        item.get(
+                            "quantity",
+                            1,
+                        )
+                    )
+
+                    price = (
+                        variant.price
+                        if variant
+                        else product.price
+                    )
+
+                    discount_price = (
+                        variant.discount_price
+                        if variant
+                        else product.discount_price
+                    )
+
+                    final_price = (
+                        discount_price
+                        if discount_price
+                        else price
+                    )
+
+                    total = final_price * quantity
+
+                    OrderRequestItem.objects.create(
+                        order_request=order_request,
+                        product=product,
+                        variant=variant,
+                        quantity=quantity,
+                        price=price,
+                        discount_price=discount_price,
+                    )
+
+                    grand_total += total
+
+                order_request.total_cost = grand_total
+
+                order_request.save(
+                    update_fields=[
+                        "total_cost",
+                    ]
+                )
+
+                messages.success(
+                    request,
+                    "Order Request created successfully.",
+                )
+
+                return redirect(
+                    "order_request_list"
+                )
+
+        except Exception as e:
+
+            messages.error(
+                request,
+                str(e),
+            )
+
+            return redirect(
+                "add_order_request"
+            )
+        
+
+class OrderRequestListView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def status_wise_request_count(self):
+        qs = (
+            OrderRequest.objects.values("status")
+            .annotate(total=Count("id"))
+        )
+
+        request_count = {
+            status: 0
+            for status, _ in ORDER_REQUEST_STATUS.choices
+        }
+
+        for row in qs:
+            request_count[row["status"]] = row["total"]
+
+        request_count["all"] = sum(request_count.values())
+
+        return request_count
+
+    def get_request_queryset(self, request):
+
+        status = request.GET.get("status")
+        search = request.GET.get("q", "").strip()
+
+        requests = (
+            OrderRequest.objects
+            .select_related(
+                "customer",
+                "converted_order",
+            )
+            .prefetch_related(
+                "request_items",
+            )
+            .order_by("-created_at")
+        )
+
+        if status and status in [
+            x[0] for x in ORDER_REQUEST_STATUS.choices
+        ]:
+            requests = requests.filter(status=status)
+
+        if search:
+            requests = requests.filter(
+                Q(customer__name__icontains=search)
+                | Q(customer__phone__icontains=search)
+                | Q(shipping_address__icontains=search)
+                | Q(status__icontains=search)
+                | Q(id__icontains=search)
+            ).distinct()
+
+        start_date = request.GET.get("start_date")
+        end_date = request.GET.get("end_date")
+
+        if start_date and end_date:
+            requests = requests.filter(
+                created_at__date__gte=start_date,
+                created_at__date__lte=end_date,
+            )
+
+        elif start_date:
+            requests = requests.filter(
+                created_at__date=start_date
+            )
+
+        elif end_date:
+            requests = requests.filter(
+                created_at__date__lte=end_date
+            )
+
+        page_number = request.GET.get("page", 1)
+        per_page = int(request.GET.get("per_page", 10))
+
+        paginator = Paginator(requests, per_page)
+        requests = paginator.get_page(page_number)
+
+        return (
+            requests,
+            paginator,
+            per_page,
+            page_number,
+        )
+
+    def get(self, request):
+
+        (
+            requests,
+            paginator,
+            per_page,
+            page_number,
+        ) = self.get_request_queryset(request)
+
+        context = {
+            "requests": requests,
+            "paginator": paginator,
+            "per_page": per_page,
+            "page_number": page_number,
+
+            "request_count": self.status_wise_request_count(),
+
+            "current_status": request.GET.get(
+                "status",
+                "all",
+            ),
+            "current_search": request.GET.get(
+                "q",
+                "",
+            ),
+            "start_date": request.GET.get(
+                "start_date",
+                "",
+            ),
+            "end_date": request.GET.get(
+                "end_date",
+                "",
+            ),
+        }
+
+        if request.htmx:
+            return render(
+                request,
+                "db_order_request/partial/partial_order_request_list.html",
+                context,
+            )
+
+        return render(
+            request,
+            "db_order_request/order_request_list.html",
+            context,
+        )
+    
+
+class OrderRequestDetailView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get_request(self, id):
+        return get_object_or_404(
+            OrderRequest.objects.select_related(
+                "customer",
+                "converted_order",
+            ).prefetch_related(
+                "request_items",
+                "request_items__product",
+                "request_items__variant",
+            ),
+            id=id,
+        )
+
+    def get(self, request, id):
+
+        order_request = self.get_request(id)
+
+        context = {
+            "order_request": order_request,
+        }
+
+        if request.htmx:
+            return render(
+                request,
+                "db_order_request/partial/partial_order_request_detail.html",
+                context,
+            )
+
+        return render(
+            request,
+            "db_order_request/order_request_detail.html",
+            context,
+        )
+    
+class ApproveOrderRequestView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk):
+
+        order_request = get_object_or_404(
+            OrderRequest,
+            pk=pk,
+        )
+
+        try:
+
+            order = create_order_from_request(
+                order_request
+            )
+
+            messages.success(
+                request,
+                f"Order Request approved successfully. Order #{order.order_id} created."
+            )
+
+        except Exception as e:
+
+            messages.error(
+                request,
+                str(e),
+            )
+
+        return redirect(
+            "order_request_detail",
+            id=pk,
+        )
+    
+class RejectOrderRequestView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk):
+
+        order_request = get_object_or_404(
+            OrderRequest,
+            pk=pk,
+        )
+
+        if order_request.status != ORDER_REQUEST_STATUS.PENDING:
+
+            messages.error(
+                request,
+                "Only pending requests can be rejected."
+            )
+
+            return redirect(
+                "order_request_detail",
+                id=pk,
+            )
+
+        order_request.status = ORDER_REQUEST_STATUS.CANCELLED
+
+        order_request.save(
+            update_fields=[
+                "status",
+            ]
+        )
+
+        messages.success(
+            request,
+            "Order Request cancelled successfully."
+        )
+
+        return redirect(
+            "order_request_detail",
+            id=pk,
+        )
+    
+    
 # ------------------Order section FBV-------------
 
 
