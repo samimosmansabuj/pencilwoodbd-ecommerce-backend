@@ -285,7 +285,7 @@ class OrderCreateAPIView(APIView):
                 quantity=int(product.get("quantity", 1)),
                 price=prod.price,
                 discount_price=Decimal(str(product.get("price", 0))),
-                discount_total_price=int(product.get("quantity", 1)) * Decimal(str(product.get("price", 0))),
+                # discount_total_price=int(product.get("quantity", 1)) * Decimal(str(product.get("price", 0))),
             )
             order_items.append(order_item)
         return order_items
@@ -342,7 +342,7 @@ class OrderCreateAPIView(APIView):
         try:
             with transaction.atomic():
                 data = request.data
-                print("data: ", data)
+                # print("data: ", data)
                 self.handle_missing_field(data)
 
                 otp_verified = None

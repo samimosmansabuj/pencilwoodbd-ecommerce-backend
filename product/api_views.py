@@ -112,7 +112,6 @@ class SendOTPAPIView(APIView):
         except Exception as e:
             return Response({"success": False, "message": str(e)})
         
-
 class VerifyOTPAPIView(APIView):
     permission_classes = [permissions.AllowAny]
     
@@ -171,7 +170,6 @@ class CategoryListAPIView(APIView):
                 } for c in qs
             ]
         })
-
 
 class ProductListAPIView(APIView):
     permission_classes = [AllowAny]
@@ -239,7 +237,6 @@ class ProductListAPIView(APIView):
                 for p in page
             ]
         })
-
 
 class ProductDetailAPIView(APIView):
     permission_classes = [AllowAny]
@@ -335,7 +332,6 @@ class AddToCartAPIView(APIView):
 
         except Exception as e:
             return Response({"status": False, "message": str(e)}, status=400)
-        
 
 class CartListAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -369,7 +365,6 @@ class CartListAPIView(APIView):
 
         except Exception as e:
             return Response({"status": False, "message": str(e)}, status=400)
-        
 
 class UpdateCartAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -388,7 +383,6 @@ class UpdateCartAPIView(APIView):
         except Exception as e:
             return Response({"status": False, "message": str(e)}, status=400)
         
-
 class RemoveCartAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -437,8 +431,6 @@ class AddToWishlistAPIView(APIView):
                 {"status": False, "message": str(e)},
                 status=500
             )
-        
-
 
 class WishlistAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -474,7 +466,6 @@ class WishlistAPIView(APIView):
                 {"status": False, "message": str(e)},
                 status=500
             )
-        
 
 class RemoveWishlistAPIView(APIView):
     permission_classes = [IsAuthenticated]
