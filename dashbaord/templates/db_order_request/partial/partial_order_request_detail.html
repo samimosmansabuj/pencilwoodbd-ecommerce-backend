@@ -1,0 +1,818 @@
+<div class="main-content">
+
+    <!-- Breadcrumb -->
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+
+        <div class="ps-3">
+            <nav>
+                <ol class="breadcrumb mb-0 p-0">
+
+                    <li class="breadcrumb-item">
+                        <a href="{% url 'dashboard' %}">
+                            <i class="bx bx-home-alt"></i>
+                        </a>
+                    </li>
+
+                    <li class="breadcrumb-item">
+                        <a href="{% url 'order_request_list' %}"
+                           hx-get="{% url 'order_request_list' %}"
+                           hx-target="#content-area"
+                           hx-push-url="true">
+                            Order Requests
+                        </a>
+                    </li>
+
+                    <li class="breadcrumb-item active">
+                        Request #{{ order_request.id }}
+                    </li>
+
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+
+    <!-- Header -->
+
+    <div class="card mb-4">
+
+        <div class="card-body">
+
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+
+                <div>
+
+                    <h3 class="fw-bold mb-1">
+                        Order Request #{{ order_request.id }}
+                    </h3>
+
+                    <div class="text-muted">
+
+                        Created :
+                        {{ order_request.created_at|date:"d M Y, h:i A" }}
+
+                    </div>
+
+                </div>
+
+                <div class="text-end">
+
+                    {% if order_request.status == "pending" %}
+
+                        <span class="badge bg-warning text-dark px-3 py-2">
+                            Pending
+                        </span>
+
+                    {% elif order_request.status == "converted" %}
+
+                        <span class="badge bg-success px-3 py-2">
+                            Converted
+                        </span>
+
+                    {% elif order_request.status == "cancelled" %}
+
+                        <span class="badge bg-danger px-3 py-2">
+                            Cancelled
+                        </span>
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+
+            <hr>
+
+
+            <div class="d-flex flex-wrap gap-2">
+
+                {% if order_request.status == "pending" %}
+
+                <form method="post"
+                      action="{% url 'approve_order_request' order_request.id %}">
+                    {% csrf_token %}
+
+                    <button class="btn btn-success"
+                            onclick="return confirm('Approve this Order Request?')">
+
+                        <i class="bi bi-check-circle me-2"></i>
+
+                        Approve Request
+
+                    </button>
+
+                </form>
+
+
+                <form method="post"
+                      action="{% url 'reject_order_request' order_request.id %}">
+                    {% csrf_token %}
+
+                    <button class="btn btn-danger"
+                            onclick="return confirm('Reject this Order Request?')">
+
+                        <i class="bi bi-x-circle me-2"></i>
+
+                        Reject Request
+
+                    </button>
+
+                </form>
+
+                {% endif %}
+
+
+                {% if order_request.converted_order %}
+
+                <a href="{% url 'order_detail' order_request.converted_order.id %}"
+                   class="btn btn-primary"
+                   hx-get="{% url 'order_detail' order_request.converted_order.id %}"
+                   hx-target="#content-area"
+                   hx-push-url="true">
+
+                    <i class="bi bi-box-arrow-up-right me-2"></i>
+
+                    View Converted Order
+
+                </a>
+
+                {% endif %}
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- Order Items -->
+
+    <div class="row">
+
+        <div class="col-lg-8 d-flex">
+
+            <div class="card w-100">
+
+                <div class="card-body">
+
+                    <h5 class="fw-bold mb-3">
+
+                        Requested Items
+
+                        <span class="text-muted">
+
+                            ({{ order_request.request_items.count }})
+
+                        </span>
+
+                    </h5>
+
+
+                    <div class="table-responsive">
+
+                        <table class="table align-middle">
+
+                            <thead class="table-light">
+
+                                <tr>
+
+                                    <th>Product</th>
+
+                                    <th>Variant</th>
+
+                                    <th>Qty</th>
+
+                                    <th>Price</th>
+
+                                    <th>Total</th>
+
+                                </tr>
+
+                            </thead>
+
+                            <tbody>
+
+                                {% for item in order_request.request_items.all %}
+
+                                <tr>
+
+                                    <td>
+
+                                        <div class="d-flex align-items-center gap-3">
+
+                                            <img src="{{ item.product.primary_image }}"
+                                                 width="70"
+                                                 class="rounded">
+
+                                            <div>
+
+                                                <div class="fw-bold">
+
+                                                    {{ item.product_name }}
+
+                                                </div>
+
+                                                <small class="text-muted">
+
+                                                    SKU :
+                                                    {{ item.sku }}
+
+                                                </small>
+
+                                            </div>
+
+                                        </div>
+
+                                    </td>
+
+                                    <td>
+
+                                        {% if item.variant %}
+
+                                            {% for key,value in item.variant.attributes.items %}
+
+                                                <div>
+
+                                                    {{ key|capfirst }} :
+                                                    {{ value|capfirst }}
+
+                                                </div>
+
+                                            {% endfor %}
+
+                                        {% else %}
+
+                                            —
+
+                                        {% endif %}
+
+                                    </td>
+
+                                    <td>
+
+                                        {{ item.quantity }}
+
+                                    </td>
+
+                                    <td>
+
+                                        ৳{{ item.discount_price }}
+
+                                    </td>
+
+                                    <td>
+
+                                        ৳{{ item.discount_total_price }}
+
+                                    </td>
+
+                                </tr>
+
+                                {% empty %}
+
+                                <tr>
+
+                                    <td colspan="5" class="text-center py-5">
+
+                                        No Items Found
+
+                                    </td>
+
+                                </tr>
+
+                                {% endfor %}
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+                <!-- Right Side -->
+
+                <div class="col-lg-4 d-flex">
+
+                    <div class="w-100">
+        
+                        <!-- Summary -->
+        
+                        <div class="card">
+        
+                            <div class="card-body">
+        
+                                <h4 class="fw-bold mb-4">
+                                    Summary
+                                </h4>
+        
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Items Subtotal</span>
+                                    <strong>
+                                        ৳{{ order_request.total_cost|floatformat:2 }}
+                                    </strong>
+                                </div>
+        
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Delivery Charge</span>
+                                    <strong>
+                                        ৳{{ order_request.shipping_total|floatformat:2 }}
+                                    </strong>
+                                </div>
+        
+                                <hr>
+        
+                                <div class="d-flex justify-content-between">
+        
+                                    <h5 class="fw-bold">
+                                        Grand Total
+                                    </h5>
+        
+                                    <h5 class="fw-bold text-primary">
+        
+                                        ৳{{ order_request.total_cost|add:order_request.shipping_total|floatformat:2 }}
+        
+                                    </h5>
+        
+                                </div>
+        
+                            </div>
+        
+                        </div>
+        
+        
+                        <!-- Status -->
+        
+                        <div class="card">
+        
+                            <div class="card-body">
+        
+                                <h5 class="fw-bold mb-3">
+        
+                                    Request Status
+        
+                                </h5>
+        
+                                <div class="mb-3">
+        
+                                    <small class="text-muted">
+        
+                                        Current Status
+        
+                                    </small>
+        
+                                    <div class="mt-2">
+        
+                                        {% if order_request.status == "pending" %}
+        
+                                            <span class="badge bg-warning text-dark">
+                                                Pending
+                                            </span>
+        
+                                        {% elif order_request.status == "converted" %}
+        
+                                            <span class="badge bg-success">
+                                                Converted
+                                            </span>
+        
+                                        {% elif order_request.status == "cancelled" %}
+        
+                                            <span class="badge bg-danger">
+                                                Cancelled
+                                            </span>
+        
+                                        {% endif %}
+        
+                                    </div>
+        
+                                </div>
+        
+                                <div>
+        
+                                    <small class="text-muted">
+                                        Payment Type
+                                    </small>
+        
+                                    <div class="fw-semibold text-uppercase">
+        
+                                        {{ order_request.payment_type }}
+        
+                                    </div>
+        
+                                </div>
+        
+                                <hr>
+        
+                                <div>
+        
+                                    <small class="text-muted">
+        
+                                        Delivery Type
+        
+                                    </small>
+        
+                                    <div class="fw-semibold text-uppercase">
+        
+                                        {{ order_request.delivery_type }}
+        
+                                    </div>
+        
+                                </div>
+        
+                            </div>
+        
+                        </div>
+        
+                    </div>
+        
+                </div>
+        
+            </div>
+        
+        
+            <!-- Customer -->
+        
+            <h5 class="fw-bold mt-4 mb-3">
+        
+                Customer Information
+        
+            </h5>
+        
+            <div class="card">
+        
+                <div class="card-body">
+        
+                    <div class="row g-3">
+        
+                        <div class="col-md-4">
+        
+                            <div class="border rounded p-3 h-100">
+        
+                                <small class="text-muted">
+        
+                                    Customer Name
+        
+                                </small>
+        
+                                <div class="fw-bold mt-1">
+        
+                                    {{ order_request.customer.name }}
+        
+                                </div>
+        
+                            </div>
+        
+                        </div>
+        
+        
+                        <div class="col-md-4">
+        
+                            <div class="border rounded p-3 h-100">
+        
+                                <small class="text-muted">
+        
+                                    Phone
+        
+                                </small>
+        
+                                <div class="fw-bold mt-1">
+        
+                                    {{ order_request.customer.phone }}
+        
+                                </div>
+        
+                            </div>
+        
+                        </div>
+        
+        
+                        <div class="col-md-4">
+        
+                            <div class="border rounded p-3 h-100">
+        
+                                <small class="text-muted">
+        
+                                    WhatsApp
+        
+                                </small>
+        
+                                <div class="fw-bold mt-1">
+        
+                                    {{ order_request.customer.whatsapp|default:"Not Available" }}
+        
+                                </div>
+        
+                            </div>
+        
+                        </div>
+        
+                    </div>
+        
+                </div>
+        
+            </div>
+        
+        
+        
+            <!-- Shipping -->
+        
+            <div class="card mt-4">
+        
+                <div class="card-header">
+        
+                    <h6 class="mb-0">
+        
+                        Shipping Address
+        
+                    </h6>
+        
+                </div>
+        
+                <div class="card-body">
+        
+                    {{ order_request.shipping_address }}
+        
+                </div>
+        
+            </div>
+        
+        
+        
+            <!-- Note -->
+        
+            {% if order_request.note %}
+        
+            <div class="card mt-4">
+        
+                <div class="card-header">
+        
+                    <h6 class="mb-0">
+        
+                        Customer Note
+        
+                    </h6>
+        
+                </div>
+        
+                <div class="card-body">
+        
+                    {{ order_request.note }}
+        
+                </div>
+        
+            </div>
+        
+            {% endif %}
+        
+        
+        
+            <!-- Extra Personal Information -->
+        
+            {% if order_request.metadata.extra_personal_info %}
+        
+            <div class="card mt-4">
+        
+                <div class="card-header">
+        
+                    <h6 class="mb-0">
+        
+                        Extra Information
+        
+                    </h6>
+        
+                </div>
+        
+                <div class="card-body">
+        
+                    {% for key,value in order_request.metadata.extra_personal_info.items %}
+        
+                    <div class="d-flex justify-content-between border-bottom py-2">
+        
+                        <span>
+        
+                            {{ key }}
+        
+                        </span>
+        
+                        <strong>
+        
+                            {{ value }}
+        
+                        </strong>
+        
+                    </div>
+        
+                    {% endfor %}
+        
+                </div>
+        
+            </div>
+        
+            {% endif %}
+
+                <!-- Converted Order -->
+
+    {% if order_request.converted_order %}
+
+    <div class="card mt-4">
+
+        <div class="card-header d-flex justify-content-between align-items-center">
+
+            <h6 class="mb-0">
+
+                Converted Order
+
+            </h6>
+
+            <span class="badge bg-success">
+
+                Approved
+
+            </span>
+
+        </div>
+
+        <div class="card-body">
+
+            <div class="row g-3">
+
+                <div class="col-md-4">
+
+                    <div class="border rounded p-3">
+
+                        <small class="text-muted">
+
+                            Order ID
+
+                        </small>
+
+                        <div class="fw-bold mt-1">
+
+                            #{{ order_request.converted_order.order_id }}
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="col-md-4">
+
+                    <div class="border rounded p-3">
+
+                        <small class="text-muted">
+
+                            Converted At
+
+                        </small>
+
+                        <div class="fw-bold mt-1">
+
+                            {{ order_request.converted_at|date:"d M Y, h:i A" }}
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="col-md-4">
+
+                    <div class="border rounded p-3">
+
+                        <small class="text-muted">
+
+                            Current Order Status
+
+                        </small>
+
+                        <div class="fw-bold mt-1 text-capitalize">
+
+                            {{ order_request.converted_order.status }}
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <hr>
+
+            <a href="{% url 'order_detail' order_request.converted_order.id %}"
+               class="btn btn-primary"
+               hx-get="{% url 'order_detail' order_request.converted_order.id %}"
+               hx-target="#content-area"
+               hx-push-url="true">
+
+                <i class="bi bi-box-arrow-up-right me-2"></i>
+
+                Open Converted Order
+
+            </a>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- Cancelled Information -->
+
+    {% if order_request.status == "cancelled" %}
+
+    <div class="card mt-4 border-danger">
+
+        <div class="card-body text-center">
+
+            <i class="bi bi-x-circle-fill text-danger fs-1"></i>
+
+            <h5 class="mt-3">
+
+                This Order Request was Cancelled
+
+            </h5>
+
+            <p class="text-muted mb-0">
+
+                Cancelled requests cannot be approved later.
+
+            </p>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- Pending Notice -->
+
+    {% if order_request.status == "pending" %}
+
+    <div class="alert alert-warning mt-4">
+
+        <div class="d-flex align-items-center">
+
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+
+            <div>
+
+                This request is waiting for approval.
+
+                Clicking <strong>Approve Request</strong> will create a real
+                <strong>Order</strong> from this Order Request.
+
+            </div>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- Footer Buttons -->
+
+    <div class="d-flex justify-content-between mt-4 mb-5">
+
+        <a href="{% url 'order_request_list' %}"
+           class="btn btn-secondary"
+           hx-get="{% url 'order_request_list' %}"
+           hx-target="#content-area"
+           hx-push-url="true">
+
+            <i class="bi bi-arrow-left me-2"></i>
+
+            Back to Order Requests
+
+        </a>
+
+        {% if order_request.converted_order %}
+
+        <a href="{% url 'order_detail' order_request.converted_order.id %}"
+           class="btn btn-success"
+           hx-get="{% url 'order_detail' order_request.converted_order.id %}"
+           hx-target="#content-area"
+           hx-push-url="true">
+
+            <i class="bi bi-receipt me-2"></i>
+
+            View Order
+
+        </a>
+
+        {% endif %}
+
+    </div>
+
+</div>

@@ -43,7 +43,7 @@
                         </a>
                     </li>
                     <li>
-                        <a href="{% url 'product_add' %}">
+                        <a href="javascript:;" data-bs-toggle="modal" data-bs-target="#ProductAddUpdateModal">
                             <i class="material-icons-outlined">arrow_right</i>Add Product
                         </a>
                     </li>
@@ -74,27 +74,68 @@
             </li>
 
             <!-- Order Section------- -->
-            <li>
-                <a class="has-arrow" href="javascript:;">
-                    <div class="parent-icon"><i class="material-icons-outlined">card_giftcard</i>
-                    </div>
-                    <div class="menu-title">Order</div>
-                </a>
-                <ul>
-                    <li>
-                        <a href="{% url 'order_list' %}" ><i class="material-icons-outlined">arrow_right</i>Order</a>
-                    </li>
-                    <li>
-                        <a><i class="material-icons-outlined">arrow_right</i>Return Order</a>
-                    </li>
-                    <li>
-                        <a><i class="material-icons-outlined">arrow_right</i>Reviews</a>
-                    </li>
-                    <li>
-                        <a><i class="material-icons-outlined">arrow_right</i>Create Order</a>
-                    </li>
-                </ul>
-            </li>
+<li>
+    <a class="has-arrow" href="javascript:;">
+        <div class="parent-icon">
+            <i class="material-icons-outlined">card_giftcard</i>
+        </div>
+        <div class="menu-title">Order</div>
+    </a>
+
+    <ul>
+
+        <!-- Order Request List -->
+        <li>
+            <a href="{% url 'order_request_list' %}">
+                <i class="material-icons-outlined">arrow_right</i>
+                Order Request List
+            </a>
+        </li>
+
+        <!-- Add Order Request -->
+        <li>
+            <a href="#">
+                <i class="material-icons-outlined">arrow_right</i>
+                Add Order Request
+            </a>
+        </li>
+
+        <li>
+            <hr class="dropdown-divider">
+        </li>
+
+        <!-- Order List -->
+        <li>
+            <a href="{% url 'order_list' %}">
+                <i class="material-icons-outlined">arrow_right</i>
+                Order List
+            </a>
+        </li>
+
+        <!-- Add Order -->
+        <li>
+            <a href="#">
+                <i class="material-icons-outlined">arrow_right</i>
+                Add Order
+            </a>
+        </li>
+
+        <li>
+            <a href="#">
+                <i class="material-icons-outlined">arrow_right</i>
+                Return Order
+            </a>
+        </li>
+
+        <li>
+            <a href="#">
+                <i class="material-icons-outlined">arrow_right</i>
+                Reviews
+            </a>
+        </li>
+
+    </ul>
+</li>
 
 
             <!-- <li class="menu-label">Store & Marketing</li>

@@ -3,7 +3,7 @@ from django.db import models
 from django.forms import ValidationError
 from authentication.models import Customer
 from product.models import Product, ProductVariant
-from pencilwoodbd.choices import PAYMENT_STATUS, PAYMENT_TYPE, STATUS, REVIEW_STATUS, DELIVERY_TYPE
+from pencilwoodbd.choices import PAYMENT_STATUS, PAYMENT_TYPE, STATUS, REVIEW_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS
 from datetime import datetime
 from site_app.models import DeliveryOption
 
@@ -233,3 +233,226 @@ class Review(models.Model):
         return f"{self.rating} stars — {self.product}"
 
 
+class OrderRequest(models.Model):
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.SET_NULL,
+        related_name="order_requests",
+        null=True,
+        blank=True,
+    )
+
+    shipping_address = models.CharField(max_length=255)
+    note = models.TextField(blank=True, null=True)
+
+    payment_type = models.CharField(
+        max_length=50,
+        choices=PAYMENT_TYPE.choices,
+        default=PAYMENT_TYPE.COD,
+    )
+
+    delivery_type = models.CharField(
+        max_length=50,
+        choices=DELIVERY_TYPE.choices,
+        default=DELIVERY_TYPE.HOME_DELIVERY,
+    )
+
+    shipping_total = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+    )
+
+    total_cost = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=ORDER_REQUEST_STATUS.choices,
+        default=ORDER_REQUEST_STATUS.PENDING,
+    )
+
+    converted_order = models.OneToOneField(
+        Order,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="order_request",
+    )
+
+    converted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    @property
+    def get_items_total(self):
+        return self.request_items.count()
+
+    @property
+    def get_total_quantity(self):
+        return sum(item.quantity for item in self.request_items.all())
+
+    def __str__(self):
+        if self.customer:
+            return f"{self.customer.name} - Request #{self.pk}"
+        return f"Order Request #{self.pk}"
+    
+class OrderRequestItem(models.Model):
+    order_request = models.ForeignKey(
+        OrderRequest,
+        on_delete=models.CASCADE,
+        related_name="request_items",
+    )
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="order_request_items",
+    )
+
+    variant = models.ForeignKey(
+        ProductVariant,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="order_request_items",
+    )
+
+    product_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+    )
+
+    sku = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+    )
+
+    quantity = models.PositiveIntegerField(
+        default=1,
+    )
+
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        blank=True,
+        null=True,
+    )
+
+    discount_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        blank=True,
+        null=True,
+    )
+
+    discount_total_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        blank=True,
+        null=True,
+    )
+
+    snapshot = models.JSONField(
+        default=dict,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    @property
+    def current_total(self):
+        return (self.discount_price or self.price or 0) * self.quantity
+
+    def save(self, *args, **kwargs):
+
+        if self.variant:
+            self.product = self.variant.product
+
+            if not self.product_name:
+                self.product_name = self.variant.product.name
+
+            if not self.sku:
+                self.sku = self.variant.sku
+
+            if self.price is None:
+                self.price = self.variant.price
+
+            if self.discount_price is None:
+                self.discount_price = self.variant.discount_price
+
+            if not self.snapshot:
+                self.snapshot = {
+                    "product_id": self.product.id,
+                    "product_name": self.product.name,
+                    "variant": self.variant.attributes,
+                    "sku": self.variant.sku,
+                    "price": str(self.variant.price),
+                    "discount_price": str(self.variant.discount_price),
+                }
+
+        elif self.product:
+
+            if not self.product_name:
+                self.product_name = self.product.name
+
+            if not self.sku:
+                self.sku = self.product.sku
+
+            if self.price is None:
+                self.price = self.product.price
+
+            if self.discount_price is None:
+                self.discount_price = self.product.discount_price
+
+            if not self.snapshot:
+                self.snapshot = {
+                    "product_id": self.product.id,
+                    "product_name": self.product.name,
+                    "variant": None,
+                    "sku": self.product.sku,
+                    "price": str(self.product.price),
+                    "discount_price": str(self.product.discount_price),
+                }
+
+        final_price = self.discount_price if self.discount_price else self.price
+
+        if final_price:
+            self.discount_total_price = final_price * self.quantity
+
+        super().save(*args, **kwargs)
+
+    def clean(self):
+        if self.product and self.product.has_variants and not self.variant:
+            raise ValidationError("Variant is required for this product")
+
+    def __str__(self):
+        return f"{self.order_request} - {self.product_name}"
+    

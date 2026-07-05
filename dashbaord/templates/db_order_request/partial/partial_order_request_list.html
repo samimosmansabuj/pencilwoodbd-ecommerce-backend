@@ -1,0 +1,429 @@
+<div class="main-content">
+
+    <!-- Breadcrumb -->
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item">
+                        <a href="{% url 'dashboard' %}">
+                            <i class="bx bx-home-alt"></i>
+                        </a>
+                    </li>
+
+                    <li class="breadcrumb-item active">
+                        Order Requests
+                        <span>({{ requests.paginator.count }})</span>
+                    </li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Status Tabs -->
+    <div class="product-count d-flex align-items-center gap-3 gap-lg-4 mb-4 fw-medium flex-wrap font-text1">
+
+        <a
+            href="{% url 'order_request_list' %}?status=all&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+            hx-get="{% url 'order_request_list' %}?status=all&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+            hx-target="#content-area"
+            hx-push-url="true"
+            class="{% if current_status == 'all' %}active{% endif %}">
+
+            <span class="me-1">ALL</span>
+            <span class="text-secondary">({{ request_count.all }})</span>
+
+        </a>
+
+        <a
+            href="{% url 'order_request_list' %}?status=pending&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+            hx-get="{% url 'order_request_list' %}?status=pending&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+            hx-target="#content-area"
+            hx-push-url="true"
+            class="{% if current_status == 'pending' %}active{% endif %}">
+
+            <span class="me-1">PENDING</span>
+            <span class="text-secondary">({{ request_count.pending }})</span>
+
+        </a>
+
+        <a
+            href="{% url 'order_request_list' %}?status=converted&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+            hx-get="{% url 'order_request_list' %}?status=converted&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+            hx-target="#content-area"
+            hx-push-url="true"
+            class="{% if current_status == 'converted' %}active{% endif %}">
+
+            <span class="me-1">CONVERTED</span>
+            <span class="text-secondary">({{ request_count.converted }})</span>
+
+        </a>
+
+        <a
+            href="{% url 'order_request_list' %}?status=cancelled&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+            hx-get="{% url 'order_request_list' %}?status=cancelled&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+            hx-target="#content-area"
+            hx-push-url="true"
+            class="{% if current_status == 'cancelled' %}active{% endif %}">
+
+            <span class="me-1">CANCELLED</span>
+            <span class="text-secondary">({{ request_count.cancelled }})</span>
+
+        </a>
+
+    </div>
+
+    <!-- Filters -->
+    <div class="row g-3 align-items-end mb-3">
+
+        <!-- Search -->
+        <div class="col-auto">
+
+            <div class="position-relative">
+
+                <input
+                    class="form-control px-5"
+                    type="search"
+                    name="q"
+                    placeholder="Search Request"
+
+                    value="{{ current_search }}"
+
+                    hx-get="{% url 'order_request_list' %}?status={{ current_status }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+
+                    hx-trigger="keyup changed delay:400ms"
+
+                    hx-target="#content-area"
+
+                    hx-push-url="true">
+
+                <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">
+                    search
+                </span>
+
+            </div>
+
+        </div>
+
+        <!-- Date Filter -->
+        <div class="col-auto ms-auto d-flex gap-2 align-items-end">
+
+            <div>
+
+                <label class="form-label mb-1">
+                    Start Date
+                </label>
+
+                <input
+
+                    type="date"
+
+                    class="form-control"
+
+                    name="start_date"
+
+                    value="{{ start_date }}"
+
+                    hx-get="{% url 'order_request_list' %}?status={{ current_status }}&per_page={{ per_page }}"
+
+                    hx-trigger="change"
+
+                    hx-target="#content-area"
+
+                    hx-include="[name='end_date'],[name='q']"
+
+                    hx-push-url="true">
+
+            </div>
+
+            <div>
+
+                <label class="form-label mb-1">
+                    End Date
+                </label>
+
+                <input
+
+                    type="date"
+
+                    class="form-control"
+
+                    name="end_date"
+
+                    value="{{ end_date }}"
+
+                    hx-get="{% url 'order_request_list' %}?status={{ current_status }}&per_page={{ per_page }}"
+
+                    hx-trigger="change"
+
+                    hx-target="#content-area"
+
+                    hx-include="[name='start_date'],[name='q']"
+
+                    hx-push-url="true">
+
+            </div>
+
+            <div>
+
+                <button
+
+                    class="btn btn-outline-secondary mt-4"
+
+                    hx-get="{% url 'order_request_list' %}?status={{ current_status }}"
+
+                    hx-target="#content-area"
+
+                    hx-push-url="true">
+
+                    Clear
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Table -->
+
+    <div class="card mt-4">
+
+        <div class="card-body">
+
+            <div class="customer-table">
+
+                <div class="table-responsive white-space-nowrap">
+
+                    <table class="table align-middle">
+
+                        <thead class="table-light">
+
+                            <tr>
+
+                                <th>
+                                    <input class="form-check-input" type="checkbox">
+                                </th>
+
+                                <th>Request ID</th>
+
+                                <th>Customer</th>
+
+                                <th>Phone</th>
+
+                                <th>Total</th>
+
+                                <th>Status</th>
+
+                                <th>Date</th>
+
+                                <th>Action</th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                        {% for request in requests %}
+
+                            <tr>
+
+                                <td>
+                                    <input class="form-check-input" type="checkbox">
+                                </td>
+
+                                <td>
+
+                                    <a
+
+                                        href="{% url 'order_request_detail' request.id %}"
+
+                                        hx-get="{% url 'order_request_detail' request.id %}"
+
+                                        hx-target="#content-area"
+
+                                        hx-push-url="true">
+
+                                        #{{ request.id }}
+
+                                    </a>
+
+                                </td>
+
+                                <td>
+
+                                    {{ request.customer.name }}
+
+                                </td>
+
+                                <td>
+
+                                    {{ request.customer.phone }}
+
+                                </td>
+
+                                <td>
+
+                                    ৳{{ request.total_cost }}
+
+                                </td>
+
+                                <td>
+
+                                    {% if request.status == "pending" %}
+
+                                        <span class="badge bg-warning">
+
+                                            Pending
+
+                                        </span>
+
+                                    {% elif request.status == "converted" %}
+
+                                        <span class="badge bg-success">
+
+                                            Converted
+
+                                        </span>
+
+                                    {% else %}
+
+                                        <span class="badge bg-danger">
+
+                                            Cancelled
+
+                                        </span>
+
+                                    {% endif %}
+
+                                </td>
+
+                                <td>
+
+                                    {{ request.created_at }}
+
+                                </td>
+
+                                <td>
+
+                                    <a
+
+                                        href="{% url 'order_request_detail' request.id %}"
+
+                                        class="btn btn-filter btn-sm"
+
+                                        hx-get="{% url 'order_request_detail' request.id %}"
+
+                                        hx-target="#content-area"
+
+                                        hx-push-url="true">
+
+                                        <i class="bi bi-eye"></i>
+
+                                    </a>
+
+                                </td>
+
+                            </tr>
+
+                        {% empty %}
+
+                            <tr>
+
+                                <td colspan="8" class="text-center py-5">
+
+                                    No Order Request Found
+
+                                </td>
+
+                            </tr>
+
+                        {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</table>
+
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Floating Pagination -->
+<div class="btn btn-grd position-fixed bottom-0 end-0 m-3 d-flex align-items-center gap-2 shadow-lg"
+style="z-index:1050;margin:auto 22px 45px 0!important;padding:0!important;">
+
+<div class="card-body p-0">
+
+<nav>
+<ul class="pagination mb-0">
+
+<li class="page-item {% if not requests.has_previous %}disabled{% endif %}">
+<a class="page-link"
+hx-get="{% if requests.has_previous %}{% url 'order_request_list' %}?page={{ requests.previous_page_number }}&status={{ current_status }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% endif %}"
+hx-target="#content-area"
+hx-push-url="true">
+«
+</a>
+</li>
+
+{% for num in paginator.page_range %}
+{% if num >= requests.number|add:-2 and num <= requests.number|add:2 %}
+<li class="page-item {% if requests.number == num %}active{% endif %}">
+<a class="page-link"
+hx-get="{% url 'order_request_list' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+hx-target="#content-area"
+hx-push-url="true">
+{{ num }}
+</a>
+</li>
+{% endif %}
+{% endfor %}
+
+<li class="page-item {% if not requests.has_next %}disabled{% endif %}">
+<a class="page-link"
+hx-get="{% if requests.has_next %}{% url 'order_request_list' %}?page={{ requests.next_page_number }}&status={{ current_status }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% endif %}"
+hx-target="#content-area"
+hx-push-url="true">
+»
+</a>
+</li>
+
+</ul>
+</nav>
+
+</div>
+
+<div class="col-auto">
+
+<select class="form-select"
+name="per_page"
+hx-get="{% url 'order_request_list' %}?status={{ current_status }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}"
+hx-trigger="change"
+hx-target="#content-area"
+hx-push-url="true">
+
+<option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+<option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+<option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+
+</select>
+
+</div>
+
+</div>

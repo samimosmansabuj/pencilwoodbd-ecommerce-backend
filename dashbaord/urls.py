@@ -20,11 +20,20 @@ urlpatterns = [
     path('get-category/<int:id>/', get_category, name='get_category'),
     path('delete-category/<int:id>/', delete_category, name='delete_category'),
 
+    path("orders/add/",AddOrderView.as_view(),name="add_order"),
     path('order-list/', OrderView.as_view(), name='order_list'),
     path('order-detail/<int:id>/', OrderDetailView.as_view(), name='order_detail'),
     path('orders/delete/<int:pk>/', OrderDeleteView.as_view(), name='order_delete'),
     path('orders/delivery-option-submit/<int:pk>/', OrderDeliveryOptionSubmitView.as_view(), name='order_delivery_option_submit'),
     path('orders/<int:id>/invoice/', OrderInvoiceView.as_view(), name='order_invoice'),
     path('order-detail/<int:order_id>/update/', update_order, name='order_update'),
+
+    # ------------------Order Request------------------
+    path("order-requests/add/",AddOrderRequestView.as_view(),name="add_order_request"),
+
+    path("order-request/",OrderRequestListView.as_view(),name="order_request_list",),
+    path("order-request/<int:id>/",OrderRequestDetailView.as_view(),name="order_request_detail",),
+    path("order-request/<int:pk>/approve/",ApproveOrderRequestView.as_view(),name="approve_order_request",),
+    path("order-request/<int:pk>/reject/",RejectOrderRequestView.as_view(),name="reject_order_request",),
 
 ]
