@@ -669,26 +669,38 @@ def delete_category(request, id):
 
 
 # ------------------Order section CBV-------------
+def build_variants_by_product(products):
+    data = {}
+    for product in products:
+        variants = product.variants.filter(is_active=True)
+        if variants.exists():
+            data[str(product.id)] = [
+                {
+                    "id": v.id,
+                    "attributes": v.attributes,
+                    "price": str(v.price),
+                    "discount_price": str(v.discount_price),
+                }
+                for v in variants
+            ]
+    return data
+
+
 class AddOrderView(LoginRequiredMixin, View):
     login_url = "admin_login"
     template_name = "db_order/add_order.html"
 
     def get(self, request):
+        products = Product.objects.prefetch_related("variants").order_by("name")
         context = {
-            "products": Product.objects.prefetch_related(
-                "variants"
-            ).order_by("name"),
+            "products": products,
             "categories": Category.objects.order_by("name"),
             "payment_types": PAYMENT_TYPE.choices,
             "delivery_types": DELIVERY_TYPE.choices,
             "status_choices": STATUS.choices,
+            "variants_by_product_json": pyjson.dumps(build_variants_by_product(products)),
         }
-
-        return render(
-            request,
-            self.template_name,
-            context,
-        )
+        return render(request, self.template_name, context)
 
     def post(self, request):
 
@@ -1194,25 +1206,18 @@ def create_order_from_request(order_request):
 
 class AddOrderRequestView(LoginRequiredMixin, View):
     login_url = "admin_login"
-
     template_name = "db_order_request/add_order_request.html"
 
     def get(self, request):
+        products = Product.objects.prefetch_related("variants", "category").order_by("name")
         context = {
-            "products": Product.objects.prefetch_related(
-                "variants",
-                "category",
-            ).order_by("name"),
+            "products": products,
             "categories": Category.objects.all().order_by("name"),
             "payment_types": PAYMENT_TYPE.choices,
             "delivery_types": DELIVERY_TYPE.choices,
+            "variants_by_product_json": pyjson.dumps(build_variants_by_product(products)),
         }
-
-        return render(
-            request,
-            self.template_name,
-            context,
-        )
+        return render(request, self.template_name, context)
 
     def post(self, request):
 
