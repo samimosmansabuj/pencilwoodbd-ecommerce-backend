@@ -1,565 +1,262 @@
 {% load static %}
 
-<form method="POST" enctype="multipart/form-data"
-    action="{% if is_update %}{% url 'product_update' product.id %}{% else %}{% url 'product_add' %}{% endif %}">
+<form method="post" enctype="multipart/form-data" id="add_product_form"
+    action="{% if is_update %}{% url 'product_update' product.pk %}{% else %}{% url 'product_add' %}{% endif %}">
     {% csrf_token %}
 
-    {% if is_update %}
-    <input type="hidden" name="product_id" value="{{ product.id }}">
-    {% endif %}
+    <!-- attribute + existing variant data for JS -->
+    <script id="attributes-data" type="application/json">{{ attributes_data|safe }}</script>
+    <script id="existing-variants-data" type="application/json">{{ existing_variants_data|safe }}</script>
 
     <div class="row">
         <div class="col-12 col-lg-8">
 
-            <!-- ================= Product Details ================= -->
+            <!-- Product Details -->
             <div class="card">
                 <div class="card-body">
-
-                    <!-- Title -->
+                    <!-- Product Title -->
                     <div class="mb-4">
                         <h5 class="mb-3">Product Title</h5>
-                        <input type="text" class="form-control" name="name" value="{{ product.name|default:'' }}"
-                            required>
+                        <input type="text" name="name" class="form-control" placeholder="write title here...."
+                            value="{% if product %}{{ product.name }}{% endif %}" required>
                     </div>
 
-                    <p>Total Categories: {{ categories|length }}</p>
-
-                    <!-- Category (optional - product can have no category) -->
-                    <div class="mb-4">
-                        <label class="form-label">Category <span class="text-muted">(optional)</span></label>
-                        <select class="form-select" name="category">
-
-                            <option value=""
-                                {% if not product.category %}selected{% endif %}>
-                                ---------
-                            </option>
-
-                            {% for cat in categories %}
-                            <option value="{{ cat.id }}"
-                                {% if product.category and product.category.id == cat.id %}
-                                selected
-                                {% endif %}>
-                                {{ cat.get_category_path }}
-                            </option>
-                            {% endfor %}
-
-                        </select>
-                    </div>
-
-                    <!-- Short description -->
+                    <!-- Product Highlights -->
                     <div class="mb-4">
                         <h5 class="mb-3">Product Highlights</h5>
-                        <textarea class="form-control" name="short_description" rows="5">{{ product.short_description|default:'' }}</textarea>
+                        <textarea name="short_description" class="form-control" cols="4" rows="6"
+                            placeholder="write a short description here..">{% if product %}{{ product.short_description }}{% endif %}</textarea>
                     </div>
 
-                    <!-- Full description -->
+                    <!-- Product Full Description -->
                     <div class="mb-4">
+                        <h5 class="mb-3">Product Highlights</h5>
+                        <textarea name="short_description" class="form-control" cols="4" rows="8"
+                            placeholder="write a description here..">{% if product %}{{ product.details }}{% endif %}</textarea>
+                    </div>
+                    <!-- <div class="mb-4">
                         <h5 class="mb-3">Product Full Description</h5>
-                        <div id="quill-editor" style="height:300px;"></div>
-                        <textarea id="full-description" name="details" style="display:none;">{{ product.details|default:'' }}</textarea>
-                    </div>
+                        <div id="quill-editor" style="height: 300px;">
+                            {% if product %}{{ product.details|safe }}{% endif %}
+                        </div>
+                        <textarea id="full-description" name="details" class="form-control" cols="4" rows="10"
+                            placeholder="write a description here.."
+                            style="display:none;">{% if product %}{{ product.details }}{% endif %}</textarea>
+                    </div> -->
+                </div>
+            </div>
 
-                    <!-- Tags -->
+            <!-- Images -->
+            <div class="card">
+                <div class="card-body">
                     <div class="mb-4">
-                        <h5 class="mb-3">Tags</h5>
-                        <input type="text" id="Tags" class="form-control" placeholder="Type tag and press Enter...">
-                        <ul class="list-group d-none" id="tag_suggestions"></ul>
+                        <h5 class="mb-3">Display images</h5>
+                        <input id="fancy-file-upload" type="file" name="images"
+                            accept=".jpg, .png, image/jpeg, image/png" multiple>
+                        <input type="hidden" name="primary_image_index" id="primary_image_index" value="0">
 
-                        <input type="hidden" name="tags" id="tags_input" value='{{ product.tags|default:"[]" }}'>
-
-                        <div class="mt-2 d-flex flex-wrap gap-2" id="tags_list">
-                            {% for tag in product.tags %}
-                            <a class="btn btn-sm btn-light border" data-slug="{{ tag }}">
-                                {{ tag }}
-                                <i class="bi bi-x" style="cursor:pointer;"></i>
-                            </a>
-                            {% endfor %}
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-
-            <!-- ================= IMAGES ================= -->
-            <div class="card">
-                <div class="card-body">
-
-                    <h5 class="mb-3">Display Images</h5>
-
-                    <input type="file" name="images" id="images_input" multiple accept="image/*" class="form-control">
-                    <small class="text-muted">Tip: select a "Primary" radio below on new previews or existing images to control the main product image.</small>
-
-                    <!-- New image previews (client-side) -->
-                    <div class="row mt-3" id="new_images_preview"></div>
-
-                    {% if is_update and product.images.all %}
-
-                    <h6 class="mt-4">Existing Images</h6>
-                    <div class="row mt-2">
-
-                        {% for image in product.images.all %}
-
-                        <div class="col-md-3 col-6 mb-3">
-
-                            <div class="border rounded p-2 text-center">
-
-                                <img src="{{ image.image.url }}" class="img-fluid rounded"
-                                    style="height:120px;object-fit:cover;">
-
-                                <div class="form-check mt-2">
-                                    <input class="form-check-input" type="radio" name="primary_image_id"
-                                        value="{{ image.id }}" id="primary_existing{{ image.id }}"
-                                        {% if image.role == "primary" %}checked{% endif %}>
-                                    <label class="form-check-label small" for="primary_existing{{ image.id }}">
-                                        Primary
-                                    </label>
-                                </div>
-
-                                <div class="form-check mt-1">
-                                    <input class="form-check-input" type="checkbox" name="delete_images"
-                                        value="{{ image.id }}" id="img{{ image.id }}">
-                                    <label class="form-check-label small" for="img{{ image.id }}">
-                                        Delete
-                                    </label>
-                                </div>
-
-                            </div>
-
-                        </div>
-
-                        {% endfor %}
-
-                    </div>
-
-                    {% endif %}
-
-                </div>
-            </div>
-
-            <!-- ================= VIDEO ================= -->
-            <div class="card">
-                <div class="card-body">
-
-                    <h5 class="mb-3">Product Video</h5>
-
-                    <input
-                        type="file"
-                        name="video"
-                        accept="video/*"
-                        class="form-control">
-
-                    {% if is_update %}
-
-                        {% for video in product.videos.all %}
-
+                        {% if is_update and product.images.all %}
                         <div class="mt-3">
-
-                            <video
-                                width="320"
-                                controls
-                                class="border rounded">
-
-                                <source src="{{ video.video.url }}">
-
-                            </video>
-
-                            <div class="form-check mt-2">
-
-                                <input
-                                    class="form-check-input"
-                                    type="radio"
-                                    name="delete_video"
-                                    value="{{ video.id }}"
-                                    id="video{{ video.id }}">
-
-                                <label
-                                    class="form-check-label"
-                                    for="video{{ video.id }}">
-
-                                    Delete Video
-
-                                </label>
-
+                            <h6 class="mb-2">Existing Images</h6>
+                            <div class="d-flex flex-wrap gap-3" id="existing_images_wrapper">
+                                {% for img in product.images.all %}
+                                <div class="position-relative existing-image-item" data-id="{{ img.id }}"
+                                    style="width: 100px;">
+                                    <img src="{{ img.image.url }}" class="img-fluid rounded border"
+                                        style="height:100px; object-fit:cover; width:100%;">
+                                    {% if img.role == 'primary' %}
+                                    <span class="badge bg-success position-absolute top-0 start-0">Primary</span>
+                                    {% endif %}
+                                    <div class="form-check mt-1">
+                                        <input class="form-check-input delete-image-checkbox" type="checkbox"
+                                            name="delete_images" value="{{ img.id }}" id="del_img_{{ img.id }}">
+                                        <label class="form-check-label small text-danger" for="del_img_{{ img.id }}">
+                                            Remove
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
                             </div>
-
                         </div>
+                        {% endif %}
+                    </div>
 
-                        {% endfor %}
+                    <!-- Video -->
+                    <div class="mb-4">
+                        <h5 class="mb-3">Product Video</h5>
+                        <input type="file" name="video" class="form-control" accept="video/*">
 
-                    {% endif %}
-
-                </div>
-            </div>
-
-            <!-- ================= PRICE & STOCK ================= -->
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="mb-3">Price & Stock</h5>
-                    <p class="text-muted small mb-2">
-                        If this product has variants below, these base values are used as fallback defaults only —
-                        actual price/stock will come from each variant.
-                    </p>
-                    <div class="row g-3">
-                        <div class="col-4">
-                            <label>Price</label>
-                            <input type="number" step="0.01" min="0" class="form-control" name="price"
-                                value="{{ product.price|default:0 }}">
+                        {% if is_update and product.videos.first %}
+                        <div class="mt-3 d-flex align-items-center gap-3">
+                            <video src="{{ product.videos.first.video.url }}" style="height:80px;" controls></video>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="delete_video"
+                                    value="{{ product.videos.first.id }}" id="delete_video">
+                                <label class="form-check-label text-danger" for="delete_video">Remove video</label>
+                            </div>
                         </div>
-                        <div class="col-4">
-                            <label>Discount Price</label>
-                            <input type="number" step="0.01" min="0" class="form-control" name="discount_price"
-                                value="{{ product.discount_price|default:0 }}">
-                        </div>
-                        <div class="col-4">
-                            <label>Stock</label>
-                            <input type="number" min="0" class="form-control" name="inventory_quantity"
-                                value="{{ product.inventory_quantity|default:0 }}"
-                                id="base_stock_input">
-                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
 
-            <!-- ================= VARIANTS ================= -->
+            <!-- Price, Stock & Variants -->
             <div class="card">
                 <div class="card-body">
-                    <h5 class="mb-3">Product Variants <span class="text-muted small">(optional)</span></h5>
-                    <p class="text-muted small">
-                        Leave everything below untouched if this is a simple product with no variants.
-                    </p>
+                    <div class="mb-4">
+                        <h5 class="mb-3">Price, Stock & Variants</h5>
 
-                    <div class="mb-3">
-                        <label class="form-label">Select attributes for this product</label>
-                        <div class="d-flex flex-wrap gap-3" id="attribute_toggle_wrapper">
+                        <!-- Dynamic attribute rows built from Attribute model -->
+                        <div id="attributes_wrapper">
                             {% for attr in attributes %}
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input attr-toggle" type="checkbox"
-                                    value="{{ attr.id }}" data-name="{{ attr.name }}"
-                                    id="attr{{ attr.id }}">
-                                <label class="form-check-label" for="attr{{ attr.id }}">{{ attr.name }}</label>
+                            <div class="col-12 mb-2">
+                                <label class="form-label">{{ attr.name }}</label>
+                                <div class="col-12 mb-2 position-relative custom-wrapper attribute-wrapper"
+                                    data-attribute-id="{{ attr.id }}" data-attribute="{{ attr.name|lower }}">
+                                    <input type="text" class="form-control attr-input"
+                                        placeholder="{{ attr.name }}">
+                                    <ul class="list-group custom-suggestion-list d-none suggestion-list"
+                                        id="{{ attr.name|lower }}_suggestions">
+                                        {% for val in attr.values.all %}
+                                        <li class="list-group-item suggestion-item" data-value="{{ val.value }}">
+                                            {{ val.value }}
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                                <div class="col-12 mb-2">
+                                    <div class="d-flex align-items-center gap-2 flex-wrap mt-2 selected-list"
+                                        id="{{ attr.name|lower }}_list">
+                                    </div>
+                                </div>
                             </div>
-                            {% empty %}
-                            <p class="text-muted small mb-0">
-                                No attributes defined yet. Create attributes first if you need variants (e.g. Size, Color).
-                            </p>
                             {% endfor %}
                         </div>
                     </div>
 
-                    <div id="attribute_values_wrapper"></div>
+                    <div class="mb-4">
+                        <!-- Bulk Price set and Update -->
+                        <div class="mb-3" id="bulk_price_set" style="display: none;">
+                            <h6>Bulk Price & Stock</h6>
+                            <div class="row g-2">
+                                <div class="col"><input type="number" class="form-control" id="bulk_stock"
+                                        placeholder="Stock"></div>
+                                <div class="col"><input type="number" class="form-control" id="bulk_price"
+                                        placeholder="Price"></div>
+                                <div class="col"><input type="number" class="form-control" id="bulk_discount"
+                                        placeholder="Discount"></div>
+                                <div class="col">
+                                    <button type="button" class="btn btn-dark w-100" id="apply_bulk">Apply
+                                        All</button>
+                                </div>
+                            </div>
+                        </div>
 
-                    <button type="button" id="generate_variants_btn" class="btn btn-sm btn-outline-primary mt-2">
-                        Generate Variant Combinations
-                    </button>
-
-                    {% if is_update and variants %}
-                    <button type="button" id="load_existing_variants_btn" class="btn btn-sm btn-outline-secondary mt-2 ms-2">
-                        Reload Existing Variants
-                    </button>
-                    {% endif %}
-
-                    <div id="variants_table_wrapper" class="mt-3"></div>
-
-                    <!-- Hidden "variants" inputs get injected here right before submit -->
-                    <div id="variants_hidden_inputs"></div>
+                        <!-- Variant table -->
+                        <table class="table table-bordered" id="variant_table">
+                            <thead class="table-dark">
+                                <tr id="variant_head">
+                                    <th>Stock</th>
+                                    <th>Price</th>
+                                    <th>Discount</th>
+                                    <th>Active</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="variant_table_body">
+                                <!-- rows injected by JS from attributes_data + existing_variants_data -->
+                                <!-- each row appends a hidden input name="variants" value='{json}' -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-
         </div>
 
-        <!-- Server data passed to JS as JSON text, not as raw JS variables -->
-        <!-- (keeps VS Code / any JS linter from choking on Django template tags) -->
-        {{ attributes_data|json_script:"attributes-data" }}
-        {{ existing_variants_data|json_script:"existing-variants-data" }}
-
-        <!-- ================= SIDEBAR ================= -->
+        <!-- Sidebar -->
         <div class="col-12 col-lg-4">
             <div class="card">
                 <div class="card-body">
-                    <div class="d-flex gap-2">
+                    <div class="d-flex align-items-center gap-3">
                         <a href="{% url 'product_list' %}" class="btn btn-outline-danger flex-fill">
-                            Discard
+                            <i class="bi bi-x-circle me-2"></i>Discard
                         </a>
-                        <button type="submit" name="status" value="Draft" class="btn btn-outline-success flex-fill">
-                            Save Draft
+                        <button type="submit" name="status" value="draft" class="btn btn-outline-success flex-fill">
+                            <i class="bi bi-cloud-download me-2"></i>Save Draft
                         </button>
-                        <button type="submit" name="status" value="Active" class="btn btn-outline-primary flex-fill">
-                            Publish
+                        <button type="submit" name="status" value="active" class="btn btn-outline-primary flex-fill">
+                            <i class="bi bi-send me-2"></i>Publish
                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="mb-3">Organize</h5>
+                    <div class="row g-3">
+                        <!-- Category -->
+                        <div class="col-12">
+                            <label for="AddCategory" class="form-label">Category</label>
+                            <select class="form-select" id="AddCategory" name="category">
+                                <option value="">Select Category</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat.id }}"
+                                    {% if product and product.category_id == cat.id %}selected{% endif %}>
+                                    {{ cat.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Tags -->
+                        <div class="mb-4">
+                            <label for="Tags" class="form-label">Tags</label>
+                            <div class="col-12 mb-2 position-relative custom-wrapper">
+                                <input type="text" class="form-control" id="Tags" placeholder="Tags">
+                                <ul class="list-group custom-suggestion-list d-none" id="tag_suggestions"></ul>
+                            </div>
+                            <div class="col-12 mb-2">
+                                <div class="d-flex align-items-center gap-2 flex-wrap" id="tags_list">
+                                </div>
+                            </div>
+                            <input type="hidden" name="tags" id="tags_input"
+                                value="{% if product %}{{ product.tags|safe }}{% else %}[]{% endif %}">
+                        </div>
+                    </div>
+                    <!--end row-->
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="mb-3">Pricing & Inventory</h5>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Regular Price</label>
+                            <input type="number" step="0.01" name="price" class="form-control" placeholder="0.00"
+                                value="{% if product %}{{ product.price }}{% endif %}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Sale Price</label>
+                            <input type="number" step="0.01" name="discount_price" class="form-control"
+                                placeholder="0.00"
+                                value="{% if product %}{{ product.discount_price }}{% endif %}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Inventory Quantity</label>
+                            <input type="number" name="inventory_quantity" class="form-control" placeholder="0"
+                                value="{% if product %}{{ product.inventory_quantity }}{% endif %}"
+                                {% if product and product.has_variants %}disabled{% endif %}>
+                            {% if product and product.has_variants %}
+                            <small class="text-muted">Auto-calculated from variant stock.</small>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
     </div>
+    <!--end row-->
 </form>
-
-<script>
-(function () {
-    // ---------------------------------------------------------------
-    // Quill editor
-    // ---------------------------------------------------------------
-    var quill = new Quill('#quill-editor', { theme: 'snow' });
-    quill.root.innerHTML = document.getElementById("full-description").value;
-
-    // ---------------------------------------------------------------
-    // Tags
-    // ---------------------------------------------------------------
-    const tagInputEl = document.getElementById("Tags");
-    const tagsListEl = document.getElementById("tags_list");
-
-    function bindTagRemoveIcon(iconEl) {
-        iconEl.addEventListener("click", function () {
-            iconEl.closest("a").remove();
-        });
-    }
-
-    document.querySelectorAll("#tags_list i.bi-x").forEach(bindTagRemoveIcon);
-
-    if (tagInputEl) {
-        tagInputEl.addEventListener("keydown", function (e) {
-            if (e.key === "Enter") {
-                e.preventDefault();
-                const value = tagInputEl.value.trim();
-                if (!value) return;
-
-                const exists = Array.from(tagsListEl.querySelectorAll("a"))
-                    .some(el => el.dataset.slug.toLowerCase() === value.toLowerCase());
-                if (exists) {
-                    tagInputEl.value = "";
-                    return;
-                }
-
-                const tagEl = document.createElement("a");
-                tagEl.className = "btn btn-sm btn-light border";
-                tagEl.dataset.slug = value;
-                tagEl.innerHTML = `${value} <i class="bi bi-x" style="cursor:pointer;"></i>`;
-                bindTagRemoveIcon(tagEl.querySelector("i"));
-
-                tagsListEl.appendChild(tagEl);
-                tagInputEl.value = "";
-            }
-        });
-    }
-
-    // ---------------------------------------------------------------
-    // Image preview (new uploads)
-    // ---------------------------------------------------------------
-    const imagesInput = document.getElementById("images_input");
-    const newImagesPreview = document.getElementById("new_images_preview");
-
-    if (imagesInput) {
-        imagesInput.addEventListener("change", function () {
-            newImagesPreview.innerHTML = "";
-            Array.from(imagesInput.files).forEach((file, index) => {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    const col = document.createElement("div");
-                    col.className = "col-md-3 col-6 mb-3";
-                    col.innerHTML = `
-                        <div class="border rounded p-2 text-center">
-                            <img src="${e.target.result}" class="img-fluid rounded" style="height:120px;object-fit:cover;">
-                            <div class="form-check mt-2">
-                                <input class="form-check-input" type="radio" name="primary_image_index"
-                                    value="${index}" id="primary_new${index}">
-                                <label class="form-check-label small" for="primary_new${index}">Primary</label>
-                            </div>
-                        </div>`;
-                    newImagesPreview.appendChild(col);
-                };
-                reader.readAsDataURL(file);
-            });
-        });
-    }
-
-    // ---------------------------------------------------------------
-    // Variant builder
-    // ---------------------------------------------------------------
-    function readJsonScript(id, fallback) {
-        const el = document.getElementById(id);
-        if (!el) return fallback;
-        try {
-            return JSON.parse(el.textContent);
-        } catch (e) {
-            return fallback;
-        }
-    }
-
-    const ATTRIBUTES_DATA = readJsonScript("attributes-data", []);
-    const EXISTING_VARIANTS = readJsonScript("existing-variants-data", []);
-
-    const attrValuesWrapper = document.getElementById("attribute_values_wrapper");
-    const variantsTableWrapper = document.getElementById("variants_table_wrapper");
-    const variantsHiddenInputs = document.getElementById("variants_hidden_inputs");
-    const generateBtn = document.getElementById("generate_variants_btn");
-    const reloadBtn = document.getElementById("load_existing_variants_btn");
-
-    function renderAttributeValueOptions(preSelectedValues) {
-        preSelectedValues = preSelectedValues || {};
-        attrValuesWrapper.innerHTML = "";
-
-        document.querySelectorAll(".attr-toggle:checked").forEach(function (cb) {
-            const attrId = cb.value;
-            const attrName = cb.dataset.name;
-            const attrObj = ATTRIBUTES_DATA.find(a => String(a.id) === String(attrId));
-            if (!attrObj) return;
-
-            const selectedForThisAttr = preSelectedValues[attrName] || [];
-
-            const block = document.createElement("div");
-            block.className = "mb-2";
-            block.innerHTML = "<strong>" + attrName + "</strong><div class=\"d-flex flex-wrap gap-2 mt-1\">" +
-                attrObj.values.map(function (v) {
-                    const checked = selectedForThisAttr.includes(v.value) ? "checked" : "";
-                    return '<div class="form-check form-check-inline">' +
-                        '<input class="form-check-input val-toggle" type="checkbox" data-attr="' + attrName + '" value="' + v.value + '" id="val_' + attrId + '_' + v.id + '" ' + checked + '>' +
-                        '<label class="form-check-label" for="val_' + attrId + '_' + v.id + '">' + v.value + '</label>' +
-                        '</div>';
-                }).join("") + "</div>";
-            attrValuesWrapper.appendChild(block);
-        });
-    }
-
-    function generateCombosFromChecked() {
-        const grouped = {};
-        document.querySelectorAll(".val-toggle:checked").forEach(function (cb) {
-            const attr = cb.dataset.attr;
-            grouped[attr] = grouped[attr] || [];
-            grouped[attr].push(cb.value);
-        });
-
-        const attrNames = Object.keys(grouped);
-        if (attrNames.length === 0) {
-            variantsTableWrapper.innerHTML = "<p class='text-muted'>Select attribute values first, then click Generate.</p>";
-            return;
-        }
-
-        let combos = [{}];
-        attrNames.forEach(function (name) {
-            const next = [];
-            combos.forEach(function (combo) {
-                grouped[name].forEach(function (val) {
-                    next.push(Object.assign({}, combo, { [name]: val }));
-                });
-            });
-            combos = next;
-        });
-
-        renderVariantTable(combos);
-    }
-
-    function renderVariantTable(combos, existingByCombo) {
-        existingByCombo = existingByCombo || {};
-
-        let html = '<table class="table table-sm align-middle">' +
-            '<thead><tr><th>Combination</th><th>Price</th><th>Discount Price</th><th>Stock</th><th>Active</th></tr></thead><tbody>';
-
-        combos.forEach(function (combo) {
-            const key = JSON.stringify(combo, Object.keys(combo).sort());
-            const label = Object.entries(combo).map(([k, v]) => k + ": " + v).join(" / ");
-            const existing = existingByCombo[key] || {};
-
-            html += '<tr data-combo=\'' + JSON.stringify(combo) + '\' data-variant-id="' + (existing.id || '') + '">' +
-                '<td>' + label + '</td>' +
-                '<td><input type="number" step="0.01" min="0" class="form-control form-control-sm variant-price" placeholder="Price" value="' + (existing.price != null ? existing.price : '') + '"></td>' +
-                '<td><input type="number" step="0.01" min="0" class="form-control form-control-sm variant-discount" placeholder="Optional" value="' + (existing.discount_price != null ? existing.discount_price : '') + '"></td>' +
-                '<td><input type="number" min="0" class="form-control form-control-sm variant-stock" value="' + (existing.inventory_quantity != null ? existing.inventory_quantity : 0) + '"></td>' +
-                '<td class="text-center"><input type="checkbox" class="form-check-input variant-active" ' + (existing.is_active === false ? '' : 'checked') + '></td>' +
-                '</tr>';
-        });
-
-        html += "</tbody></table>";
-        variantsTableWrapper.innerHTML = html;
-    }
-
-    function loadExistingVariants() {
-        if (!EXISTING_VARIANTS.length) return;
-
-        const usedAttrNames = new Set();
-        const valuesByAttr = {};
-        const existingByCombo = {};
-
-        EXISTING_VARIANTS.forEach(function (v) {
-            const combo = v.attributes || {};
-            const key = JSON.stringify(combo, Object.keys(combo).sort());
-            existingByCombo[key] = v;
-
-            Object.entries(combo).forEach(function ([attrName, val]) {
-                usedAttrNames.add(attrName);
-                valuesByAttr[attrName] = valuesByAttr[attrName] || [];
-                if (!valuesByAttr[attrName].includes(val)) {
-                    valuesByAttr[attrName].push(val);
-                }
-            });
-        });
-
-        document.querySelectorAll(".attr-toggle").forEach(function (cb) {
-            if (usedAttrNames.has(cb.dataset.name)) {
-                cb.checked = true;
-            }
-        });
-
-        renderAttributeValueOptions(valuesByAttr);
-
-        const combos = EXISTING_VARIANTS.map(v => v.attributes || {});
-        renderVariantTable(combos, existingByCombo);
-    }
-
-    // Bind attribute checkboxes (event delegation so it survives modal re-renders)
-    document.getElementById("attribute_toggle_wrapper") &&
-        document.getElementById("attribute_toggle_wrapper").addEventListener("change", function (e) {
-            if (e.target.classList.contains("attr-toggle")) {
-                renderAttributeValueOptions();
-            }
-        });
-
-    if (generateBtn) {
-        generateBtn.addEventListener("click", generateCombosFromChecked);
-    }
-
-    if (reloadBtn) {
-        reloadBtn.addEventListener("click", loadExistingVariants);
-    }
-
-    // Load existing variants immediately (form is already in the DOM when this script runs,
-    // whether on a standalone page or inside a modal that was just injected)
-    loadExistingVariants();
-
-    // ---------------------------------------------------------------
-    // Submit: assemble hidden inputs for details/tags/variants
-    // ---------------------------------------------------------------
-    const formEl = document.querySelector("form");
-
-    formEl.addEventListener("submit", function () {
-        document.getElementById("full-description").value = quill.root.innerHTML;
-
-        const tags = Array.from(document.querySelectorAll("#tags_list a")).map(el => el.dataset.slug);
-        document.getElementById("tags_input").value = JSON.stringify(tags);
-
-        variantsHiddenInputs.innerHTML = "";
-        document.querySelectorAll("#variants_table_wrapper tbody tr").forEach(function (row) {
-            const attributes = JSON.parse(row.dataset.combo);
-            const variantId = row.dataset.variantId || null;
-            const price = row.querySelector(".variant-price").value;
-            const discount_price = row.querySelector(".variant-discount").value;
-            const inventory_quantity = row.querySelector(".variant-stock").value;
-            const is_active = row.querySelector(".variant-active").checked;
-
-            const payload = {
-                id: variantId || undefined,
-                attributes: attributes,
-                price: price,
-                discount_price: discount_price,
-                inventory_quantity: inventory_quantity,
-                is_active: is_active
-            };
-
-            const input = document.createElement("input");
-            input.type = "hidden";
-            input.name = "variants";
-            input.value = JSON.stringify(payload);
-            variantsHiddenInputs.appendChild(input);
-        });
-    });
-})();
-</script>
