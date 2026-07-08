@@ -1,22 +1,73 @@
 {% load static %}
 
-<form method="POST" id="order-request-form">
+<form method="POST" id="order-request-form" enctype="multipart/form-data">
     {% csrf_token %}
 
     <div class="row">
         <div class="col-12 col-lg-8">
 
-            <!-- ================= Customer / Shipping ================= -->
+            <!-- ================= Personal Info ================= -->
             <div class="card">
                 <div class="card-body">
-                    <h5 class="mb-3">Shipping Info</h5>
-
-                    <div class="mb-3">
-                        <label class="form-label">Shipping Address</label>
-                        <textarea class="form-control" name="shipping_address" rows="2" required></textarea>
-                    </div>
+                    <h5 class="mb-3">Personal Info</h5>
 
                     <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Company (Optional)</label>
+                            <input type="text" class="form-control" name="company" placeholder="Enter Company Name">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Name</label>
+                            <input type="text" class="form-control" name="name" placeholder="Enter Your Name" required>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" name="email" placeholder="Enter email address">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Phone number</label>
+                            <input type="text" class="form-control" name="phone" placeholder="Enter Phone Number" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Second phone number (Optional)</label>
+                            <input type="text" class="form-control" name="second_phone" placeholder="Second Phone Number">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Design file (Optional)</label>
+                            <input type="file" class="form-control" name="design_file">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Source</label>
+                            <select class="form-select" name="source">
+                                <option value="Others" selected>Others</option>
+                                <option value="Facebook">Facebook</option>
+                                <option value="Instagram">Instagram</option>
+                                <option value="WhatsApp">WhatsApp</option>
+                                <option value="Website">Website</option>
+                                <option value="Referral">Referral</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-8">
+                            <label class="form-label">Delivery address</label>
+                            <input type="text" class="form-control" name="shipping_address" placeholder="Enter Delivery Address" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Order Created Date</label>
+                            <input type="date" class="form-control" name="order_created_date">
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="is_urgent" id="is_urgent">
+                                <label class="form-check-label" for="is_urgent">Is it urgent?</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-1">
                         <div class="col-md-6">
                             <label class="form-label">Delivery Type</label>
                             <select class="form-select" name="delivery_type">
@@ -47,8 +98,7 @@
                 <div class="card-body">
                     <h5 class="mb-3">Products</h5>
                     <p class="text-muted small">
-                        This is a request only — nothing is deducted from stock and no payment is taken until it's approved into an order.
-                        Company may restock later if quantity requested exceeds what's on hand.
+                        Stock is not enforced strictly here — company may restock as needed. Quantity is what's requested/ordered.
                     </p>
 
                     <div class="row g-2 align-items-end">
@@ -120,6 +170,11 @@
                         <input type="number" step="0.01" min="0" class="form-control" name="shipping_total" id="shipping_total_input" value="0">
                     </div>
 
+                    <div class="mb-3">
+                        <label class="form-label">Advance Amount</label>
+                        <input type="number" step="0.01" min="0" class="form-control" name="advance_amount" id="advance_amount_input" value="0">
+                    </div>
+
                     <div class="d-flex justify-content-between border-top pt-2">
                         <span>Items Total</span>
                         <span id="items_total_display">৳0.00</span>
@@ -128,16 +183,46 @@
                         <span>Shipping</span>
                         <span id="shipping_total_display">৳0.00</span>
                     </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Advance</span>
+                        <span id="advance_amount_display">৳0.00</span>
+                    </div>
                     <div class="d-flex justify-content-between fw-bold border-top pt-2 mt-2">
                         <span>Grand Total</span>
                         <span id="grand_total_display">৳0.00</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Total Due</span>
+                        <span id="total_due_display">৳0.00</span>
                     </div>
                 </div>
             </div>
 
             <div class="card">
                 <div class="card-body">
-                    <p class="text-muted small mb-0">
+                    <h5 class="mb-3">Status</h5>
+                    <label class="form-label">Order Status</label>
+                    <select class="form-select" name="status">
+                        {% for value, label in status_choices %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <label class="form-label mt-3">Work assign (Optional)</label>
+                    <input type="text" class="form-control" name="work_assign" placeholder="---------">
+
+                    <label class="form-label mt-3">Delivery date (Optional)</label>
+                    <input type="date" class="form-control" name="delivery_date">
+
+                    <label class="form-label mt-3">Special instructions (Optional)</label>
+                    <textarea class="form-control" name="special_instructions" rows="2" placeholder="Enter Special Instructions (optional)"></textarea>
+                </div>
+            </div>
+
+
+            <div class="card">
+                <div class="card-body">
+                    <p class="text small mb-0">
                         This request will show up in the Order Request list as <strong>Pending</strong>.
                         Approve it later to convert it into a real order, or cancel to discard it.
                     </p>
@@ -154,7 +239,6 @@
         </div>
     </div>
 
-    <!-- hidden input carrying items JSON, built by JS -->
     <input type="hidden" name="items" id="items_hidden_input">
 </form>
 
@@ -168,6 +252,7 @@
     const itemsEmptyRow = document.getElementById("items_empty_row");
     const itemsHiddenInput = document.getElementById("items_hidden_input");
     const shippingInput = document.getElementById("shipping_total_input");
+    const advanceInput = document.getElementById("advance_amount_input");
 
     const VARIANTS_BY_PRODUCT = {{ variants_by_product_json|default:"{}"|safe }};
 
@@ -225,9 +310,15 @@
     function updateTotals() {
         const itemsTotal = items.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
         const shipping = parseFloat(shippingInput.value) || 0;
+        const advance = parseFloat(advanceInput.value) || 0;
+        const grandTotal = itemsTotal + shipping;
+        const totalDue = grandTotal - advance;
+
         document.getElementById("items_total_display").textContent = "৳" + itemsTotal.toFixed(2);
         document.getElementById("shipping_total_display").textContent = "৳" + shipping.toFixed(2);
-        document.getElementById("grand_total_display").textContent = "৳" + (itemsTotal + shipping).toFixed(2);
+        document.getElementById("advance_amount_display").textContent = "৳" + advance.toFixed(2);
+        document.getElementById("grand_total_display").textContent = "৳" + grandTotal.toFixed(2);
+        document.getElementById("total_due_display").textContent = "৳" + totalDue.toFixed(2);
     }
 
     function syncHiddenInput() {
@@ -261,7 +352,6 @@
         });
 
         renderItems();
-
         qtyInput.value = 1;
     });
 
@@ -274,8 +364,9 @@
     });
 
     shippingInput.addEventListener("input", updateTotals);
+    advanceInput.addEventListener("input", updateTotals);
 
-    document.getElementById("order-request-form").addEventListener("submit", function (e) {
+    document.getElementById("order-form").addEventListener("submit", function (e) {
         if (items.length === 0) {
             e.preventDefault();
             alert("Please add at least one product.");

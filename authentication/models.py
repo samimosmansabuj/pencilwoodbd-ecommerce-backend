@@ -17,14 +17,17 @@ class CustomUser(AbstractUser):
 
 class Customer(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.SET_NULL, blank=True, null=True, related_name='customer_profile')
+    company = models.CharField(max_length=255, blank=True, null=True)
     name = models.CharField(max_length=50)
     phone = models.CharField(max_length=20)
+    second_phone = models.CharField(max_length=20, blank=True, null=True)
     whatsapp = models.CharField(max_length=20, blank=True, null=True)
     email = models.EmailField(max_length=200, blank=True, null=True)
-    
+    source = models.CharField(max_length=100, blank=True, null=True, default='Others')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     def __str__(self):
         return self.name
 

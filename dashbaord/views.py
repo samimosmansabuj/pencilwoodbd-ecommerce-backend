@@ -24,7 +24,7 @@ import json as pyjson
 # Models
 from order.models import Order, OrderRequest, OrderItem, OrderRequestItem
 from product.models import Product, Category, ProductImage, ProductVideo, Attribute, AttributeValue, ProductVariant
-from authentication.models import CustomUser
+from authentication.models import CustomUser, Customer
 from site_app.models import DeliveryOption
 
 # Forms
@@ -722,129 +722,100 @@ class AddOrderView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
     def post(self, request):
-
         try:
-
             with transaction.atomic():
-
                 data = request.POST
 
-                shipping_address = data.get(
-                    "shipping_address",
-                    ""
-                ).strip()
+                company = data.get("company", "").strip()
+                name = data.get("name", "").strip()
+                email = data.get("email", "").strip()
+                phone = data.get("phone", "").strip()
+                second_phone = data.get("second_phone", "").strip()
+                source = data.get("source", "Others").strip()
 
-                note = data.get(
-                    "note",
-                    ""
-                ).strip()
+                if not name:
+                    messages.error(request, "Customer name is required.")
+                    return redirect("add_order")
+                if not phone:
+                    messages.error(request, "Phone number is required.")
+                    return redirect("add_order")
 
-                payment_type = data.get(
-                    "payment_type",
-                    PAYMENT_TYPE.COD,
+                customer = Customer.objects.create(
+                    company=company or None,
+                    name=name,
+                    phone=phone,
+                    second_phone=second_phone or None,
+                    email=email or None,
+                    source=source or "Others",
                 )
 
-                delivery_type = data.get(
-                    "delivery_type",
-                    DELIVERY_TYPE.HOME_DELIVERY,
-                )
+                shipping_address = data.get("shipping_address", "").strip()
+                note = data.get("note", "").strip()
+                special_instructions = data.get("special_instructions", "").strip()
+                work_assign = data.get("work_assign", "").strip()
+                payment_type = data.get("payment_type", PAYMENT_TYPE.COD)
+                delivery_type = data.get("delivery_type", DELIVERY_TYPE.HOME_DELIVERY)
+                status = data.get("status", STATUS.NEW)
+                is_urgent = data.get("is_urgent") == "on"
 
-                status = data.get(
-                    "status",
-                    STATUS.NEW,
-                )
+                order_created_date = data.get("order_created_date") or None
+                delivery_date = data.get("delivery_date") or None
+
+                shipping_total = parse_decimal(data.get("shipping_total"))
+                advance_amount = parse_decimal(data.get("advance_amount"))
+
+                design_file = request.FILES.get("design_file")
 
                 try:
-                    shipping_total = Decimal(
-                        data.get(
-                            "shipping_total",
-                            "0",
-                        ) or "0"
-                    )
-                except (InvalidOperation, TypeError):
-                    shipping_total = Decimal("0")
-
-                try:
-                    items = json.loads(
-                        data.get(
-                            "items",
-                            "[]",
-                        )
-                    )
+                    items = json.loads(data.get("items", "[]"))
                 except json.JSONDecodeError:
-                    messages.error(
-                        request,
-                        "Invalid product data."
-                    )
+                    messages.error(request, "Invalid product data.")
                     return redirect("add_order")
 
                 if not items:
-                    messages.error(
-                        request,
-                        "Please add at least one product.",
-                    )
+                    messages.error(request, "Please add at least one product.")
                     return redirect("add_order")
 
                 order = Order.objects.create(
+                    customer=customer,
                     shipping_address=shipping_address,
                     note=note,
+                    special_instructions=special_instructions or None,
+                    work_assign=work_assign or None,
                     payment_type=payment_type,
                     delivery_type=delivery_type,
                     shipping_total=shipping_total,
+                    advance_amount=advance_amount,
                     payment_status=PAYMENT_STATUS.Unpaid,
                     status=status,
+                    is_urgent=is_urgent,
+                    order_created_date=order_created_date,
+                    delivery_date=delivery_date,
+                    design_file=design_file,
                 )
 
                 grand_total = shipping_total
 
                 for item in items:
-
-                    product = get_object_or_404(
-                        Product,
-                        id=item["product_id"],
-                    )
-
+                    product = get_object_or_404(Product, id=item["product_id"])
                     variant = None
-
                     if item.get("variant_id"):
+                        variant = get_object_or_404(ProductVariant, id=item["variant_id"], product=product)
 
-                        variant = get_object_or_404(
-                            ProductVariant,
-                            id=item["variant_id"],
-                            product=product,
-                        )
-
-                    quantity = max(
-                        int(item.get("quantity", 1)),
-                        1,
-                    )
+                    quantity = max(int(item.get("quantity", 1)), 1)
 
                     if variant:
-
                         if variant.inventory_quantity < quantity:
-                            raise Exception(
-                                f"Insufficient stock for {product.name} ({variant})."
-                            )
-
+                            raise Exception(f"Insufficient stock for {product.name} ({variant}).")
                         price = variant.price
                         discount_price = variant.discount_price
-
                     else:
-
                         if product.inventory_quantity < quantity:
-                            raise Exception(
-                                f"Insufficient stock for {product.name}."
-                            )
-
+                            raise Exception(f"Insufficient stock for {product.name}.")
                         price = product.price
                         discount_price = product.discount_price
 
-                    final_price = (
-                        discount_price
-                        if discount_price
-                        else price
-                    )
-
+                    final_price = discount_price if discount_price else price
                     line_total = final_price * quantity
 
                     OrderItem.objects.create(
@@ -859,32 +830,15 @@ class AddOrderView(LoginRequiredMixin, View):
                     grand_total += line_total
 
                 order.total_cost = grand_total
+                order.save(update_fields=["total_cost"])
 
-                order.save(
-                    update_fields=[
-                        "total_cost",
-                    ]
-                )
-
-                messages.success(
-                    request,
-                    f"Order {order.order_id} created successfully.",
-                )
-
-                return redirect(
-                    "order_list"
-                )
+                messages.success(request, f"Order {order.order_id} created successfully.")
+                return redirect("order_list")
 
         except Exception as e:
-
-            messages.error(
-                request,
-                str(e),
-            )
-
-            return redirect(
-                "add_order"
-            )
+            messages.error(request, str(e))
+            return redirect("add_order")
+        
 
 class OrderView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -1239,106 +1193,87 @@ class AddOrderRequestView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
     def post(self, request):
-
         try:
-
             with transaction.atomic():
-
                 data = request.POST
 
-                shipping_address = data.get(
-                    "shipping_address",
-                    "",
+                company = data.get("company", "").strip()
+                name = data.get("name", "").strip()
+                email = data.get("email", "").strip()
+                phone = data.get("phone", "").strip()
+                second_phone = data.get("second_phone", "").strip()
+                source = data.get("source", "Others").strip()
+
+                if not name:
+                    messages.error(request, "Customer name is required.")
+                    return redirect("add_order_request")
+                if not phone:
+                    messages.error(request, "Phone number is required.")
+                    return redirect("add_order_request")
+
+                customer = Customer.objects.create(
+                    company=company or None,
+                    name=name,
+                    phone=phone,
+                    second_phone=second_phone or None,
+                    email=email or None,
+                    source=source or "Others",
                 )
 
-                note = data.get(
-                    "note",
-                    "",
-                )
+                shipping_address = data.get("shipping_address", "").strip()
+                note = data.get("note", "").strip()
+                special_instructions = data.get("special_instructions", "").strip()
+                work_assign = data.get("work_assign", "").strip()
+                payment_type = data.get("payment_type", PAYMENT_TYPE.COD)
+                delivery_type = data.get("delivery_type", DELIVERY_TYPE.HOME_DELIVERY)
+                is_urgent = data.get("is_urgent") == "on"
 
-                payment_type = data.get(
-                    "payment_type",
-                    PAYMENT_TYPE.COD,
-                )
+                order_created_date = data.get("order_created_date") or None
+                delivery_date = data.get("delivery_date") or None
 
-                delivery_type = data.get(
-                    "delivery_type",
-                    DELIVERY_TYPE.HOME_DELIVERY,
-                )
+                shipping_total = parse_decimal(data.get("shipping_total"))
+                advance_amount = parse_decimal(data.get("advance_amount"))
 
-                shipping_total = float(
-                    data.get(
-                        "shipping_total",
-                        0,
-                    ) or 0
-                )
+                design_file = request.FILES.get("design_file")
 
-                items = json.loads(
-                    data.get(
-                        "items",
-                        "[]",
-                    )
-                )
+                try:
+                    items = json.loads(data.get("items", "[]"))
+                except json.JSONDecodeError:
+                    messages.error(request, "Invalid product data.")
+                    return redirect("add_order_request")
 
                 if not items:
-                    messages.error(
-                        request,
-                        "Please add at least one product.",
-                    )
-                    return redirect(
-                        "add_order_request"
-                    )
+                    messages.error(request, "Please add at least one product.")
+                    return redirect("add_order_request")
 
                 order_request = OrderRequest.objects.create(
+                    customer=customer,
                     shipping_address=shipping_address,
                     note=note,
+                    special_instructions=special_instructions or None,
+                    work_assign=work_assign or None,
                     payment_type=payment_type,
                     delivery_type=delivery_type,
                     shipping_total=shipping_total,
+                    advance_amount=advance_amount,
+                    is_urgent=is_urgent,
+                    order_created_date=order_created_date,
+                    design_file=design_file,
                 )
 
                 grand_total = shipping_total
 
                 for item in items:
-
-                    product = Product.objects.get(
-                        id=item["product_id"]
-                    )
-
+                    product = Product.objects.get(id=item["product_id"])
                     variant = None
-
                     if item.get("variant_id"):
+                        variant = ProductVariant.objects.get(id=item["variant_id"], product=product)
 
-                        variant = ProductVariant.objects.get(
-                            id=item["variant_id"],
-                            product=product,
-                        )
+                    quantity = int(item.get("quantity", 1))
 
-                    quantity = int(
-                        item.get(
-                            "quantity",
-                            1,
-                        )
-                    )
-
-                    price = (
-                        variant.price
-                        if variant
-                        else product.price
-                    )
-
-                    discount_price = (
-                        variant.discount_price
-                        if variant
-                        else product.discount_price
-                    )
-
-                    final_price = (
-                        discount_price
-                        if discount_price
-                        else price
-                    )
-
+                    price = variant.price if variant else product.price
+                    discount_price = variant.discount_price if variant else product.discount_price
+                    final_price = discount_price if discount_price else price
                     total = final_price * quantity
 
                     OrderRequestItem.objects.create(
@@ -1353,33 +1288,15 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                     grand_total += total
 
                 order_request.total_cost = grand_total
+                order_request.save(update_fields=["total_cost"])
 
-                order_request.save(
-                    update_fields=[
-                        "total_cost",
-                    ]
-                )
-
-                messages.success(
-                    request,
-                    "Order Request created successfully.",
-                )
-
-                return redirect(
-                    "order_request_list"
-                )
+                messages.success(request, "Order Request created successfully.")
+                return redirect("order_request_list")
 
         except Exception as e:
-
-            messages.error(
-                request,
-                str(e),
-            )
-
-            return redirect(
-                "add_order_request"
-            )
-        
+            messages.error(request, str(e))
+            return redirect("add_order_request")
+               
 
 class OrderRequestListView(LoginRequiredMixin, View):
     login_url = "admin_login"
