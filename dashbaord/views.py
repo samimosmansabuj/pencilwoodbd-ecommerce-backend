@@ -35,7 +35,7 @@ from django.forms import modelformset_factory
 from order.utils import SteadFastParcelAPI
 
 # Choices
-from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, PAYMENT_TYPE, PAYMENT_STATUS
+from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, PAYMENT_TYPE, PAYMENT_STATUS, ATTRIBUTE_TYPE
 
 
 # ------------------Dashboard--------
@@ -687,6 +687,124 @@ def delete_category(request, id):
     )
 
 
+# ------------------Attribute--------
+class AttributeView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        attributes = Attribute.objects.prefetch_related("values").all().order_by("name")
+        return render(request, "db_attribute/attribute_list.html", {
+            "attributes": attributes,
+            "attribute_types": ATTRIBUTE_TYPE.choices,
+        })
+
+    def post(self, request):
+        try:
+            with transaction.atomic():
+                data = request.POST
+                attribute_id = data.get("attribute_id")
+
+                name = data.get("name", "").strip()
+                atype = data.get("type", ATTRIBUTE_TYPE.TEXT)
+                is_variant = data.get("is_variant") == "on"
+                is_filterable = data.get("is_filterable") == "on"
+
+                if not name:
+                    return JsonResponse({"status": False, "message": "Attribute name is required"}, status=HTTPStatus.BAD_REQUEST)
+
+                if attribute_id:
+                    attribute = get_object_or_404(Attribute, id=attribute_id)
+                    attribute.name = name
+                    attribute.type = atype
+                    attribute.is_variant = is_variant
+                    attribute.is_filterable = is_filterable
+                    attribute.save()
+                    return JsonResponse({"status": True, "message": "Attribute updated successfully"}, status=HTTPStatus.OK)
+
+                Attribute.objects.create(
+                    name=name,
+                    type=atype,
+                    is_variant=is_variant,
+                    is_filterable=is_filterable,
+                )
+                return JsonResponse({"status": True, "message": "Attribute added successfully"}, status=HTTPStatus.CREATED)
+
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def delete_attribute(request, id):
+    if request.method == "DELETE":
+        try:
+            attribute = get_object_or_404(Attribute, id=id)
+            attribute.delete()
+            return JsonResponse({"status": True, "message": "Attribute deleted successfully"}, status=HTTPStatus.OK)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+    return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+
+
+# ------------------Attribute Value--------
+class AttributeValueView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request, attribute_id):
+        attribute = get_object_or_404(Attribute, id=attribute_id)
+        values = attribute.values.all().order_by("sort_order", "value")
+        return render(request, "db_attribute/attribute_value_list.html", {
+            "attribute": attribute,
+            "values": values,
+        })
+
+    def post(self, request, attribute_id):
+        try:
+            with transaction.atomic():
+                attribute = get_object_or_404(Attribute, id=attribute_id)
+                data = request.POST
+                value_id = data.get("value_id")
+
+                value = data.get("value", "").strip()
+                hex_code = data.get("hex_code", "").strip()
+                sort_order = parse_int(data.get("sort_order"), 0)
+
+                if not value:
+                    return JsonResponse({"status": False, "message": "Value is required"}, status=HTTPStatus.BAD_REQUEST)
+
+                if value_id:
+                    av = get_object_or_404(AttributeValue, id=value_id, attribute=attribute)
+                    av.value = value
+                    av.hex_code = hex_code or None
+                    av.sort_order = sort_order
+                    av.save()
+                    return JsonResponse({"status": True, "message": "Attribute value updated successfully"}, status=HTTPStatus.OK)
+
+                if AttributeValue.objects.filter(attribute=attribute, value__iexact=value).exists():
+                    return JsonResponse({"status": False, "message": "This value already exists for this attribute"}, status=HTTPStatus.BAD_REQUEST)
+
+                AttributeValue.objects.create(
+                    attribute=attribute,
+                    value=value,
+                    hex_code=hex_code or None,
+                    sort_order=sort_order,
+                )
+                return JsonResponse({"status": True, "message": "Attribute value added successfully"}, status=HTTPStatus.CREATED)
+
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def delete_attribute_value(request, id):
+    if request.method == "DELETE":
+        try:
+            av = get_object_or_404(AttributeValue, id=id)
+            av.delete()
+            return JsonResponse({"status": True, "message": "Attribute value deleted successfully"}, status=HTTPStatus.OK)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+    return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+
 # ------------------Order section CBV-------------
 def build_variants_by_product(products):
     data = {}
@@ -699,6 +817,8 @@ def build_variants_by_product(products):
                     "attributes": v.attributes,
                     "price": str(v.price),
                     "discount_price": str(v.discount_price),
+                    "inventory_quantity": v.inventory_quantity,
+                    "sku": v.sku,
                 }
                 for v in variants
             ]

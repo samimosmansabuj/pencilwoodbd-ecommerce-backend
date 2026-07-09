@@ -1,0 +1,9 @@
+{% extends 'dashboard.html' %}
+
+{% block page_title %}
+<title>{{ attribute.name }} - Values | PencilWoodBD</title>
+{% endblock page_title %}
+
+{% block dashboard_body_content %}
+{% include './partial/partial_attribute_value_list.html' %}
+{% endblock dashboard_body_content %}

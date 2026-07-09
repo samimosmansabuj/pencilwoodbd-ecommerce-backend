@@ -1,0 +1,90 @@
+<div class="main-content" id="attributeValueListTable">
+    <!--breadcrumb-->
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'attribute_list' %}">Variants</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">{{ attribute.name }} Values</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+    <!--end breadcrumb-->
+
+    <div class="row g-3">
+        <div class="col-auto">
+            <h5 class="mb-0 mt-2">Values for: <span class="text-primary">{{ attribute.name }}</span></h5>
+        </div>
+        <div class="col-auto ms-auto">
+            <div class="d-flex align-items-center gap-2 justify-content-lg-end">
+                <a href="{% url 'attribute_list' %}" class="btn btn-outline-secondary px-4">
+                    <i class="bi bi-arrow-left me-2"></i>Back to Variants
+                </a>
+                <button class="btn btn-primary px-4" data-bs-toggle="modal" data-bs-target="#AttributeValueModal">
+                    <i class="bi bi-plus-lg me-2"></i>Add Value
+                </button>
+                {% include 'db_attribute/partial/add_attribute_value_modal.html' %}
+            </div>
+        </div>
+    </div>
+    <!--end row-->
+
+    <div class="card mt-4">
+        <div class="card-body">
+            <div class="product-table">
+                <div class="table-responsive white-space-nowrap">
+                    <table class="table align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Value</th>
+                                <th>Hex Code</th>
+                                <th>Sort Order</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for av in values %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        {% if av.hex_code %}
+                                        <span style="display:inline-block;width:18px;height:18px;border-radius:4px;border:1px solid #ccc;background-color:{{ av.hex_code }};"></span>
+                                        {% endif %}
+                                        <span class="fw-semibold">{{ av.value }}</span>
+                                    </div>
+                                </td>
+                                <td>{{ av.hex_code|default:"-" }}</td>
+                                <td>{{ av.sort_order }}</td>
+                                <td>
+                                    <div class="dropdown d-flex gap-1">
+                                        <button class="btn btn-sm btn-filter edit-attribute-value-btn"
+                                            data-id="{{ av.id }}"
+                                            data-value="{{ av.value }}"
+                                            data-hex="{{ av.hex_code|default:'' }}"
+                                            data-sort="{{ av.sort_order }}"
+                                            data-bs-toggle="modal" data-bs-target="#AttributeValueModal">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-filter delete-attribute-value-btn"
+                                            data-id="{{ av.id }}" data-value="{{ av.value }}"
+                                            data-bs-toggle="modal" data-bs-target="#deleteAttributeValueModal">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-4">No values found for "{{ attribute.name }}". Click "Add Value" to create one.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

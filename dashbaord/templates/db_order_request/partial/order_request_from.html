@@ -87,7 +87,7 @@
                     </div>
 
                     <div class="mb-3 mt-3">
-                        <label class="form-label">Note <span class="text-muted">(optional)</span></label>
+                        <label class="form-label">Note <span class="text">(optional)</span></label>
                         <textarea class="form-control" name="note" rows="2"></textarea>
                     </div>
                 </div>
@@ -97,7 +97,7 @@
             <div class="card">
                 <div class="card-body">
                     <h5 class="mb-3">Products</h5>
-                    <p class="text-muted small">
+                    <p class="text small">
                         Stock is not enforced strictly here — company may restock as needed. Quantity is what's requested/ordered.
                     </p>
 
@@ -117,11 +117,15 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <!-- <div class="col-md-4">
                             <label class="form-label">Variant <span class="text-muted">(if any)</span></label>
                             <select id="variant_select" class="form-select">
                                 <option value="">-- No Variant --</option>
                             </select>
+                        </div> -->
+                        <div class="col-md-7" id="variant_attrs_container" style="display:none;">
+                            <label class="form-label">Variant</label>
+                            <div id="variant_attrs_wrapper" class="row g-2"></div>
                         </div>
                         <div class="col-md-2">
                             <label class="form-label">Qty</label>
@@ -148,7 +152,7 @@
                             </thead>
                             <tbody id="items_tbody">
                                 <tr id="items_empty_row">
-                                    <td colspan="6" class="text-muted text-center">No products added yet.</td>
+                                    <td colspan="6" class="text text-center">No products added yet.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -243,136 +247,223 @@
 </form>
 
 <script>
-(function () {
-    const productSelect = document.getElementById("product_select");
-    const variantSelect = document.getElementById("variant_select");
-    const qtyInput = document.getElementById("qty_input");
-    const addItemBtn = document.getElementById("add_item_btn");
-    const itemsTbody = document.getElementById("items_tbody");
-    const itemsEmptyRow = document.getElementById("items_empty_row");
-    const itemsHiddenInput = document.getElementById("items_hidden_input");
-    const shippingInput = document.getElementById("shipping_total_input");
-    const advanceInput = document.getElementById("advance_amount_input");
-
-    const VARIANTS_BY_PRODUCT = {{ variants_by_product_json|default:"{}"|safe }};
-
-    let items = [];
-
-    function refreshVariantOptions() {
-        const productId = productSelect.value;
-        variantSelect.innerHTML = '<option value="">-- No Variant --</option>';
-        const variants = VARIANTS_BY_PRODUCT[productId] || [];
-        variants.forEach(function (v) {
-            const opt = document.createElement("option");
-            opt.value = v.id;
-            opt.dataset.price = v.price;
-            opt.dataset.discount = v.discount_price;
-            const attrLabel = Object.entries(v.attributes || {}).map(([k, val]) => k + ": " + val).join(", ");
-            opt.textContent = attrLabel || ("Variant #" + v.id);
-            variantSelect.appendChild(opt);
-        });
-    }
-
-    productSelect.addEventListener("change", refreshVariantOptions);
-
-    function currentUnitPrice() {
-        const variantOpt = variantSelect.options[variantSelect.selectedIndex];
-        if (variantSelect.value) {
-            return parseFloat(variantOpt.dataset.discount) || parseFloat(variantOpt.dataset.price) || 0;
+    (function () {
+        const productSelect = document.getElementById("product_select");
+        const qtyInput = document.getElementById("qty_input");
+        const addItemBtn = document.getElementById("add_item_btn");
+        const itemsTbody = document.getElementById("items_tbody");
+        const itemsEmptyRow = document.getElementById("items_empty_row");
+        const itemsHiddenInput = document.getElementById("items_hidden_input");
+        const shippingInput = document.getElementById("shipping_total_input");
+        const advanceInput = document.getElementById("advance_amount_input");
+    
+        const variantAttrsContainer = document.getElementById("variant_attrs_container");
+        const variantAttrsWrapper = document.getElementById("variant_attrs_wrapper");
+    
+        const VARIANTS_BY_PRODUCT = {{ variants_by_product_json|default:"{}"|safe }};
+    
+        let items = [];
+        let currentAttrSelections = {};
+        let matchedVariant = null;
+    
+        function getProductVariants() {
+            const productId = productSelect.value;
+            return VARIANTS_BY_PRODUCT[productId] || [];
         }
-        const productOpt = productSelect.options[productSelect.selectedIndex];
-        if (!productOpt || !productOpt.value) return 0;
-        return parseFloat(productOpt.dataset.discount) || parseFloat(productOpt.dataset.price) || 0;
-    }
-
-    function renderItems() {
-        itemsTbody.innerHTML = "";
-        if (items.length === 0) {
-            itemsTbody.appendChild(itemsEmptyRow);
-        } else {
-            items.forEach(function (item, index) {
-                const lineTotal = item.unit_price * item.quantity;
-                const tr = document.createElement("tr");
-                tr.innerHTML =
-                    "<td>" + item.product_name + "</td>" +
-                    "<td>" + (item.variant_label || "-") + "</td>" +
-                    "<td>" + item.quantity + "</td>" +
-                    "<td>৳" + item.unit_price.toFixed(2) + "</td>" +
-                    "<td>৳" + lineTotal.toFixed(2) + "</td>" +
-                    '<td><button type="button" class="btn btn-sm btn-outline-danger remove-item-btn" data-index="' + index + '"><i class="bi bi-trash"></i></button></td>';
-                itemsTbody.appendChild(tr);
+    
+        function buildAttrOptionsMap(variants) {
+            const map = {};
+            variants.forEach(function (v) {
+                Object.entries(v.attributes || {}).forEach(function ([k, val]) {
+                    if (!map[k]) map[k] = new Set();
+                    map[k].add(val);
+                });
+            });
+            return map;
+        }
+    
+        function renderVariantAttrDropdowns() {
+            variantAttrsWrapper.innerHTML = "";
+            currentAttrSelections = {};
+            matchedVariant = null;
+    
+            const productOpt = productSelect.options[productSelect.selectedIndex];
+            const hasVariants = productOpt && productOpt.dataset.hasVariants === "true";
+            const variants = getProductVariants();
+    
+            if (!hasVariants || !variants.length) {
+                variantAttrsContainer.style.display = "none";
+                return;
+            }
+    
+            variantAttrsContainer.style.display = "block";
+            const attrMap = buildAttrOptionsMap(variants);
+    
+            Object.keys(attrMap).forEach(function (attrKey) {
+                const col = document.createElement("div");
+                col.className = "col-auto";
+    
+                const label = document.createElement("label");
+                label.className = "form-label small text mb-1 d-block";
+                label.textContent = attrKey.charAt(0).toUpperCase() + attrKey.slice(1);
+    
+                const select = document.createElement("select");
+                select.className = "form-select form-select-sm variant-attr-select";
+                select.dataset.attrKey = attrKey;
+    
+                const placeholder = document.createElement("option");
+                placeholder.value = "";
+                placeholder.textContent = "-- " + attrKey + " --";
+                placeholder.disabled = true;
+                placeholder.selected = true;
+                select.appendChild(placeholder);
+    
+                Array.from(attrMap[attrKey]).sort().forEach(function (val) {
+                    const opt = document.createElement("option");
+                    opt.value = val;
+                    opt.textContent = val;
+                    select.appendChild(opt);
+                });
+    
+                select.addEventListener("change", function () {
+                    currentAttrSelections[attrKey] = select.value;
+                    recomputeMatchedVariant(variants);
+                });
+    
+                col.appendChild(label);
+                col.appendChild(select);
+                variantAttrsWrapper.appendChild(col);
             });
         }
-        updateTotals();
-        syncHiddenInput();
-    }
-
-    function updateTotals() {
-        const itemsTotal = items.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
-        const shipping = parseFloat(shippingInput.value) || 0;
-        const advance = parseFloat(advanceInput.value) || 0;
-        const grandTotal = itemsTotal + shipping;
-        const totalDue = grandTotal - advance;
-
-        document.getElementById("items_total_display").textContent = "৳" + itemsTotal.toFixed(2);
-        document.getElementById("shipping_total_display").textContent = "৳" + shipping.toFixed(2);
-        document.getElementById("advance_amount_display").textContent = "৳" + advance.toFixed(2);
-        document.getElementById("grand_total_display").textContent = "৳" + grandTotal.toFixed(2);
-        document.getElementById("total_due_display").textContent = "৳" + totalDue.toFixed(2);
-    }
-
-    function syncHiddenInput() {
-        const payload = items.map(function (i) {
-            return {
-                product_id: i.product_id,
-                variant_id: i.variant_id || null,
-                quantity: i.quantity
-            };
-        });
-        itemsHiddenInput.value = JSON.stringify(payload);
-    }
-
-    addItemBtn.addEventListener("click", function () {
-        const productOpt = productSelect.options[productSelect.selectedIndex];
-        if (!productSelect.value) {
-            alert("Please select a product first.");
-            return;
+    
+        function recomputeMatchedVariant(variants) {
+            const selects = variantAttrsWrapper.querySelectorAll(".variant-attr-select");
+            const allChosen = Array.from(selects).every(function (s) { return s.value; });
+            matchedVariant = null;
+            if (!allChosen) return;
+    
+            matchedVariant = variants.find(function (v) {
+                return Object.keys(currentAttrSelections).every(function (k) {
+                    return (v.attributes || {})[k] === currentAttrSelections[k];
+                });
+            }) || null;
         }
-
-        const variantOpt = variantSelect.options[variantSelect.selectedIndex];
-        const qty = parseInt(qtyInput.value) || 1;
-
-        items.push({
-            product_id: productSelect.value,
-            product_name: productOpt.dataset.name,
-            variant_id: variantSelect.value || null,
-            variant_label: variantSelect.value ? variantOpt.textContent : null,
-            quantity: qty,
-            unit_price: currentUnitPrice()
-        });
-
-        renderItems();
-        qtyInput.value = 1;
-    });
-
-    itemsTbody.addEventListener("click", function (e) {
-        const btn = e.target.closest(".remove-item-btn");
-        if (!btn) return;
-        const index = parseInt(btn.dataset.index);
-        items.splice(index, 1);
-        renderItems();
-    });
-
-    shippingInput.addEventListener("input", updateTotals);
-    advanceInput.addEventListener("input", updateTotals);
-
-    document.getElementById("order-form").addEventListener("submit", function (e) {
-        if (items.length === 0) {
-            e.preventDefault();
-            alert("Please add at least one product.");
+    
+        productSelect.addEventListener("change", renderVariantAttrDropdowns);
+    
+        function currentUnitPrice() {
+            const productOpt = productSelect.options[productSelect.selectedIndex];
+            const hasVariants = productOpt && productOpt.dataset.hasVariants === "true";
+            if (hasVariants) {
+                if (!matchedVariant) return 0;
+                return parseFloat(matchedVariant.discount_price) || parseFloat(matchedVariant.price) || 0;
+            }
+            if (!productOpt || !productOpt.value) return 0;
+            return parseFloat(productOpt.dataset.discount) || parseFloat(productOpt.dataset.price) || 0;
         }
-    });
-
-    renderItems();
-})();
-</script>
+    
+        function currentVariantLabel() {
+            if (!matchedVariant) return null;
+            return Object.entries(matchedVariant.attributes || {}).map(function ([k, v]) { return k + ": " + v; }).join(", ");
+        }
+    
+        function renderItems() {
+            itemsTbody.innerHTML = "";
+            if (items.length === 0) {
+                itemsTbody.appendChild(itemsEmptyRow);
+            } else {
+                items.forEach(function (item, index) {
+                    const lineTotal = item.unit_price * item.quantity;
+                    const tr = document.createElement("tr");
+                    tr.innerHTML =
+                        "<td>" + item.product_name + "</td>" +
+                        "<td>" + (item.variant_label || "-") + "</td>" +
+                        "<td>" + item.quantity + "</td>" +
+                        "<td>৳" + item.unit_price.toFixed(2) + "</td>" +
+                        "<td>৳" + lineTotal.toFixed(2) + "</td>" +
+                        '<td><button type="button" class="btn btn-sm btn-outline-danger remove-item-btn" data-index="' + index + '"><i class="bi bi-trash"></i></button></td>';
+                    itemsTbody.appendChild(tr);
+                });
+            }
+            updateTotals();
+            syncHiddenInput();
+        }
+    
+        function updateTotals() {
+            const itemsTotal = items.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+            const shipping = parseFloat(shippingInput.value) || 0;
+            const advance = parseFloat(advanceInput.value) || 0;
+            const grandTotal = itemsTotal + shipping;
+            const totalDue = grandTotal - advance;
+    
+            document.getElementById("items_total_display").textContent = "৳" + itemsTotal.toFixed(2);
+            document.getElementById("shipping_total_display").textContent = "৳" + shipping.toFixed(2);
+            document.getElementById("advance_amount_display").textContent = "৳" + advance.toFixed(2);
+            document.getElementById("grand_total_display").textContent = "৳" + grandTotal.toFixed(2);
+            document.getElementById("total_due_display").textContent = "৳" + totalDue.toFixed(2);
+        }
+    
+        function syncHiddenInput() {
+            const payload = items.map(function (i) {
+                return {
+                    product_id: i.product_id,
+                    variant_id: i.variant_id || null,
+                    quantity: i.quantity
+                };
+            });
+            itemsHiddenInput.value = JSON.stringify(payload);
+        }
+    
+        addItemBtn.addEventListener("click", function () {
+            const productOpt = productSelect.options[productSelect.selectedIndex];
+            if (!productSelect.value) {
+                alert("Please select a product first.");
+                return;
+            }
+    
+            const hasVariants = productOpt.dataset.hasVariants === "true";
+            if (hasVariants && !matchedVariant) {
+                alert("Please select all variant options.");
+                return;
+            }
+    
+            const qty = parseInt(qtyInput.value) || 1;
+    
+            items.push({
+                product_id: productSelect.value,
+                product_name: productOpt.dataset.name,
+                variant_id: matchedVariant ? matchedVariant.id : null,
+                variant_label: currentVariantLabel(),
+                quantity: qty,
+                unit_price: currentUnitPrice()
+            });
+    
+            renderItems();
+            qtyInput.value = 1;
+    
+            variantAttrsWrapper.querySelectorAll(".variant-attr-select").forEach(function (s) { s.selectedIndex = 0; });
+            currentAttrSelections = {};
+            matchedVariant = null;
+        });
+    
+        itemsTbody.addEventListener("click", function (e) {
+            const btn = e.target.closest(".remove-item-btn");
+            if (!btn) return;
+            const index = parseInt(btn.dataset.index);
+            items.splice(index, 1);
+            renderItems();
+        });
+    
+        shippingInput.addEventListener("input", updateTotals);
+        advanceInput.addEventListener("input", updateTotals);
+    
+        document.getElementById("order-request-form").addEventListener("submit", function (e) {
+            if (items.length === 0) {
+                e.preventDefault();
+                alert("Please add at least one product.");
+            }
+        });
+    
+        renderItems();
+    })();
+    </script>
