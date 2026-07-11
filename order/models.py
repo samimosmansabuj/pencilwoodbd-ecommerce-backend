@@ -48,15 +48,21 @@ class Order(models.Model):
     shipping_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     tax_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_cost = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    advance_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     promotions_applied = models.JSONField(default=dict, blank=True, null=True)
 
     payment_type = models.CharField(max_length=50, choices=PAYMENT_TYPE.choices, default=PAYMENT_TYPE.COD)
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS.choices, default=PAYMENT_STATUS.Unpaid)
-    
+
     status = models.CharField(max_length=50, choices=STATUS.choices, default=STATUS.NEW)
     shipping_address = models.CharField(max_length=100, blank=True, null=True)
-    
-    
+
+    design_file = models.FileField(upload_to="order/design_files/", blank=True, null=True)
+    is_urgent = models.BooleanField(default=False)
+    work_assign = models.CharField(max_length=255, blank=True, null=True)
+    special_instructions = models.TextField(blank=True, null=True)
+    order_created_date = models.DateField(null=True, blank=True)
+
     metadata = models.JSONField(default=dict, blank=True)
     note = models.TextField(blank=True, null=True)
     delivery_type = models.CharField(max_length=50, choices=DELIVERY_TYPE.choices, default=DELIVERY_TYPE.HOME_DELIVERY)
@@ -234,72 +240,33 @@ class Review(models.Model):
 
 
 class OrderRequest(models.Model):
-    customer = models.ForeignKey(
-        Customer,
-        on_delete=models.SET_NULL,
-        related_name="order_requests",
-        null=True,
-        blank=True,
-    )
+    customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, related_name="order_requests", null=True, blank=True)
 
     shipping_address = models.CharField(max_length=255)
     note = models.TextField(blank=True, null=True)
 
-    payment_type = models.CharField(
-        max_length=50,
-        choices=PAYMENT_TYPE.choices,
-        default=PAYMENT_TYPE.COD,
-    )
+    design_file = models.FileField(upload_to="order_request/design_files/", blank=True, null=True)
+    is_urgent = models.BooleanField(default=False)
+    work_assign = models.CharField(max_length=255, blank=True, null=True)
+    special_instructions = models.TextField(blank=True, null=True)
+    order_created_date = models.DateField(null=True, blank=True)
+    advance_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
-    delivery_type = models.CharField(
-        max_length=50,
-        choices=DELIVERY_TYPE.choices,
-        default=DELIVERY_TYPE.HOME_DELIVERY,
-    )
+    payment_type = models.CharField(max_length=50, choices=PAYMENT_TYPE.choices, default=PAYMENT_TYPE.COD)
+    delivery_type = models.CharField(max_length=50, choices=DELIVERY_TYPE.choices, default=DELIVERY_TYPE.HOME_DELIVERY)
 
-    shipping_total = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-    )
+    shipping_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
-    total_cost = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-    )
+    status = models.CharField(max_length=20, choices=ORDER_REQUEST_STATUS.choices, default=ORDER_REQUEST_STATUS.PENDING)
 
-    status = models.CharField(
-        max_length=20,
-        choices=ORDER_REQUEST_STATUS.choices,
-        default=ORDER_REQUEST_STATUS.PENDING,
-    )
+    converted_order = models.OneToOneField(Order, on_delete=models.SET_NULL, null=True, blank=True, related_name="order_request")
+    converted_at = models.DateTimeField(null=True, blank=True)
 
-    converted_order = models.OneToOneField(
-        Order,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="order_request",
-    )
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
-    converted_at = models.DateTimeField(
-        null=True,
-        blank=True,
-    )
-
-    metadata = models.JSONField(
-        default=dict,
-        blank=True,
-    )
-
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-    )
-
-    updated_at = models.DateTimeField(
-        auto_now=True,
-    )
 
     @property
     def get_items_total(self):

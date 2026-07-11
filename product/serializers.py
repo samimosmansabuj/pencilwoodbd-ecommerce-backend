@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import Category, Product, ProductImage, ProductGifting, ProductDeliveryCharge, ProductVariant
+# from .models import Category, Product, ProductImage, ProductGifting, ProductDeliveryCharge, ProductVariant
+from .models import *
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -168,3 +169,14 @@ class ProductLandingPageSerializer(serializers.ModelSerializer):
 # --------------------------------------------------
 
 
+class AttributeValueSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AttributeValue
+        fields = ["id", "value", "hex_code", "sort_order"]
+
+class AttributeSerializer(serializers.ModelSerializer):
+    values = AttributeValueSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Attribute
+        fields = ["id", "name", "slug", "type", "is_variant", "is_filterable", "values"]

@@ -42,11 +42,18 @@
                             <i class="material-icons-outlined">arrow_right</i>Products
                         </a>
                     </li>
-                    <li>
+                    <!-- <li>
                         <a href="javascript:;" data-bs-toggle="modal" data-bs-target="#ProductAddUpdateModal">
                             <i class="material-icons-outlined">arrow_right</i>Add Product
                         </a>
+                    </li> -->
+
+                    <li>
+                        <a href="{% url 'product_add' %}">
+                            <i class="material-icons-outlined">arrow_right</i>Add Product
+                        </a>
                     </li>
+
                     <!-- <li>
                         <a href="{% url 'product_add' %}">
                             <i class="material-icons-outlined">arrow_right</i>Media Center
@@ -73,6 +80,21 @@
                 </ul>
             </li>
 
+            <!-- Variant Section------- -->
+            <li>
+                <a href="javascript:;" class="has-arrow">
+                    <div class="parent-icon"><i class="material-icons-outlined">tune</i>
+                    </div>
+                    <div class="menu-title">Variants</div>
+                </a>
+                <ul>
+                    <li>
+                        <a href="{% url 'attribute_list' %}">
+                            <i class="material-icons-outlined">arrow_right</i>Attribute List
+                        </a>
+                    </li>
+                </ul>
+            </li>
             <!-- Order Section------- -->
 <li>
     <a class="has-arrow" href="javascript:;">
@@ -94,7 +116,7 @@
 
         <!-- Add Order Request -->
         <li>
-            <a href="#">
+            <a href="{% url 'add_order_request' %}">
                 <i class="material-icons-outlined">arrow_right</i>
                 Add Order Request
             </a>
@@ -114,7 +136,7 @@
 
         <!-- Add Order -->
         <li>
-            <a href="#">
+            <a href="{% url 'add_order' %}">
                 <i class="material-icons-outlined">arrow_right</i>
                 Add Order
             </a>

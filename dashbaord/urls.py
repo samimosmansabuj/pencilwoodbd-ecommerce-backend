@@ -1,5 +1,7 @@
 from django.urls import path, include
 from .views import *
+from .api_views import AttributeAPIViews
+from rest_framework.routers import DefaultRouter
 
 urlpatterns = [
     path('', DashboardView.as_view(), name='dashboard'),
@@ -36,4 +38,15 @@ urlpatterns = [
     path("order-request/<int:pk>/approve/",ApproveOrderRequestView.as_view(),name="approve_order_request",),
     path("order-request/<int:pk>/reject/",RejectOrderRequestView.as_view(),name="reject_order_request",),
 
+    # ------------------Attribute & Attribute Value------------------
+    path('attribute-list/', AttributeView.as_view(), name='attribute_list'),
+    path('attribute-value/<int:attribute_id>/', AttributeValueView.as_view(), name='attribute_value_list'),
+    path('delete-attribute/<int:id>/', delete_attribute, name='delete_attribute'),
+    path('delete-attribute-value/<int:id>/', delete_attribute_value, name='delete_attribute_value'),
+
 ]
+
+
+router = DefaultRouter()
+router.register("api/v1/attribute", AttributeAPIViews, basename="attribute")
+urlpatterns += router.urls

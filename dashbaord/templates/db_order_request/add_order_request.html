@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block page_title %}
-<title>Add Order | PencilWoodBD</title>
+<title>Add Order Request | PencilWoodBD</title>
 {% endblock page_title %}
 
 {% block dashboard_body_content %}
@@ -14,14 +14,14 @@
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0 p-0">
                     <li class="breadcrumb-item"><a href="{% url 'dashboard' %}"><i class="bx bx-home-alt"></i></a></li>
-                    <li class="breadcrumb-item"><a href="{% url 'order_list' %}">Orders</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">Add Order</li>
+                    <li class="breadcrumb-item"><a href="{% url 'order_request_list' %}">Order Requests</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Add Order Request</li>
                 </ol>
             </nav>
         </div>
     </div>
     <!--end breadcrumb-->
 
-    {% include './partial/order_form.html' %}
+    {% include './partial/order_request_from.html' %}
 </div>
 {% endblock dashboard_body_content %}

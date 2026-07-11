@@ -1,6 +1,6 @@
 {% load static %}
 
-<form method="POST" id="order-form" enctype="multipart/form-data">
+<form method="POST" id="order-request-form" enctype="multipart/form-data">
     {% csrf_token %}
 
     <div class="row">
@@ -87,7 +87,7 @@
                     </div>
 
                     <div class="mb-3 mt-3">
-                        <label class="form-label">Note <span class="text-muted">(optional)</span></label>
+                        <label class="form-label">Note <span class="text">(optional)</span></label>
                         <textarea class="form-control" name="note" rows="2"></textarea>
                     </div>
                 </div>
@@ -97,7 +97,7 @@
             <div class="card">
                 <div class="card-body">
                     <h5 class="mb-3">Products</h5>
-                    <p class="text-muted small">
+                    <p class="text small">
                         Stock is not enforced strictly here — company may restock as needed. Quantity is what's requested/ordered.
                     </p>
 
@@ -152,7 +152,7 @@
                             </thead>
                             <tbody id="items_tbody">
                                 <tr id="items_empty_row">
-                                    <td colspan="6" class="text-muted text-center">No products added yet.</td>
+                                    <td colspan="6" class="text text-center">No products added yet.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -223,10 +223,20 @@
                 </div>
             </div>
 
+
+            <div class="card">
+                <div class="card-body">
+                    <p class="text small mb-0">
+                        This request will show up in the Order Request list as <strong>Pending</strong>.
+                        Approve it later to convert it into a real order, or cancel to discard it.
+                    </p>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-body d-flex gap-2">
-                    <a href="{% url 'order_list' %}" class="btn btn-outline-danger flex-fill">Discard</a>
-                    <button type="submit" class="btn btn-outline-primary flex-fill">Save Order</button>
+                    <a href="{% url 'order_request_list' %}" class="btn btn-outline-danger flex-fill">Discard</a>
+                    <button type="submit" class="btn btn-outline-primary flex-fill">Save Request</button>
                 </div>
             </div>
 
@@ -294,7 +304,7 @@
                 col.className = "col-auto";
     
                 const label = document.createElement("label");
-                label.className = "form-label small text-muted mb-1 d-block";
+                label.className = "form-label small text mb-1 d-block";
                 label.textContent = attrKey.charAt(0).toUpperCase() + attrKey.slice(1);
     
                 const select = document.createElement("select");
@@ -447,7 +457,7 @@
         shippingInput.addEventListener("input", updateTotals);
         advanceInput.addEventListener("input", updateTotals);
     
-        document.getElementById("order-form").addEventListener("submit", function (e) {
+        document.getElementById("order-request-form").addEventListener("submit", function (e) {
             if (items.length === 0) {
                 e.preventDefault();
                 alert("Please add at least one product.");

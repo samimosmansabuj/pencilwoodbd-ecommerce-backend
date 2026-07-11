@@ -1,565 +1,598 @@
 {% load static %}
 
-<form method="POST" enctype="multipart/form-data"
-    action="{% if is_update %}{% url 'product_update' product.id %}{% else %}{% url 'product_add' %}{% endif %}">
+<form method="post" enctype="multipart/form-data" id="add_product_form"
+    action="{% if is_update %}{% url 'product_update' product.pk %}{% else %}{% url 'product_add' %}{% endif %}">
     {% csrf_token %}
-
-    {% if is_update %}
-    <input type="hidden" name="product_id" value="{{ product.id }}">
-    {% endif %}
 
     <div class="row">
         <div class="col-12 col-lg-8">
 
-            <!-- ================= Product Details ================= -->
+            <!-- Product Details -->
             <div class="card">
                 <div class="card-body">
-
-                    <!-- Title -->
                     <div class="mb-4">
                         <h5 class="mb-3">Product Title</h5>
-                        <input type="text" class="form-control" name="name" value="{{ product.name|default:'' }}"
-                            required>
+                        <input type="text" name="name" class="form-control" placeholder="write title here...."
+                            value="{% if product %}{{ product.name }}{% endif %}" required>
                     </div>
 
-                    <p>Total Categories: {{ categories|length }}</p>
-
-                    <!-- Category (optional - product can have no category) -->
-                    <div class="mb-4">
-                        <label class="form-label">Category <span class="text-muted">(optional)</span></label>
-                        <select class="form-select" name="category">
-
-                            <option value=""
-                                {% if not product.category %}selected{% endif %}>
-                                ---------
-                            </option>
-
-                            {% for cat in categories %}
-                            <option value="{{ cat.id }}"
-                                {% if product.category and product.category.id == cat.id %}
-                                selected
-                                {% endif %}>
-                                {{ cat.get_category_path }}
-                            </option>
-                            {% endfor %}
-
-                        </select>
-                    </div>
-
-                    <!-- Short description -->
                     <div class="mb-4">
                         <h5 class="mb-3">Product Highlights</h5>
-                        <textarea class="form-control" name="short_description" rows="5">{{ product.short_description|default:'' }}</textarea>
+                        <textarea name="short_description" class="form-control" cols="4" rows="6"
+                            placeholder="write a short description here..">{% if product %}{{ product.short_description }}{% endif %}</textarea>
                     </div>
 
-                    <!-- Full description -->
                     <div class="mb-4">
                         <h5 class="mb-3">Product Full Description</h5>
-                        <div id="quill-editor" style="height:300px;"></div>
-                        <textarea id="full-description" name="details" style="display:none;">{{ product.details|default:'' }}</textarea>
+                        <div id="pw-quill-editor" style="height: 300px;"></div>
+                        <textarea id="pw-full-description" name="details" class="form-control" cols="4" rows="10"
+                            style="display:none;">{% if product %}{{ product.details }}{% endif %}</textarea>
                     </div>
 
-                    <!-- Tags -->
                     <div class="mb-4">
                         <h5 class="mb-3">Tags</h5>
-                        <input type="text" id="Tags" class="form-control" placeholder="Type tag and press Enter...">
-                        <ul class="list-group d-none" id="tag_suggestions"></ul>
-
-                        <input type="hidden" name="tags" id="tags_input" value='{{ product.tags|default:"[]" }}'>
-
-                        <div class="mt-2 d-flex flex-wrap gap-2" id="tags_list">
-                            {% for tag in product.tags %}
-                            <a class="btn btn-sm btn-light border" data-slug="{{ tag }}">
-                                {{ tag }}
-                                <i class="bi bi-x" style="cursor:pointer;"></i>
-                            </a>
-                            {% endfor %}
+                        <div class="col-12 mb-2 position-relative">
+                            <input type="text" class="form-control" id="pw_tags_input" placeholder="Type and press Enter">
                         </div>
+                        <div class="col-12 mb-2">
+                            <div class="d-flex align-items-center gap-2 flex-wrap" id="pw_tags_list"></div>
+                        </div>
+                        <input type="hidden" name="tags" id="pw_tags_hidden"
+                            value="{% if product %}{{ product.tags|safe }}{% else %}[]{% endif %}">
                     </div>
-
                 </div>
             </div>
 
-            <!-- ================= IMAGES ================= -->
+            <!-- Images -->
             <div class="card">
                 <div class="card-body">
+                    <div class="mb-4">
+                        <h5 class="mb-3">Display images</h5>
 
-                    <h5 class="mb-3">Display Images</h5>
+                        <label for="pw_image_input" class="btn btn-outline-primary mb-2">
+                            <i class="bi bi-image me-2"></i>Choose Images
+                        </label>
+                        <input id="pw_image_input" type="file" name="images"
+                            accept=".jpg, .png, .jpeg, image/jpeg, image/png" multiple style="display:none;">
+                        <input type="hidden" name="primary_image_index" id="pw_primary_image_index" value="0">
+                        <p class="text-muted small mb-2">Click a thumbnail to mark it primary. Use the eye icon to preview, or the cross to remove.</p>
 
-                    <input type="file" name="images" id="images_input" multiple accept="image/*" class="form-control">
-                    <small class="text-muted">Tip: select a "Primary" radio below on new previews or existing images to control the main product image.</small>
+                        <div class="d-flex flex-wrap gap-3" id="pw_new_image_preview"></div>
 
-                    <!-- New image previews (client-side) -->
-                    <div class="row mt-3" id="new_images_preview"></div>
-
-                    {% if is_update and product.images.all %}
-
-                    <h6 class="mt-4">Existing Images</h6>
-                    <div class="row mt-2">
-
-                        {% for image in product.images.all %}
-
-                        <div class="col-md-3 col-6 mb-3">
-
-                            <div class="border rounded p-2 text-center">
-
-                                <img src="{{ image.image.url }}" class="img-fluid rounded"
-                                    style="height:120px;object-fit:cover;">
-
-                                <div class="form-check mt-2">
-                                    <input class="form-check-input" type="radio" name="primary_image_id"
-                                        value="{{ image.id }}" id="primary_existing{{ image.id }}"
-                                        {% if image.role == "primary" %}checked{% endif %}>
-                                    <label class="form-check-label small" for="primary_existing{{ image.id }}">
-                                        Primary
-                                    </label>
-                                </div>
-
-                                <div class="form-check mt-1">
-                                    <input class="form-check-input" type="checkbox" name="delete_images"
-                                        value="{{ image.id }}" id="img{{ image.id }}">
-                                    <label class="form-check-label small" for="img{{ image.id }}">
-                                        Delete
-                                    </label>
-                                </div>
-
-                            </div>
-
-                        </div>
-
-                        {% endfor %}
-
-                    </div>
-
-                    {% endif %}
-
-                </div>
-            </div>
-
-            <!-- ================= VIDEO ================= -->
-            <div class="card">
-                <div class="card-body">
-
-                    <h5 class="mb-3">Product Video</h5>
-
-                    <input
-                        type="file"
-                        name="video"
-                        accept="video/*"
-                        class="form-control">
-
-                    {% if is_update %}
-
-                        {% for video in product.videos.all %}
-
+                        {% if is_update and product.images.all %}
                         <div class="mt-3">
-
-                            <video
-                                width="320"
-                                controls
-                                class="border rounded">
-
-                                <source src="{{ video.video.url }}">
-
-                            </video>
-
-                            <div class="form-check mt-2">
-
-                                <input
-                                    class="form-check-input"
-                                    type="radio"
-                                    name="delete_video"
-                                    value="{{ video.id }}"
-                                    id="video{{ video.id }}">
-
-                                <label
-                                    class="form-check-label"
-                                    for="video{{ video.id }}">
-
-                                    Delete Video
-
-                                </label>
-
+                            <h6 class="mb-2">Existing Images</h6>
+                            <div class="d-flex flex-wrap gap-3">
+                                {% for img in product.images.all %}
+                                <div class="position-relative" style="width: 100px;">
+                                    <img src="{{ img.image.url }}" class="img-fluid rounded border"
+                                        style="height:100px; object-fit:cover; width:100%;">
+                                    {% if img.role == 'primary' %}
+                                    <span class="badge bg-success position-absolute top-0 start-0">Primary</span>
+                                    {% endif %}
+                                    <div class="form-check mt-1">
+                                        <input class="form-check-input" type="checkbox"
+                                            name="delete_images" value="{{ img.id }}" id="pw_del_img_{{ img.id }}">
+                                        <label class="form-check-label small text-danger" for="pw_del_img_{{ img.id }}">Remove</label>
+                                    </div>
+                                </div>
+                                {% endfor %}
                             </div>
-
                         </div>
+                        {% endif %}
+                    </div>
 
-                        {% endfor %}
-
-                    {% endif %}
-
-                </div>
-            </div>
-
-            <!-- ================= PRICE & STOCK ================= -->
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="mb-3">Price & Stock</h5>
-                    <p class="text-muted small mb-2">
-                        If this product has variants below, these base values are used as fallback defaults only —
-                        actual price/stock will come from each variant.
-                    </p>
-                    <div class="row g-3">
-                        <div class="col-4">
-                            <label>Price</label>
-                            <input type="number" step="0.01" min="0" class="form-control" name="price"
-                                value="{{ product.price|default:0 }}">
+                    <!-- Image preview modal -->
+                    <div class="modal fade" id="pw_image_preview_modal" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h6 class="modal-title">Image Preview</h6>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body text-center">
+                                    <img id="pw_image_preview_modal_img" src="" style="max-width:100%; max-height:70vh; object-fit:contain;">
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-4">
-                            <label>Discount Price</label>
-                            <input type="number" step="0.01" min="0" class="form-control" name="discount_price"
-                                value="{{ product.discount_price|default:0 }}">
+                    </div>
+
+                    <div class="mb-4">
+                        <h5 class="mb-3">Product Video</h5>
+                        <input type="file" name="video" class="form-control" accept="video/*">
+                        {% if is_update and product.videos.first %}
+                        <div class="mt-3 d-flex align-items-center gap-3">
+                            <video src="{{ product.videos.first.video.url }}" style="height:80px;" controls></video>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="delete_video"
+                                    value="{{ product.videos.first.id }}" id="pw_delete_video">
+                                <label class="form-check-label text-danger" for="pw_delete_video">Remove video</label>
+                            </div>
                         </div>
-                        <div class="col-4">
-                            <label>Stock</label>
-                            <input type="number" min="0" class="form-control" name="inventory_quantity"
-                                value="{{ product.inventory_quantity|default:0 }}"
-                                id="base_stock_input">
-                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
 
-            <!-- ================= VARIANTS ================= -->
+            <!-- Price, Stock & Variants -->
             <div class="card">
                 <div class="card-body">
-                    <h5 class="mb-3">Product Variants <span class="text-muted small">(optional)</span></h5>
-                    <p class="text-muted small">
-                        Leave everything below untouched if this is a simple product with no variants.
-                    </p>
-
-                    <div class="mb-3">
-                        <label class="form-label">Select attributes for this product</label>
-                        <div class="d-flex flex-wrap gap-3" id="attribute_toggle_wrapper">
-                            {% for attr in attributes %}
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input attr-toggle" type="checkbox"
-                                    value="{{ attr.id }}" data-name="{{ attr.name }}"
-                                    id="attr{{ attr.id }}">
-                                <label class="form-check-label" for="attr{{ attr.id }}">{{ attr.name }}</label>
+                    <div class="mb-4">
+                        <h5 class="mb-3">Variants</h5>
+                    
+                        <div class="row g-2 align-items-end mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Attribute</label>
+                                <select class="form-select" id="pw_attr_select">
+                                    <option value="" disabled selected>-- Select Attribute --</option>
+                                    {% for attr in attributes %}
+                                    <option value="{{ attr.name|lower }}" data-name="{{ attr.name }}">{{ attr.name }}</option>
+                                    {% endfor %}
+                                </select>
                             </div>
-                            {% empty %}
-                            <p class="text-muted small mb-0">
-                                No attributes defined yet. Create attributes first if you need variants (e.g. Size, Color).
-                            </p>
-                            {% endfor %}
+                            <div class="col-md-6">
+                                <label class="form-label">Values</label>
+                                <select class="form-select" id="pw_attr_value_select" multiple size="4" disabled>
+                                    <option value="">-- Select Attribute First --</option>
+                                </select>
+                                <small class="text-muted">Ctrl/Cmd+click to select multiple values</small>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" class="btn btn-dark w-100" id="pw_add_attr_values">Add</button>
+                            </div>
+                        </div>
+                    
+                        <div id="pw_selected_attrs_summary" class="mb-3"></div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="mb-3" id="pw_bulk_price_set" style="display: none;">
+                            <h6>Bulk Price & Stock</h6>
+                            <div class="row g-2">
+                                <div class="col"><input type="number" class="form-control" id="pw_bulk_stock" placeholder="Stock"></div>
+                                <div class="col"><input type="number" class="form-control" id="pw_bulk_price" placeholder="Price"></div>
+                                <div class="col"><input type="number" class="form-control" id="pw_bulk_discount" placeholder="Discount"></div>
+                                <div class="col"><button type="button" class="btn btn-dark w-100" id="pw_apply_bulk">Apply All</button></div>
+                            </div>
+                        </div>
+                    
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="pw_variant_table">
+                                <thead class="table-dark">
+                                    <tr id="pw_variant_head">
+                                        <th>Stock</th><th>Price</th><th>Discount</th><th>Active</th><th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pw_variant_table_body">
+                                    <tr id="pw_variant_empty_row">
+                                        <td colspan="5" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-
-                    <div id="attribute_values_wrapper"></div>
-
-                    <button type="button" id="generate_variants_btn" class="btn btn-sm btn-outline-primary mt-2">
-                        Generate Variant Combinations
-                    </button>
-
-                    {% if is_update and variants %}
-                    <button type="button" id="load_existing_variants_btn" class="btn btn-sm btn-outline-secondary mt-2 ms-2">
-                        Reload Existing Variants
-                    </button>
-                    {% endif %}
-
-                    <div id="variants_table_wrapper" class="mt-3"></div>
-
-                    <!-- Hidden "variants" inputs get injected here right before submit -->
-                    <div id="variants_hidden_inputs"></div>
                 </div>
             </div>
-
         </div>
 
-        <!-- Server data passed to JS as JSON text, not as raw JS variables -->
-        <!-- (keeps VS Code / any JS linter from choking on Django template tags) -->
-        {{ attributes_data|json_script:"attributes-data" }}
-        {{ existing_variants_data|json_script:"existing-variants-data" }}
-
-        <!-- ================= SIDEBAR ================= -->
+        <!-- Sidebar -->
         <div class="col-12 col-lg-4">
             <div class="card">
                 <div class="card-body">
-                    <div class="d-flex gap-2">
+                    <div class="d-flex align-items-center gap-3">
                         <a href="{% url 'product_list' %}" class="btn btn-outline-danger flex-fill">
-                            Discard
+                            <i class="bi bi-x-circle me-2"></i>Discard
                         </a>
-                        <button type="submit" name="status" value="Draft" class="btn btn-outline-success flex-fill">
-                            Save Draft
+                        <button type="submit" name="status" value="draft" class="btn btn-outline-success flex-fill">
+                            <i class="bi bi-cloud-download me-2"></i>Save Draft
                         </button>
-                        <button type="submit" name="status" value="Active" class="btn btn-outline-primary flex-fill">
-                            Publish
+                        <button type="submit" name="status" value="active" class="btn btn-outline-primary flex-fill">
+                            <i class="bi bi-send me-2"></i>Publish
                         </button>
                     </div>
                 </div>
             </div>
-        </div>
 
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="mb-3">Organize</h5>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label for="pw_category" class="form-label">Category</label>
+                            <select class="form-select" id="pw_category" name="category">
+                                <option value="">Select Category</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat.id }}" {% if product and product.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="mb-3">Pricing & Inventory</h5>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Regular Price</label>
+                            <input type="number" step="0.01" name="price" class="form-control" placeholder="0.00"
+                                value="{% if product %}{{ product.price }}{% endif %}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Sale Price</label>
+                            <input type="number" step="0.01" name="discount_price" class="form-control" placeholder="0.00"
+                                value="{% if product %}{{ product.discount_price }}{% endif %}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Inventory Quantity</label>
+                            <input type="number" name="inventory_quantity" class="form-control" placeholder="0"
+                                value="{% if product %}{{ product.inventory_quantity }}{% endif %}"
+                                {% if product and product.has_variants %}disabled{% endif %}>
+                            {% if product and product.has_variants %}
+                            <small class="text-muted">Auto-calculated from variant stock.</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </form>
 
 <script>
-(function () {
-    // ---------------------------------------------------------------
-    // Quill editor
-    // ---------------------------------------------------------------
-    var quill = new Quill('#quill-editor', { theme: 'snow' });
-    quill.root.innerHTML = document.getElementById("full-description").value;
-
-    // ---------------------------------------------------------------
-    // Tags
-    // ---------------------------------------------------------------
-    const tagInputEl = document.getElementById("Tags");
-    const tagsListEl = document.getElementById("tags_list");
-
-    function bindTagRemoveIcon(iconEl) {
-        iconEl.addEventListener("click", function () {
-            iconEl.closest("a").remove();
+    (function () {
+        "use strict";
+    
+        var attributesData = {{ attributes_data|safe }};
+        var existingVariants = {{ existing_variants_data|safe }};
+    
+        var state = { attributes: {}, selected: {} };
+        attributesData.forEach(function (attr) {
+            var key = attr.name.toLowerCase();
+            state.attributes[key] = { displayName: attr.name, values: attr.values.map(function (v) { return v.value; }) };
         });
-    }
+    
+        if (typeof Quill !== "undefined" && document.getElementById("pw-quill-editor")) {
+            var quill = new Quill("#pw-quill-editor", { theme: "snow" });
+            var hiddenTextarea = document.getElementById("pw-full-description");
+            if (hiddenTextarea.value) quill.root.innerHTML = hiddenTextarea.value;
+            document.getElementById("add_product_form").addEventListener("submit", function () {
+                hiddenTextarea.value = quill.root.innerHTML;
+            });
+        }
+    
+        (function initImagePreview() {
+        var imageInput = document.getElementById("pw_image_input");
+        var previewBox = document.getElementById("pw_new_image_preview");
+        var primaryIndexInput = document.getElementById("pw_primary_image_index");
+        var modalImg = document.getElementById("pw_image_preview_modal_img");
+        var modalEl = document.getElementById("pw_image_preview_modal");
 
-    document.querySelectorAll("#tags_list i.bi-x").forEach(bindTagRemoveIcon);
+        if (!imageInput || !previewBox) return;
 
-    if (tagInputEl) {
-        tagInputEl.addEventListener("keydown", function (e) {
-            if (e.key === "Enter") {
-                e.preventDefault();
-                const value = tagInputEl.value.trim();
-                if (!value) return;
+        var selectedImageFiles = [];
+        var objectUrls = [];
 
-                const exists = Array.from(tagsListEl.querySelectorAll("a"))
-                    .some(el => el.dataset.slug.toLowerCase() === value.toLowerCase());
-                if (exists) {
-                    tagInputEl.value = "";
-                    return;
-                }
-
-                const tagEl = document.createElement("a");
-                tagEl.className = "btn btn-sm btn-light border";
-                tagEl.dataset.slug = value;
-                tagEl.innerHTML = `${value} <i class="bi bi-x" style="cursor:pointer;"></i>`;
-                bindTagRemoveIcon(tagEl.querySelector("i"));
-
-                tagsListEl.appendChild(tagEl);
-                tagInputEl.value = "";
+        function openPreviewModal(url) {
+            if (!modalImg || !modalEl) return;
+            modalImg.src = url;
+            if (window.bootstrap && window.bootstrap.Modal) {
+                var modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+                modal.show();
+            } else {
+                window.open(url, "_blank");
             }
+        }
+
+        function renderPreviews() {
+            previewBox.innerHTML = "";
+
+            objectUrls.forEach(function (u) { URL.revokeObjectURL(u); });
+            objectUrls = [];
+
+            selectedImageFiles.forEach(function (file, index) {
+                var url = URL.createObjectURL(file);
+                objectUrls.push(url);
+
+                var isPrimary = String(index) === String(primaryIndexInput.value);
+
+                var wrap = document.createElement("div");
+                wrap.className = "position-relative pw-new-image-thumb";
+                wrap.style.width = "110px";
+
+                wrap.innerHTML =
+                    '<img src="' + url + '" class="img-fluid rounded border pw-thumb-img" ' +
+                        'style="height:100px; object-fit:cover; width:100%; cursor:pointer;">' +
+                    (isPrimary ? '<span class="badge bg-success position-absolute top-0 start-0 pw-primary-badge">Primary</span>' : '') +
+                    '<div class="position-absolute top-0 end-0 d-flex gap-1 p-1">' +
+                        '<button type="button" class="btn btn-sm btn-light border pw-view-thumb" title="Preview" style="padding:0 5px; line-height:1.5;"><i class="bi bi-eye"></i></button>' +
+                        '<button type="button" class="btn btn-sm btn-danger pw-remove-thumb" title="Remove" style="padding:0 6px; line-height:1.4;">&times;</button>' +
+                    '</div>' +
+                    '<div class="small text-truncate mt-1" style="max-width:100%;" title="' + file.name + '">' + file.name + '</div>';
+
+                wrap.querySelector(".pw-thumb-img").addEventListener("click", function () {
+                    primaryIndexInput.value = index;
+                    renderPreviews();
+                });
+
+                wrap.querySelector(".pw-view-thumb").addEventListener("click", function (e) {
+                    e.stopPropagation();
+                    openPreviewModal(url);
+                });
+
+                wrap.querySelector(".pw-remove-thumb").addEventListener("click", function (e) {
+                    e.stopPropagation();
+                    var removedIndex = index;
+                    selectedImageFiles.splice(removedIndex, 1);
+
+                    var currentPrimary = parseInt(primaryIndexInput.value, 10) || 0;
+                    if (removedIndex === currentPrimary) {
+                        primaryIndexInput.value = 0;
+                    } else if (removedIndex < currentPrimary) {
+                        primaryIndexInput.value = currentPrimary - 1;
+                    }
+
+                    syncInputFiles();
+                    renderPreviews();
+                });
+
+                previewBox.appendChild(wrap);
+            });
+        }
+
+        function syncInputFiles() {
+            var dataTransfer = new DataTransfer();
+            selectedImageFiles.forEach(function (file) {
+                dataTransfer.items.add(file);
+            });
+            imageInput.files = dataTransfer.files;
+        }
+
+        imageInput.addEventListener("change", function () {
+            var newFiles = Array.from(imageInput.files || []);
+
+            // reset the native input immediately so the browser doesn't
+            // carry over previously selected files into the next pick
+            imageInput.value = "";
+
+            newFiles.forEach(function (file) {
+                selectedImageFiles.push(file);
+            });
+
+            syncInputFiles();
+            renderPreviews();
         });
-    }
-
-    // ---------------------------------------------------------------
-    // Image preview (new uploads)
-    // ---------------------------------------------------------------
-    const imagesInput = document.getElementById("images_input");
-    const newImagesPreview = document.getElementById("new_images_preview");
-
-    if (imagesInput) {
-        imagesInput.addEventListener("change", function () {
-            newImagesPreview.innerHTML = "";
-            Array.from(imagesInput.files).forEach((file, index) => {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    const col = document.createElement("div");
-                    col.className = "col-md-3 col-6 mb-3";
-                    col.innerHTML = `
-                        <div class="border rounded p-2 text-center">
-                            <img src="${e.target.result}" class="img-fluid rounded" style="height:120px;object-fit:cover;">
-                            <div class="form-check mt-2">
-                                <input class="form-check-input" type="radio" name="primary_image_index"
-                                    value="${index}" id="primary_new${index}">
-                                <label class="form-check-label small" for="primary_new${index}">Primary</label>
-                            </div>
-                        </div>`;
-                    newImagesPreview.appendChild(col);
+    })();
+    
+        (function initTags() {
+            var tagInput = document.getElementById("pw_tags_input");
+            var tagsList = document.getElementById("pw_tags_list");
+            var tagsHidden = document.getElementById("pw_tags_hidden");
+            var currentTags = [];
+            try { currentTags = JSON.parse(tagsHidden.value || "[]"); } catch (e) { currentTags = []; }
+    
+            function renderChip(tag) {
+                var el = document.createElement("span");
+                el.className = "btn btn-sm btn-light border d-flex align-items-center gap-1";
+                el.innerHTML = tag + ' <i class="bi bi-x"></i>';
+                el.querySelector("i").onclick = function () {
+                    currentTags = currentTags.filter(function (t) { return t !== tag; });
+                    tagsHidden.value = JSON.stringify(currentTags);
+                    el.remove();
                 };
-                reader.readAsDataURL(file);
+                tagsList.appendChild(el);
+            }
+            currentTags.forEach(renderChip);
+    
+            tagInput.addEventListener("keydown", function (e) {
+                if (e.key === "Enter" && this.value.trim()) {
+                    e.preventDefault();
+                    var value = this.value.trim();
+                    if (currentTags.indexOf(value) === -1) {
+                        currentTags.push(value);
+                        tagsHidden.value = JSON.stringify(currentTags);
+                        renderChip(value);
+                    }
+                    this.value = "";
+                }
+            });
+        })();
+    
+        // ================= Variant Attribute / Value Picker =================
+        var attrSelect = document.getElementById("pw_attr_select");
+        var valueSelect = document.getElementById("pw_attr_value_select");
+        var addAttrBtn = document.getElementById("pw_add_attr_values");
+        var summaryBox = document.getElementById("pw_selected_attrs_summary");
+    
+        attrSelect.addEventListener("change", function () {
+            var key = attrSelect.value;
+            var info = state.attributes[key];
+            valueSelect.innerHTML = "";
+            if (!info) {
+                valueSelect.disabled = true;
+                return;
+            }
+            valueSelect.disabled = false;
+            info.values.forEach(function (val) {
+                var opt = document.createElement("option");
+                opt.value = val;
+                opt.textContent = val;
+                if (state.selected[key] && state.selected[key].has(val)) opt.selected = true;
+                valueSelect.appendChild(opt);
             });
         });
-    }
-
-    // ---------------------------------------------------------------
-    // Variant builder
-    // ---------------------------------------------------------------
-    function readJsonScript(id, fallback) {
-        const el = document.getElementById(id);
-        if (!el) return fallback;
-        try {
-            return JSON.parse(el.textContent);
-        } catch (e) {
-            return fallback;
+    
+        function renderSummary() {
+            summaryBox.innerHTML = "";
+            Object.keys(state.selected).forEach(function (key) {
+                var vals = Array.from(state.selected[key]);
+                if (!vals.length) return;
+                var info = state.attributes[key];
+                var row = document.createElement("div");
+                row.className = "d-flex align-items-center gap-2 flex-wrap mb-1";
+                var label = document.createElement("strong");
+                label.textContent = (info ? info.displayName : key) + ": ";
+                row.appendChild(label);
+                vals.forEach(function (val) {
+                    var chip = document.createElement("span");
+                    chip.className = "btn btn-sm btn-light border d-flex align-items-center gap-1";
+                    chip.innerHTML = val + ' <i class="bi bi-x"></i>';
+                    chip.querySelector("i").onclick = function () {
+                        state.selected[key].delete(val);
+                        renderSummary();
+                        generateVariantTable();
+                    };
+                    row.appendChild(chip);
+                });
+                summaryBox.appendChild(row);
+            });
         }
-    }
-
-    const ATTRIBUTES_DATA = readJsonScript("attributes-data", []);
-    const EXISTING_VARIANTS = readJsonScript("existing-variants-data", []);
-
-    const attrValuesWrapper = document.getElementById("attribute_values_wrapper");
-    const variantsTableWrapper = document.getElementById("variants_table_wrapper");
-    const variantsHiddenInputs = document.getElementById("variants_hidden_inputs");
-    const generateBtn = document.getElementById("generate_variants_btn");
-    const reloadBtn = document.getElementById("load_existing_variants_btn");
-
-    function renderAttributeValueOptions(preSelectedValues) {
-        preSelectedValues = preSelectedValues || {};
-        attrValuesWrapper.innerHTML = "";
-
-        document.querySelectorAll(".attr-toggle:checked").forEach(function (cb) {
-            const attrId = cb.value;
-            const attrName = cb.dataset.name;
-            const attrObj = ATTRIBUTES_DATA.find(a => String(a.id) === String(attrId));
-            if (!attrObj) return;
-
-            const selectedForThisAttr = preSelectedValues[attrName] || [];
-
-            const block = document.createElement("div");
-            block.className = "mb-2";
-            block.innerHTML = "<strong>" + attrName + "</strong><div class=\"d-flex flex-wrap gap-2 mt-1\">" +
-                attrObj.values.map(function (v) {
-                    const checked = selectedForThisAttr.includes(v.value) ? "checked" : "";
-                    return '<div class="form-check form-check-inline">' +
-                        '<input class="form-check-input val-toggle" type="checkbox" data-attr="' + attrName + '" value="' + v.value + '" id="val_' + attrId + '_' + v.id + '" ' + checked + '>' +
-                        '<label class="form-check-label" for="val_' + attrId + '_' + v.id + '">' + v.value + '</label>' +
-                        '</div>';
-                }).join("") + "</div>";
-            attrValuesWrapper.appendChild(block);
+    
+        addAttrBtn.addEventListener("click", function () {
+            var key = attrSelect.value;
+            if (!key) { alert("Select an attribute first."); return; }
+            var chosen = Array.from(valueSelect.selectedOptions).map(function (o) { return o.value; });
+            if (!chosen.length) { alert("Select at least one value."); return; }
+            if (!state.selected[key]) state.selected[key] = new Set();
+            chosen.forEach(function (val) { state.selected[key].add(val); });
+            renderSummary();
+            generateVariantTable();
+            valueSelect.selectedIndex = -1;
         });
-    }
-
-    function generateCombosFromChecked() {
-        const grouped = {};
-        document.querySelectorAll(".val-toggle:checked").forEach(function (cb) {
-            const attr = cb.dataset.attr;
-            grouped[attr] = grouped[attr] || [];
-            grouped[attr].push(cb.value);
-        });
-
-        const attrNames = Object.keys(grouped);
-        if (attrNames.length === 0) {
-            variantsTableWrapper.innerHTML = "<p class='text-muted'>Select attribute values first, then click Generate.</p>";
-            return;
+    
+        function cartesian(arrays) {
+            return arrays.reduce(function (acc, curr) {
+                var result = [];
+                acc.forEach(function (a) { curr.forEach(function (c) { result.push(a.concat([c])); }); });
+                return result;
+            }, [[]]);
         }
-
-        let combos = [{}];
-        attrNames.forEach(function (name) {
-            const next = [];
-            combos.forEach(function (combo) {
-                grouped[name].forEach(function (val) {
-                    next.push(Object.assign({}, combo, { [name]: val }));
+    
+        function addVariantRow(tbody, attrKeys, combo, attributes, existing) {
+            var tr = document.createElement("tr");
+            var cells = "";
+            attrKeys.forEach(function (key, i) {
+                cells += "<td>" + (state.attributes[key] ? state.attributes[key].displayName : key) + ": " + combo[i] + "</td>";
+            });
+    
+            var stockVal = existing ? existing.inventory_quantity : "";
+            var priceVal = existing ? existing.price : "";
+            var discountVal = existing ? existing.discount_price : "";
+            var activeChecked = existing ? (existing.is_active ? "checked" : "") : "checked";
+            var variantId = existing ? existing.id : "";
+    
+            cells += '<td><input type="number" class="form-control pw-stock" value="' + stockVal + '"></td>' +
+                '<td><input type="number" step="0.01" class="form-control pw-price" value="' + priceVal + '"></td>' +
+                '<td><input type="number" step="0.01" class="form-control pw-discount" value="' + discountVal + '"></td>' +
+                '<td><div class="form-check form-switch"><input class="form-check-input pw-active-toggle" type="checkbox" ' + activeChecked + '></div></td>' +
+                '<td><button type="button" class="btn btn-sm btn-outline-danger pw-remove-row"><i class="bi bi-trash"></i></button>' +
+                '<input type="hidden" class="pw-variant-hidden" name="variants"></td>';
+    
+            tr.innerHTML = cells;
+    
+            var syncRow = function () {
+                var payload = {
+                    attributes: attributes,
+                    inventory_quantity: parseInt(tr.querySelector(".pw-stock").value, 10) || 0,
+                    price: tr.querySelector(".pw-price").value || 0,
+                    discount_price: tr.querySelector(".pw-discount").value || "",
+                    is_active: tr.querySelector(".pw-active-toggle").checked
+                };
+                if (variantId) payload.id = variantId;
+                tr.querySelector(".pw-variant-hidden").value = JSON.stringify(payload);
+            };
+    
+            tr.querySelectorAll(".pw-stock, .pw-price, .pw-discount, .pw-active-toggle").forEach(function (el) {
+                el.addEventListener("input", syncRow);
+                el.addEventListener("change", syncRow);
+            });
+            tr.querySelector(".pw-remove-row").addEventListener("click", function () {
+                tr.remove();
+                if (!tbody.querySelector("tr")) {
+                    var empty = document.createElement("tr");
+                    empty.id = "pw_variant_empty_row";
+                    empty.innerHTML = '<td colspan="5" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>';
+                    tbody.appendChild(empty);
+                }
+            });
+    
+            syncRow();
+            tbody.appendChild(tr);
+        }
+    
+        function generateVariantTable() {
+            var tbody = document.getElementById("pw_variant_table_body");
+            var thead = document.getElementById("pw_variant_head");
+            if (!tbody || !thead) return;
+    
+            var attrKeys = Object.keys(state.selected).filter(function (k) { return state.selected[k].size > 0; });
+    
+            thead.innerHTML = "";
+            attrKeys.forEach(function (key) {
+                var th = document.createElement("th");
+                th.textContent = state.attributes[key] ? state.attributes[key].displayName : key;
+                thead.appendChild(th);
+            });
+            ["Stock", "Price", "Discount", "Active", "Actions"].forEach(function (label) {
+                var th = document.createElement("th");
+                th.textContent = label;
+                thead.appendChild(th);
+            });
+    
+            tbody.innerHTML = "";
+            var bulkBox = document.getElementById("pw_bulk_price_set");
+    
+            if (!attrKeys.length) {
+                bulkBox.style.display = "none";
+                var empty = document.createElement("tr");
+                empty.id = "pw_variant_empty_row";
+                empty.innerHTML = '<td colspan="5" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>';
+                tbody.appendChild(empty);
+                return;
+            }
+            bulkBox.style.display = "block";
+    
+            var valueArrays = attrKeys.map(function (key) { return Array.from(state.selected[key]); });
+            var combinations = cartesian(valueArrays);
+    
+            combinations.forEach(function (combo) {
+                var attributes = {};
+                attrKeys.forEach(function (key, i) { attributes[key] = combo[i]; });
+                var existing = existingVariants.find(function (v) {
+                    return attrKeys.every(function (k) { return (v.attributes || {})[k] === attributes[k]; });
+                });
+                addVariantRow(tbody, attrKeys, combo, attributes, existing);
+            });
+        }
+    
+        var bulkBtn = document.getElementById("pw_apply_bulk");
+        if (bulkBtn) {
+            bulkBtn.addEventListener("click", function (e) {
+                e.preventDefault();
+                var stock = document.getElementById("pw_bulk_stock").value;
+                var price = document.getElementById("pw_bulk_price").value;
+                var discount = document.getElementById("pw_bulk_discount").value;
+                document.querySelectorAll("#pw_variant_table_body tr").forEach(function (tr) {
+                    if (!tr.querySelector(".pw-stock")) return;
+                    if (stock) tr.querySelector(".pw-stock").value = stock;
+                    if (price) tr.querySelector(".pw-price").value = price;
+                    if (discount) tr.querySelector(".pw-discount").value = discount;
+                    tr.querySelector(".pw-stock").dispatchEvent(new Event("input"));
                 });
             });
-            combos = next;
-        });
-
-        renderVariantTable(combos);
-    }
-
-    function renderVariantTable(combos, existingByCombo) {
-        existingByCombo = existingByCombo || {};
-
-        let html = '<table class="table table-sm align-middle">' +
-            '<thead><tr><th>Combination</th><th>Price</th><th>Discount Price</th><th>Stock</th><th>Active</th></tr></thead><tbody>';
-
-        combos.forEach(function (combo) {
-            const key = JSON.stringify(combo, Object.keys(combo).sort());
-            const label = Object.entries(combo).map(([k, v]) => k + ": " + v).join(" / ");
-            const existing = existingByCombo[key] || {};
-
-            html += '<tr data-combo=\'' + JSON.stringify(combo) + '\' data-variant-id="' + (existing.id || '') + '">' +
-                '<td>' + label + '</td>' +
-                '<td><input type="number" step="0.01" min="0" class="form-control form-control-sm variant-price" placeholder="Price" value="' + (existing.price != null ? existing.price : '') + '"></td>' +
-                '<td><input type="number" step="0.01" min="0" class="form-control form-control-sm variant-discount" placeholder="Optional" value="' + (existing.discount_price != null ? existing.discount_price : '') + '"></td>' +
-                '<td><input type="number" min="0" class="form-control form-control-sm variant-stock" value="' + (existing.inventory_quantity != null ? existing.inventory_quantity : 0) + '"></td>' +
-                '<td class="text-center"><input type="checkbox" class="form-check-input variant-active" ' + (existing.is_active === false ? '' : 'checked') + '></td>' +
-                '</tr>';
-        });
-
-        html += "</tbody></table>";
-        variantsTableWrapper.innerHTML = html;
-    }
-
-    function loadExistingVariants() {
-        if (!EXISTING_VARIANTS.length) return;
-
-        const usedAttrNames = new Set();
-        const valuesByAttr = {};
-        const existingByCombo = {};
-
-        EXISTING_VARIANTS.forEach(function (v) {
-            const combo = v.attributes || {};
-            const key = JSON.stringify(combo, Object.keys(combo).sort());
-            existingByCombo[key] = v;
-
-            Object.entries(combo).forEach(function ([attrName, val]) {
-                usedAttrNames.add(attrName);
-                valuesByAttr[attrName] = valuesByAttr[attrName] || [];
-                if (!valuesByAttr[attrName].includes(val)) {
-                    valuesByAttr[attrName].push(val);
-                }
+        }
+    
+        if (existingVariants.length) {
+            existingVariants.forEach(function (v) {
+                var attrs = v.attributes || {};
+                Object.keys(attrs).forEach(function (key) {
+                    if (!state.selected[key]) state.selected[key] = new Set();
+                    state.selected[key].add(attrs[key]);
+                });
             });
-        });
-
-        document.querySelectorAll(".attr-toggle").forEach(function (cb) {
-            if (usedAttrNames.has(cb.dataset.name)) {
-                cb.checked = true;
-            }
-        });
-
-        renderAttributeValueOptions(valuesByAttr);
-
-        const combos = EXISTING_VARIANTS.map(v => v.attributes || {});
-        renderVariantTable(combos, existingByCombo);
-    }
-
-    // Bind attribute checkboxes (event delegation so it survives modal re-renders)
-    document.getElementById("attribute_toggle_wrapper") &&
-        document.getElementById("attribute_toggle_wrapper").addEventListener("change", function (e) {
-            if (e.target.classList.contains("attr-toggle")) {
-                renderAttributeValueOptions();
-            }
-        });
-
-    if (generateBtn) {
-        generateBtn.addEventListener("click", generateCombosFromChecked);
-    }
-
-    if (reloadBtn) {
-        reloadBtn.addEventListener("click", loadExistingVariants);
-    }
-
-    // Load existing variants immediately (form is already in the DOM when this script runs,
-    // whether on a standalone page or inside a modal that was just injected)
-    loadExistingVariants();
-
-    // ---------------------------------------------------------------
-    // Submit: assemble hidden inputs for details/tags/variants
-    // ---------------------------------------------------------------
-    const formEl = document.querySelector("form");
-
-    formEl.addEventListener("submit", function () {
-        document.getElementById("full-description").value = quill.root.innerHTML;
-
-        const tags = Array.from(document.querySelectorAll("#tags_list a")).map(el => el.dataset.slug);
-        document.getElementById("tags_input").value = JSON.stringify(tags);
-
-        variantsHiddenInputs.innerHTML = "";
-        document.querySelectorAll("#variants_table_wrapper tbody tr").forEach(function (row) {
-            const attributes = JSON.parse(row.dataset.combo);
-            const variantId = row.dataset.variantId || null;
-            const price = row.querySelector(".variant-price").value;
-            const discount_price = row.querySelector(".variant-discount").value;
-            const inventory_quantity = row.querySelector(".variant-stock").value;
-            const is_active = row.querySelector(".variant-active").checked;
-
-            const payload = {
-                id: variantId || undefined,
-                attributes: attributes,
-                price: price,
-                discount_price: discount_price,
-                inventory_quantity: inventory_quantity,
-                is_active: is_active
-            };
-
-            const input = document.createElement("input");
-            input.type = "hidden";
-            input.name = "variants";
-            input.value = JSON.stringify(payload);
-            variantsHiddenInputs.appendChild(input);
-        });
-    });
-})();
-</script>
+            renderSummary();
+            generateVariantTable();
+        }
+    })();
+    </script>

@@ -1,0 +1,111 @@
+<div class="main-content" id="attributeListTable">
+    <!--breadcrumb-->
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Variants</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+    <!--end breadcrumb-->
+
+    <div class="row g-3">
+        <div class="col-auto">
+            <div class="position-relative">
+                <input class="form-control px-5" type="search" placeholder="Search Attribute">
+                <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">
+                    search
+                </span>
+            </div>
+        </div>
+        <div class="col-auto ms-auto">
+            <div class="d-flex align-items-center gap-2 justify-content-lg-end">
+                <button class="btn btn-primary px-4" data-bs-toggle="modal" data-bs-target="#AttributeModal">
+                    <i class="bi bi-plus-lg me-2"></i>Add Variants
+                </button>
+                {% include 'db_attribute/partial/add_attribute_modal.html' %}
+            </div>
+        </div>
+    </div>
+    <!--end row-->
+
+    <div class="card mt-4">
+        <div class="card-body">
+            <div class="product-table">
+                <div class="table-responsive white-space-nowrap">
+                    <table class="table align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Variant Name</th>
+                                <th>Type</th>
+                                <th>Is Variant</th>
+                                <th>Is Filterable</th>
+                                <th>Values Count</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for attribute in attributes %}
+                            <tr>
+                                <td>
+                                    <div class="product-info">
+                                        <span class="product-title fw-semibold">{{ attribute.name }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">{{ attribute.type|title }}</span>
+                                </td>
+                                <td>
+                                    {% if attribute.is_variant %}
+                                    <span class="badge bg-success-subtle text-success">Yes</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary-subtle text-secondary">No</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if attribute.is_filterable %}
+                                    <span class="badge bg-success-subtle text-success">Yes</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary-subtle text-secondary">No</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ attribute.values.count }}</td>
+                                <td>
+                                    <div class="dropdown d-flex gap-1">
+                                        <a href="{% url 'attribute_value_list' attribute.id %}"
+                                            class="btn btn-sm btn-filter" title="Manage Values">
+                                            <i class="bi bi-list-ul"></i>
+                                        </a>
+                                        <button class="btn btn-sm btn-filter edit-attribute-btn"
+                                            data-id="{{ attribute.id }}"
+                                            data-name="{{ attribute.name }}"
+                                            data-type="{{ attribute.type }}"
+                                            data-is-variant="{{ attribute.is_variant|yesno:'true,false' }}"
+                                            data-is-filterable="{{ attribute.is_filterable|yesno:'true,false' }}"
+                                            data-bs-toggle="modal" data-bs-target="#AttributeModal">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-filter delete-attribute-btn"
+                                            data-id="{{ attribute.id }}" data-name="{{ attribute.name }}"
+                                            data-bs-toggle="modal" data-bs-target="#deleteAttributeModal">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">No attributes found. Click "Add Attribute" to create one.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
