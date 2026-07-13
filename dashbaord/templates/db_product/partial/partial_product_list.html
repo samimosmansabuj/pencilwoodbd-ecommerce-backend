@@ -98,6 +98,7 @@
                                 <th>
                                     <input class="form-check-input" type="checkbox">
                                 </th>
+                                <th>Product ID</th>
                                 <th>Product Name</th>
                                 <th>Cost</th>
                                 <th>Price</th>
@@ -113,6 +114,18 @@
                                 <td>
                                     <input class="form-check-input" type="checkbox">
                                 </td>
+
+                                <td>
+                                    <a href="{% url 'product_update' product.id %}"
+                                       hx-get="{% url 'product_update' product.id %}"
+                                       hx-target="#content-area"
+                                       hx-push-url="true"
+                                       hx-trigger="click, refreshReturnOrderDetailView from:body"
+                                       hx-swap="innerHTML">
+                                        #{{ product.id  }}
+                                    </a>
+                                </td>
+
                                 <td>
                                     <div class="d-flex align-items-center gap-3">
                                         <div class="product-box">
