@@ -1392,12 +1392,37 @@ class AddOrderRequestView(LoginRequiredMixin, View):
     login_url = "admin_login"
     template_name = "db_order_request/add_order_request.html"
 
-    def get(self, request):
+    def get(self, request, pk=None):
+        order_request = None
+        existing_items_data = []
+
+        if pk:
+            order_request = get_object_or_404(
+                OrderRequest.objects.select_related("customer", "work_assign").prefetch_related(
+                    "request_items", "request_items__product", "request_items__variant"
+                ),
+                pk=pk,
+            )
+            for item in order_request.request_items.all():
+                existing_items_data.append({
+                    "id": item.id,
+                    "product_id": item.product_id,
+                    "variant_id": item.variant_id,
+                    "product_name": item.product_name,
+                    "variant_label": ", ".join(
+                        f"{k}: {v}" for k, v in (item.variant.attributes.items() if item.variant else {}.items())
+                    ) or None,
+                    "quantity": item.quantity,
+                    "unit_price": str(item.discount_price or item.price or 0),
+                })
+
         products = Product.objects.prefetch_related("variants", "category").order_by("name")
         assignable_users = CustomUser.objects.filter(
             user_type__in=[USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN, USER_TYPE.STAFF]
         ).order_by("username")
         context = {
+            "order_request": order_request,
+            "is_update": bool(order_request),
             "products": products,
             "categories": Category.objects.all().order_by("name"),
             "payment_types": PAYMENT_TYPE.choices,
@@ -1405,13 +1430,21 @@ class AddOrderRequestView(LoginRequiredMixin, View):
             "status_choices": ORDER_REQUEST_STATUS.choices,
             "variants_by_product_json": pyjson.dumps(build_variants_by_product(products)),
             "assignable_users": assignable_users,
+            "existing_items_json": pyjson.dumps(existing_items_data),
         }
         return render(request, self.template_name, context)
 
-    def post(self, request):
+    def post(self, request, pk=None):
         try:
             with transaction.atomic():
                 data = request.POST
+
+                if pk:
+                    order_request = get_object_or_404(OrderRequest, pk=pk)
+                    customer = order_request.customer
+                else:
+                    order_request = None
+                    customer = None
 
                 company = data.get("company", "").strip()
                 name = data.get("name", "").strip()
@@ -1422,19 +1455,28 @@ class AddOrderRequestView(LoginRequiredMixin, View):
 
                 if not name:
                     messages.error(request, "Customer name is required.")
-                    return redirect("add_order_request")
+                    return redirect("add_order_request") if not pk else redirect("edit_order_request", pk=pk)
                 if not phone:
                     messages.error(request, "Phone number is required.")
-                    return redirect("add_order_request")
+                    return redirect("add_order_request") if not pk else redirect("edit_order_request", pk=pk)
 
-                customer = Customer.objects.create(
-                    company=company or None,
-                    name=name,
-                    phone=phone,
-                    second_phone=second_phone or None,
-                    email=email or None,
-                    source=source or "Others",
-                )
+                if customer:
+                    customer.company = company or None
+                    customer.name = name
+                    customer.phone = phone
+                    customer.second_phone = second_phone or None
+                    customer.email = email or None
+                    customer.source = source or "Others"
+                    customer.save()
+                else:
+                    customer = Customer.objects.create(
+                        company=company or None,
+                        name=name,
+                        phone=phone,
+                        second_phone=second_phone or None,
+                        email=email or None,
+                        source=source or "Others",
+                    )
 
                 shipping_address = data.get("shipping_address", "").strip()
                 note = data.get("note", "").strip()
@@ -1447,7 +1489,6 @@ class AddOrderRequestView(LoginRequiredMixin, View):
 
                 payment_type = data.get("payment_type", PAYMENT_TYPE.COD)
                 delivery_type = data.get("delivery_type", DELIVERY_TYPE.HOME_DELIVERY)
-                status = ORDER_REQUEST_STATUS.PENDING
                 is_urgent = data.get("is_urgent") == "on"
 
                 order_created_date = data.get("order_created_date") or None
@@ -1462,28 +1503,51 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                     items = json.loads(data.get("items", "[]"))
                 except json.JSONDecodeError:
                     messages.error(request, "Invalid product data.")
-                    return redirect("add_order_request")
+                    return redirect("add_order_request") if not pk else redirect("edit_order_request", pk=pk)
 
                 if not items:
                     messages.error(request, "Please add at least one product.")
-                    return redirect("add_order_request")
+                    return redirect("add_order_request") if not pk else redirect("edit_order_request", pk=pk)
 
-                order_request = OrderRequest.objects.create(
-                    customer=customer,
-                    shipping_address=shipping_address,
-                    note=note,
-                    special_instructions=special_instructions or None,
-                    work_assign=assigned_user,
-                    payment_type=payment_type,
-                    delivery_type=delivery_type,
-                    shipping_total=shipping_total,
-                    advance_amount=advance_amount,
-                    status=status,
-                    is_urgent=is_urgent,
-                    order_created_date=order_created_date,
-                    design_file=design_file,
-                    delivery_date=delivery_date,
-                )
+                if order_request:
+                    order_request.shipping_address = shipping_address
+                    order_request.note = note
+                    order_request.special_instructions = special_instructions or None
+                    order_request.work_assign = assigned_user
+                    order_request.payment_type = payment_type
+                    order_request.delivery_type = delivery_type
+                    order_request.shipping_total = shipping_total
+                    order_request.advance_amount = advance_amount
+                    order_request.is_urgent = is_urgent
+                    order_request.order_created_date = order_created_date
+                    order_request.delivery_date = delivery_date
+
+                    delete_design_file = data.get("delete_design_file")
+                    if delete_design_file:
+                        if order_request.design_file:
+                            order_request.design_file.delete(save=False)
+                        order_request.design_file = None
+                    if design_file:
+                        order_request.design_file = design_file
+
+                    order_request.request_items.all().delete()
+                else:
+                    order_request = OrderRequest.objects.create(
+                        customer=customer,
+                        shipping_address=shipping_address,
+                        note=note,
+                        special_instructions=special_instructions or None,
+                        work_assign=assigned_user,
+                        payment_type=payment_type,
+                        delivery_type=delivery_type,
+                        shipping_total=shipping_total,
+                        advance_amount=advance_amount,
+                        status=ORDER_REQUEST_STATUS.PENDING,
+                        is_urgent=is_urgent,
+                        order_created_date=order_created_date,
+                        design_file=design_file,
+                        delivery_date=delivery_date,
+                    )
 
                 grand_total = shipping_total
 
@@ -1512,14 +1576,14 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                     grand_total += total
 
                 order_request.total_cost = grand_total
-                order_request.save(update_fields=["total_cost"])
+                order_request.save()
 
-                messages.success(request, "Order Request created successfully.")
-                return redirect("order_request_list")
+                messages.success(request, "Order Request saved successfully.")
+                return redirect("order_request_detail", id=order_request.pk)
 
         except Exception as e:
             messages.error(request, str(e))
-            return redirect("add_order_request")
+            return redirect("add_order_request") if not pk else redirect("edit_order_request", pk=pk)
                
 
 class OrderRequestListView(LoginRequiredMixin, View):

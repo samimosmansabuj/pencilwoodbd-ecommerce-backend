@@ -25,12 +25,12 @@
                             <div class="mb-3">
                                 <label class="form-label">Parent Category</label>
                                 <select class="form-select" name="parent" id="category_parent_select">
-                                    <option value="">— None (Top level category) —</option>
+                                    <option value="">-- None (Main level)-- </option>
                                     {% for cat in all_categories %}
                                     <option value="{{ cat.id }}"{% if parent_category and parent_category.id == cat.id %} selected{% endif %}>{{ cat.get_category_path }}</option>
                                     {% endfor %}
                                 </select>
-                                <small class="text-muted">Leave empty for a top-level (primary) category. Choose a parent to create a sub-category.</small>
+                                <small class="text">Leave empty for a top-level (primary) category. Choose a parent to create a sub-category.</small>
                             </div>
 
                             <div class="mb-3">
@@ -41,7 +41,7 @@
 
                             <div class="row g-3">
                                 <div class="col-6">
-                                    <label class="form-label">Icon <span class="text-muted">(emoji or icon class)</span></label>
+                                    <label class="form-label">Icon <span class="text">(emoji or icon class)</span></label>
                                     <input type="text" class="form-control" name="icon" placeholder="e.g. 📓 or bi-book">
                                 </div>
                                 <div class="col-6">
@@ -70,7 +70,7 @@
 
                     <div class="card">
                         <div class="card-body">
-                            <h6 class="mb-3">SEO <span class="text-muted">(optional)</span></h6>
+                            <h6 class="mb-3">SEO <span class="text">(optional)</span></h6>
                             <div class="mb-3">
                                 <label class="form-label">SEO Title</label>
                                 <input type="text" class="form-control" name="seo_title">

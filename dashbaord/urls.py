@@ -33,7 +33,7 @@ urlpatterns = [
 
     # ------------------Order Request------------------
     path("order-requests/add/",AddOrderRequestView.as_view(),name="add_order_request"),
-
+    path("order-requests/<int:pk>/edit/", AddOrderRequestView.as_view(), name="edit_order_request"),
     path("order-request/",OrderRequestListView.as_view(),name="order_request_list",),
     path("order-request/<int:id>/",OrderRequestDetailView.as_view(),name="order_request_detail",),
     path("order-request/<int:pk>/approve/",ApproveOrderRequestView.as_view(),name="approve_order_request",),

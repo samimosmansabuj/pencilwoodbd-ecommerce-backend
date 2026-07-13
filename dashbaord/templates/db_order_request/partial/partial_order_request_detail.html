@@ -45,7 +45,7 @@
                         Order Request #{{ order_request.id }}
                     </h3>
 
-                    <div class="text-muted">
+                    <div class="text">
 
                         Created :
                         {{ order_request.created_at|date:"d M Y, h:i A" }}
@@ -86,42 +86,47 @@
 
             <div class="d-flex flex-wrap gap-2">
 
-                {% if order_request.status == "pending" or order_request.status == "approved" %}
+    {% if order_request.status == "pending" or order_request.status == "approved" %}
+    <a href="{% url 'edit_order_request' order_request.pk %}" class="btn btn-outline-primary"
+        hx-get="{% url 'edit_order_request' order_request.pk %}" hx-target="#content-area" hx-push-url="true">
+        <i class="bi bi-pencil-square me-2"></i>
+        Edit Request
+    </a>
 
-                <form method="post" action="{% url 'approve_order_request' order_request.id %}">
-                    {% csrf_token %}
-                    <button class="btn btn-success" onclick="return confirm('Approve this Order Request?')">
-                        <i class="bi bi-check-circle me-2"></i>
-                        {% if order_request.status == "approved" %}Convert to Order{% else %}Approve Request{% endif %}
-                    </button>
-                </form>
+    <form method="post" action="{% url 'approve_order_request' order_request.id %}">
+        {% csrf_token %}
+        <button class="btn btn-success" onclick="return confirm('Approve this Order Request?')">
+            <i class="bi bi-check-circle me-2"></i>
+            {% if order_request.status == "approved" %}Convert to Order{% else %}Approve Request{% endif %}
+        </button>
+    </form>
 
-                <form method="post" action="{% url 'reject_order_request' order_request.id %}">
-                    {% csrf_token %}
-                    <button class="btn btn-danger" onclick="return confirm('Reject this Order Request?')">
-                        <i class="bi bi-x-circle me-2"></i>
-                        Reject Request
-                    </button>
-                </form>
+    <form method="post" action="{% url 'reject_order_request' order_request.id %}">
+        {% csrf_token %}
+        <button class="btn btn-danger" onclick="return confirm('Reject this Order Request?')">
+            <i class="bi bi-x-circle me-2"></i>
+            Reject Request
+        </button>
+    </form>
 
-                {% endif %}
+    {% endif %}
 
 
-                {% if order_request.converted_order %}
+    {% if order_request.converted_order %}
 
-                <a href="{% url 'order_detail' order_request.converted_order.id %}" class="btn btn-primary"
-                    hx-get="{% url 'order_detail' order_request.converted_order.id %}" hx-target="#content-area"
-                    hx-push-url="true">
+    <a href="{% url 'order_detail' order_request.converted_order.id %}" class="btn btn-primary"
+        hx-get="{% url 'order_detail' order_request.converted_order.id %}" hx-target="#content-area"
+        hx-push-url="true">
 
-                    <i class="bi bi-box-arrow-up-right me-2"></i>
+        <i class="bi bi-box-arrow-up-right me-2"></i>
 
-                    View Converted Order
+        View Converted Order
 
-                </a>
+    </a>
 
-                {% endif %}
+    {% endif %}
 
-            </div>
+</div>
 
         </div>
 
@@ -143,7 +148,7 @@
 
                         Requested Items
 
-                        <span class="text-muted">
+                        <span class="text">
 
                             ({{ order_request.request_items.count }})
 
@@ -194,7 +199,7 @@
 
                                                 </div>
 
-                                                <small class="text-muted">
+                                                <small class="text">
 
                                                     SKU :
                                                     {{ item.sku }}
@@ -330,27 +335,27 @@
                 <!-- Status -->
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="fw-bold mb-3">Work Assign</h5>
 
-                        <div class="col-md-4">
-                            <div class="border rounded p-3 h-100">
-                                <small class="text-muted">Work Assign (Optional)</small>
+                        <h5 class="fw-bold mb-3">Work Assign</h5>
+                        <div class="mb-3">
+                            <div class="border rounded p-3">
+                                <small style="color:#adb5bd;">Assigned To</small>
                                 <div class="fw-bold mt-1">
                                     {% if order_request.work_assign %}
-                                    {{
-                                    order_request.work_assign.get_full_name|default:order_request.work_assign.username
-                                    }}
+                                        {{ order_request.work_assign.get_full_name|default:order_request.work_assign.username }}
                                     {% else %}
-                                    Not Assigned
+                                        Not Assigned Yet
                                     {% endif %}
                                 </div>
                             </div>
                         </div>
 
+                        <hr>
+
                         <h5 class="fw-bold mb-3">Request Status</h5>
 
                         <div class="mb-3">
-                            <small class="text-muted">Current Status</small>
+                            <small style="color:#adb5bd;">Current Status</small>
                             <div class="mt-2">
                                 {% if order_request.status == "pending" %}
                                 <span class="badge bg-warning text-dark">Pending</span>
@@ -365,14 +370,14 @@
                         </div>
 
                         <div>
-                            <small class="text-muted">Payment Type</small>
+                            <small style="color:#adb5bd;">Payment Type</small>
                             <div class="fw-semibold text-uppercase">{{ order_request.payment_type }}</div>
                         </div>
 
                         <hr>
 
                         <div>
-                            <small class="text-muted">Delivery Type</small>
+                            <small style="color:#adb5bd;">Delivery Type</small>
                             <div class="fw-semibold text-uppercase">{{ order_request.delivery_type }}</div>
                         </div>
 
@@ -380,11 +385,11 @@
 
                         <form method="post" action="{% url 'update_order_request_work_status' order_request.pk %}">
                             {% csrf_token %}
-                            <label class="form-label">Work Status</label>
+                            <label class="form-label" style="color:#adb5bd;">Work Status</label>
                             <div class="d-flex gap-2 flex-wrap">
                                 {% for value, label in work_status_choices %}
                                 <button type="submit" name="work_status" value="{{ value }}"
-                                    class="btn btn-sm {% if order_request.work_status == value %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                                    class="btn btn-sm {% if order_request.work_status == value %}btn-primary{% else %}btn-outline-light{% endif %}">
                                     {% if value == "design" %}<i class="bi bi-pencil-square me-1"></i>
                                     {% elif value == "correction" %}<i class="bi bi-arrow-repeat me-1"></i>
                                     {% elif value == "call" %}<i class="bi bi-telephone me-1"></i>
@@ -426,7 +431,7 @@
 
                     <div class="border rounded p-3 h-100">
 
-                        <small class="text-muted">
+                        <small class="text">
 
                             Customer Name
 
@@ -447,7 +452,7 @@
 
                     <div class="border rounded p-3 h-100">
 
-                        <small class="text-muted">
+                        <small class="text">
 
                             Phone
 
@@ -468,7 +473,7 @@
 
                     <div class="border rounded p-3 h-100">
 
-                        <small class="text-muted">
+                        <small class="text">
 
                             WhatsApp
 
@@ -590,6 +595,42 @@
 
     {% endif %}
 
+
+    <!-- Design File -->
+    {% if order_request.design_file %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h6 class="mb-0">Design File</h6>
+        </div>
+        <div class="card-body">
+            <div class="position-relative d-inline-block">
+                <img src="{{ order_request.design_file.url }}" alt="Design file"
+                    style="max-width:150px; max-height:150px; border-radius:6px; border:1px solid #444; object-fit:cover;">
+                <button type="button"
+                    class="btn btn-sm btn-light border position-absolute top-0 start-100 translate-middle rounded-circle p-1"
+                    style="line-height:1;"
+                    data-bs-toggle="modal" data-bs-target="#designFilePreviewModal"
+                    title="Preview">
+                    <i class="bi bi-eye"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Modal -->
+    <div class="modal fade" id="designFilePreviewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content bg-transparent border-0">
+                <div class="modal-body text-center p-0">
+                    <button type="button" class="btn-close btn-close-white float-end m-2" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <img src="{{ order_request.design_file.url }}" alt="Design file preview"
+                        class="img-fluid rounded" style="max-height:85vh;">
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Converted Order -->
 
     {% if order_request.converted_order %}
@@ -620,7 +661,7 @@
 
                     <div class="border rounded p-3">
 
-                        <small class="text-muted">
+                        <small class="text">
 
                             Order ID
 
@@ -640,7 +681,7 @@
 
                     <div class="border rounded p-3">
 
-                        <small class="text-muted">
+                        <small class="text">
 
                             Converted At
 
@@ -660,7 +701,7 @@
 
                     <div class="border rounded p-3">
 
-                        <small class="text-muted">
+                        <small class="text">
 
                             Current Order Status
 
