@@ -110,3 +110,13 @@ class PRODUCT_GIFT_TYPE(models.TextChoices):
 
 # ==============================================================
 
+class ORDER_REQUEST_WORK_STATUS(models.TextChoices):
+    NONE = "none", "None"
+    DESIGN = "design", "Design"
+    CORRECTION = "correction", "Correction"
+    CALL = "call", "Call"
+    KNOCK = "knock", "Knock"
+    OTHER = "other", "Other"
+    DONE = "done", "Done"
+    HOLD = "hold", "Hold"
+    CANCEL = "cancel", "Cancel"

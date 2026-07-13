@@ -1,6 +1,5 @@
 <!-- Add / Edit Attribute Modal -->
-<form method="post" id="add_attribute_form" hx-ignore="true">
-    {% csrf_token %}
+<form method="post" id="add_attribute_form" hx-ignore="true" autocomplete="off">
     <input type="hidden" name="attribute_id" id="attribute_id">
 
     <div class="modal fade" id="AttributeModal">
@@ -18,7 +17,7 @@
                     <div class="card">
                         <div class="card-body">
                             <div class="mb-3">
-                                <label class="form-label">Attribute Name</label>
+                                <label class="form-label">Attribute Name <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control" placeholder="e.g. Size, Color, Material"
                                     name="name" required>
                             </div>
@@ -30,6 +29,7 @@
                                     <option value="{{ value }}">{{ label }}</option>
                                     {% endfor %}
                                 </select>
+                                <small class="text">Type is just a label for you — you can still add any value under any type.</small>
                             </div>
 
                             <div class="form-check mb-2">
@@ -79,15 +79,42 @@
 </div>
 
 <script>
-    // ---- Add / Update Attribute ----
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== "") {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
     document.addEventListener("submit", async function (e) {
         if (e.target.id === "add_attribute_form") {
             e.preventDefault();
 
+            const csrftoken = getCookie("csrftoken");
+            if (!csrftoken) {
+                errorNotificationCustom("Session expired. Please refresh the page and try again.");
+                return;
+            }
+
+            const form = e.target;
+            const nameInput = form.querySelector("input[name='name']");
+            if (!nameInput.value.trim()) {
+                errorNotificationCustom("Attribute name is required");
+                nameInput.focus();
+                return;
+            }
+
             try {
-                const csrftoken = getCookie("csrftoken");
-                const form = e.target;
                 const formData = new FormData(form);
+                formData.set("csrfmiddlewaretoken", csrftoken);
 
                 const response = await fetch("{% url 'attribute_list' %}", {
                     method: "POST",
@@ -97,6 +124,21 @@
                         "X-Requested-With": "XMLHttpRequest",
                     },
                 });
+
+                if (!response.ok && response.status !== 400 && response.status !== 201) {
+                    const text = await response.text();
+                    console.error("Server error response:", text);
+                    errorNotificationCustom("Something went wrong (status " + response.status + "). Please refresh and try again.");
+                    return;
+                }
+
+                const contentType = response.headers.get("content-type") || "";
+                if (!contentType.includes("application/json")) {
+                    const text = await response.text();
+                    console.error("Non-JSON response:", text);
+                    errorNotificationCustom("Unexpected server response. Please refresh and try again.");
+                    return;
+                }
 
                 const data = await response.json();
 
@@ -118,7 +160,6 @@
         }
     });
 
-    // ---- Open Edit Modal (prefill) ----
     document.addEventListener("click", function (e) {
         const btn = e.target.closest(".edit-attribute-btn");
         if (btn) {
@@ -133,7 +174,6 @@
         }
     });
 
-    // ---- Reset modal to "Add" state when closed ----
     document.getElementById("AttributeModal")?.addEventListener("hidden.bs.modal", function () {
         const form = document.getElementById("add_attribute_form");
         form.reset();
@@ -141,7 +181,6 @@
         document.getElementById("attribute_modal_title").textContent = "Add Attribute";
     });
 
-    // ---- Delete Attribute ----
     let deleteAttributeId = null;
     document.addEventListener("click", function (e) {
         const btn = e.target.closest(".delete-attribute-btn");
@@ -158,10 +197,15 @@
                 errorNotificationCustom("Attribute ID is not found");
                 return;
             }
-            fetch(`/dashboard/delete-attribute/${deleteAttributeId}/`, {
+            const csrftoken = getCookie("csrftoken");
+            if (!csrftoken) {
+                errorNotificationCustom("Session expired. Please refresh the page and try again.");
+                return;
+            }
+            fetch(`/delete-attribute/${deleteAttributeId}/`, {
                 method: "DELETE",
                 headers: {
-                    "X-CSRFToken": getCookie("csrftoken"),
+                    "X-CSRFToken": csrftoken,
                     "X-Requested-With": "XMLHttpRequest",
                 },
             })
@@ -195,19 +239,5 @@
             icon: 'bi bi-x-circle', delayIndicator: false,
             continueDelayOnInactiveTab: false, position: 'top right', msg: message
         });
-    }
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== "") {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
     }
 </script>

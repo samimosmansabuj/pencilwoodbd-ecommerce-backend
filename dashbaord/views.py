@@ -23,7 +23,7 @@ import json as pyjson
 
 # Models
 from order.models import Order, OrderRequest, OrderItem, OrderRequestItem
-from product.models import Product, Category, ProductImage, ProductVideo, Attribute, AttributeValue, ProductVariant
+from product.models import Product, Category, ProductImage, ProductVideo, Attribute, AttributeValue, ProductVariant, Tag
 from authentication.models import CustomUser, Customer
 from site_app.models import DeliveryOption
 
@@ -35,7 +35,7 @@ from django.forms import modelformset_factory
 from order.utils import SteadFastParcelAPI
 
 # Choices
-from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, PAYMENT_TYPE, PAYMENT_STATUS, ATTRIBUTE_TYPE
+from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, PAYMENT_TYPE, PAYMENT_STATUS, ATTRIBUTE_TYPE, PRODUCT_TYPE, ORDER_REQUEST_WORK_STATUS
 
 
 # ------------------Dashboard--------
@@ -196,6 +196,8 @@ class ProductListView(LoginRequiredMixin, View):
             "attributes": attributes,
             "attributes_data": attributes_data,
             "existing_variants_data": [],
+            "attributes_data": pyjson.dumps(attributes_data),
+
         })
 
 def parse_decimal(value, default=Decimal("0")):
@@ -236,13 +238,27 @@ def add_product(request):
                 if category_id:
                     category = Category.objects.filter(id=category_id).first()
 
-                # ---- Tags (safe parse) ----
                 try:
-                    tags = json.loads(request.POST.get("tags") or "[]")
-                    if not isinstance(tags, list):
-                        tags = []
-                except json.JSONDecodeError:
-                    tags = []
+                    tag_ids = json.loads(request.POST.get("tags") or "[]")
+                    tag_ids = [t["id"] for t in tag_ids if "id" in t]
+                except (json.JSONDecodeError, TypeError):
+                    tag_ids = []
+
+                variant_data = request.POST.getlist("variants")
+                parsed_variants = []
+                for variant_json in variant_data:
+                    try:
+                        data = json.loads(variant_json)
+                    except json.JSONDecodeError:
+                        continue
+                    variant_attrs = data.get("attributes") or {}
+                    if not variant_attrs:
+                        continue
+                    parsed_variants.append(data)
+
+                product_type = PRODUCT_TYPE.VARIABLE if parsed_variants else PRODUCT_TYPE.SIMPLE
+
+                status_value = request.POST.get("status_action") or request.POST.get("status") or CATEGORY_PRODUCT_STATUS.DRAFT
 
                 product = Product.objects.create(
                     name=request.POST.get("name", "").strip(),
@@ -252,16 +268,18 @@ def add_product(request):
                     price=parse_decimal(request.POST.get("price")),
                     discount_price=parse_decimal(request.POST.get("discount_price")),
                     inventory_quantity=parse_int(request.POST.get("inventory_quantity")),
-                    status=request.POST.get("status", CATEGORY_PRODUCT_STATUS.DRAFT),
-                    tags=tags,
+                    status=status_value,
+                    product_type=product_type,
                 )
 
                 if not product.name:
                     raise ValueError("Product title is required.")
 
-                # ---------------- Images ----------------
+                if tag_ids:
+                    product.tags.set(tag_ids)
+
                 image_files = request.FILES.getlist("images")
-                primary_image_id = request.POST.get("primary_image_index")  # optional, index-based
+                primary_image_id = request.POST.get("primary_image_index")
 
                 for index, image in enumerate(image_files):
                     role = "primary" if (
@@ -276,31 +294,18 @@ def add_product(request):
                         position=index,
                     )
 
-                # If nothing was explicitly marked primary, promote the first image
                 if image_files and not product.images.filter(role="primary").exists():
                     first_img = product.images.order_by("position").first()
                     if first_img:
                         first_img.role = "primary"
                         first_img.save(update_fields=["role"])
 
-                # ---------------- Video ----------------
                 video = request.FILES.get("video")
                 if video:
                     ProductVideo.objects.create(product=product, video=video)
 
-                # ---------------- Variants ----------------
-                variant_data = request.POST.getlist("variants")
-
-                for variant_json in variant_data:
-                    try:
-                        data = json.loads(variant_json)
-                    except json.JSONDecodeError:
-                        continue  # skip malformed entries instead of crashing the whole request
-
+                for data in parsed_variants:
                     variant_attrs = data.get("attributes") or {}
-                    if not variant_attrs:
-                        continue  # a variant with no attributes isn't meaningful
-
                     ProductVariant.objects.create(
                         product=product,
                         attributes=variant_attrs,
@@ -309,9 +314,9 @@ def add_product(request):
                             data.get("discount_price"), default=product.discount_price
                         ),
                         inventory_quantity=parse_int(data.get("inventory_quantity")),
+                        is_active=data.get("is_active", True),
                     )
 
-                # ---------------- Recompute stock if variants exist ----------------
                 if product.has_variants:
                     product.inventory_quantity = sum(
                         v.inventory_quantity
@@ -333,10 +338,12 @@ def add_product(request):
         {
             "categories": Category.objects.all(),
             "attributes": attributes,
-            "attributes_data": attributes_data,
-            "existing_variants_data": [],
+            "attributes_data": pyjson.dumps(attributes_data),
+            "existing_variants_data": "[]",
+            "CATEGORY_PRODUCT_STATUS_CHOICES": CATEGORY_PRODUCT_STATUS.choices,
         },
     )
+
 
 
 @login_required(login_url="admin_login")
@@ -369,188 +376,140 @@ def product_update(request, pk):
             with transaction.atomic():
 
                 category = None
-
                 category_id = request.POST.get("category")
 
                 if category_id:
-                    category = Category.objects.filter(
-                        id=category_id
-                    ).first()
+                    category = Category.objects.filter(id=category_id).first()
 
-                product.name = request.POST.get("name")
+                product.name = request.POST.get("name", product.name).strip()
                 product.category = category
-                product.short_description = request.POST.get(
-                    "short_description"
-                )
-                product.details = request.POST.get("details")
-                product.price = request.POST.get("price") or 0
-                product.discount_price = request.POST.get(
-                    "discount_price"
-                ) or 0
+                product.short_description = request.POST.get("short_description", product.short_description)
+                product.details = request.POST.get("details", product.details)
+                product.price = parse_decimal(request.POST.get("price"), default=product.price)
+                product.discount_price = parse_decimal(request.POST.get("discount_price"), default=product.discount_price)
 
-                product.status = request.POST.get(
-                    "status",
-                    product.status
-                )
-
-                product.tags = json.loads(
-                    request.POST.get("tags", "[]")
-                )
+                status_value = request.POST.get("status_action") or request.POST.get("status") or product.status
+                product.status = status_value
 
                 product.save()
 
-                # ---------------- Images ----------------
+                try:
+                    tag_ids = json.loads(request.POST.get("tags") or "[]")
+                    tag_ids = [t["id"] for t in tag_ids if "id" in t]
+                except (json.JSONDecodeError, TypeError):
+                    tag_ids = []
+                product.tags.set(tag_ids)
 
-                delete_images = request.POST.getlist(
-                    "delete_images"
-                )
-
+                # ---------------- Images: delete selected ----------------
+                delete_images = request.POST.getlist("delete_images")
                 if delete_images:
-                    ProductImage.objects.filter(
-                        id__in=delete_images,
-                        product=product
-                    ).delete()
+                    ProductImage.objects.filter(id__in=delete_images, product=product).delete()
 
+                # ---------------- Images: new uploads ----------------
                 image_files = request.FILES.getlist("images")
-
                 start_position = product.images.count()
+                primary_image_id = request.POST.get("primary_image_index")
 
+                new_image_objs = []
                 for index, image in enumerate(image_files):
-                    ProductImage.objects.create(
+                    img = ProductImage.objects.create(
                         product=product,
                         image=image,
                         role="gallery",
-                        position=start_position + index
+                        position=start_position + index,
                     )
+                    new_image_objs.append(img)
+
+                # ---------------- Set primary from existing OR newly uploaded ----------------
+                existing_primary_id = request.POST.get("existing_primary_image_id")
+                if existing_primary_id:
+                    ProductImage.objects.filter(product=product).update(role="gallery")
+                    ProductImage.objects.filter(id=existing_primary_id, product=product).update(role="primary")
+                elif primary_image_id is not None and new_image_objs:
+                    try:
+                        idx = int(primary_image_id)
+                        if 0 <= idx < len(new_image_objs):
+                            ProductImage.objects.filter(product=product).update(role="gallery")
+                            new_image_objs[idx].role = "primary"
+                            new_image_objs[idx].save(update_fields=["role"])
+                    except (ValueError, TypeError):
+                        pass
+
+                if not product.images.filter(role="primary").exists():
+                    first_img = product.images.order_by("position").first()
+                    if first_img:
+                        first_img.role = "primary"
+                        first_img.save(update_fields=["role"])
 
                 # ---------------- Video ----------------
-
-                delete_video = request.POST.get(
-                    "delete_video"
-                )
-
+                delete_video = request.POST.get("delete_video")
                 if delete_video:
-                    ProductVideo.objects.filter(
-                        id=delete_video,
-                        product=product
-                    ).delete()
+                    ProductVideo.objects.filter(id=delete_video, product=product).delete()
 
                 video = request.FILES.get("video")
-
                 if video:
-
-                    ProductVideo.objects.filter(
-                        product=product
-                    ).delete()
-
-                    ProductVideo.objects.create(
-                        product=product,
-                        video=video
-                    )
+                    ProductVideo.objects.filter(product=product).delete()
+                    ProductVideo.objects.create(product=product, video=video)
 
                 # ---------------- Variants ----------------
-
-                variant_data = request.POST.getlist(
-                    "variants"
-                )
-
+                variant_data = request.POST.getlist("variants")
                 existing_ids = []
+                parsed_variants = []
 
                 for variant_json in variant_data:
-
                     data = json.loads(variant_json)
+                    variant_attrs = data.get("attributes") or {}
+                    if not variant_attrs:
+                        continue
+                    parsed_variants.append(data)
 
                     variant_id = data.get("id")
 
                     if variant_id:
-
-                        variant = ProductVariant.objects.get(
-                            id=variant_id,
-                            product=product
-                        )
-
-                        variant.attributes = data.get(
-                            "attributes",
-                            {}
-                        )
-
-                        variant.price = data.get(
-                            "price",
-                            variant.price
-                        )
-
-                        variant.discount_price = data.get(
-                            "discount_price",
-                            variant.discount_price
-                        )
-
-                        variant.inventory_quantity = data.get(
-                            "inventory_quantity",
-                            variant.inventory_quantity
-                        )
-
+                        variant = ProductVariant.objects.get(id=variant_id, product=product)
+                        variant.attributes = data.get("attributes", {})
+                        variant.price = parse_decimal(data.get("price"), default=variant.price)
+                        variant.discount_price = parse_decimal(data.get("discount_price"), default=variant.discount_price)
+                        variant.inventory_quantity = parse_int(data.get("inventory_quantity"), default=variant.inventory_quantity)
+                        variant.is_active = data.get("is_active", variant.is_active)
                         variant.save()
-
-                        existing_ids.append(
-                            variant.id
-                        )
-
+                        existing_ids.append(variant.id)
                     else:
-
                         variant = ProductVariant.objects.create(
                             product=product,
-                            attributes=data.get(
-                                "attributes",
-                                {}
-                            ),
-                            price=data.get(
-                                "price",
-                                product.price
-                            ),
-                            discount_price=data.get(
-                                "discount_price",
-                                product.discount_price
-                            ),
-                            inventory_quantity=data.get(
-                                "inventory_quantity",
-                                0
-                            )
+                            attributes=data.get("attributes", {}),
+                            price=parse_decimal(data.get("price"), default=product.price),
+                            discount_price=parse_decimal(data.get("discount_price"), default=product.discount_price),
+                            inventory_quantity=parse_int(data.get("inventory_quantity")),
+                            is_active=data.get("is_active", True),
                         )
+                        existing_ids.append(variant.id)
 
-                        existing_ids.append(
-                            variant.id
-                        )
+                ProductVariant.objects.filter(product=product).exclude(id__in=existing_ids).delete()
 
-                ProductVariant.objects.filter(
-                    product=product
-                ).exclude(
-                    id__in=existing_ids
-                ).delete()
+                product.product_type = PRODUCT_TYPE.VARIABLE if parsed_variants else PRODUCT_TYPE.SIMPLE
+                product.has_variants = bool(parsed_variants)
+                product.save(update_fields=["product_type", "has_variants"])
 
                 if product.has_variants:
-
                     product.inventory_quantity = sum(
                         v.inventory_quantity
-                        for v in product.variants.filter(
-                            is_active=True
-                        )
+                        for v in product.variants.filter(is_active=True)
                     )
+                    product.save(update_fields=["inventory_quantity"])
+                elif not request.POST.get("inventory_quantity") is None:
+                    product.inventory_quantity = parse_int(request.POST.get("inventory_quantity"), default=product.inventory_quantity)
+                    product.save(update_fields=["inventory_quantity"])
 
-                    product.save(
-                        update_fields=["inventory_quantity"]
-                    )
-
-                messages.success(
-                    request,
-                    "Product updated successfully"
-                )
-
-                return redirect("product_list")
+                messages.success(request, "Product updated successfully")
+                return redirect("product_update", pk=product.pk)
 
         except Exception as e:
-
             messages.error(request, str(e))
-            
+
+    existing_variants_data_json = pyjson.dumps(existing_variants_data)
+    attributes_data_json = pyjson.dumps(attributes_data)
+
     return render(
         request,
         "db_product/add_product.html",
@@ -559,9 +518,13 @@ def product_update(request, pk):
             "variants": product.variants.all(),
             "categories": Category.objects.all(),
             "attributes": attributes,
-            "attributes_data": attributes_data,
-            "existing_variants_data": existing_variants_data,
+            "attributes_data": attributes_data_json,
+            "existing_variants_data": existing_variants_data_json,
             "is_update": True,
+            "CATEGORY_PRODUCT_STATUS_CHOICES": CATEGORY_PRODUCT_STATUS.choices,
+            "product_tag_ids": pyjson.dumps(
+                [{"id": t.id, "name": t.name} for t in product.tags.all()]
+            ),
         }
     )
 
@@ -578,70 +541,116 @@ class ProductDeleteView(LoginRequiredMixin, View):
         return redirect("product_list")
 
 
+
 # ------------------Category--------
-@login_required(login_url="admin_login")
-def add_category(request):
-    if request.method == "POST":
-        Category.objects.create(
-            name=request.POST.get("name"),
-            slug=request.POST.get("slug"),
-            parent=request.POST.get("parent"),
-            status=request.POST.get("status"),
-            image=request.FILES.get("image"),
-        )
-        return JsonResponse({"message": "Category added successfully"})
-    return render(request, "db_category/add_category.html")
+class CategoryView(LoginRequiredMixin, View):
+    login_url = "admin_login"
 
-
-class CategoryView(View):
     def get(self, request):
-        categories = Category.objects.all()
-        return render(
-            request, "db_category/category_list.html", {"categories": categories}
-        )
+        parent_id = request.GET.get("parent")
+        parent_category = None
+
+        if parent_id:
+            parent_category = get_object_or_404(Category, id=parent_id)
+            categories = Category.objects.filter(parent=parent_category).order_by("sort_order", "name")
+        else:
+            categories = Category.objects.filter(parent__isnull=True).order_by("sort_order", "name")
+
+        context = {
+            "categories": categories,
+            "parent_category": parent_category,
+            "all_categories": Category.objects.all().order_by("name"),
+            "status_choices": CATEGORY_PRODUCT_STATUS.choices,
+        }
+
+        if request.htmx:
+            return render(request, "db_category/partial/partial_category_list.html", context)
+
+        return render(request, "db_category/category_list.html", context)
 
     def post(self, request):
         try:
             with transaction.atomic():
                 data = request.POST
 
-                if data.get("category_id"):
-                    category = Category.objects.get(id=data.get("category_id"))
-                    category.name = data.get("category_title")
-                    category.description = data.get("category_description")
+                name = data.get("name", "").strip()
+                description = data.get("description", "").strip()
+                icon = data.get("icon", "").strip()
+                sort_order = parse_int(data.get("sort_order"), 0)
+                status = data.get("status", CATEGORY_PRODUCT_STATUS.ACTIVE)
+                seo_title = data.get("seo_title", "").strip()
+                seo_description = data.get("seo_description", "").strip()
+                banner_image = request.FILES.get("banner_image")
+
+                parent = None
+                parent_id = data.get("parent")
+                if parent_id:
+                    parent = Category.objects.filter(id=parent_id).first()
+
+                category_id = data.get("category_id")
+
+                if category_id:
+                    category = get_object_or_404(Category, id=category_id)
+
+                    if parent and (parent.id == category.id or self._is_descendant(parent, category)):
+                        return JsonResponse(
+                            {"status": False, "message": "A category cannot be its own parent or sub-category."},
+                            status=HTTPStatus.BAD_REQUEST,
+                        )
+
+                    if not name:
+                        return JsonResponse({"status": False, "message": "Category name is required"}, status=HTTPStatus.BAD_REQUEST)
+
+                    category.name = name
+                    category.parent = parent
+                    category.description = description
+                    category.icon = icon or None
+                    category.sort_order = sort_order
+                    category.status = status
+                    category.seo_title = seo_title or None
+                    category.seo_description = seo_description or None
+                    if banner_image:
+                        category.banner_image = banner_image
                     category.save()
+
                     return JsonResponse(
                         {"status": True, "message": "Category updated successfully"},
                         status=HTTPStatus.OK,
                     )
 
-                if data.get("category_title") == "":
+                if not name:
                     return JsonResponse(
-                        {"status": False, "message": "Category title is required"},
+                        {"status": False, "message": "Category name is required"},
                         status=HTTPStatus.BAD_REQUEST,
                     )
-                if data.get("category_description") == "":
-                    return JsonResponse(
-                        {
-                            "status": False,
-                            "message": "Category description is required",
-                        },
-                        status=HTTPStatus.BAD_REQUEST,
-                    )
+
                 Category.objects.create(
-                    name=data.get("category_title"),
-                    description=data.get("category_description"),
-                    status=CATEGORY_PRODUCT_STATUS.ACTIVE,
+                    name=name,
+                    parent=parent,
+                    description=description,
+                    icon=icon or None,
+                    sort_order=sort_order,
+                    status=status,
+                    seo_title=seo_title or None,
+                    seo_description=seo_description or None,
+                    banner_image=banner_image,
                 )
                 return JsonResponse(
                     {"status": True, "message": "Category added successfully"},
                     status=HTTPStatus.CREATED,
                 )
         except Exception as e:
-            print("Exception", e)
             return JsonResponse(
                 {"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST
             )
+
+    def _is_descendant(self, candidate_parent, category):
+        node = candidate_parent
+        while node is not None:
+            if node.id == category.id:
+                return True
+            node = node.parent
+        return False
 
 
 @login_required(login_url="admin_login")
@@ -656,6 +665,12 @@ def get_category(request, id):
                     "name": category.name,
                     "description": category.description,
                     "status": category.status,
+                    "icon": category.icon,
+                    "sort_order": category.sort_order,
+                    "parent_id": category.parent_id,
+                    "seo_title": category.seo_title,
+                    "seo_description": category.seo_description,
+                    "banner_image": category.banner_image.url if category.banner_image else None,
                 },
             },
             status=HTTPStatus.OK,
@@ -685,7 +700,6 @@ def delete_category(request, id):
     return JsonResponse(
         {"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST
     )
-
 
 # ------------------Attribute--------
 class AttributeView(LoginRequiredMixin, View):
@@ -771,8 +785,21 @@ class AttributeValueView(LoginRequiredMixin, View):
                 if not value:
                     return JsonResponse({"status": False, "message": "Value is required"}, status=HTTPStatus.BAD_REQUEST)
 
+                # hex_code optional for any attribute type - no type restriction
+                if hex_code and not hex_code.startswith("#"):
+                    hex_code = f"#{hex_code}"
+
                 if value_id:
                     av = get_object_or_404(AttributeValue, id=value_id, attribute=attribute)
+
+                    if AttributeValue.objects.filter(
+                        attribute=attribute, value__iexact=value
+                    ).exclude(id=av.id).exists():
+                        return JsonResponse(
+                            {"status": False, "message": "This value already exists for this attribute"},
+                            status=HTTPStatus.BAD_REQUEST,
+                        )
+
                     av.value = value
                     av.hex_code = hex_code or None
                     av.sort_order = sort_order
@@ -831,6 +858,9 @@ class AddOrderView(LoginRequiredMixin, View):
 
     def get(self, request):
         products = Product.objects.prefetch_related("variants").order_by("name")
+        assignable_users = CustomUser.objects.filter(
+            user_type__in=[USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN, USER_TYPE.STAFF]
+        ).order_by("username")
         context = {
             "products": products,
             "categories": Category.objects.order_by("name"),
@@ -838,6 +868,9 @@ class AddOrderView(LoginRequiredMixin, View):
             "delivery_types": DELIVERY_TYPE.choices,
             "status_choices": STATUS.choices,
             "variants_by_product_json": pyjson.dumps(build_variants_by_product(products)),
+            "assignable_users": assignable_users,
+            "existing_items_json": "[]",
+            "is_update": False,
         }
         return render(request, self.template_name, context)
 
@@ -872,7 +905,12 @@ class AddOrderView(LoginRequiredMixin, View):
                 shipping_address = data.get("shipping_address", "").strip()
                 note = data.get("note", "").strip()
                 special_instructions = data.get("special_instructions", "").strip()
-                work_assign = data.get("work_assign", "").strip()
+
+                work_assign_id = data.get("work_assign") or None
+                assigned_user = None
+                if work_assign_id:
+                    assigned_user = CustomUser.objects.filter(id=work_assign_id).first()
+
                 payment_type = data.get("payment_type", PAYMENT_TYPE.COD)
                 delivery_type = data.get("delivery_type", DELIVERY_TYPE.HOME_DELIVERY)
                 status = data.get("status", STATUS.NEW)
@@ -901,7 +939,7 @@ class AddOrderView(LoginRequiredMixin, View):
                     shipping_address=shipping_address,
                     note=note,
                     special_instructions=special_instructions or None,
-                    work_assign=work_assign or None,
+                    work_assign=assigned_user.username if assigned_user else None,
                     payment_type=payment_type,
                     delivery_type=delivery_type,
                     shipping_total=shipping_total,
@@ -1135,103 +1173,161 @@ class OrderView(LoginRequiredMixin, View):
     
 
 class OrderDetailView(LoginRequiredMixin, View):
-    def get(self, request, id):
-        if not request.user.is_authenticated:
-            return redirect("product_landing_page")
-        elif request.user.user_type not in [
-            USER_TYPE.ADMIN,
-            USER_TYPE.STAFF,
-            USER_TYPE.SUPER_ADMIN,
-        ]:
-            return redirect("product_landing_page")
-
-        order = self.get_order(id)
-        if request.htmx:
-            return render(
-                request, "db_order/partial/partial_order_detail.html", {"order": order}
-            )
-        return render(request, "db_order/order_detail.html", {"order": order})
+    login_url = "admin_login"
 
     def get_order(self, id):
-        return get_object_or_404(Order, id=id)
+        return get_object_or_404(
+            Order.objects.select_related("customer").prefetch_related(
+                "order_items", "order_items__product", "order_items__variant"
+            ),
+            id=id,
+        )
 
-    def generate_unique_username(self, name):
-        base = slugify(name) or "user"
-        username = base
-        counter = 1
-        while CustomUser.objects.filter(username=username).exists():
-            username = f"{username}-{counter}"
-            counter += 1
-        return username
-
-    def update_customer_profile(self, data, profile):
-        profile.full_name = data.get("full_name", profile.full_name)
-        profile.phone = data.get("phone", profile.phone)
-        if data.get("email"):
-            if profile.user:
-                profile.user.email = data.get("email", profile.user.email)
-                profile.user.save()
-            else:
-                user = CustomUser.objects.create(
-                    email=data.get("email"),
-                    full_name=profile.full_name,
-                    username=self.generate_unique_username(profile.full_name),
-                )
-                profile.user = user
-        profile.save()
-        return True
-
-    def update_order_object(self, data, order):
-        if data.get("delivery_date"):
-            order.delivery_date = data.get("delivery_date", order.delivery_date)
-        order.shipping_address = data.get("shipping_address", order.shipping_address)
-        order.payment_status = data.get("payment_status", order.payment_status)
-        order.order_status = data.get("order_status", order.order_status)
-        
-        if "note" in data:
-            order.note = data.get("note", order.note)
-
-        order.save()
-        return True
-
-    def post(self, request, id):
-        if not request.user.is_authenticated:
-            return redirect("product_landing_page")
-        elif request.user.user_type not in [
-            USER_TYPE.ADMIN,
-            USER_TYPE.STAFF,
-            USER_TYPE.SUPER_ADMIN,
-        ]:
-            return redirect("product_landing_page")
-        if request.POST.get("_method") == "PATCH":
-            return self.patch(request, id)
-        return JsonResponse({"error": "Invalid request"}, status=400)
-
-    def patch(self, request, id):
+    def get(self, request, id):
         order = self.get_order(id)
 
-        data = request.POST
-        print("data: ", data)
-        if order:
-            try:
-                with transaction.atomic():
-                    profile = order.customer
-                    self.update_customer_profile(data, profile)
-                    self.update_order_object(data, order)
-                    return JsonResponse(
-                        {"success": True, "message": "Order updated successfully"},
-                        status=200,
+        products = Product.objects.prefetch_related("variants").order_by("name")
+        assignable_users = CustomUser.objects.filter(
+            user_type__in=[USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN, USER_TYPE.STAFF]
+        ).order_by("username")
+
+        existing_items_data = []
+        for item in order.order_items.all():
+            existing_items_data.append({
+                "id": item.id,
+                "product_id": item.product_id,
+                "variant_id": item.variant_id,
+                "product_name": item.product_name,
+                "variant_label": ", ".join(
+                    f"{k}: {v}" for k, v in (item.variant.attributes.items() if item.variant else {}.items())
+                ) or None,
+                "quantity": item.quantity,
+                "unit_price": str(item.discount_price or item.price or 0),
+            })
+
+        orders = Order.objects.all().order_by("-created_at")
+        dashboard_view = DashboardView()
+
+        context = {
+            "order": order,
+            "is_update": True,
+            "products": products,
+            "categories": Category.objects.order_by("name"),
+            "payment_types": PAYMENT_TYPE.choices,
+            "delivery_types": DELIVERY_TYPE.choices,
+            "status_choices": STATUS.choices,
+            "variants_by_product_json": pyjson.dumps(build_variants_by_product(products)),
+            "assignable_users": assignable_users,
+            "existing_items_json": pyjson.dumps(existing_items_data),
+
+            # Needed because the inherited base template references these
+            "status_amounts": dashboard_view.get_status_amounts(orders),
+            "today_order_count": dashboard_view.get_today_order_count(orders),
+            "new_orders_count": dashboard_view.new_orders_count(orders),
+            "total_orders": orders.count(),
+            "new_order_request_count": dashboard_view.new_order_request_count(),
+        }
+
+        if request.htmx:
+            return render(request, "db_order/partial/partial_order_detail.html", context)
+        return render(request, "db_order/order_detail.html", context)
+
+
+
+class OrderUpdateView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk):
+        order = get_object_or_404(Order, pk=pk)
+
+        try:
+            with transaction.atomic():
+                data = request.POST
+
+                customer = order.customer
+                if customer:
+                    customer.company = data.get("company", customer.company)
+                    customer.name = data.get("name", customer.name).strip() or customer.name
+                    customer.email = data.get("email") or customer.email
+                    customer.phone = data.get("phone", customer.phone).strip() or customer.phone
+                    customer.second_phone = data.get("second_phone") or customer.second_phone
+                    customer.source = data.get("source", customer.source)
+                    customer.save()
+
+                work_assign_id = data.get("work_assign") or None
+                assigned_user = None
+                if work_assign_id:
+                    assigned_user = CustomUser.objects.filter(id=work_assign_id).first()
+
+                order.shipping_address = data.get("shipping_address", order.shipping_address).strip()
+                order.note = data.get("note", order.note)
+                order.special_instructions = data.get("special_instructions") or None
+                order.work_assign = assigned_user.username if assigned_user else None
+                order.payment_type = data.get("payment_type", order.payment_type)
+                order.delivery_type = data.get("delivery_type", order.delivery_type)
+                order.status = data.get("status", order.status)
+                order.is_urgent = data.get("is_urgent") == "on"
+                order.order_created_date = data.get("order_created_date") or None
+                order.delivery_date = data.get("delivery_date") or None
+                order.shipping_total = parse_decimal(data.get("shipping_total"))
+                order.advance_amount = parse_decimal(data.get("advance_amount"))
+
+                delete_design_file = data.get("delete_design_file")
+                if delete_design_file:
+                    if order.design_file:
+                        order.design_file.delete(save=False)
+                    order.design_file = None
+
+                new_design_file = request.FILES.get("design_file")
+                if new_design_file:
+                    order.design_file = new_design_file
+
+                try:
+                    items = json.loads(data.get("items", "[]"))
+                except json.JSONDecodeError:
+                    messages.error(request, "Invalid product data.")
+                    return redirect("order_detail", id=pk)
+
+                if not items:
+                    messages.error(request, "Please add at least one product.")
+                    return redirect("order_detail", id=pk)
+
+                order.order_items.all().delete()
+
+                grand_total = order.shipping_total
+
+                for item in items:
+                    product = get_object_or_404(Product, id=item["product_id"])
+                    variant = None
+                    if item.get("variant_id"):
+                        variant = get_object_or_404(ProductVariant, id=item["variant_id"], product=product)
+
+                    quantity = max(int(item.get("quantity", 1)), 1)
+                    price = variant.price if variant else product.price
+                    discount_price = variant.discount_price if variant else product.discount_price
+                    final_price = discount_price if discount_price else price
+                    line_total = final_price * quantity
+
+                    OrderItem.objects.create(
+                        order=order,
+                        product=product,
+                        variant=variant,
+                        quantity=quantity,
+                        price=price,
+                        discount_price=discount_price,
                     )
 
-            except Exception as e:
-                print("error: ", e)
-                return JsonResponse({"success": False, "message": str(e)})
+                    grand_total += line_total
 
-    def dispatch(self, request, *args, **kwargs):
-        if request.method.lower() == "patch":
-            return self.patch(request, *args, **kwargs)
-        return super().dispatch(request, *args, **kwargs)
+                order.total_cost = grand_total
+                order.save()
 
+                messages.success(request, f"Order {order.order_id} updated successfully.")
+                return redirect("order_detail", id=pk)
+
+        except Exception as e:
+            messages.error(request, str(e))
+            return redirect("order_detail", id=pk)
 
 class OrderInvoiceView(View):
     def get_order(self, id):
@@ -1246,30 +1342,32 @@ class OrderInvoiceView(View):
 
 
 def create_order_from_request(order_request):
-    """
-    Convert an OrderRequest into a real Order.
-    """
-
-    if order_request.status != ORDER_REQUEST_STATUS.PENDING:
-        raise Exception("Only pending requests can be approved.")
+    if order_request.status not in [ORDER_REQUEST_STATUS.PENDING, ORDER_REQUEST_STATUS.APPROVED]:
+        raise Exception("Only pending or approved requests can be converted.")
 
     if order_request.converted_order:
         raise Exception("This request has already been converted.")
 
     with transaction.atomic():
-
         order = Order.objects.create(
             customer=order_request.customer,
             shipping_address=order_request.shipping_address,
             note=order_request.note,
+            special_instructions=order_request.special_instructions,
+            work_assign=order_request.work_assign.username if order_request.work_assign else None,
             payment_type=order_request.payment_type,
             delivery_type=order_request.delivery_type,
             shipping_total=order_request.shipping_total,
+            advance_amount=order_request.advance_amount,
             total_cost=order_request.total_cost,
+            payment_status=PAYMENT_STATUS.Unpaid,
+            status=STATUS.NEW,
+            is_urgent=order_request.is_urgent,
+            order_created_date=order_request.order_created_date,
+            design_file=order_request.design_file,
         )
 
         for item in order_request.request_items.all():
-
             OrderItem.objects.create(
                 order=order,
                 product=item.product,
@@ -1279,21 +1377,14 @@ def create_order_from_request(order_request):
                 quantity=item.quantity,
                 price=item.price,
                 discount_price=item.discount_price,
-                discount_total_price=item.discount_total_price,
                 snapshot=item.snapshot,
             )
 
         order_request.status = ORDER_REQUEST_STATUS.CONVERTED
+        order_request.work_status = ORDER_REQUEST_WORK_STATUS.DONE
         order_request.converted_order = order
         order_request.converted_at = timezone.now()
-
-        order_request.save(
-            update_fields=[
-                "status",
-                "converted_order",
-                "converted_at",
-            ]
-        )
+        order_request.save(update_fields=["status", "work_status", "converted_order", "converted_at"])
 
     return order
 
@@ -1303,12 +1394,17 @@ class AddOrderRequestView(LoginRequiredMixin, View):
 
     def get(self, request):
         products = Product.objects.prefetch_related("variants", "category").order_by("name")
+        assignable_users = CustomUser.objects.filter(
+            user_type__in=[USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN, USER_TYPE.STAFF]
+        ).order_by("username")
         context = {
             "products": products,
             "categories": Category.objects.all().order_by("name"),
             "payment_types": PAYMENT_TYPE.choices,
             "delivery_types": DELIVERY_TYPE.choices,
+            "status_choices": ORDER_REQUEST_STATUS.choices,
             "variants_by_product_json": pyjson.dumps(build_variants_by_product(products)),
+            "assignable_users": assignable_users,
         }
         return render(request, self.template_name, context)
 
@@ -1343,9 +1439,15 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                 shipping_address = data.get("shipping_address", "").strip()
                 note = data.get("note", "").strip()
                 special_instructions = data.get("special_instructions", "").strip()
-                work_assign = data.get("work_assign", "").strip()
+
+                work_assign_id = data.get("work_assign") or None
+                assigned_user = None
+                if work_assign_id:
+                    assigned_user = CustomUser.objects.filter(id=work_assign_id).first()
+
                 payment_type = data.get("payment_type", PAYMENT_TYPE.COD)
                 delivery_type = data.get("delivery_type", DELIVERY_TYPE.HOME_DELIVERY)
+                status = ORDER_REQUEST_STATUS.PENDING
                 is_urgent = data.get("is_urgent") == "on"
 
                 order_created_date = data.get("order_created_date") or None
@@ -1371,14 +1473,16 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                     shipping_address=shipping_address,
                     note=note,
                     special_instructions=special_instructions or None,
-                    work_assign=work_assign or None,
+                    work_assign=assigned_user,
                     payment_type=payment_type,
                     delivery_type=delivery_type,
                     shipping_total=shipping_total,
                     advance_amount=advance_amount,
+                    status=status,
                     is_urgent=is_urgent,
                     order_created_date=order_created_date,
                     design_file=design_file,
+                    delivery_date=delivery_date,
                 )
 
                 grand_total = shipping_total
@@ -1559,6 +1663,7 @@ class OrderRequestDetailView(LoginRequiredMixin, View):
             OrderRequest.objects.select_related(
                 "customer",
                 "converted_order",
+                "work_assign",
             ).prefetch_related(
                 "request_items",
                 "request_items__product",
@@ -1568,11 +1673,11 @@ class OrderRequestDetailView(LoginRequiredMixin, View):
         )
 
     def get(self, request, id):
-
         order_request = self.get_request(id)
 
         context = {
             "order_request": order_request,
+            "work_status_choices": ORDER_REQUEST_WORK_STATUS.choices,
         }
 
         if request.htmx:
@@ -1587,80 +1692,60 @@ class OrderRequestDetailView(LoginRequiredMixin, View):
             "db_order_request/order_request_detail.html",
             context,
         )
+
     
 class ApproveOrderRequestView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
     def post(self, request, pk):
-
-        order_request = get_object_or_404(
-            OrderRequest,
-            pk=pk,
-        )
+        order_request = get_object_or_404(OrderRequest, pk=pk)
 
         try:
-
-            order = create_order_from_request(
-                order_request
-            )
-
+            order = create_order_from_request(order_request)
             messages.success(
                 request,
                 f"Order Request approved successfully. Order #{order.order_id} created."
             )
-
         except Exception as e:
+            messages.error(request, str(e))
 
-            messages.error(
-                request,
-                str(e),
-            )
+        return redirect("order_request_detail", id=pk)
 
-        return redirect(
-            "order_request_detail",
-            id=pk,
-        )
-    
+
 class RejectOrderRequestView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
     def post(self, request, pk):
+        order_request = get_object_or_404(OrderRequest, pk=pk)
 
-        order_request = get_object_or_404(
-            OrderRequest,
-            pk=pk,
-        )
-
-        if order_request.status != ORDER_REQUEST_STATUS.PENDING:
-
-            messages.error(
-                request,
-                "Only pending requests can be rejected."
-            )
-
-            return redirect(
-                "order_request_detail",
-                id=pk,
-            )
+        if order_request.status not in [ORDER_REQUEST_STATUS.PENDING, ORDER_REQUEST_STATUS.APPROVED]:
+            messages.error(request, "Only pending requests can be rejected.")
+            return redirect("order_request_detail", id=pk)
 
         order_request.status = ORDER_REQUEST_STATUS.CANCELLED
+        order_request.save(update_fields=["status"])
 
-        order_request.save(
-            update_fields=[
-                "status",
-            ]
-        )
+        messages.success(request, "Order Request cancelled successfully.")
+        return redirect("order_request_detail", id=pk)
 
-        messages.success(
-            request,
-            "Order Request cancelled successfully."
-        )
 
-        return redirect(
-            "order_request_detail",
-            id=pk,
-        )
-    
+class UpdateOrderRequestWorkStatusView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk):
+        order_request = get_object_or_404(OrderRequest, pk=pk)
+        work_status = request.POST.get("work_status")
+
+        valid = [x[0] for x in ORDER_REQUEST_WORK_STATUS.choices]
+        if work_status not in valid:
+            messages.error(request, "Invalid work status.")
+            return redirect("order_request_detail", id=pk)
+
+        order_request.work_status = work_status
+        order_request.save()
+
+        messages.success(request, "Work status updated.")
+        return redirect("order_request_detail", id=pk)  
     
 # ------------------Order section FBV-------------
 

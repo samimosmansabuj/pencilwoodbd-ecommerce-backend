@@ -214,8 +214,12 @@
 
                                 <th>Phone</th>
 
+                                <th>Assigned User</th>
+
                                 <th>Total</th>
 
+                                <th>Work Status</th>
+            
                                 <th>Status</th>
 
                                 <th>Date</th>
@@ -267,10 +271,41 @@
                                 </td>
 
                                 <td>
+                                    {% if request.work_assign %}
+                                        {{ request.work_assign.get_full_name|default:request.work_assign.username }}
+                                    {% else %}
+                                        <span class="text-muted">Not Assigned</span>
+                                    {% endif %}
+                                </td>
+
+                                <td>
 
                                     ৳{{ request.total_cost }}
 
                                 </td>
+
+                                <td>
+                                    {% if request.work_status == "design" %}
+                                        <span class="badge bg-primary"><i class="bi bi-pencil-square me-1"></i>Design</span>
+                                    {% elif request.work_status == "correction" %}
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-arrow-repeat me-1"></i>Correction</span>
+                                    {% elif request.work_status == "call" %}
+                                        <span class="badge bg-info text-dark"><i class="bi bi-telephone me-1"></i>Call</span>
+                                    {% elif request.work_status == "knock" %}
+                                        <span class="badge bg-secondary"><i class="bi bi-bell me-1"></i>Knock</span>
+                                    {% elif request.work_status == "done" %}
+                                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Done</span>
+                                    {% elif request.work_status == "hold" %}
+                                        <span class="badge bg-dark"><i class="bi bi-pause-circle me-1"></i>Hold</span>
+                                    {% elif request.work_status == "cancel" %}
+                                        <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Cancel</span>
+                                    {% elif request.work_status == "other" %}
+                                        <span class="badge bg-light text-dark border"><i class="bi bi-three-dots me-1"></i>Other</span>
+                                    {% else %}
+                                        <span class="badge bg-light text border">None</span>
+                                    {% endif %}
+                                </td>
+                        
 
                                 <td>
 

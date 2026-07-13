@@ -5,87 +5,52 @@
         <div class="ps-3">
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0 p-0">
-                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a>
-                    </li>
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a></li>
+                    {% if parent_category %}
+                    <li class="breadcrumb-item"><a href="{% url 'category_list' %}">Categories</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">{{ parent_category.name }} — Sub-categories</li>
+                    {% else %}
                     <li class="breadcrumb-item active" aria-current="page">Categories</li>
+                    {% endif %}
                 </ol>
             </nav>
         </div>
     </div>
     <!--end breadcrumb-->
 
-    <div class="product-count d-flex align-items-center gap-3 gap-lg-4 mb-4 fw-medium flex-wrap font-text1">
-        <a href="javascript:;"><span class="me-1">All</span><span class="text-secondary">(88754)</span></a>
-        <a href="javascript:;"><span class="me-1">Published</span><span class="text-secondary">(56242)</span></a>
-        <a href="javascript:;"><span class="me-1">Drafts</span><span class="text-secondary">(17)</span></a>
-        <a href="javascript:;"><span class="me-1">On Discount</span><span class="text-secondary">(88754)</span></a>
-    </div>
-
     <div class="row g-3">
         <div class="col-auto">
             <div class="position-relative">
-                <input class="form-control px-5" type="search" placeholder="Search Category">
+                <input class="form-control px-5" type="search" placeholder="Search Category" id="category_search_input">
                 <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">
                     search
                 </span>
             </div>
         </div>
-        <div class="col-auto flex-grow-1 overflow-auto">
-            <div class="btn-group position-static">
-                <div class="btn-group position-static">
-                    <button type="button" class="btn btn-filter dropdown-toggle px-4" data-bs-toggle="dropdown"
-                        aria-expanded="false">
-                        Category
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="javascript:;">Action</a></li>
-                        <li><a class="dropdown-item" href="javascript:;">Another action</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li><a class="dropdown-item" href="javascript:;">Something else here</a></li>
-                    </ul>
-                </div>
-                <div class="btn-group position-static">
-                    <button type="button" class="btn btn-filter dropdown-toggle px-4" data-bs-toggle="dropdown"
-                        aria-expanded="false">
-                        Vendor
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="javascript:;">Action</a></li>
-                        <li><a class="dropdown-item" href="javascript:;">Another action</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li><a class="dropdown-item" href="javascript:;">Something else here</a></li>
-                    </ul>
-                </div>
-                <div class="btn-group position-static">
-                    <button type="button" class="btn btn-filter dropdown-toggle px-4" data-bs-toggle="dropdown"
-                        aria-expanded="false">
-                        Collection
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="javascript:;">Action</a></li>
-                        <li><a class="dropdown-item" href="javascript:;">Another action</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li><a class="dropdown-item" href="javascript:;">Something else here</a></li>
-                    </ul>
-                </div>
-            </div>
-        </div>
+        {% if parent_category %}
         <div class="col-auto">
+            <a href="{% url 'category_list' %}" class="btn btn-outline-secondary px-4">
+                <i class="bi bi-arrow-left me-2"></i>All Categories
+            </a>
+        </div>
+        {% endif %}
+        <div class="col-auto ms-auto">
             <div class="d-flex align-items-center gap-2 justify-content-lg-end">
                 <button class="btn btn-primary px-4" data-bs-toggle="modal" data-bs-target="#CategoryModal">
-                    <i class="bi bi-plus-lg me-2"></i>Add Category
+                    <i class="bi bi-plus-lg me-2"></i>
+                    {% if parent_category %}Add Sub-Category{% else %}Add Category{% endif %}
                 </button>
                 {% include 'db_category/partial/add_category_modal.html' %}
             </div>
         </div>
     </div>
     <!--end row-->
+
+    {% if parent_category and parent_category.parent %}
+    <div class="alert alert-light border mt-3 mb-0">
+        Path: <strong>{{ parent_category.get_category_path }}</strong>
+    </div>
+    {% endif %}
 
     <div class="card mt-4">
         <div class="card-body">
@@ -94,13 +59,12 @@
                     <table class="table align-middle">
                         <thead class="table-light">
                             <tr>
-                                <th>
-                                    <input class="form-check-input" type="checkbox">
-                                </th>
                                 <th>Category Name</th>
                                 <th>Parent Category</th>
+                                <th>Sub-Categories</th>
                                 <th>Status</th>
-                                <th>Date</th>
+                                <th>Sort Order</th>
+                                <th>Created</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -108,39 +72,71 @@
                             {% for category in categories %}
                             <tr>
                                 <td>
-                                    <input class="form-check-input" type="checkbox">
-                                </td>
-                                <td>
                                     <div class="d-flex align-items-center gap-3">
                                         <div class="product-box">
-                                            <img src="https://placehold.co/200x150/png" width="70" class="rounded-3"
-                                                alt="">
+                                            {% if category.banner_image %}
+                                            <img src="{{ category.banner_image.url }}" width="50" height="50"
+                                                class="rounded-3" style="object-fit:cover;" alt="{{ category.name }}">
+                                            {% else %}
+                                            <div class="rounded-3 bg-light d-flex align-items-center justify-content-center"
+                                                style="width:50px;height:50px;font-size:22px;">
+                                                {{ category.icon|default:"🛍️" }}
+                                            </div>
+                                            {% endif %}
                                         </div>
                                         <div class="product-info">
-                                            <a href="javascript:;" class="product-title">{{ category.name }}</a>
+                                            <span class="product-title fw-semibold">{{ category.name }}</span>
                                         </div>
                                     </div>
                                 </td>
-                                <td>{{ category.parent.name }}</td>
+                                <td>{{ category.parent.name|default:" Main level " }}</td>
                                 <td>
-                                    <a href="javascript:;">{{ category.status|title }}</a>
+                                    {% with sub_count=category.children.count %}
+                                    {% if sub_count > 0 %}
+                                    <a href="{% url 'category_list' %}?parent={{ category.id }}" class="badge bg-primary-subtle text-primary text-decoration-none">
+                                        {{ sub_count }} sub-categor{{ sub_count|pluralize:"y,ies" }}
+                                    </a>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                    {% endwith %}
                                 </td>
                                 <td>
-                                    {{ category.created_at }}
+                                    {% if category.status == 'active' %}
+                                    <span class="badge bg-success-subtle text-success">{{ category.status|title }}</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary-subtle text-secondary">{{ category.status|title }}</span>
+                                    {% endif %}
                                 </td>
+                                <td>{{ category.sort_order }}</td>
+                                <td>{{ category.created_at|date:"d M Y" }}</td>
                                 <td>
-                                    <div class="dropdown">
+                                    <div class="dropdown d-flex gap-1">
+                                        <a href="{% url 'category_list' %}?parent={{ category.id }}"
+                                            class="btn btn-sm btn-filter" title="View sub-categories">
+                                            <i class="bi bi-diagram-3"></i>
+                                        </a>
                                         <button class="btn btn-sm btn-filter edit-category-btn"
                                             data-id="{{ category.id }}" data-bs-toggle="modal"
                                             data-bs-target="#CategoryModal">
                                             <i class="bi bi-pencil"></i>
                                         </button>
                                         <button class="btn btn-sm btn-filter delete-category-btn"
-                                            data-id="{{ category.id }}" data-bs-toggle="modal"
-                                            data-bs-target="#deleteCategoryModal">
+                                            data-id="{{ category.id }}" data-name="{{ category.name }}"
+                                            data-bs-toggle="modal" data-bs-target="#deleteCategoryModal">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    {% if parent_category %}
+                                    No sub-categories found under "{{ parent_category.name }}". Click "Add Sub-Category" to create one.
+                                    {% else %}
+                                    No categories found. Click "Add Category" to create one.
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}
@@ -153,10 +149,14 @@
 </div>
 
 <script>
-    $('#fancy-file-upload').FancyFileUpload({
-        params: {
-            action: 'fileuploader'
-        },
-        maxfilesize: 1000000
+    document.getElementById("category_search_input")?.addEventListener("input", function (e) {
+        const q = e.target.value.toLowerCase();
+        document.querySelectorAll("#categoryListTable tbody tr").forEach(function (row) {
+            row.style.display = row.textContent.toLowerCase().includes(q) ? "" : "none";
+        });
+    });
+
+    document.body.addEventListener("refreshCategoryList", function () {
+        window.location.reload();
     });
 </script>

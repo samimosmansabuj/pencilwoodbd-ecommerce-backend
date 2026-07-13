@@ -108,6 +108,20 @@ class AttributeValue(models.Model):
         return f"{self.attribute.name}: {self.value}"
 
 
+class Tag(models.Model):
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=255, unique=True, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        old_slug = Tag.objects.get(pk=self.pk) if self.pk else None
+        self.slug = generate_unique_slug(Tag, self.name, old_slug.slug if old_slug else None)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
 
 class Product(models.Model):
     name = models.CharField(max_length=512)
@@ -130,7 +144,7 @@ class Product(models.Model):
     dimensions = models.JSONField(default=dict, blank=True, null=True)
 
     seo = models.JSONField(default=dict, blank=True)
-    tags = models.JSONField(default=list, blank=True)
+    tags = models.ManyToManyField(Tag, blank=True, related_name="products")
     status = models.CharField(max_length=50, choices=CATEGORY_PRODUCT_STATUS.choices, default=CATEGORY_PRODUCT_STATUS.DRAFT)
     metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

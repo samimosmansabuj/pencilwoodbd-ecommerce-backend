@@ -1,12 +1,12 @@
-<!-- Modal -->
-<form method="post" enctype="multipart/form-data" id="add_category_form" hx-ignore="true">
-    {% csrf_token %}
+<!-- Add / Edit Category Modal -->
+<form method="post" enctype="multipart/form-data" id="add_category_form" hx-ignore="true" autocomplete="off">
     <input type="hidden" name="category_id" id="category_id">
+
     <div class="modal fade" id="CategoryModal">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
             <div class="modal-content">
                 <div class="modal-header border-bottom-0 bg-grd-primary py-2">
-                    <h5 class="modal-title">Add Category</h5>
+                    <h5 class="modal-title" id="category_modal_title">Add Category</h5>
                     <a href="javascript:;" class="primaery-menu-close" data-bs-dismiss="modal"
                         id="close_add_category_modal">
                         <i class="material-icons-outlined">close</i>
@@ -14,80 +14,77 @@
                 </div>
 
                 <div class="modal-body">
-                    <div class="col-12 col-lg-12">
-                        <div class="card">
-                            <div class="card-body">
-                                <div class="mb-4">
-                                    <h5 class="mb-3">Category Title</h5>
-                                    <input type="text" class="form-control" placeholder="write title here...."
-                                        name="category_title">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">Category Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" placeholder="e.g. Notebooks, Pens, Gift Sets"
+                                    name="name" required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Parent Category</label>
+                                <select class="form-select" name="parent" id="category_parent_select">
+                                    <option value="">— None (Top level category) —</option>
+                                    {% for cat in all_categories %}
+                                    <option value="{{ cat.id }}"{% if parent_category and parent_category.id == cat.id %} selected{% endif %}>{{ cat.get_category_path }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Leave empty for a top-level (primary) category. Choose a parent to create a sub-category.</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Description</label>
+                                <textarea class="form-control" rows="4" name="description"
+                                    placeholder="write a description here..."></textarea>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-6">
+                                    <label class="form-label">Icon <span class="text-muted">(emoji or icon class)</span></label>
+                                    <input type="text" class="form-control" name="icon" placeholder="e.g. 📓 or bi-book">
                                 </div>
-                                <div class="mb-4">
-                                    <h5 class="mb-3">Category Description</h5>
-                                    <textarea class="form-control" cols="4" rows="6"
-                                        placeholder="write a description here.." name="category_description"></textarea>
+                                <div class="col-6">
+                                    <label class="form-label">Sort Order</label>
+                                    <input type="number" class="form-control" name="sort_order" value="0">
                                 </div>
-                                <div class="mb-4">
-                                    <h5 class="mb-3">Display images</h5>
-                                    <input id="fancy-file-upload" type="file" name="category_image"
-                                        accept=".jpg, .png, image/jpeg, image/png" multiple>
-                                </div>
+                            </div>
+
+                            <div class="mb-3 mt-3">
+                                <label class="form-label">Banner Image</label>
+                                <input class="form-control" type="file" name="banner_image"
+                                    accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
+                                <div id="current_banner_preview" class="mt-2"></div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Status</label>
+                                <select class="form-select" name="status">
+                                    {% for value, label in status_choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                    {% endfor %}
+                                </select>
                             </div>
                         </div>
                     </div>
-                    <div class="col-12 col-lg-12">
-                        <div class="card">
-                            <div class="card-body">
-                                <h5 class="mb-3">Organize</h5>
-                                <div class="row g-3">
-                                    <div class="col-12">
-                                        <label for="AddCategory" class="form-label">Category</label>
-                                        <select class="form-select" id="AddCategory">
-                                            <option value="0">Primary</option>
-                                            <option value="1">Sub-Category</option>
-                                            <option value="2">Sub Sub-Category</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-12">
-                                        <label for="AddCategory" class="form-label">Sub Category</label>
-                                        <select class="form-select" id="AddCategory">
-                                            <option value="0">Primary</option>
-                                            <option value="1">Sub-Category</option>
-                                            <option value="2">Sub Sub-Category</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-12">
-                                        <label for="AddCategory" class="form-label">Sub Sub-Category</label>
-                                        <select class="form-select" id="AddCategory">
-                                            <option value="0">Primary</option>
-                                            <option value="1">Sub-Category</option>
-                                            <option value="2">Sub Sub-Category</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-12">
-                                        <label for="Tags" class="form-label">Tags</label>
-                                        <input type="text" class="form-control" id="Tags" placeholder="Tags">
-                                    </div>
-                                    <div class="col-12">
-                                        <div class="d-flex align-items-center gap-2">
-                                            <a href="javascript:;" class="btn btn-sm btn-light border shadow-sm">Woman
-                                                <i class="bi bi-x"></i></a>
-                                            <a href="javascript:;" class="btn btn-sm btn-light border shadow-sm">Fashion
-                                                <i class="bi bi-x"></i></a>
-                                            <a href="javascript:;"
-                                                class="btn btn-sm btn-light border shadow-sm">Furniture
-                                                <i class="bi bi-x"></i></a>
-                                        </div>
-                                    </div>
-                                </div><!--end row-->
+
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="mb-3">SEO <span class="text-muted">(optional)</span></h6>
+                            <div class="mb-3">
+                                <label class="form-label">SEO Title</label>
+                                <input type="text" class="form-control" name="seo_title">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">SEO Description</label>
+                                <textarea class="form-control" rows="2" name="seo_description"></textarea>
                             </div>
                         </div>
                     </div>
                 </div>
 
-
                 <div class="modal-footer border-top-0">
-                    <button type="button" class="btn btn-grd-danger" data-bs-dismiss="modal">Delete</button>
+                    <button type="button" class="btn btn-grd-danger" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-grd-info">Save changes</button>
                 </div>
             </div>
@@ -95,104 +92,27 @@
     </div>
 </form>
 
+<!-- Delete Category Modal -->
+<div class="modal fade" id="deleteCategoryModal">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-bottom-0 py-2">
+                <h5 class="modal-title">Delete Category</h5>
+                <a href="javascript:;" class="primaery-menu-close" data-bs-dismiss="modal"
+                    id="close_delete_category_modal">
+                    <i class="material-icons-outlined">close</i>
+                </a>
+            </div>
+            <div class="modal-body delete-category-modal-body">Are you sure you want to delete this category?</div>
+            <div class="modal-footer border-top-0">
+                <button type="button" class="btn btn-grd-danger" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-grd-info" id="confirmDeleteCategoryBtn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
-    // Create Category Modal Js=================== 
-    const addCategoryForm = document.getElementById("add_category_form");
-    const closeAddCategoryModal = document.getElementById("close_add_category_modal");
-    document.addEventListener("submit", async function (e) {
-        if (e.target.id === "add_category_form") {
-            e.preventDefault();
-
-            try {
-                const csrftoken = getCookie("csrftoken");
-                const form = e.target;
-                const formData = new FormData(form);
-
-                const response = await fetch("{% url 'category_list' %}", {
-                    method: "POST",
-                    body: formData,
-                    headers: {
-                        "X-CSRFToken": csrftoken,
-                        "X-Requested-With": "XMLHttpRequest",
-                    },
-                });
-
-                const data = await response.json();
-
-                if (data.status) {
-                    document.getElementById("close_add_category_modal").click();
-                    form.reset();
-                    successNotificationCustom(data.message);
-                    htmx.trigger("body", "refreshCategoryList");
-                } else {
-                    errorNotificationCustom(data.message);
-                }
-
-            } catch (error) {
-                errorNotificationCustom(error.message);
-            }
-        }
-    });
-
-    // Update Category Modal Js=======================
-    document.addEventListener("click", function (e) {
-        const btn = e.target.closest(".edit-category-btn");
-        if (btn) {
-            const categoryId = btn.dataset.id;
-            document.querySelector(".modal-title").textContent = "Update Category";
-            document.getElementById("category_id").value = categoryId;
-            document.querySelector("input[name='category_title']").value = "Loading...";
-            document.querySelector("textarea[name='category_description']").value = "Loading...";
-            fetch(`/dashboard/get-category/${categoryId}/`, {
-                method: "GET",
-                headers: {
-                    "X-Requested-With": "XMLHttpRequest",
-                }
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status) {
-                        document.querySelector("input[name='category_title']").value = data.category.name;
-                        document.querySelector("textarea[name='category_description']").value = data.category.description;
-                    } else {
-                        errorNotificationCustom(data.message);
-                    }
-                })
-                .catch(error => {
-                    errorNotificationCustom(error.message);
-                });
-        }
-    });
-
-
-
-    function successNotificationCustom(message) {
-        Lobibox.notify('success', {
-            title: "Success",
-            pauseDelayOnHover: true,
-            size: 'mini',
-            rounded: true,
-            icon: 'bi bi-check2-circle',
-            delayIndicator: false,
-            continueDelayOnInactiveTab: false,
-            position: 'top right',
-            msg: message
-        });
-    }
-    function errorNotificationCustom(message) {
-        Lobibox.notify('error', {
-            title: "Error",
-            pauseDelayOnHover: true,
-            size: 'mini',
-            rounded: true,
-            icon: 'bi bi-x-circle',
-            delayIndicator: false,
-            continueDelayOnInactiveTab: false,
-            position: 'top right',
-            msg: message
-        });
-    }
-
     function getCookie(name) {
         let cookieValue = null;
         if (document.cookie && document.cookie !== "") {
@@ -208,25 +128,96 @@
         return cookieValue;
     }
 
+    document.addEventListener("submit", async function (e) {
+        if (e.target.id === "add_category_form") {
+            e.preventDefault();
 
+            const csrftoken = getCookie("csrftoken");
+            if (!csrftoken) {
+                errorNotificationCustom("Session expired. Please refresh the page and try again.");
+                return;
+            }
 
-    // Delete Category Modal Js=======================
-    let deleteCategoryId = null;
-    document.addEventListener("click", function (e) {
-        const btn = e.target.closest(".delete-category-btn");
-        if (btn) {
-            deleteCategoryId = btn.dataset.id;
-            document.querySelector(".modal-title").textContent = "Delete Category";
-            fetch(`/dashboard/get-category/${deleteCategoryId}/`, {
-                method: "GET",
-                headers: {
-                    "X-Requested-With": "XMLHttpRequest",
+            const form = e.target;
+            const nameInput = form.querySelector("input[name='name']");
+            if (!nameInput.value.trim()) {
+                errorNotificationCustom("Category name is required");
+                nameInput.focus();
+                return;
+            }
+
+            try {
+                const formData = new FormData(form);
+                formData.set("csrfmiddlewaretoken", csrftoken);
+
+                const response = await fetch("{% url 'category_list' %}", {
+                    method: "POST",
+                    body: formData,
+                    headers: {
+                        "X-CSRFToken": csrftoken,
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                });
+
+                const contentType = response.headers.get("content-type") || "";
+                if (!contentType.includes("application/json")) {
+                    const text = await response.text();
+                    console.error("Non-JSON response:", text);
+                    errorNotificationCustom("Unexpected server response (status " + response.status + "). Please refresh and try again.");
+                    return;
                 }
+
+                const data = await response.json();
+
+                if (data.status) {
+                    document.getElementById("close_add_category_modal").click();
+                    form.reset();
+                    document.getElementById("category_id").value = "";
+                    document.getElementById("category_modal_title").textContent = "Add Category";
+                    successNotificationCustom(data.message);
+                    htmx.trigger("body", "refreshCategoryList");
+                    setTimeout(function () { window.location.reload(); }, 600);
+                } else {
+                    errorNotificationCustom(data.message);
+                }
+
+            } catch (error) {
+                errorNotificationCustom(error.message);
+            }
+        }
+    });
+
+    document.addEventListener("click", function (e) {
+        const btn = e.target.closest(".edit-category-btn");
+        if (btn) {
+            const categoryId = btn.dataset.id;
+            document.getElementById("category_modal_title").textContent = "Update Category";
+            document.getElementById("category_id").value = categoryId;
+
+            const form = document.getElementById("add_category_form");
+            form.querySelector("input[name='name']").value = "Loading...";
+
+            fetch(`/get-category/${categoryId}/`, {
+                method: "GET",
+                headers: { "X-Requested-With": "XMLHttpRequest" },
             })
                 .then(response => response.json())
                 .then(data => {
                     if (data.status) {
-                        document.querySelector("div.delete-category-modal-body").textContent = "Are you sure you want to delete the category " + data.category.name + "?";
+                        const c = data.category;
+                        form.querySelector("input[name='name']").value = c.name || "";
+                        form.querySelector("textarea[name='description']").value = c.description || "";
+                        form.querySelector("input[name='icon']").value = c.icon || "";
+                        form.querySelector("input[name='sort_order']").value = c.sort_order || 0;
+                        form.querySelector("select[name='status']").value = c.status;
+                        form.querySelector("select[name='parent']").value = c.parent_id || "";
+                        form.querySelector("input[name='seo_title']").value = c.seo_title || "";
+                        form.querySelector("textarea[name='seo_description']").value = c.seo_description || "";
+
+                        const preview = document.getElementById("current_banner_preview");
+                        preview.innerHTML = c.banner_image
+                            ? `<img src="${c.banner_image}" style="max-height:80px;border-radius:6px;" alt="current banner">`
+                            : "";
                     } else {
                         errorNotificationCustom(data.message);
                     }
@@ -237,16 +228,39 @@
         }
     });
 
+    document.getElementById("CategoryModal")?.addEventListener("hidden.bs.modal", function () {
+        const form = document.getElementById("add_category_form");
+        form.reset();
+        document.getElementById("category_id").value = "";
+        document.getElementById("category_modal_title").textContent = "Add Category";
+        document.getElementById("current_banner_preview").innerHTML = "";
+    });
+
+    let deleteCategoryId = null;
     document.addEventListener("click", function (e) {
-        if (e.target.closest("#confirmDeleteBtn")) {
+        const btn = e.target.closest(".delete-category-btn");
+        if (btn) {
+            deleteCategoryId = btn.dataset.id;
+            document.querySelector(".delete-category-modal-body").textContent =
+                "Are you sure you want to delete the category \"" + btn.dataset.name + "\"? Sub-categories will lose their parent link.";
+        }
+    });
+
+    document.addEventListener("click", function (e) {
+        if (e.target.closest("#confirmDeleteCategoryBtn")) {
             if (!deleteCategoryId) {
                 errorNotificationCustom("Category ID is not found");
                 return;
             }
-            fetch(`/dashboard/delete-category/${deleteCategoryId}/`, {
+            const csrftoken = getCookie("csrftoken");
+            if (!csrftoken) {
+                errorNotificationCustom("Session expired. Please refresh the page and try again.");
+                return;
+            }
+            fetch(`/delete-category/${deleteCategoryId}/`, {
                 method: "DELETE",
                 headers: {
-                    "X-CSRFToken": getCookie("csrftoken"),
+                    "X-CSRFToken": csrftoken,
                     "X-Requested-With": "XMLHttpRequest",
                 },
             })
@@ -256,6 +270,7 @@
                         document.getElementById("close_delete_category_modal").click();
                         successNotificationCustom(data.message);
                         htmx.trigger("body", "refreshCategoryList");
+                        setTimeout(function () { window.location.reload(); }, 600);
                     } else {
                         errorNotificationCustom(data.message);
                     }
@@ -266,25 +281,18 @@
         }
     });
 
-
+    function successNotificationCustom(message) {
+        Lobibox.notify('success', {
+            title: "Success", pauseDelayOnHover: true, size: 'mini', rounded: true,
+            icon: 'bi bi-check2-circle', delayIndicator: false,
+            continueDelayOnInactiveTab: false, position: 'top right', msg: message
+        });
+    }
+    function errorNotificationCustom(message) {
+        Lobibox.notify('error', {
+            title: "Error", pauseDelayOnHover: true, size: 'mini', rounded: true,
+            icon: 'bi bi-x-circle', delayIndicator: false,
+            continueDelayOnInactiveTab: false, position: 'top right', msg: message
+        });
+    }
 </script>
-
-
-<div class="modal fade" id="deleteCategoryModal">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header border-bottom-0 py-2">
-                <h5 class="modal-title">Delete Category</h5>
-                <a href="javascript:;" class="primaery-menu-close" data-bs-dismiss="modal"
-                    id="close_delete_category_modal">
-                    <i class="material-icons-outlined">close</i>
-                </a>
-            </div>
-            <div class="modal-body delete-category-modal-body">Are you Configm delete the Category?</div>
-            <div class="modal-footer border-top-0">
-                <button type="button" class="btn btn-grd-danger" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-grd-info" id="confirmDeleteBtn">Delete</button>
-            </div>
-        </div>
-    </div>
-</div>

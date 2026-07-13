@@ -1,123 +1,30 @@
-<form id="updateOrderFormPartial" method="post">
-    {% csrf_token %}
-    {% include './order_form.html' %}
-</form>
+{% extends 'dashboard.html' %}
+{% block content %}
+<div class="main-content">
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav>
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item">
+                        <a href="{% url 'order_list' %}" hx-get="{% url 'order_list' %}" hx-target="#content-area" hx-push-url="true">Orders</a>
+                    </li>
+                    <li class="breadcrumb-item active">{{ order.order_id }}</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
 
-<button id="update-card-btn"
-    class="btn btn-grd btn-grd-primary position-fixed bottom-0 end-0 m-3 d-flex align-items-center gap-2 shadow-lg"
-    style="z-index: 1050; display:none;" type="button">
-    <i class="material-icons-outlined">edit</i>
-    Update
-</button>
+    {% if messages %}
+    <div class="mb-3">
+        {% for message in messages %}
+        <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
 
-<script>
-    function orderPageScript(){
-        const editCardBtn = document.getElementById("edit-card-btn");
-        const cancelCardBtn = document.getElementById("cancel-card-btn");
-        const updateBtn = document.getElementById("update-card-btn");
-        const editableFields = document.querySelectorAll("#customer-order-card .editable-text");
-        const updateOrderFormPartial = document.getElementById("updateOrderFormPartial");
-
-        function formatDisplayDate(isoDate) {
-            if (!isoDate) return "";
-            const d = new Date(isoDate);
-            if (isNaN(d)) return isoDate;
-
-            return d.toLocaleDateString("en-US", {
-                month: "short",
-                day: "2-digit",
-                year: "numeric"
-            }).replace(",", ".");
-        }
-
-        function elementChange(elementName, field, value, type) {
-            const elm = document.createElement(elementName);
-            if (elementName === "input") {
-                elm.type = type || "text";
-                if (value === "Not available") value = "";
-                elm.value = value;
-                elm.className = "form-control form-control-sm mb-1 editable-input";
-                elm.name = field;
-            } else {
-                if (!value) value = "Not available";
-                elm.className = "editable-text";
-                if (field === "delivery_date") {
-                    elm.dataset.raw = value;
-                    value = formatDisplayDate(value.trim());
-                }
-                elm.textContent = value || "";
-                elm.dataset.type = type || "text";
-            }
-            elm.dataset.field = field;
-            return elm
-        }
-
-        function cancelCardBtnFunc() {
-            document
-                .querySelectorAll("#customer-order-card .editable-input")
-                .forEach(input => {
-                    const field = input.dataset.field;
-                    const type = input.type;
-                    let value = input.value.trim();
-                    const span = elementChange("span", field, value, type);
-                    input.replaceWith(span);
-                });
-            editCardBtn.style.display = "block";
-            cancelCardBtn.style.display = "none";
-            updateBtn.style.display = "none";
-        }
-
-        cancelCardBtn.addEventListener("click", () => {
-            cancelCardBtnFunc();
-        });
-        
-        editCardBtn.addEventListener("click", () => {
-            document
-                .querySelectorAll("#customer-order-card .editable-text")
-                .forEach(span => {
-                    const field = span.dataset.field;
-                    const type = span.dataset.type;
-                    const value = span.dataset.raw || span.textContent.trim();
-                    const input = elementChange("input", field, value, type);
-                    span.replaceWith(input);
-                });
-            editCardBtn.style.display = "none";
-            cancelCardBtn.style.display = "block";
-            updateBtn.style.display = "flex";
-        });
-
-        updateBtn.addEventListener("click", () => {
-            const formData = new FormData(updateOrderFormPartial);
-            formData.append("_method", "PATCH");
-            fetch("{% url 'order_update' order.id %}", {
-                method: "POST",
-                headers: {
-                    "X-CSRFToken": formData.get("csrfmiddlewaretoken")
-                },
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    cancelCardBtnFunc();
-                    NotificationPush('success', `${data.message}`);
-                } else {
-                    const msge = `Update failed! ${data.message}`
-                    NotificationPush('error', msge);
-                }
-            })
-            .catch(err => {
-                const msge = `Something went wrong! ${err}`
-                NotificationPush('error', msge)
-            });
-        });
-    
-    }
-
-    document.addEventListener("DOMContentLoaded", orderPageScript);
-    document.addEventListener("htmx:afterSwap", function (e) {
-        if (e.target.id === "content-area" || e.target.closest("#content-area")) {
-            orderPageScript();
-        }
-    });
-</script>
+    <!-- {% include "db_order/partial/order_form_body.html" %} -->
+    {% include "db_order/partial/order_form_body.html" %}
+</div>
+{% endblock %}

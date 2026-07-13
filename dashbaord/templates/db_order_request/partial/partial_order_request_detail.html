@@ -15,10 +15,8 @@
                     </li>
 
                     <li class="breadcrumb-item">
-                        <a href="{% url 'order_request_list' %}"
-                           hx-get="{% url 'order_request_list' %}"
-                           hx-target="#content-area"
-                           hx-push-url="true">
+                        <a href="{% url 'order_request_list' %}" hx-get="{% url 'order_request_list' %}"
+                            hx-target="#content-area" hx-push-url="true">
                             Order Requests
                         </a>
                     </li>
@@ -60,21 +58,21 @@
 
                     {% if order_request.status == "pending" %}
 
-                        <span class="badge bg-warning text-dark px-3 py-2">
-                            Pending
-                        </span>
+                    <span class="badge bg-warning text-dark px-3 py-2">
+                        Pending
+                    </span>
 
                     {% elif order_request.status == "converted" %}
 
-                        <span class="badge bg-success px-3 py-2">
-                            Converted
-                        </span>
+                    <span class="badge bg-success px-3 py-2">
+                        Converted
+                    </span>
 
                     {% elif order_request.status == "cancelled" %}
 
-                        <span class="badge bg-danger px-3 py-2">
-                            Cancelled
-                        </span>
+                    <span class="badge bg-danger px-3 py-2">
+                        Cancelled
+                    </span>
 
                     {% endif %}
 
@@ -88,37 +86,22 @@
 
             <div class="d-flex flex-wrap gap-2">
 
-                {% if order_request.status == "pending" %}
+                {% if order_request.status == "pending" or order_request.status == "approved" %}
 
-                <form method="post"
-                      action="{% url 'approve_order_request' order_request.id %}">
+                <form method="post" action="{% url 'approve_order_request' order_request.id %}">
                     {% csrf_token %}
-
-                    <button class="btn btn-success"
-                            onclick="return confirm('Approve this Order Request?')">
-
+                    <button class="btn btn-success" onclick="return confirm('Approve this Order Request?')">
                         <i class="bi bi-check-circle me-2"></i>
-
-                        Approve Request
-
+                        {% if order_request.status == "approved" %}Convert to Order{% else %}Approve Request{% endif %}
                     </button>
-
                 </form>
 
-
-                <form method="post"
-                      action="{% url 'reject_order_request' order_request.id %}">
+                <form method="post" action="{% url 'reject_order_request' order_request.id %}">
                     {% csrf_token %}
-
-                    <button class="btn btn-danger"
-                            onclick="return confirm('Reject this Order Request?')">
-
+                    <button class="btn btn-danger" onclick="return confirm('Reject this Order Request?')">
                         <i class="bi bi-x-circle me-2"></i>
-
                         Reject Request
-
                     </button>
-
                 </form>
 
                 {% endif %}
@@ -126,11 +109,9 @@
 
                 {% if order_request.converted_order %}
 
-                <a href="{% url 'order_detail' order_request.converted_order.id %}"
-                   class="btn btn-primary"
-                   hx-get="{% url 'order_detail' order_request.converted_order.id %}"
-                   hx-target="#content-area"
-                   hx-push-url="true">
+                <a href="{% url 'order_detail' order_request.converted_order.id %}" class="btn btn-primary"
+                    hx-get="{% url 'order_detail' order_request.converted_order.id %}" hx-target="#content-area"
+                    hx-push-url="true">
 
                     <i class="bi bi-box-arrow-up-right me-2"></i>
 
@@ -203,9 +184,7 @@
 
                                         <div class="d-flex align-items-center gap-3">
 
-                                            <img src="{{ item.product.primary_image }}"
-                                                 width="70"
-                                                 class="rounded">
+                                            <img src="{{ item.product.primary_image }}" width="70" class="rounded">
 
                                             <div>
 
@@ -232,20 +211,20 @@
 
                                         {% if item.variant %}
 
-                                            {% for key,value in item.variant.attributes.items %}
+                                        {% for key,value in item.variant.attributes.items %}
 
-                                                <div>
+                                        <div>
 
-                                                    {{ key|capfirst }} :
-                                                    {{ value|capfirst }}
+                                            {{ key|capfirst }} :
+                                            {{ value|capfirst }}
 
-                                                </div>
+                                        </div>
 
-                                            {% endfor %}
+                                        {% endfor %}
 
                                         {% else %}
 
-                                            —
+                                        —
 
                                         {% endif %}
 
@@ -297,327 +276,321 @@
 
         </div>
 
-                <!-- Right Side -->
+        <!-- Right Side -->
 
-                <div class="col-lg-4 d-flex">
+        <div class="col-lg-4 d-flex">
 
-                    <div class="w-100">
-        
-                        <!-- Summary -->
-        
-                        <div class="card">
-        
-                            <div class="card-body">
-        
-                                <h4 class="fw-bold mb-4">
-                                    Summary
-                                </h4>
-        
-                                <div class="d-flex justify-content-between mb-2">
-                                    <span>Items Subtotal</span>
-                                    <strong>
-                                        ৳{{ order_request.total_cost|floatformat:2 }}
-                                    </strong>
-                                </div>
-        
-                                <div class="d-flex justify-content-between mb-2">
-                                    <span>Delivery Charge</span>
-                                    <strong>
-                                        ৳{{ order_request.shipping_total|floatformat:2 }}
-                                    </strong>
-                                </div>
-        
-                                <hr>
-        
-                                <div class="d-flex justify-content-between">
-        
-                                    <h5 class="fw-bold">
-                                        Grand Total
-                                    </h5>
-        
-                                    <h5 class="fw-bold text-primary">
-        
-                                        ৳{{ order_request.total_cost|add:order_request.shipping_total|floatformat:2 }}
-        
-                                    </h5>
-        
-                                </div>
-        
-                            </div>
-        
-                        </div>
-        
-        
-                        <!-- Status -->
-        
-                        <div class="card">
-        
-                            <div class="card-body">
-        
-                                <h5 class="fw-bold mb-3">
-        
-                                    Request Status
-        
-                                </h5>
-        
-                                <div class="mb-3">
-        
-                                    <small class="text-muted">
-        
-                                        Current Status
-        
-                                    </small>
-        
-                                    <div class="mt-2">
-        
-                                        {% if order_request.status == "pending" %}
-        
-                                            <span class="badge bg-warning text-dark">
-                                                Pending
-                                            </span>
-        
-                                        {% elif order_request.status == "converted" %}
-        
-                                            <span class="badge bg-success">
-                                                Converted
-                                            </span>
-        
-                                        {% elif order_request.status == "cancelled" %}
-        
-                                            <span class="badge bg-danger">
-                                                Cancelled
-                                            </span>
-        
-                                        {% endif %}
-        
-                                    </div>
-        
-                                </div>
-        
-                                <div>
-        
-                                    <small class="text-muted">
-                                        Payment Type
-                                    </small>
-        
-                                    <div class="fw-semibold text-uppercase">
-        
-                                        {{ order_request.payment_type }}
-        
-                                    </div>
-        
-                                </div>
-        
-                                <hr>
-        
-                                <div>
-        
-                                    <small class="text-muted">
-        
-                                        Delivery Type
-        
-                                    </small>
-        
-                                    <div class="fw-semibold text-uppercase">
-        
-                                        {{ order_request.delivery_type }}
-        
-                                    </div>
-        
-                                </div>
-        
-                            </div>
-        
-                        </div>
-        
-                    </div>
-        
-                </div>
-        
-            </div>
-        
-        
-            <!-- Customer -->
-        
-            <h5 class="fw-bold mt-4 mb-3">
-        
-                Customer Information
-        
-            </h5>
-        
-            <div class="card">
-        
-                <div class="card-body">
-        
-                    <div class="row g-3">
-        
-                        <div class="col-md-4">
-        
-                            <div class="border rounded p-3 h-100">
-        
-                                <small class="text-muted">
-        
-                                    Customer Name
-        
-                                </small>
-        
-                                <div class="fw-bold mt-1">
-        
-                                    {{ order_request.customer.name }}
-        
-                                </div>
-        
-                            </div>
-        
-                        </div>
-        
-        
-                        <div class="col-md-4">
-        
-                            <div class="border rounded p-3 h-100">
-        
-                                <small class="text-muted">
-        
-                                    Phone
-        
-                                </small>
-        
-                                <div class="fw-bold mt-1">
-        
-                                    {{ order_request.customer.phone }}
-        
-                                </div>
-        
-                            </div>
-        
-                        </div>
-        
-        
-                        <div class="col-md-4">
-        
-                            <div class="border rounded p-3 h-100">
-        
-                                <small class="text-muted">
-        
-                                    WhatsApp
-        
-                                </small>
-        
-                                <div class="fw-bold mt-1">
-        
-                                    {{ order_request.customer.whatsapp|default:"Not Available" }}
-        
-                                </div>
-        
-                            </div>
-        
-                        </div>
-        
-                    </div>
-        
-                </div>
-        
-            </div>
-        
-        
-        
-            <!-- Shipping -->
-        
-            <div class="card mt-4">
-        
-                <div class="card-header">
-        
-                    <h6 class="mb-0">
-        
-                        Shipping Address
-        
-                    </h6>
-        
-                </div>
-        
-                <div class="card-body">
-        
-                    {{ order_request.shipping_address }}
-        
-                </div>
-        
-            </div>
-        
-        
-        
-            <!-- Note -->
-        
-            {% if order_request.note %}
-        
-            <div class="card mt-4">
-        
-                <div class="card-header">
-        
-                    <h6 class="mb-0">
-        
-                        Customer Note
-        
-                    </h6>
-        
-                </div>
-        
-                <div class="card-body">
-        
-                    {{ order_request.note }}
-        
-                </div>
-        
-            </div>
-        
-            {% endif %}
-        
-        
-        
-            <!-- Extra Personal Information -->
-        
-            {% if order_request.metadata.extra_personal_info %}
-        
-            <div class="card mt-4">
-        
-                <div class="card-header">
-        
-                    <h6 class="mb-0">
-        
-                        Extra Information
-        
-                    </h6>
-        
-                </div>
-        
-                <div class="card-body">
-        
-                    {% for key,value in order_request.metadata.extra_personal_info.items %}
-        
-                    <div class="d-flex justify-content-between border-bottom py-2">
-        
-                        <span>
-        
-                            {{ key }}
-        
-                        </span>
-        
-                        <strong>
-        
-                            {{ value }}
-        
-                        </strong>
-        
-                    </div>
-        
-                    {% endfor %}
-        
-                </div>
-        
-            </div>
-        
-            {% endif %}
+            <div class="w-100">
 
-                <!-- Converted Order -->
+                <!-- Summary -->
+
+                <div class="card">
+
+                    <div class="card-body">
+
+                        <h4 class="fw-bold mb-4">
+                            Summary
+                        </h4>
+
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Items Subtotal</span>
+                            <strong>
+                                ৳{{ order_request.total_cost|floatformat:2 }}
+                            </strong>
+                        </div>
+
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Delivery Charge</span>
+                            <strong>
+                                ৳{{ order_request.shipping_total|floatformat:2 }}
+                            </strong>
+                        </div>
+
+                        <hr>
+
+                        <div class="d-flex justify-content-between">
+
+                            <h5 class="fw-bold">
+                                Grand Total
+                            </h5>
+
+                            <h5 class="fw-bold text-primary">
+
+                                ৳{{ order_request.total_cost|add:order_request.shipping_total|floatformat:2 }}
+
+                            </h5>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Status -->
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="fw-bold mb-3">Work Assign</h5>
+
+                        <div class="col-md-4">
+                            <div class="border rounded p-3 h-100">
+                                <small class="text-muted">Work Assign (Optional)</small>
+                                <div class="fw-bold mt-1">
+                                    {% if order_request.work_assign %}
+                                    {{
+                                    order_request.work_assign.get_full_name|default:order_request.work_assign.username
+                                    }}
+                                    {% else %}
+                                    Not Assigned
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <h5 class="fw-bold mb-3">Request Status</h5>
+
+                        <div class="mb-3">
+                            <small class="text-muted">Current Status</small>
+                            <div class="mt-2">
+                                {% if order_request.status == "pending" %}
+                                <span class="badge bg-warning text-dark">Pending</span>
+                                {% elif order_request.status == "approved" %}
+                                <span class="badge bg-info">Approved</span>
+                                {% elif order_request.status == "converted" %}
+                                <span class="badge bg-success">Converted</span>
+                                {% elif order_request.status == "cancelled" %}
+                                <span class="badge bg-danger">Cancelled</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div>
+                            <small class="text-muted">Payment Type</small>
+                            <div class="fw-semibold text-uppercase">{{ order_request.payment_type }}</div>
+                        </div>
+
+                        <hr>
+
+                        <div>
+                            <small class="text-muted">Delivery Type</small>
+                            <div class="fw-semibold text-uppercase">{{ order_request.delivery_type }}</div>
+                        </div>
+
+                        <hr>
+
+                        <form method="post" action="{% url 'update_order_request_work_status' order_request.pk %}">
+                            {% csrf_token %}
+                            <label class="form-label">Work Status</label>
+                            <div class="d-flex gap-2 flex-wrap">
+                                {% for value, label in work_status_choices %}
+                                <button type="submit" name="work_status" value="{{ value }}"
+                                    class="btn btn-sm {% if order_request.work_status == value %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                                    {% if value == "design" %}<i class="bi bi-pencil-square me-1"></i>
+                                    {% elif value == "correction" %}<i class="bi bi-arrow-repeat me-1"></i>
+                                    {% elif value == "call" %}<i class="bi bi-telephone me-1"></i>
+                                    {% elif value == "knock" %}<i class="bi bi-bell me-1"></i>
+                                    {% elif value == "done" %}<i class="bi bi-check-circle me-1"></i>
+                                    {% elif value == "hold" %}<i class="bi bi-pause-circle me-1"></i>
+                                    {% elif value == "cancel" %}<i class="bi bi-x-circle me-1"></i>
+                                    {% else %}<i class="bi bi-three-dots me-1"></i>{% endif %}
+                                    {{ label }}
+                                </button>
+                                {% endfor %}
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- Customer -->
+
+    <h5 class="fw-bold mt-4 mb-3">
+
+        Customer Information
+
+    </h5>
+
+    <div class="card">
+
+        <div class="card-body">
+
+            <div class="row g-3">
+
+                <div class="col-md-4">
+
+                    <div class="border rounded p-3 h-100">
+
+                        <small class="text-muted">
+
+                            Customer Name
+
+                        </small>
+
+                        <div class="fw-bold mt-1">
+
+                            {{ order_request.customer.name }}
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="col-md-4">
+
+                    <div class="border rounded p-3 h-100">
+
+                        <small class="text-muted">
+
+                            Phone
+
+                        </small>
+
+                        <div class="fw-bold mt-1">
+
+                            {{ order_request.customer.phone }}
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="col-md-4">
+
+                    <div class="border rounded p-3 h-100">
+
+                        <small class="text-muted">
+
+                            WhatsApp
+
+                        </small>
+
+                        <div class="fw-bold mt-1">
+
+                            {{ order_request.customer.whatsapp|default:"Not Available" }}
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- Shipping -->
+
+    <div class="card mt-4">
+
+        <div class="card-header">
+
+            <h6 class="mb-0">
+
+                Shipping Address
+
+            </h6>
+
+        </div>
+
+        <div class="card-body">
+
+            {{ order_request.shipping_address }}
+
+        </div>
+
+    </div>
+
+
+
+    <!-- Note -->
+
+    {% if order_request.note %}
+
+    <div class="card mt-4">
+
+        <div class="card-header">
+
+            <h6 class="mb-0">
+
+                Customer Note
+
+            </h6>
+
+        </div>
+
+        <div class="card-body">
+
+            {{ order_request.note }}
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+
+    <!-- Extra Personal Information -->
+
+    {% if order_request.metadata.extra_personal_info %}
+
+    <div class="card mt-4">
+
+        <div class="card-header">
+
+            <h6 class="mb-0">
+
+                Extra Information
+
+            </h6>
+
+        </div>
+
+        <div class="card-body">
+
+            {% for key,value in order_request.metadata.extra_personal_info.items %}
+
+            <div class="d-flex justify-content-between border-bottom py-2">
+
+                <span>
+
+                    {{ key }}
+
+                </span>
+
+                <strong>
+
+                    {{ value }}
+
+                </strong>
+
+            </div>
+
+            {% endfor %}
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+    <!-- Converted Order -->
 
     {% if order_request.converted_order %}
 
@@ -707,11 +680,9 @@
 
             <hr>
 
-            <a href="{% url 'order_detail' order_request.converted_order.id %}"
-               class="btn btn-primary"
-               hx-get="{% url 'order_detail' order_request.converted_order.id %}"
-               hx-target="#content-area"
-               hx-push-url="true">
+            <a href="{% url 'order_detail' order_request.converted_order.id %}" class="btn btn-primary"
+                hx-get="{% url 'order_detail' order_request.converted_order.id %}" hx-target="#content-area"
+                hx-push-url="true">
 
                 <i class="bi bi-box-arrow-up-right me-2"></i>
 
@@ -785,11 +756,8 @@
 
     <div class="d-flex justify-content-between mt-4 mb-5">
 
-        <a href="{% url 'order_request_list' %}"
-           class="btn btn-secondary"
-           hx-get="{% url 'order_request_list' %}"
-           hx-target="#content-area"
-           hx-push-url="true">
+        <a href="{% url 'order_request_list' %}" class="btn btn-secondary" hx-get="{% url 'order_request_list' %}"
+            hx-target="#content-area" hx-push-url="true">
 
             <i class="bi bi-arrow-left me-2"></i>
 
@@ -799,11 +767,9 @@
 
         {% if order_request.converted_order %}
 
-        <a href="{% url 'order_detail' order_request.converted_order.id %}"
-           class="btn btn-success"
-           hx-get="{% url 'order_detail' order_request.converted_order.id %}"
-           hx-target="#content-area"
-           hx-push-url="true">
+        <a href="{% url 'order_detail' order_request.converted_order.id %}" class="btn btn-success"
+            hx-get="{% url 'order_detail' order_request.converted_order.id %}" hx-target="#content-area"
+            hx-push-url="true">
 
             <i class="bi bi-receipt me-2"></i>
 

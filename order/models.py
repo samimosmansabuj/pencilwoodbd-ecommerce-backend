@@ -3,7 +3,7 @@ from django.db import models
 from django.forms import ValidationError
 from authentication.models import Customer
 from product.models import Product, ProductVariant
-from pencilwoodbd.choices import PAYMENT_STATUS, PAYMENT_TYPE, STATUS, REVIEW_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS
+from pencilwoodbd.choices import PAYMENT_STATUS, PAYMENT_TYPE, STATUS, REVIEW_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, ORDER_REQUEST_WORK_STATUS
 from datetime import datetime
 from site_app.models import DeliveryOption
 
@@ -247,9 +247,10 @@ class OrderRequest(models.Model):
 
     design_file = models.FileField(upload_to="order_request/design_files/", blank=True, null=True)
     is_urgent = models.BooleanField(default=False)
-    work_assign = models.CharField(max_length=255, blank=True, null=True)
+    work_assign = models.ForeignKey('authentication.CustomUser',on_delete=models.SET_NULL,null=True, blank=True,related_name='assigned_orders')
     special_instructions = models.TextField(blank=True, null=True)
     order_created_date = models.DateField(null=True, blank=True)
+    delivery_date = models.DateField(null=True, blank=True)
     advance_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     payment_type = models.CharField(max_length=50, choices=PAYMENT_TYPE.choices, default=PAYMENT_TYPE.COD)
@@ -259,6 +260,7 @@ class OrderRequest(models.Model):
     total_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     status = models.CharField(max_length=20, choices=ORDER_REQUEST_STATUS.choices, default=ORDER_REQUEST_STATUS.PENDING)
+    work_status = models.CharField(max_length=20, choices=ORDER_REQUEST_WORK_STATUS.choices, default=ORDER_REQUEST_WORK_STATUS.NONE)
 
     converted_order = models.OneToOneField(Order, on_delete=models.SET_NULL, null=True, blank=True, related_name="order_request")
     converted_at = models.DateTimeField(null=True, blank=True)
@@ -275,6 +277,11 @@ class OrderRequest(models.Model):
     @property
     def get_total_quantity(self):
         return sum(item.quantity for item in self.request_items.all())
+
+    def save(self, *args, **kwargs):
+        if self.work_status == ORDER_REQUEST_WORK_STATUS.DONE and self.status == ORDER_REQUEST_STATUS.PENDING:
+            self.status = ORDER_REQUEST_STATUS.APPROVED
+        super().save(*args, **kwargs)
 
     def __str__(self):
         if self.customer:

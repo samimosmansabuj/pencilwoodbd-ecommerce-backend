@@ -27,11 +27,13 @@
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Phone number</label>
-                            <input type="text" class="form-control" name="phone" placeholder="Enter Phone Number" required>
+                            <input type="text" class="form-control" name="phone" placeholder="Enter Phone Number"
+                                required>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Second phone number (Optional)</label>
-                            <input type="text" class="form-control" name="second_phone" placeholder="Second Phone Number">
+                            <input type="text" class="form-control" name="second_phone"
+                                placeholder="Second Phone Number">
                         </div>
 
                         <div class="col-md-6">
@@ -52,7 +54,8 @@
 
                         <div class="col-md-8">
                             <label class="form-label">Delivery address</label>
-                            <input type="text" class="form-control" name="shipping_address" placeholder="Enter Delivery Address" required>
+                            <input type="text" class="form-control" name="shipping_address"
+                                placeholder="Enter Delivery Address" required>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Order Created Date</label>
@@ -98,40 +101,37 @@
                 <div class="card-body">
                     <h5 class="mb-3">Products</h5>
                     <p class="text-muted small">
-                        Stock is not enforced strictly here — company may restock as needed. Quantity is what's requested/ordered.
+                        Stock is not enforced strictly here — company may restock as needed. Quantity is what's
+                        requested/ordered.
                     </p>
 
-                    <div class="row g-2 align-items-end">
-                        <div class="col-md-5">
+                    <div class="row g-2 align-items-end mb-2">
+                        <div class="col-md-4">
                             <label class="form-label">Product</label>
                             <select id="product_select" class="form-select">
                                 <option value="" disabled selected>-- Select Product --</option>
                                 {% for product in products %}
-                                <option value="{{ product.id }}"
-                                        data-name="{{ product.name }}"
-                                        data-price="{{ product.price }}"
-                                        data-discount="{{ product.discount_price }}"
-                                        data-has-variants="{{ product.has_variants|yesno:'true,false' }}">
+                                <option value="{{ product.id }}" data-name="{{ product.name }}"
+                                    data-price="{{ product.price }}" data-discount="{{ product.discount_price }}"
+                                    data-has-variants="{{ product.has_variants|yesno:'true,false' }}">
                                     {{ product.name }}
                                 </option>
                                 {% endfor %}
                             </select>
                         </div>
-                        <!-- <div class="col-md-4">
-                            <label class="form-label">Variant <span class="text-muted">(if any)</span></label>
-                            <select id="variant_select" class="form-select">
-                                <option value="">-- No Variant --</option>
-                            </select>
-                        </div> -->
-                        <div class="col-md-7" id="variant_attrs_container" style="display:none;">
+                    
+                        <div class="col-md-4" id="variant_attrs_container" style="display:none;">
                             <label class="form-label">Variant</label>
-                            <div id="variant_attrs_wrapper" class="row g-2"></div>
+                            <div id="variant_attrs_wrapper" class="d-flex gap-2 flex-wrap"></div>
                         </div>
+                    
                         <div class="col-md-2">
                             <label class="form-label">Qty</label>
                             <input type="number" id="qty_input" class="form-control" value="1" min="1">
                         </div>
-                        <div class="col-md-1">
+                    
+                        <div class="col-md-2">
+                            <label class="form-label d-block">&nbsp;</label>
                             <button type="button" id="add_item_btn" class="btn btn-outline-primary w-100">
                                 <i class="bi bi-plus-lg"></i>
                             </button>
@@ -171,12 +171,14 @@
 
                     <div class="mb-3">
                         <label class="form-label">Shipping Charge</label>
-                        <input type="number" step="0.01" min="0" class="form-control" name="shipping_total" id="shipping_total_input" value="0">
+                        <input type="number" step="0.01" min="0" class="form-control" name="shipping_total"
+                            id="shipping_total_input" value="0">
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Advance Amount</label>
-                        <input type="number" step="0.01" min="0" class="form-control" name="advance_amount" id="advance_amount_input" value="0">
+                        <input type="number" step="0.01" min="0" class="form-control" name="advance_amount"
+                            id="advance_amount_input" value="0">
                     </div>
 
                     <div class="d-flex justify-content-between border-top pt-2">
@@ -213,13 +215,19 @@
                     </select>
 
                     <label class="form-label mt-3">Work assign (Optional)</label>
-                    <input type="text" class="form-control" name="work_assign" placeholder="---------">
+                    <select class="form-select" name="work_assign">
+                        <option value="">-- Unassigned --</option>
+                        {% for user in assignable_users %}
+                        <option value="{{ user.id }}">{{ user.username }} ({{ user.get_user_type_display }})</option>
+                        {% endfor %}
+                    </select>
 
                     <label class="form-label mt-3">Delivery date (Optional)</label>
                     <input type="date" class="form-control" name="delivery_date">
 
                     <label class="form-label mt-3">Special instructions (Optional)</label>
-                    <textarea class="form-control" name="special_instructions" rows="2" placeholder="Enter Special Instructions (optional)"></textarea>
+                    <textarea class="form-control" name="special_instructions" rows="2"
+                        placeholder="Enter Special Instructions (optional)"></textarea>
                 </div>
             </div>
 
@@ -246,21 +254,21 @@
         const itemsHiddenInput = document.getElementById("items_hidden_input");
         const shippingInput = document.getElementById("shipping_total_input");
         const advanceInput = document.getElementById("advance_amount_input");
-    
+
         const variantAttrsContainer = document.getElementById("variant_attrs_container");
         const variantAttrsWrapper = document.getElementById("variant_attrs_wrapper");
-    
+
         const VARIANTS_BY_PRODUCT = {{ variants_by_product_json|default:"{}"|safe }};
-    
+
         let items = [];
         let currentAttrSelections = {};
         let matchedVariant = null;
-    
+
         function getProductVariants() {
             const productId = productSelect.value;
             return VARIANTS_BY_PRODUCT[productId] || [];
         }
-    
+
         function buildAttrOptionsMap(variants) {
             const map = {};
             variants.forEach(function (v) {
@@ -271,76 +279,78 @@
             });
             return map;
         }
-    
+
         function renderVariantAttrDropdowns() {
             variantAttrsWrapper.innerHTML = "";
             currentAttrSelections = {};
             matchedVariant = null;
-    
+
             const productOpt = productSelect.options[productSelect.selectedIndex];
             const hasVariants = productOpt && productOpt.dataset.hasVariants === "true";
             const variants = getProductVariants();
-    
+
             if (!hasVariants || !variants.length) {
                 variantAttrsContainer.style.display = "none";
                 return;
             }
-    
+
             variantAttrsContainer.style.display = "block";
             const attrMap = buildAttrOptionsMap(variants);
-    
+
             Object.keys(attrMap).forEach(function (attrKey) {
                 const col = document.createElement("div");
-                col.className = "col-auto";
-    
+                col.className = "flex-grow-1";
+                col.style.minWidth = "140px";
+                col.style.maxWidth = "200px";
+
                 const label = document.createElement("label");
                 label.className = "form-label small text-muted mb-1 d-block";
                 label.textContent = attrKey.charAt(0).toUpperCase() + attrKey.slice(1);
-    
+
                 const select = document.createElement("select");
                 select.className = "form-select form-select-sm variant-attr-select";
                 select.dataset.attrKey = attrKey;
-    
+
                 const placeholder = document.createElement("option");
                 placeholder.value = "";
                 placeholder.textContent = "-- " + attrKey + " --";
                 placeholder.disabled = true;
                 placeholder.selected = true;
                 select.appendChild(placeholder);
-    
+
                 Array.from(attrMap[attrKey]).sort().forEach(function (val) {
                     const opt = document.createElement("option");
                     opt.value = val;
                     opt.textContent = val;
                     select.appendChild(opt);
                 });
-    
+
                 select.addEventListener("change", function () {
                     currentAttrSelections[attrKey] = select.value;
                     recomputeMatchedVariant(variants);
                 });
-    
+
                 col.appendChild(label);
                 col.appendChild(select);
                 variantAttrsWrapper.appendChild(col);
             });
         }
-    
+
         function recomputeMatchedVariant(variants) {
             const selects = variantAttrsWrapper.querySelectorAll(".variant-attr-select");
             const allChosen = Array.from(selects).every(function (s) { return s.value; });
             matchedVariant = null;
             if (!allChosen) return;
-    
+
             matchedVariant = variants.find(function (v) {
                 return Object.keys(currentAttrSelections).every(function (k) {
                     return (v.attributes || {})[k] === currentAttrSelections[k];
                 });
             }) || null;
         }
-    
+
         productSelect.addEventListener("change", renderVariantAttrDropdowns);
-    
+
         function currentUnitPrice() {
             const productOpt = productSelect.options[productSelect.selectedIndex];
             const hasVariants = productOpt && productOpt.dataset.hasVariants === "true";
@@ -351,12 +361,12 @@
             if (!productOpt || !productOpt.value) return 0;
             return parseFloat(productOpt.dataset.discount) || parseFloat(productOpt.dataset.price) || 0;
         }
-    
+
         function currentVariantLabel() {
             if (!matchedVariant) return null;
             return Object.entries(matchedVariant.attributes || {}).map(function ([k, v]) { return k + ": " + v; }).join(", ");
         }
-    
+
         function renderItems() {
             itemsTbody.innerHTML = "";
             if (items.length === 0) {
@@ -378,21 +388,21 @@
             updateTotals();
             syncHiddenInput();
         }
-    
+
         function updateTotals() {
             const itemsTotal = items.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
             const shipping = parseFloat(shippingInput.value) || 0;
             const advance = parseFloat(advanceInput.value) || 0;
             const grandTotal = itemsTotal + shipping;
             const totalDue = grandTotal - advance;
-    
+
             document.getElementById("items_total_display").textContent = "৳" + itemsTotal.toFixed(2);
             document.getElementById("shipping_total_display").textContent = "৳" + shipping.toFixed(2);
             document.getElementById("advance_amount_display").textContent = "৳" + advance.toFixed(2);
             document.getElementById("grand_total_display").textContent = "৳" + grandTotal.toFixed(2);
             document.getElementById("total_due_display").textContent = "৳" + totalDue.toFixed(2);
         }
-    
+
         function syncHiddenInput() {
             const payload = items.map(function (i) {
                 return {
@@ -403,22 +413,22 @@
             });
             itemsHiddenInput.value = JSON.stringify(payload);
         }
-    
+
         addItemBtn.addEventListener("click", function () {
             const productOpt = productSelect.options[productSelect.selectedIndex];
             if (!productSelect.value) {
                 alert("Please select a product first.");
                 return;
             }
-    
+
             const hasVariants = productOpt.dataset.hasVariants === "true";
             if (hasVariants && !matchedVariant) {
                 alert("Please select all variant options.");
                 return;
             }
-    
+
             const qty = parseInt(qtyInput.value) || 1;
-    
+
             items.push({
                 product_id: productSelect.value,
                 product_name: productOpt.dataset.name,
@@ -427,15 +437,15 @@
                 quantity: qty,
                 unit_price: currentUnitPrice()
             });
-    
+
             renderItems();
             qtyInput.value = 1;
-    
+
             variantAttrsWrapper.querySelectorAll(".variant-attr-select").forEach(function (s) { s.selectedIndex = 0; });
             currentAttrSelections = {};
             matchedVariant = null;
         });
-    
+
         itemsTbody.addEventListener("click", function (e) {
             const btn = e.target.closest(".remove-item-btn");
             if (!btn) return;
@@ -443,17 +453,17 @@
             items.splice(index, 1);
             renderItems();
         });
-    
+
         shippingInput.addEventListener("input", updateTotals);
         advanceInput.addEventListener("input", updateTotals);
-    
+
         document.getElementById("order-form").addEventListener("submit", function (e) {
             if (items.length === 0) {
                 e.preventDefault();
                 alert("Please add at least one product.");
             }
         });
-    
+
         renderItems();
     })();
-    </script>
+</script>
