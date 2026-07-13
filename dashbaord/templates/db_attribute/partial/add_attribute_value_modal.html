@@ -1,6 +1,5 @@
 <!-- Add / Edit Attribute Value Modal -->
-<form method="post" id="add_attribute_value_form" hx-ignore="true">
-    {% csrf_token %}
+<form method="post" id="add_attribute_value_form" hx-ignore="true" autocomplete="off">
     <input type="hidden" name="value_id" id="value_id">
 
     <div class="modal fade" id="AttributeValueModal">
@@ -18,20 +17,32 @@
                     <div class="card">
                         <div class="card-body">
                             <div class="mb-3">
-                                <label class="form-label">Value</label>
-                                <input type="text" class="form-control"
-                                    placeholder="e.g. 40, Red, Cotton (depends on the attribute)"
-                                    name="value" required>
+                                <label class="form-label">Attribute</label>
+                                <input type="text" class="form-control" value="{{ attribute.name }} ({{ attribute.get_type_display }} type)" disabled>
+                                <small class="text">This value will be added under this attribute.</small>
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label">Hex Code <span class="text-muted">(optional, for color-type attributes)</span></label>
-                                <input type="text" class="form-control" placeholder="#FF0000" name="hex_code">
+                                <label class="form-label">Value <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control"
+                                    placeholder="e.g. 40, Red, Cotton (depends on the attribute)"
+                                    name="value" required>
+                                <small class="text">Must be unique within this attribute.</small>
+                            </div>
+
+                            <div class="mb-3" id="hex_code_wrapper">
+                                <label class="form-label">Hex Code <span class="text">(optional)</span></label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <input type="color" class="form-control form-control-color" id="hex_code_picker" value="#000000" title="Pick color">
+                                    <input type="text" class="form-control" placeholder="#FF0000" name="hex_code" id="hex_code_input">
+                                </div>
+                                <small class="text">Optional for any attribute type — not just Color.</small>
                             </div>
 
                             <div class="mb-3">
                                 <label class="form-label">Sort Order</label>
                                 <input type="number" class="form-control" placeholder="0" name="sort_order" value="0">
+                                <small class="text">Lower numbers show first in lists/filters.</small>
                             </div>
                         </div>
                     </div>
@@ -68,18 +79,56 @@
 
 <script>
     const ATTRIBUTE_ID = "{{ attribute.id }}";
+    const ATTRIBUTE_NAME = "{{ attribute.name|escapejs }}";
 
-    // ---- Add / Update Value ----
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== "") {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    document.getElementById("hex_code_picker")?.addEventListener("input", function (e) {
+        document.getElementById("hex_code_input").value = e.target.value;
+    });
+    document.getElementById("hex_code_input")?.addEventListener("input", function (e) {
+        const val = e.target.value;
+        if (/^#([0-9A-Fa-f]{3}){1,2}$/.test(val)) {
+            document.getElementById("hex_code_picker").value = val;
+        }
+    });
+
     document.addEventListener("submit", async function (e) {
         if (e.target.id === "add_attribute_value_form") {
             e.preventDefault();
 
-            try {
-                const csrftoken = getCookie("csrftoken");
-                const form = e.target;
-                const formData = new FormData(form);
+            const csrftoken = getCookie("csrftoken");
+            if (!csrftoken) {
+                errorNotificationCustom("Session expired. Please refresh the page and try again.");
+                return;
+            }
 
-                const response = await fetch(`/dashboard/attribute-value/${ATTRIBUTE_ID}/`, {
+            const form = e.target;
+            const valueInput = form.querySelector("input[name='value']");
+            if (!valueInput.value.trim()) {
+                errorNotificationCustom("Value is required");
+                valueInput.focus();
+                return;
+            }
+
+            try {
+                const formData = new FormData(form);
+                formData.set("csrfmiddlewaretoken", csrftoken);
+
+                const response = await fetch(`/attribute-value/${ATTRIBUTE_ID}/`, {
                     method: "POST",
                     body: formData,
                     headers: {
@@ -88,13 +137,21 @@
                     },
                 });
 
+                const contentType = response.headers.get("content-type") || "";
+                if (!contentType.includes("application/json")) {
+                    const text = await response.text();
+                    console.error("Non-JSON response:", text);
+                    errorNotificationCustom("Unexpected server response (status " + response.status + "). Please refresh and try again.");
+                    return;
+                }
+
                 const data = await response.json();
 
                 if (data.status) {
                     document.getElementById("close_add_attribute_value_modal").click();
                     form.reset();
                     document.getElementById("value_id").value = "";
-                    document.getElementById("attribute_value_modal_title").textContent = "Add Value for {{ attribute.name }}";
+                    document.getElementById("attribute_value_modal_title").textContent = "Add Value for " + ATTRIBUTE_NAME;
                     successNotificationCustom(data.message);
                     setTimeout(function () { window.location.reload(); }, 600);
                 } else {
@@ -107,7 +164,6 @@
         }
     });
 
-    // ---- Open Edit Modal (prefill) ----
     document.addEventListener("click", function (e) {
         const btn = e.target.closest(".edit-attribute-value-btn");
         if (btn) {
@@ -116,20 +172,21 @@
 
             const form = document.getElementById("add_attribute_value_form");
             form.querySelector("input[name='value']").value = btn.dataset.value;
-            form.querySelector("input[name='hex_code']").value = btn.dataset.hex;
+            form.querySelector("input[name='hex_code']").value = btn.dataset.hex || "";
+            if (btn.dataset.hex) {
+                document.getElementById("hex_code_picker").value = btn.dataset.hex;
+            }
             form.querySelector("input[name='sort_order']").value = btn.dataset.sort;
         }
     });
 
-    // ---- Reset modal to "Add" state when closed ----
     document.getElementById("AttributeValueModal")?.addEventListener("hidden.bs.modal", function () {
         const form = document.getElementById("add_attribute_value_form");
         form.reset();
         document.getElementById("value_id").value = "";
-        document.getElementById("attribute_value_modal_title").textContent = "Add Value for {{ attribute.name }}";
+        document.getElementById("attribute_value_modal_title").textContent = "Add Value for " + ATTRIBUTE_NAME;
     });
 
-    // ---- Delete Value ----
     let deleteAttributeValueId = null;
     document.addEventListener("click", function (e) {
         const btn = e.target.closest(".delete-attribute-value-btn");
@@ -146,10 +203,15 @@
                 errorNotificationCustom("Value ID is not found");
                 return;
             }
-            fetch(`/dashboard/delete-attribute-value/${deleteAttributeValueId}/`, {
+            const csrftoken = getCookie("csrftoken");
+            if (!csrftoken) {
+                errorNotificationCustom("Session expired. Please refresh the page and try again.");
+                return;
+            }
+            fetch(`/delete-attribute-value/${deleteAttributeValueId}/`, {
                 method: "DELETE",
                 headers: {
-                    "X-CSRFToken": getCookie("csrftoken"),
+                    "X-CSRFToken": csrftoken,
                     "X-Requested-With": "XMLHttpRequest",
                 },
             })
@@ -182,19 +244,5 @@
             icon: 'bi bi-x-circle', delayIndicator: false,
             continueDelayOnInactiveTab: false, position: 'top right', msg: message
         });
-    }
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== "") {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
     }
 </script>

@@ -1,7 +1,7 @@
 {% load static %}
 
 <form method="post" enctype="multipart/form-data" id="add_product_form"
-    action="{% if is_update %}{% url 'product_update' product.pk %}{% else %}{% url 'product_add' %}{% endif %}">
+    action="{% if is_update and product %}{% url 'product_update' product.pk %}{% else %}{% url 'product_add' %}{% endif %}">
     {% csrf_token %}
 
     <div class="row">
@@ -28,18 +28,6 @@
                         <textarea id="pw-full-description" name="details" class="form-control" cols="4" rows="10"
                             style="display:none;">{% if product %}{{ product.details }}{% endif %}</textarea>
                     </div>
-
-                    <div class="mb-4">
-                        <h5 class="mb-3">Tags</h5>
-                        <div class="col-12 mb-2 position-relative">
-                            <input type="text" class="form-control" id="pw_tags_input" placeholder="Type and press Enter">
-                        </div>
-                        <div class="col-12 mb-2">
-                            <div class="d-flex align-items-center gap-2 flex-wrap" id="pw_tags_list"></div>
-                        </div>
-                        <input type="hidden" name="tags" id="pw_tags_hidden"
-                            value="{% if product %}{{ product.tags|safe }}{% else %}[]{% endif %}">
-                    </div>
                 </div>
             </div>
 
@@ -55,7 +43,8 @@
                         <input id="pw_image_input" type="file" name="images"
                             accept=".jpg, .png, .jpeg, image/jpeg, image/png" multiple style="display:none;">
                         <input type="hidden" name="primary_image_index" id="pw_primary_image_index" value="0">
-                        <p class="text-muted small mb-2">Click a thumbnail to mark it primary. Use the eye icon to preview, or the cross to remove.</p>
+                        <p class="text small mb-2">Click a thumbnail to mark it primary. Use the eye icon to
+                            preview, or the cross to remove.</p>
 
                         <div class="d-flex flex-wrap gap-3" id="pw_new_image_preview"></div>
 
@@ -64,21 +53,27 @@
                             <h6 class="mb-2">Existing Images</h6>
                             <div class="d-flex flex-wrap gap-3">
                                 {% for img in product.images.all %}
-                                <div class="position-relative" style="width: 100px;">
-                                    <img src="{{ img.image.url }}" class="img-fluid rounded border"
-                                        style="height:100px; object-fit:cover; width:100%;">
+                                <div class="position-relative pw-existing-image-thumb" style="width: 100px;"
+                                    data-image-id="{{ img.id }}">
+                                    <img src="{{ img.image.url }}"
+                                        class="img-fluid rounded border pw-existing-thumb-img"
+                                        style="height:100px; object-fit:cover; width:100%; cursor:pointer;">
                                     {% if img.role == 'primary' %}
-                                    <span class="badge bg-success position-absolute top-0 start-0">Primary</span>
+                                    <span
+                                        class="badge bg-success position-absolute top-0 start-0 pw-existing-primary-badge">Primary</span>
                                     {% endif %}
                                     <div class="form-check mt-1">
-                                        <input class="form-check-input" type="checkbox"
-                                            name="delete_images" value="{{ img.id }}" id="pw_del_img_{{ img.id }}">
-                                        <label class="form-check-label small text-danger" for="pw_del_img_{{ img.id }}">Remove</label>
+                                        <input class="form-check-input" type="checkbox" name="delete_images"
+                                            value="{{ img.id }}" id="pw_del_img_{{ img.id }}">
+                                        <label class="form-check-label small text-danger"
+                                            for="pw_del_img_{{ img.id }}">Remove</label>
                                     </div>
                                 </div>
                                 {% endfor %}
                             </div>
                         </div>
+                        <input type="hidden" name="existing_primary_image_id" id="pw_existing_primary_image_id"
+                            value="">
                         {% endif %}
                     </div>
 
@@ -88,10 +83,12 @@
                             <div class="modal-content">
                                 <div class="modal-header">
                                     <h6 class="modal-title">Image Preview</h6>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                        aria-label="Close"></button>
                                 </div>
                                 <div class="modal-body text-center">
-                                    <img id="pw_image_preview_modal_img" src="" style="max-width:100%; max-height:70vh; object-fit:contain;">
+                                    <img id="pw_image_preview_modal_img" src=""
+                                        style="max-width:100%; max-height:70vh; object-fit:contain;">
                                 </div>
                             </div>
                         </div>
@@ -119,53 +116,62 @@
                 <div class="card-body">
                     <div class="mb-4">
                         <h5 class="mb-3">Variants</h5>
-                    
+
                         <div class="row g-2 align-items-end mb-3">
                             <div class="col-md-4">
                                 <label class="form-label">Attribute</label>
                                 <select class="form-select" id="pw_attr_select">
                                     <option value="" disabled selected>-- Select Attribute --</option>
                                     {% for attr in attributes %}
-                                    <option value="{{ attr.name|lower }}" data-name="{{ attr.name }}">{{ attr.name }}</option>
+                                    <option value="{{ attr.name|lower }}" data-name="{{ attr.name }}">{{ attr.name }}
+                                    </option>
                                     {% endfor %}
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Values</label>
-                                <select class="form-select" id="pw_attr_value_select" multiple size="4" disabled>
+                                <label class="form-label">Value</label>
+                                <select class="form-select" id="pw_attr_value_select" disabled>
                                     <option value="">-- Select Attribute First --</option>
                                 </select>
-                                <small class="text-muted">Ctrl/Cmd+click to select multiple values</small>
                             </div>
                             <div class="col-md-2">
                                 <button type="button" class="btn btn-dark w-100" id="pw_add_attr_values">Add</button>
                             </div>
                         </div>
-                    
+
                         <div id="pw_selected_attrs_summary" class="mb-3"></div>
                     </div>
-                    
+
                     <div class="mb-4">
                         <div class="mb-3" id="pw_bulk_price_set" style="display: none;">
                             <h6>Bulk Price & Stock</h6>
                             <div class="row g-2">
-                                <div class="col"><input type="number" class="form-control" id="pw_bulk_stock" placeholder="Stock"></div>
-                                <div class="col"><input type="number" class="form-control" id="pw_bulk_price" placeholder="Price"></div>
-                                <div class="col"><input type="number" class="form-control" id="pw_bulk_discount" placeholder="Discount"></div>
-                                <div class="col"><button type="button" class="btn btn-dark w-100" id="pw_apply_bulk">Apply All</button></div>
+                                <div class="col"><input type="number" class="form-control" id="pw_bulk_stock"
+                                        placeholder="Stock"></div>
+                                <div class="col"><input type="number" class="form-control" id="pw_bulk_price"
+                                        placeholder="Price"></div>
+                                <div class="col"><input type="number" class="form-control" id="pw_bulk_discount"
+                                        placeholder="Discount"></div>
+                                <div class="col"><button type="button" class="btn btn-dark w-100"
+                                        id="pw_apply_bulk">Apply All</button></div>
                             </div>
                         </div>
-                    
+
                         <div class="table-responsive">
                             <table class="table table-bordered" id="pw_variant_table">
                                 <thead class="table-dark">
                                     <tr id="pw_variant_head">
-                                        <th>Stock</th><th>Price</th><th>Discount</th><th>Active</th><th>Actions</th>
+                                        <th>Stock</th>
+                                        <th>Price</th>
+                                        <th>Discount</th>
+                                        <th>Active</th>
+                                        <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="pw_variant_table_body">
                                     <tr id="pw_variant_empty_row">
-                                        <td colspan="5" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>
+                                        <td colspan="5" class="text-center text-muted">No variants yet — select an
+                                            attribute and values above, then click Add.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -183,12 +189,37 @@
                         <a href="{% url 'product_list' %}" class="btn btn-outline-danger flex-fill">
                             <i class="bi bi-x-circle me-2"></i>Discard
                         </a>
-                        <button type="submit" name="status" value="draft" class="btn btn-outline-success flex-fill">
+                        <button type="submit" name="status_action" value="draft"
+                            class="btn btn-outline-success flex-fill">
                             <i class="bi bi-cloud-download me-2"></i>Save Draft
                         </button>
-                        <button type="submit" name="status" value="active" class="btn btn-outline-primary flex-fill">
+                        <button type="submit" name="status_action" value="active"
+                            class="btn btn-outline-primary flex-fill">
                             <i class="bi bi-send me-2"></i>Publish
                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="mb-3">Status</h5>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label for="pw_status" class="form-label">Product Status</label>
+                            <select class="form-select" id="pw_status" name="status_select">
+                                {% for status_value, status_label in CATEGORY_PRODUCT_STATUS_CHOICES %}
+                                <option value="{{ status_value }}"
+                                    {% if product and product.status == status_value %}selected
+                                    {% elif not product and status_value == "Draft" %}selected
+                                    {% endif %}>
+                                    {{ status_label }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">This applies to the whole product, whether or not it has
+                                variants.</small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -202,9 +233,33 @@
                             <select class="form-select" id="pw_category" name="category">
                                 <option value="">Select Category</option>
                                 {% for cat in categories %}
-                                <option value="{{ cat.id }}" {% if product and product.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                                {% if not cat.parent_id %}
+                                <option value="{{ cat.id }}"
+                                    {% if product and product.category_id == cat.id %}selected{% endif %}>
+                                    {{ cat.name }}
+                                </option>
+                                {% endif %}
                                 {% endfor %}
                             </select>
+                        </div>
+                        <div class="col-12" id="pw_subcategory_wrap" style="display:none;">
+                            <label for="pw_subcategory" class="form-label">Sub Category</label>
+                            <select class="form-select" id="pw_subcategory">
+                                <option value="">Select Sub Category</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Tags</label>
+                            <div class="position-relative">
+                                <input type="text" class="form-control" id="pw_tags_input" placeholder="Tags"
+                                    autocomplete="off">
+                                <ul class="list-group d-none" id="pw_tag_suggestions"
+                                    style="position:absolute; z-index:10; width:100%;"></ul>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap mt-2" id="pw_tags_list"></div>
+                            <input type="hidden" name="tags" id="pw_tags_hidden"
+                                value="{% if product %}{{ product_tag_ids|safe }}{% else %}[]{% endif %}">
                         </div>
                     </div>
                 </div>
@@ -216,44 +271,68 @@
                     <div class="row g-3">
                         <div class="col-12">
                             <label class="form-label">Regular Price</label>
-                            <input type="number" step="0.01" name="price" class="form-control" placeholder="0.00"
-                                value="{% if product %}{{ product.price }}{% endif %}">
+                            <input type="number" step="0.01" name="price" id="pw_regular_price" class="form-control"
+                                placeholder="0.00" value="{% if product %}{{ product.price }}{% endif %}">
                         </div>
                         <div class="col-12">
                             <label class="form-label">Sale Price</label>
-                            <input type="number" step="0.01" name="discount_price" class="form-control" placeholder="0.00"
+                            <input type="number" step="0.01" name="discount_price" id="pw_sale_price"
+                                class="form-control" placeholder="0.00"
                                 value="{% if product %}{{ product.discount_price }}{% endif %}">
                         </div>
                         <div class="col-12">
                             <label class="form-label">Inventory Quantity</label>
-                            <input type="number" name="inventory_quantity" class="form-control" placeholder="0"
+                            <input type="number" name="inventory_quantity" id="pw_inventory_quantity"
+                                class="form-control" placeholder="0"
                                 value="{% if product %}{{ product.inventory_quantity }}{% endif %}"
                                 {% if product and product.has_variants %}disabled{% endif %}>
-                            {% if product and product.has_variants %}
-                            <small class="text-muted">Auto-calculated from variant stock.</small>
-                            {% endif %}
+                            <small class="text-muted" id="pw_inventory_hint"
+                                style="{% if not product or not product.has_variants %}display:none;{% endif %}">Auto-calculated
+                                from variant stock.</small>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- The real status field submitted; kept in sync with pw_status select -->
+    <input type="hidden" name="status" id="pw_status_hidden"
+        value="{% if product %}{{ product.status }}{% else %}Draft{% endif %}">
 </form>
 
 <script>
     (function () {
         "use strict";
-    
+
         var attributesData = {{ attributes_data|safe }};
         var existingVariants = {{ existing_variants_data|safe }};
-    
+        var categoriesData = [
+            {% for cat in categories %}
+            { id: {{ cat.id }}, name: "{{ cat.name|escapejs }}", parent_id: {% if cat.parent_id %}{{ cat.parent_id }}{% else %}null{% endif %} }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ];
+        var currentProductCategoryId = {% if product and product.category_id %}{{ product.category_id }}{% else %}null{% endif %};
+
         var state = { attributes: {}, selected: {} };
         attributesData.forEach(function (attr) {
             var key = attr.name.toLowerCase();
             state.attributes[key] = { displayName: attr.name, values: attr.values.map(function (v) { return v.value; }) };
         });
-    
-        if (typeof Quill !== "undefined" && document.getElementById("pw-quill-editor")) {
+
+        // ================= Status select -> hidden "status" field =================
+        // Note: buttons "Save Draft" / "Publish" also set name="status" on submit,
+        // but we keep this dropdown as the source of truth for direct saves.
+        (function initStatus() {
+            var statusSelect = document.getElementById("pw_status");
+            var statusHidden = document.getElementById("pw_status_hidden");
+            statusSelect.addEventListener("change", function () {
+                statusHidden.value = statusSelect.value;
+            });
+        })();
+
+        // ================= Quill Editor (init once) =================
+        if (typeof Quill !== "undefined" && document.getElementById("pw-quill-editor") && !document.getElementById("pw-quill-editor").classList.contains("ql-container")) {
             var quill = new Quill("#pw-quill-editor", { theme: "snow" });
             var hiddenTextarea = document.getElementById("pw-full-description");
             if (hiddenTextarea.value) quill.root.innerHTML = hiddenTextarea.value;
@@ -261,150 +340,321 @@
                 hiddenTextarea.value = quill.root.innerHTML;
             });
         }
-    
+
+        // ================= Image selection (fixed duplicate-select bug) =================
         (function initImagePreview() {
-        var imageInput = document.getElementById("pw_image_input");
-        var previewBox = document.getElementById("pw_new_image_preview");
-        var primaryIndexInput = document.getElementById("pw_primary_image_index");
-        var modalImg = document.getElementById("pw_image_preview_modal_img");
-        var modalEl = document.getElementById("pw_image_preview_modal");
+            var imageInput = document.getElementById("pw_image_input");
+            var previewBox = document.getElementById("pw_new_image_preview");
+            var primaryIndexInput = document.getElementById("pw_primary_image_index");
+            var modalImg = document.getElementById("pw_image_preview_modal_img");
+            var modalEl = document.getElementById("pw_image_preview_modal");
 
-        if (!imageInput || !previewBox) return;
+            if (!imageInput || !previewBox) return;
 
-        var selectedImageFiles = [];
-        var objectUrls = [];
+            var selectedImageFiles = [];
+            var objectUrls = [];
 
-        function openPreviewModal(url) {
-            if (!modalImg || !modalEl) return;
-            modalImg.src = url;
-            if (window.bootstrap && window.bootstrap.Modal) {
-                var modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
-                modal.show();
-            } else {
-                window.open(url, "_blank");
+            (function initExistingImagePrimary() {
+                var thumbs = document.querySelectorAll(".pw-existing-image-thumb");
+                var hiddenInput = document.getElementById("pw_existing_primary_image_id");
+                if (!thumbs.length || !hiddenInput) return;
+
+                thumbs.forEach(function (thumb) {
+                    thumb.querySelector(".pw-existing-thumb-img").addEventListener("click", function () {
+                        hiddenInput.value = thumb.dataset.imageId;
+                        thumbs.forEach(function (t) {
+                            var badge = t.querySelector(".pw-existing-primary-badge");
+                            if (badge) badge.remove();
+                        });
+                        var badge = document.createElement("span");
+                        badge.className = "badge bg-success position-absolute top-0 start-0 pw-existing-primary-badge";
+                        badge.textContent = "Primary";
+                        thumb.appendChild(badge);
+                    });
+                });
+            })();
+
+            function openPreviewModal(url) {
+                if (!modalImg || !modalEl) return;
+                modalImg.src = url;
+                if (window.bootstrap && window.bootstrap.Modal) {
+                    var modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+                    modal.show();
+                } else {
+                    window.open(url, "_blank");
+                }
             }
-        }
 
-        function renderPreviews() {
-            previewBox.innerHTML = "";
+            function syncInputFiles() {
+                var dt = new DataTransfer();
+                selectedImageFiles.forEach(function (file) {
+                    dt.items.add(file);
+                });
+                imageInput.files = dt.files;
+            }
 
-            objectUrls.forEach(function (u) { URL.revokeObjectURL(u); });
-            objectUrls = [];
+            function renderPreviews() {
+                previewBox.innerHTML = "";
 
-            selectedImageFiles.forEach(function (file, index) {
-                var url = URL.createObjectURL(file);
-                objectUrls.push(url);
+                objectUrls.forEach(function (u) { URL.revokeObjectURL(u); });
+                objectUrls = [];
 
-                var isPrimary = String(index) === String(primaryIndexInput.value);
+                selectedImageFiles.forEach(function (file, index) {
+                    var url = URL.createObjectURL(file);
+                    objectUrls.push(url);
 
-                var wrap = document.createElement("div");
-                wrap.className = "position-relative pw-new-image-thumb";
-                wrap.style.width = "110px";
+                    var isPrimary = String(index) === String(primaryIndexInput.value);
 
-                wrap.innerHTML =
-                    '<img src="' + url + '" class="img-fluid rounded border pw-thumb-img" ' +
+                    var wrap = document.createElement("div");
+                    wrap.className = "position-relative pw-new-image-thumb";
+                    wrap.style.width = "110px";
+
+                    wrap.innerHTML =
+                        '<img src="' + url + '" class="img-fluid rounded border pw-thumb-img" ' +
                         'style="height:100px; object-fit:cover; width:100%; cursor:pointer;">' +
-                    (isPrimary ? '<span class="badge bg-success position-absolute top-0 start-0 pw-primary-badge">Primary</span>' : '') +
-                    '<div class="position-absolute top-0 end-0 d-flex gap-1 p-1">' +
+                        (isPrimary ? '<span class="badge bg-success position-absolute top-0 start-0 pw-primary-badge">Primary</span>' : '') +
+                        '<div class="position-absolute top-0 end-0 d-flex gap-1 p-1">' +
                         '<button type="button" class="btn btn-sm btn-light border pw-view-thumb" title="Preview" style="padding:0 5px; line-height:1.5;"><i class="bi bi-eye"></i></button>' +
                         '<button type="button" class="btn btn-sm btn-danger pw-remove-thumb" title="Remove" style="padding:0 6px; line-height:1.4;">&times;</button>' +
-                    '</div>' +
-                    '<div class="small text-truncate mt-1" style="max-width:100%;" title="' + file.name + '">' + file.name + '</div>';
+                        '</div>' +
+                        '<div class="small text-truncate mt-1" style="max-width:100%;" title="' + file.name + '">' + file.name + '</div>';
 
-                wrap.querySelector(".pw-thumb-img").addEventListener("click", function () {
-                    primaryIndexInput.value = index;
-                    renderPreviews();
+                    wrap.querySelector(".pw-thumb-img").addEventListener("click", function () {
+                        primaryIndexInput.value = index;
+                        renderPreviews();
+                    });
+
+                    wrap.querySelector(".pw-view-thumb").addEventListener("click", function (e) {
+                        e.stopPropagation();
+                        openPreviewModal(url);
+                    });
+
+                    wrap.querySelector(".pw-remove-thumb").addEventListener("click", function (e) {
+                        e.stopPropagation();
+                        var removedIndex = index;
+                        selectedImageFiles.splice(removedIndex, 1);
+
+                        var currentPrimary = parseInt(primaryIndexInput.value, 10) || 0;
+                        if (removedIndex === currentPrimary) {
+                            primaryIndexInput.value = 0;
+                        } else if (removedIndex < currentPrimary) {
+                            primaryIndexInput.value = currentPrimary - 1;
+                        }
+
+                        syncInputFiles();
+                        renderPreviews();
+                    });
+
+                    previewBox.appendChild(wrap);
                 });
+            }
 
-                wrap.querySelector(".pw-view-thumb").addEventListener("click", function (e) {
-                    e.stopPropagation();
-                    openPreviewModal(url);
-                });
+            imageInput.addEventListener("click", function () {
+                // Prevent this same input's previous file list from being
+                // treated as "already selected" when the OS file dialog reopens.
+                // We do NOT clear imageInput.value here because that would lose
+                // the already-picked files; instead we rely on the change handler
+                // below to only append genuinely new files.
+            });
 
-                wrap.querySelector(".pw-remove-thumb").addEventListener("click", function (e) {
-                    e.stopPropagation();
-                    var removedIndex = index;
-                    selectedImageFiles.splice(removedIndex, 1);
+            imageInput.addEventListener("change", function () {
+                var newFiles = Array.from(imageInput.files || []);
 
-                    var currentPrimary = parseInt(primaryIndexInput.value, 10) || 0;
-                    if (removedIndex === currentPrimary) {
-                        primaryIndexInput.value = 0;
-                    } else if (removedIndex < currentPrimary) {
-                        primaryIndexInput.value = currentPrimary - 1;
+                newFiles.forEach(function (file) {
+                    var isDuplicate = selectedImageFiles.some(function (f) {
+                        return f.name === file.name && f.size === file.size && f.lastModified === file.lastModified;
+                    });
+                    if (!isDuplicate) {
+                        selectedImageFiles.push(file);
                     }
-
-                    syncInputFiles();
-                    renderPreviews();
                 });
 
-                previewBox.appendChild(wrap);
+                syncInputFiles();
+                renderPreviews();
             });
-        }
+        })();
 
-        function syncInputFiles() {
-            var dataTransfer = new DataTransfer();
-            selectedImageFiles.forEach(function (file) {
-                dataTransfer.items.add(file);
+        // ================= Category / Subcategory cascading =================
+        (function initCategory() {
+            var categorySelect = document.getElementById("pw_category");
+            var subWrap = document.getElementById("pw_subcategory_wrap");
+            var subSelect = document.getElementById("pw_subcategory");
+
+            function getChildren(parentId) {
+                return categoriesData.filter(function (c) { return c.parent_id === parentId; });
+            }
+
+            function populateSubcategories(parentId, selectedId) {
+                var children = getChildren(parentId);
+                subSelect.innerHTML = '<option value="">Select Sub Category</option>';
+                if (!children.length) {
+                    subWrap.style.display = "none";
+                    return;
+                }
+                children.forEach(function (c) {
+                    var opt = document.createElement("option");
+                    opt.value = c.id;
+                    opt.textContent = c.name;
+                    if (selectedId && String(selectedId) === String(c.id)) opt.selected = true;
+                    subSelect.appendChild(opt);
+                });
+                subWrap.style.display = "block";
+            }
+
+            categorySelect.addEventListener("change", function () {
+                categorySelect.name = "category";
+                subSelect.name = "";
+                populateSubcategories(parseInt(categorySelect.value, 10) || null, null);
             });
-            imageInput.files = dataTransfer.files;
-        }
 
-        imageInput.addEventListener("change", function () {
-            var newFiles = Array.from(imageInput.files || []);
-
-            // reset the native input immediately so the browser doesn't
-            // carry over previously selected files into the next pick
-            imageInput.value = "";
-
-            newFiles.forEach(function (file) {
-                selectedImageFiles.push(file);
+            subSelect.addEventListener("change", function () {
+                if (subSelect.value) {
+                    subSelect.name = "category";
+                    categorySelect.name = "";
+                } else {
+                    subSelect.name = "";
+                    categorySelect.name = "category";
+                }
             });
 
-            syncInputFiles();
-            renderPreviews();
-        });
-    })();
-    
+            if (currentProductCategoryId) {
+                var currentCat = categoriesData.find(function (c) { return c.id === currentProductCategoryId; });
+                if (currentCat && currentCat.parent_id) {
+                    categorySelect.value = currentCat.parent_id;
+                    populateSubcategories(currentCat.parent_id, currentCat.id);
+                    subSelect.name = "category";
+                    categorySelect.name = "";
+                } else {
+                    populateSubcategories(currentProductCategoryId, null);
+                }
+            }
+        })();
+
+        // ================= Tags =================
         (function initTags() {
+            var TAG_API_URL = "{% url 'tag-list' %}";
             var tagInput = document.getElementById("pw_tags_input");
+            var suggestionBox = document.getElementById("pw_tag_suggestions");
             var tagsList = document.getElementById("pw_tags_list");
             var tagsHidden = document.getElementById("pw_tags_hidden");
-            var currentTags = [];
-            try { currentTags = JSON.parse(tagsHidden.value || "[]"); } catch (e) { currentTags = []; }
-    
-            function renderChip(tag) {
+            var selectedTags = new Map();
+            var debounceTimer = null;
+
+            try {
+                JSON.parse(tagsHidden.value || "[]").forEach(function (t) {
+                    selectedTags.set(t.id, t.name);
+                });
+            } catch (e) { }
+
+            function renderChip(id, name) {
                 var el = document.createElement("span");
                 el.className = "btn btn-sm btn-light border d-flex align-items-center gap-1";
-                el.innerHTML = tag + ' <i class="bi bi-x"></i>';
+                el.innerHTML = name + ' <i class="bi bi-x"></i>';
                 el.querySelector("i").onclick = function () {
-                    currentTags = currentTags.filter(function (t) { return t !== tag; });
-                    tagsHidden.value = JSON.stringify(currentTags);
+                    selectedTags.delete(id);
+                    syncHidden();
                     el.remove();
                 };
                 tagsList.appendChild(el);
             }
-            currentTags.forEach(renderChip);
-    
-            tagInput.addEventListener("keydown", function (e) {
-                if (e.key === "Enter" && this.value.trim()) {
-                    e.preventDefault();
-                    var value = this.value.trim();
-                    if (currentTags.indexOf(value) === -1) {
-                        currentTags.push(value);
-                        tagsHidden.value = JSON.stringify(currentTags);
-                        renderChip(value);
-                    }
-                    this.value = "";
+
+            function syncHidden() {
+                var arr = [];
+                selectedTags.forEach(function (name, id) {
+                    arr.push({ id: id, name: name });
+                });
+                tagsHidden.value = JSON.stringify(arr);
+            }
+
+            selectedTags.forEach(function (name, id) {
+                renderChip(id, name);
+            });
+
+            function fetchAndRenderSuggestions(q) {
+                fetch(TAG_API_URL + "?q=" + encodeURIComponent(q))
+                    .then(function (res) { return res.json(); })
+                    .then(function (data) {
+                        suggestionBox.innerHTML = "";
+                        suggestionBox.classList.remove("d-none");
+
+                        if (data.status && data.data.length) {
+                            data.data.forEach(function (tag) {
+                                var li = document.createElement("li");
+                                li.className = "list-group-item list-group-item-action";
+                                li.textContent = tag.name;
+                                li.onclick = function () {
+                                    if (!selectedTags.has(tag.id)) {
+                                        selectedTags.set(tag.id, tag.name);
+                                        renderChip(tag.id, tag.name);
+                                        syncHidden();
+                                    }
+                                    tagInput.value = "";
+                                    suggestionBox.classList.add("d-none");
+                                };
+                                suggestionBox.appendChild(li);
+                            });
+                        }
+
+                        var exists = data.status && data.data.some(function (t) {
+                            return t.name.toLowerCase() === q.toLowerCase();
+                        });
+
+                        if (q && !exists) {
+                            var addLi = document.createElement("li");
+                            addLi.className = "list-group-item list-group-item-action text-primary";
+                            addLi.textContent = 'Add new "' + q + '"';
+                            addLi.onclick = function () {
+                                fetch(TAG_API_URL, {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                        "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value
+                                    },
+                                    body: JSON.stringify({ name: q })
+                                })
+                                    .then(function (res2) { return res2.json(); })
+                                    .then(function (created) {
+                                        if (created.status) {
+                                            selectedTags.set(created.data.id, created.data.name);
+                                            renderChip(created.data.id, created.data.name);
+                                            syncHidden();
+                                        }
+                                        tagInput.value = "";
+                                        suggestionBox.classList.add("d-none");
+                                    });
+                            };
+                            suggestionBox.appendChild(addLi);
+                        }
+                    });
+            }
+
+            tagInput.addEventListener("focus", function () {
+                if (!tagInput.value.trim()) {
+                    fetchAndRenderSuggestions("");
+                }
+            });
+
+            tagInput.addEventListener("input", function () {
+                var q = this.value.trim();
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(function () {
+                    fetchAndRenderSuggestions(q);
+                }, 200);
+            });
+
+            document.addEventListener("click", function (e) {
+                if (!e.target.closest("#pw_tags_input") && !e.target.closest("#pw_tag_suggestions")) {
+                    suggestionBox.classList.add("d-none");
                 }
             });
         })();
-    
+
         // ================= Variant Attribute / Value Picker =================
         var attrSelect = document.getElementById("pw_attr_select");
         var valueSelect = document.getElementById("pw_attr_value_select");
         var addAttrBtn = document.getElementById("pw_add_attr_values");
         var summaryBox = document.getElementById("pw_selected_attrs_summary");
-    
+
         attrSelect.addEventListener("change", function () {
             var key = attrSelect.value;
             var info = state.attributes[key];
@@ -414,15 +664,18 @@
                 return;
             }
             valueSelect.disabled = false;
+            var placeholder = document.createElement("option");
+            placeholder.value = "";
+            placeholder.textContent = "-- Select Value --";
+            valueSelect.appendChild(placeholder);
             info.values.forEach(function (val) {
                 var opt = document.createElement("option");
                 opt.value = val;
                 opt.textContent = val;
-                if (state.selected[key] && state.selected[key].has(val)) opt.selected = true;
                 valueSelect.appendChild(opt);
             });
         });
-    
+
         function renderSummary() {
             summaryBox.innerHTML = "";
             Object.keys(state.selected).forEach(function (key) {
@@ -448,19 +701,19 @@
                 summaryBox.appendChild(row);
             });
         }
-    
+
         addAttrBtn.addEventListener("click", function () {
             var key = attrSelect.value;
             if (!key) { alert("Select an attribute first."); return; }
-            var chosen = Array.from(valueSelect.selectedOptions).map(function (o) { return o.value; });
-            if (!chosen.length) { alert("Select at least one value."); return; }
+            var chosen = valueSelect.value;
+            if (!chosen) { alert("Select a value."); return; }
             if (!state.selected[key]) state.selected[key] = new Set();
-            chosen.forEach(function (val) { state.selected[key].add(val); });
+            state.selected[key].add(chosen);
             renderSummary();
             generateVariantTable();
-            valueSelect.selectedIndex = -1;
+            valueSelect.value = "";
         });
-    
+
         function cartesian(arrays) {
             return arrays.reduce(function (acc, curr) {
                 var result = [];
@@ -468,29 +721,29 @@
                 return result;
             }, [[]]);
         }
-    
+
         function addVariantRow(tbody, attrKeys, combo, attributes, existing) {
             var tr = document.createElement("tr");
             var cells = "";
             attrKeys.forEach(function (key, i) {
                 cells += "<td>" + (state.attributes[key] ? state.attributes[key].displayName : key) + ": " + combo[i] + "</td>";
             });
-    
+
             var stockVal = existing ? existing.inventory_quantity : "";
             var priceVal = existing ? existing.price : "";
             var discountVal = existing ? existing.discount_price : "";
             var activeChecked = existing ? (existing.is_active ? "checked" : "") : "checked";
             var variantId = existing ? existing.id : "";
-    
+
             cells += '<td><input type="number" class="form-control pw-stock" value="' + stockVal + '"></td>' +
                 '<td><input type="number" step="0.01" class="form-control pw-price" value="' + priceVal + '"></td>' +
                 '<td><input type="number" step="0.01" class="form-control pw-discount" value="' + discountVal + '"></td>' +
                 '<td><div class="form-check form-switch"><input class="form-check-input pw-active-toggle" type="checkbox" ' + activeChecked + '></div></td>' +
                 '<td><button type="button" class="btn btn-sm btn-outline-danger pw-remove-row"><i class="bi bi-trash"></i></button>' +
                 '<input type="hidden" class="pw-variant-hidden" name="variants"></td>';
-    
+
             tr.innerHTML = cells;
-    
+
             var syncRow = function () {
                 var payload = {
                     attributes: attributes,
@@ -502,7 +755,7 @@
                 if (variantId) payload.id = variantId;
                 tr.querySelector(".pw-variant-hidden").value = JSON.stringify(payload);
             };
-    
+
             tr.querySelectorAll(".pw-stock, .pw-price, .pw-discount, .pw-active-toggle").forEach(function (el) {
                 el.addEventListener("input", syncRow);
                 el.addEventListener("change", syncRow);
@@ -515,19 +768,53 @@
                     empty.innerHTML = '<td colspan="5" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>';
                     tbody.appendChild(empty);
                 }
+                toggleInventorySection();
             });
-    
+
             syncRow();
             tbody.appendChild(tr);
         }
-    
+
+        function toggleInventorySection() {
+            var regularPrice = document.getElementById("pw_regular_price");
+            var salePrice = document.getElementById("pw_sale_price");
+            var inventoryQty = document.getElementById("pw_inventory_quantity");
+            var inventoryHint = document.getElementById("pw_inventory_hint");
+            var bulkBox = document.getElementById("pw_bulk_price_set");
+            var variantTable = document.getElementById("pw_variant_table");
+
+            var hasVariantRows = document.querySelectorAll("#pw_variant_table_body tr:not(#pw_variant_empty_row)").length > 0;
+
+            if (hasVariantRows) {
+                regularPrice.disabled = true;
+                salePrice.disabled = true;
+                inventoryQty.disabled = true;
+                inventoryHint.style.display = "block";
+                variantTable.style.opacity = "1";
+                variantTable.style.pointerEvents = "auto";
+                if (bulkBox.style.display !== "none") {
+                    bulkBox.style.opacity = "1";
+                    bulkBox.style.pointerEvents = "auto";
+                }
+            } else {
+                regularPrice.disabled = false;
+                salePrice.disabled = false;
+                inventoryQty.disabled = false;
+                inventoryHint.style.display = "none";
+                variantTable.style.opacity = "0.5";
+                variantTable.style.pointerEvents = "none";
+                bulkBox.style.opacity = "0.5";
+                bulkBox.style.pointerEvents = "none";
+            }
+        }
+
         function generateVariantTable() {
             var tbody = document.getElementById("pw_variant_table_body");
             var thead = document.getElementById("pw_variant_head");
             if (!tbody || !thead) return;
-    
+
             var attrKeys = Object.keys(state.selected).filter(function (k) { return state.selected[k].size > 0; });
-    
+
             thead.innerHTML = "";
             attrKeys.forEach(function (key) {
                 var th = document.createElement("th");
@@ -539,23 +826,24 @@
                 th.textContent = label;
                 thead.appendChild(th);
             });
-    
+
             tbody.innerHTML = "";
             var bulkBox = document.getElementById("pw_bulk_price_set");
-    
+
             if (!attrKeys.length) {
                 bulkBox.style.display = "none";
                 var empty = document.createElement("tr");
                 empty.id = "pw_variant_empty_row";
                 empty.innerHTML = '<td colspan="5" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>';
                 tbody.appendChild(empty);
+                toggleInventorySection();
                 return;
             }
             bulkBox.style.display = "block";
-    
+
             var valueArrays = attrKeys.map(function (key) { return Array.from(state.selected[key]); });
             var combinations = cartesian(valueArrays);
-    
+
             combinations.forEach(function (combo) {
                 var attributes = {};
                 attrKeys.forEach(function (key, i) { attributes[key] = combo[i]; });
@@ -564,8 +852,10 @@
                 });
                 addVariantRow(tbody, attrKeys, combo, attributes, existing);
             });
+
+            toggleInventorySection();
         }
-    
+
         var bulkBtn = document.getElementById("pw_apply_bulk");
         if (bulkBtn) {
             bulkBtn.addEventListener("click", function (e) {
@@ -582,7 +872,7 @@
                 });
             });
         }
-    
+
         if (existingVariants.length) {
             existingVariants.forEach(function (v) {
                 var attrs = v.attributes || {};
@@ -593,6 +883,8 @@
             });
             renderSummary();
             generateVariantTable();
+        } else {
+            toggleInventorySection();
         }
     })();
-    </script>
+</script>

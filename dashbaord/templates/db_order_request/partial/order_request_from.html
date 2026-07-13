@@ -1,6 +1,7 @@
 {% load static %}
 
-<form method="POST" id="order-request-form" enctype="multipart/form-data">
+<form method="POST" id="order-request-form" enctype="multipart/form-data"
+    action="{% if is_update %}{% url 'edit_order_request' order_request.pk %}{% else %}{% url 'add_order_request' %}{% endif %}">
     {% csrf_token %}
 
     <div class="row">
@@ -14,54 +15,78 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Company (Optional)</label>
-                            <input type="text" class="form-control" name="company" placeholder="Enter Company Name">
+                            <input type="text" class="form-control" name="company" placeholder="Enter Company Name"
+                                value="{% if order_request %}{{ order_request.customer.company|default:'' }}{% endif %}">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Name</label>
-                            <input type="text" class="form-control" name="name" placeholder="Enter Your Name" required>
+                            <input type="text" class="form-control" name="name" placeholder="Enter Your Name" required
+                                value="{% if order_request %}{{ order_request.customer.name|default:'' }}{% endif %}">
                         </div>
 
                         <div class="col-md-4">
                             <label class="form-label">Email</label>
-                            <input type="email" class="form-control" name="email" placeholder="Enter email address">
+                            <input type="email" class="form-control" name="email" placeholder="Enter email address"
+                                value="{% if order_request %}{{ order_request.customer.email|default:'' }}{% endif %}">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Phone number</label>
-                            <input type="text" class="form-control" name="phone" placeholder="Enter Phone Number" required>
+                            <input type="text" class="form-control" name="phone" placeholder="Enter Phone Number"
+                                required
+                                value="{% if order_request %}{{ order_request.customer.phone|default:'' }}{% endif %}">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Second phone number (Optional)</label>
-                            <input type="text" class="form-control" name="second_phone" placeholder="Second Phone Number">
+                            <input type="text" class="form-control" name="second_phone"
+                                placeholder="Second Phone Number"
+                                value="{% if order_request %}{{ order_request.customer.second_phone|default:'' }}{% endif %}">
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label">Design file (Optional)</label>
-                            <input type="file" class="form-control" name="design_file">
+                            <input type="file" class="form-control" name="design_file" id="design_file_input"
+                                {% if order_request and order_request.design_file %}style="display:none;"{% endif %}>
+
+                            {% if order_request and order_request.design_file %}
+                            <div id="existing_design_file_wrapper" class="position-relative d-inline-block mt-2">
+                                <img src="{{ order_request.design_file.url }}" alt="Design file"
+                                    style="max-width:120px; max-height:120px; border-radius:6px; border:1px solid #444;">
+                                <button type="button" id="remove_design_file_btn"
+                                    class="btn btn-sm btn-danger position-absolute top-0 start-100 translate-middle rounded-circle p-1"
+                                    style="line-height:1;">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                            {% endif %}
+                            <input type="hidden" name="delete_design_file" id="delete_design_file_input" value="">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Source</label>
                             <select class="form-select" name="source">
-                                <option value="Others" selected>Others</option>
-                                <option value="Facebook">Facebook</option>
-                                <option value="Instagram">Instagram</option>
-                                <option value="WhatsApp">WhatsApp</option>
-                                <option value="Website">Website</option>
-                                <option value="Referral">Referral</option>
+                                <option value="Others" {% if order_request and order_request.customer.source == "Others" or not order_request %}selected{% endif %}>Others</option>
+                                <option value="Facebook" {% if order_request and order_request.customer.source == "Facebook" %}selected{% endif %}>Facebook</option>
+                                <option value="Instagram" {% if order_request and order_request.customer.source == "Instagram" %}selected{% endif %}>Instagram</option>
+                                <option value="WhatsApp" {% if order_request and order_request.customer.source == "WhatsApp" %}selected{% endif %}>WhatsApp</option>
+                                <option value="Website" {% if order_request and order_request.customer.source == "Website" %}selected{% endif %}>Website</option>
+                                <option value="Referral" {% if order_request and order_request.customer.source == "Referral" %}selected{% endif %}>Referral</option>
                             </select>
                         </div>
 
                         <div class="col-md-8">
                             <label class="form-label">Delivery address</label>
-                            <input type="text" class="form-control" name="shipping_address" placeholder="Enter Delivery Address" required>
+                            <input type="text" class="form-control" name="shipping_address"
+                                placeholder="Enter Delivery Address" required
+                                value="{% if order_request %}{{ order_request.shipping_address|default:'' }}{% endif %}">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Order Created Date</label>
-                            <input type="date" class="form-control" name="order_created_date">
+                            <input type="date" class="form-control" name="order_created_date"
+                                value="{% if order_request and order_request.order_created_date %}{{ order_request.order_created_date|date:'Y-m-d' }}{% endif %}">
                         </div>
 
                         <div class="col-12">
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="is_urgent" id="is_urgent">
+                                <input class="form-check-input" type="checkbox" name="is_urgent" id="is_urgent" {% if order_request and order_request.is_urgent %}checked{% endif %}>
                                 <label class="form-check-label" for="is_urgent">Is it urgent?</label>
                             </div>
                         </div>
@@ -72,7 +97,7 @@
                             <label class="form-label">Delivery Type</label>
                             <select class="form-select" name="delivery_type">
                                 {% for value, label in delivery_types %}
-                                <option value="{{ value }}">{{ label }}</option>
+                                <option value="{{ value }}" {% if order_request and order_request.delivery_type == value %}selected{% endif %}>{{ label }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -80,7 +105,7 @@
                             <label class="form-label">Payment Type</label>
                             <select class="form-select" name="payment_type">
                                 {% for value, label in payment_types %}
-                                <option value="{{ value }}">{{ label }}</option>
+                                <option value="{{ value }}" {% if order_request and order_request.payment_type == value %}selected{% endif %}>{{ label }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -88,7 +113,8 @@
 
                     <div class="mb-3 mt-3">
                         <label class="form-label">Note <span class="text">(optional)</span></label>
-                        <textarea class="form-control" name="note" rows="2"></textarea>
+                        <textarea class="form-control" name="note"
+                            rows="2">{% if order_request %}{{ order_request.note|default:'' }}{% endif %}</textarea>
                     </div>
                 </div>
             </div>
@@ -98,40 +124,37 @@
                 <div class="card-body">
                     <h5 class="mb-3">Products</h5>
                     <p class="text small">
-                        Stock is not enforced strictly here — company may restock as needed. Quantity is what's requested/ordered.
+                        Stock is not enforced strictly here — company may restock as needed. Quantity is what's
+                        requested/ordered.
                     </p>
 
-                    <div class="row g-2 align-items-end">
-                        <div class="col-md-5">
+                    <div class="row g-2 align-items-end mb-2">
+                        <div class="col-md-4">
                             <label class="form-label">Product</label>
                             <select id="product_select" class="form-select">
                                 <option value="" disabled selected>-- Select Product --</option>
                                 {% for product in products %}
-                                <option value="{{ product.id }}"
-                                        data-name="{{ product.name }}"
-                                        data-price="{{ product.price }}"
-                                        data-discount="{{ product.discount_price }}"
-                                        data-has-variants="{{ product.has_variants|yesno:'true,false' }}">
+                                <option value="{{ product.id }}" data-name="{{ product.name }}"
+                                    data-price="{{ product.price }}" data-discount="{{ product.discount_price }}"
+                                    data-has-variants="{{ product.has_variants|yesno:'true,false' }}">
                                     {{ product.name }}
                                 </option>
                                 {% endfor %}
                             </select>
                         </div>
-                        <!-- <div class="col-md-4">
-                            <label class="form-label">Variant <span class="text-muted">(if any)</span></label>
-                            <select id="variant_select" class="form-select">
-                                <option value="">-- No Variant --</option>
-                            </select>
-                        </div> -->
-                        <div class="col-md-7" id="variant_attrs_container" style="display:none;">
+
+                        <div class="col-md-4" id="variant_attrs_container" style="display:none;">
                             <label class="form-label">Variant</label>
-                            <div id="variant_attrs_wrapper" class="row g-2"></div>
+                            <div id="variant_attrs_wrapper" class="d-flex gap-2 flex-wrap"></div>
                         </div>
+
                         <div class="col-md-2">
                             <label class="form-label">Qty</label>
                             <input type="number" id="qty_input" class="form-control" value="1" min="1">
                         </div>
-                        <div class="col-md-1">
+
+                        <div class="col-md-2">
+                            <label class="form-label d-block">&nbsp;</label>
                             <button type="button" id="add_item_btn" class="btn btn-outline-primary w-100">
                                 <i class="bi bi-plus-lg"></i>
                             </button>
@@ -171,12 +194,16 @@
 
                     <div class="mb-3">
                         <label class="form-label">Shipping Charge</label>
-                        <input type="number" step="0.01" min="0" class="form-control" name="shipping_total" id="shipping_total_input" value="0">
+                        <input type="number" step="0.01" min="0" class="form-control" name="shipping_total"
+                            id="shipping_total_input"
+                            value="{% if order_request %}{{ order_request.shipping_total }}{% else %}0{% endif %}">
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Advance Amount</label>
-                        <input type="number" step="0.01" min="0" class="form-control" name="advance_amount" id="advance_amount_input" value="0">
+                        <input type="number" step="0.01" min="0" class="form-control" name="advance_amount"
+                            id="advance_amount_input"
+                            value="{% if order_request %}{{ order_request.advance_amount }}{% else %}0{% endif %}">
                     </div>
 
                     <div class="d-flex justify-content-between border-top pt-2">
@@ -208,18 +235,27 @@
                     <label class="form-label">Order Status</label>
                     <select class="form-select" name="status">
                         {% for value, label in status_choices %}
-                        <option value="{{ value }}">{{ label }}</option>
+                        <option value="{{ value }}" {% if order_request and order_request.status == value %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
 
                     <label class="form-label mt-3">Work assign (Optional)</label>
-                    <input type="text" class="form-control" name="work_assign" placeholder="---------">
+                    <select class="form-select" name="work_assign">
+                        <option value="">-- Unassigned --</option>
+                        {% for user in assignable_users %}
+                        <option value="{{ user.id }}" {% if order_request and order_request.work_assign_id == user.id %}selected{% endif %}>
+                            {{ user.username }} ({{ user.get_user_type_display }})
+                        </option>
+                        {% endfor %}
+                    </select>
 
                     <label class="form-label mt-3">Delivery date (Optional)</label>
-                    <input type="date" class="form-control" name="delivery_date">
+                    <input type="date" class="form-control" name="delivery_date"
+                        value="{% if order_request and order_request.delivery_date %}{{ order_request.delivery_date|date:'Y-m-d' }}{% endif %}">
 
                     <label class="form-label mt-3">Special instructions (Optional)</label>
-                    <textarea class="form-control" name="special_instructions" rows="2" placeholder="Enter Special Instructions (optional)"></textarea>
+                    <textarea class="form-control" name="special_instructions" rows="2"
+                        placeholder="Enter Special Instructions (optional)">{% if order_request %}{{ order_request.special_instructions|default:'' }}{% endif %}</textarea>
                 </div>
             </div>
 
@@ -236,7 +272,9 @@
             <div class="card">
                 <div class="card-body d-flex gap-2">
                     <a href="{% url 'order_request_list' %}" class="btn btn-outline-danger flex-fill">Discard</a>
-                    <button type="submit" class="btn btn-outline-primary flex-fill">Save Request</button>
+                    <button type="submit" class="btn btn-outline-primary flex-fill">
+                        {% if is_update %}Update Request{% else %}Save Request{% endif %}
+                    </button>
                 </div>
             </div>
 
@@ -256,21 +294,36 @@
         const itemsHiddenInput = document.getElementById("items_hidden_input");
         const shippingInput = document.getElementById("shipping_total_input");
         const advanceInput = document.getElementById("advance_amount_input");
-    
+
         const variantAttrsContainer = document.getElementById("variant_attrs_container");
         const variantAttrsWrapper = document.getElementById("variant_attrs_wrapper");
-    
+
         const VARIANTS_BY_PRODUCT = {{ variants_by_product_json|default:"{}"|safe }};
-    
+
         let items = [];
         let currentAttrSelections = {};
         let matchedVariant = null;
-    
+
+        const EXISTING_ITEMS = {{ existing_items_json|default:"[]"|safe }};
+
+        const removeDesignFileBtn = document.getElementById("remove_design_file_btn");
+        const existingDesignFileWrapper = document.getElementById("existing_design_file_wrapper");
+        const deleteDesignFileInput = document.getElementById("delete_design_file_input");
+        const designFileInput = document.getElementById("design_file_input");
+
+        if (removeDesignFileBtn) {
+            removeDesignFileBtn.addEventListener("click", function () {
+                deleteDesignFileInput.value = "on";
+                existingDesignFileWrapper.style.display = "none";
+                designFileInput.style.display = "block";
+            });
+        }
+
         function getProductVariants() {
             const productId = productSelect.value;
             return VARIANTS_BY_PRODUCT[productId] || [];
         }
-    
+
         function buildAttrOptionsMap(variants) {
             const map = {};
             variants.forEach(function (v) {
@@ -281,76 +334,78 @@
             });
             return map;
         }
-    
+
         function renderVariantAttrDropdowns() {
             variantAttrsWrapper.innerHTML = "";
             currentAttrSelections = {};
             matchedVariant = null;
-    
+
             const productOpt = productSelect.options[productSelect.selectedIndex];
             const hasVariants = productOpt && productOpt.dataset.hasVariants === "true";
             const variants = getProductVariants();
-    
+
             if (!hasVariants || !variants.length) {
                 variantAttrsContainer.style.display = "none";
                 return;
             }
-    
+
             variantAttrsContainer.style.display = "block";
             const attrMap = buildAttrOptionsMap(variants);
-    
+
             Object.keys(attrMap).forEach(function (attrKey) {
                 const col = document.createElement("div");
-                col.className = "col-auto";
-    
+                col.className = "flex-grow-1";
+                col.style.minWidth = "140px";
+                col.style.maxWidth = "200px";
+
                 const label = document.createElement("label");
-                label.className = "form-label small text mb-1 d-block";
+                label.className = "form-label small text-muted mb-1 d-block";
                 label.textContent = attrKey.charAt(0).toUpperCase() + attrKey.slice(1);
-    
+
                 const select = document.createElement("select");
                 select.className = "form-select form-select-sm variant-attr-select";
                 select.dataset.attrKey = attrKey;
-    
+
                 const placeholder = document.createElement("option");
                 placeholder.value = "";
                 placeholder.textContent = "-- " + attrKey + " --";
                 placeholder.disabled = true;
                 placeholder.selected = true;
                 select.appendChild(placeholder);
-    
+
                 Array.from(attrMap[attrKey]).sort().forEach(function (val) {
                     const opt = document.createElement("option");
                     opt.value = val;
                     opt.textContent = val;
                     select.appendChild(opt);
                 });
-    
+
                 select.addEventListener("change", function () {
                     currentAttrSelections[attrKey] = select.value;
                     recomputeMatchedVariant(variants);
                 });
-    
+
                 col.appendChild(label);
                 col.appendChild(select);
                 variantAttrsWrapper.appendChild(col);
             });
         }
-    
+
         function recomputeMatchedVariant(variants) {
             const selects = variantAttrsWrapper.querySelectorAll(".variant-attr-select");
             const allChosen = Array.from(selects).every(function (s) { return s.value; });
             matchedVariant = null;
             if (!allChosen) return;
-    
+
             matchedVariant = variants.find(function (v) {
                 return Object.keys(currentAttrSelections).every(function (k) {
                     return (v.attributes || {})[k] === currentAttrSelections[k];
                 });
             }) || null;
         }
-    
+
         productSelect.addEventListener("change", renderVariantAttrDropdowns);
-    
+
         function currentUnitPrice() {
             const productOpt = productSelect.options[productSelect.selectedIndex];
             const hasVariants = productOpt && productOpt.dataset.hasVariants === "true";
@@ -361,12 +416,12 @@
             if (!productOpt || !productOpt.value) return 0;
             return parseFloat(productOpt.dataset.discount) || parseFloat(productOpt.dataset.price) || 0;
         }
-    
+
         function currentVariantLabel() {
             if (!matchedVariant) return null;
             return Object.entries(matchedVariant.attributes || {}).map(function ([k, v]) { return k + ": " + v; }).join(", ");
         }
-    
+
         function renderItems() {
             itemsTbody.innerHTML = "";
             if (items.length === 0) {
@@ -388,21 +443,21 @@
             updateTotals();
             syncHiddenInput();
         }
-    
+
         function updateTotals() {
             const itemsTotal = items.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
             const shipping = parseFloat(shippingInput.value) || 0;
             const advance = parseFloat(advanceInput.value) || 0;
             const grandTotal = itemsTotal + shipping;
             const totalDue = grandTotal - advance;
-    
+
             document.getElementById("items_total_display").textContent = "৳" + itemsTotal.toFixed(2);
             document.getElementById("shipping_total_display").textContent = "৳" + shipping.toFixed(2);
             document.getElementById("advance_amount_display").textContent = "৳" + advance.toFixed(2);
             document.getElementById("grand_total_display").textContent = "৳" + grandTotal.toFixed(2);
             document.getElementById("total_due_display").textContent = "৳" + totalDue.toFixed(2);
         }
-    
+
         function syncHiddenInput() {
             const payload = items.map(function (i) {
                 return {
@@ -413,22 +468,36 @@
             });
             itemsHiddenInput.value = JSON.stringify(payload);
         }
-    
+
+        if (EXISTING_ITEMS.length) {
+            EXISTING_ITEMS.forEach(function (it) {
+                items.push({
+                    product_id: String(it.product_id),
+                    product_name: it.product_name,
+                    variant_id: it.variant_id,
+                    variant_label: it.variant_label,
+                    quantity: it.quantity,
+                    unit_price: parseFloat(it.unit_price) || 0
+                });
+            });
+        }
+        renderItems();
+
         addItemBtn.addEventListener("click", function () {
             const productOpt = productSelect.options[productSelect.selectedIndex];
             if (!productSelect.value) {
                 alert("Please select a product first.");
                 return;
             }
-    
+
             const hasVariants = productOpt.dataset.hasVariants === "true";
             if (hasVariants && !matchedVariant) {
                 alert("Please select all variant options.");
                 return;
             }
-    
+
             const qty = parseInt(qtyInput.value) || 1;
-    
+
             items.push({
                 product_id: productSelect.value,
                 product_name: productOpt.dataset.name,
@@ -437,15 +506,15 @@
                 quantity: qty,
                 unit_price: currentUnitPrice()
             });
-    
+
             renderItems();
             qtyInput.value = 1;
-    
+
             variantAttrsWrapper.querySelectorAll(".variant-attr-select").forEach(function (s) { s.selectedIndex = 0; });
             currentAttrSelections = {};
             matchedVariant = null;
         });
-    
+
         itemsTbody.addEventListener("click", function (e) {
             const btn = e.target.closest(".remove-item-btn");
             if (!btn) return;
@@ -453,17 +522,15 @@
             items.splice(index, 1);
             renderItems();
         });
-    
+
         shippingInput.addEventListener("input", updateTotals);
         advanceInput.addEventListener("input", updateTotals);
-    
+
         document.getElementById("order-request-form").addEventListener("submit", function (e) {
             if (items.length === 0) {
                 e.preventDefault();
                 alert("Please add at least one product.");
             }
         });
-    
-        renderItems();
     })();
-    </script>
+</script>

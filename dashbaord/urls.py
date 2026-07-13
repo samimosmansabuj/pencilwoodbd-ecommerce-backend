@@ -1,6 +1,6 @@
 from django.urls import path, include
 from .views import *
-from .api_views import AttributeAPIViews
+from .api_views import *
 from rest_framework.routers import DefaultRouter
 
 urlpatterns = [
@@ -18,13 +18,14 @@ urlpatterns = [
     # path('media-center/', product_list, name='media_center'),
 
     path('category-list/', CategoryView.as_view(), name='category_list'),
-    path('category-add/', add_category, name='category_add'),
+    # path('category-add/', add_category, name='category_add'),
     path('get-category/<int:id>/', get_category, name='get_category'),
     path('delete-category/<int:id>/', delete_category, name='delete_category'),
 
     path("orders/add/",AddOrderView.as_view(),name="add_order"),
     path('order-list/', OrderView.as_view(), name='order_list'),
     path('order-detail/<int:id>/', OrderDetailView.as_view(), name='order_detail'),
+    path('order-detail/<int:pk>/update/', OrderUpdateView.as_view(), name='order_update_full'),
     path('orders/delete/<int:pk>/', OrderDeleteView.as_view(), name='order_delete'),
     path('orders/delivery-option-submit/<int:pk>/', OrderDeliveryOptionSubmitView.as_view(), name='order_delivery_option_submit'),
     path('orders/<int:id>/invoice/', OrderInvoiceView.as_view(), name='order_invoice'),
@@ -32,11 +33,12 @@ urlpatterns = [
 
     # ------------------Order Request------------------
     path("order-requests/add/",AddOrderRequestView.as_view(),name="add_order_request"),
-
+    path("order-requests/<int:pk>/edit/", AddOrderRequestView.as_view(), name="edit_order_request"),
     path("order-request/",OrderRequestListView.as_view(),name="order_request_list",),
     path("order-request/<int:id>/",OrderRequestDetailView.as_view(),name="order_request_detail",),
     path("order-request/<int:pk>/approve/",ApproveOrderRequestView.as_view(),name="approve_order_request",),
     path("order-request/<int:pk>/reject/",RejectOrderRequestView.as_view(),name="reject_order_request",),
+    path("order-request/<int:pk>/work-status/", UpdateOrderRequestWorkStatusView.as_view(), name="update_order_request_work_status"),
 
     # ------------------Attribute & Attribute Value------------------
     path('attribute-list/', AttributeView.as_view(), name='attribute_list'),
@@ -48,5 +50,7 @@ urlpatterns = [
 
 
 router = DefaultRouter()
-router.register("api/v1/attribute", AttributeAPIViews, basename="attribute")
+router.register("api/v1/attribute", AttributeAPIViews, basename="attribute"),
+router.register("api/v1/tag", TagAPIViews, basename="tag")
+
 urlpatterns += router.urls

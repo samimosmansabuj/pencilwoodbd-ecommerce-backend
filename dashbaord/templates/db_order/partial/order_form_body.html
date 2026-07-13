@@ -1,6 +1,7 @@
 {% load static %}
 
-<form method="POST" id="order-form" enctype="multipart/form-data">
+<form method="POST" id="order-form" enctype="multipart/form-data"
+    action="{% if is_update %}{% url 'order_update_full' order.pk %}{% else %}{% url 'add_order' %}{% endif %}">
     {% csrf_token %}
 
     <div class="row">
@@ -14,57 +15,73 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Company (Optional)</label>
-                            <input type="text" class="form-control" name="company" placeholder="Enter Company Name">
+                            <input type="text" class="form-control" name="company" placeholder="Enter Company Name"
+                                value="{% if order %}{{ order.customer.company|default:'' }}{% endif %}">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Name</label>
-                            <input type="text" class="form-control" name="name" placeholder="Enter Your Name" required>
+                            <input type="text" class="form-control" name="name" placeholder="Enter Your Name" required
+                                value="{% if order %}{{ order.customer.name|default:'' }}{% endif %}">
                         </div>
 
                         <div class="col-md-4">
                             <label class="form-label">Email</label>
-                            <input type="email" class="form-control" name="email" placeholder="Enter email address">
+                            <input type="email" class="form-control" name="email" placeholder="Enter email address"
+                                value="{% if order %}{{ order.customer.email|default:'' }}{% endif %}">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Phone number</label>
-                            <input type="text" class="form-control" name="phone" placeholder="Enter Phone Number"
-                                required>
+                            <input type="text" class="form-control" name="phone" placeholder="Enter Phone Number" required
+                                value="{% if order %}{{ order.customer.phone|default:'' }}{% endif %}">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Second phone number (Optional)</label>
-                            <input type="text" class="form-control" name="second_phone"
-                                placeholder="Second Phone Number">
+                            <input type="text" class="form-control" name="second_phone" placeholder="Second Phone Number"
+                                value="{% if order %}{{ order.customer.second_phone|default:'' }}{% endif %}">
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label">Design file (Optional)</label>
-                            <input type="file" class="form-control" name="design_file">
+                            <input type="file" class="form-control" name="design_file" accept="*/*">
+                            {% if is_update and order.design_file %}
+                            <div class="mt-2 d-flex align-items-center gap-2">
+                                <a href="{{ order.design_file.url }}" target="_blank" class="small">View current file</a>
+                                <div class="form-check ms-2">
+                                    <input class="form-check-input" type="checkbox" name="delete_design_file" id="delete_design_file">
+                                    <label class="form-check-label text-danger small" for="delete_design_file">Remove file</label>
+                                </div>
+                            </div>
+                            {% endif %}
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Source</label>
                             <select class="form-select" name="source">
-                                <option value="Others" selected>Others</option>
-                                <option value="Facebook">Facebook</option>
-                                <option value="Instagram">Instagram</option>
-                                <option value="WhatsApp">WhatsApp</option>
-                                <option value="Website">Website</option>
-                                <option value="Referral">Referral</option>
+                                {% with current_source=order.customer.source|default:"Others" %}
+                                <option value="Others" {% if current_source == "Others" %}selected{% endif %}>Others</option>
+                                <option value="Facebook" {% if current_source == "Facebook" %}selected{% endif %}>Facebook</option>
+                                <option value="Instagram" {% if current_source == "Instagram" %}selected{% endif %}>Instagram</option>
+                                <option value="WhatsApp" {% if current_source == "WhatsApp" %}selected{% endif %}>WhatsApp</option>
+                                <option value="Website" {% if current_source == "Website" %}selected{% endif %}>Website</option>
+                                <option value="Referral" {% if current_source == "Referral" %}selected{% endif %}>Referral</option>
+                                {% endwith %}
                             </select>
                         </div>
 
                         <div class="col-md-8">
                             <label class="form-label">Delivery address</label>
-                            <input type="text" class="form-control" name="shipping_address"
-                                placeholder="Enter Delivery Address" required>
+                            <input type="text" class="form-control" name="shipping_address" placeholder="Enter Delivery Address" required
+                                value="{% if order %}{{ order.shipping_address|default:'' }}{% endif %}">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Order Created Date</label>
-                            <input type="date" class="form-control" name="order_created_date">
+                            <input type="date" class="form-control" name="order_created_date"
+                                value="{% if order and order.order_created_date %}{{ order.order_created_date|date:'Y-m-d' }}{% endif %}">
                         </div>
 
                         <div class="col-12">
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="is_urgent" id="is_urgent">
+                                <input class="form-check-input" type="checkbox" name="is_urgent" id="is_urgent"
+                                    {% if order and order.is_urgent %}checked{% endif %}>
                                 <label class="form-check-label" for="is_urgent">Is it urgent?</label>
                             </div>
                         </div>
@@ -75,7 +92,7 @@
                             <label class="form-label">Delivery Type</label>
                             <select class="form-select" name="delivery_type">
                                 {% for value, label in delivery_types %}
-                                <option value="{{ value }}">{{ label }}</option>
+                                <option value="{{ value }}" {% if order and order.delivery_type == value %}selected{% endif %}>{{ label }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -83,7 +100,7 @@
                             <label class="form-label">Payment Type</label>
                             <select class="form-select" name="payment_type">
                                 {% for value, label in payment_types %}
-                                <option value="{{ value }}">{{ label }}</option>
+                                <option value="{{ value }}" {% if order and order.payment_type == value %}selected{% endif %}>{{ label }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -91,7 +108,7 @@
 
                     <div class="mb-3 mt-3">
                         <label class="form-label">Note <span class="text">(optional)</span></label>
-                        <textarea class="form-control" name="note" rows="2"></textarea>
+                        <textarea class="form-control" name="note" rows="2">{% if order %}{{ order.note|default:'' }}{% endif %}</textarea>
                     </div>
                 </div>
             </div>
@@ -119,17 +136,17 @@
                                 {% endfor %}
                             </select>
                         </div>
-                    
+
                         <div class="col-md-4" id="variant_attrs_container" style="display:none;">
                             <label class="form-label">Variant</label>
                             <div id="variant_attrs_wrapper" class="d-flex gap-2 flex-wrap"></div>
                         </div>
-                    
+
                         <div class="col-md-2">
                             <label class="form-label">Qty</label>
                             <input type="number" id="qty_input" class="form-control" value="1" min="1">
                         </div>
-                    
+
                         <div class="col-md-2">
                             <label class="form-label d-block">&nbsp;</label>
                             <button type="button" id="add_item_btn" class="btn btn-outline-primary w-100">
@@ -172,13 +189,13 @@
                     <div class="mb-3">
                         <label class="form-label">Shipping Charge</label>
                         <input type="number" step="0.01" min="0" class="form-control" name="shipping_total"
-                            id="shipping_total_input" value="0">
+                            id="shipping_total_input" value="{% if order %}{{ order.shipping_total }}{% else %}0{% endif %}">
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Advance Amount</label>
                         <input type="number" step="0.01" min="0" class="form-control" name="advance_amount"
-                            id="advance_amount_input" value="0">
+                            id="advance_amount_input" value="{% if order %}{{ order.advance_amount }}{% else %}0{% endif %}">
                     </div>
 
                     <div class="d-flex justify-content-between border-top pt-2">
@@ -210,7 +227,7 @@
                     <label class="form-label">Order Status</label>
                     <select class="form-select" name="status">
                         {% for value, label in status_choices %}
-                        <option value="{{ value }}">{{ label }}</option>
+                        <option value="{{ value }}" {% if order and order.status == value %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
 
@@ -218,23 +235,28 @@
                     <select class="form-select" name="work_assign">
                         <option value="">-- Unassigned --</option>
                         {% for user in assignable_users %}
-                        <option value="{{ user.id }}">{{ user.username }} ({{ user.get_user_type_display }})</option>
+                        <option value="{{ user.id }}" {% if order and order.work_assign == user.username %}selected{% endif %}>
+                            {{ user.username }} ({{ user.get_user_type_display }})
+                        </option>
                         {% endfor %}
                     </select>
 
                     <label class="form-label mt-3">Delivery date (Optional)</label>
-                    <input type="date" class="form-control" name="delivery_date">
+                    <input type="date" class="form-control" name="delivery_date"
+                        value="{% if order and order.delivery_date %}{{ order.delivery_date|date:'Y-m-d' }}{% endif %}">
 
                     <label class="form-label mt-3">Special instructions (Optional)</label>
                     <textarea class="form-control" name="special_instructions" rows="2"
-                        placeholder="Enter Special Instructions (optional)"></textarea>
+                        placeholder="Enter Special Instructions (optional)">{% if order %}{{ order.special_instructions|default:'' }}{% endif %}</textarea>
                 </div>
             </div>
 
             <div class="card">
                 <div class="card-body d-flex gap-2">
                     <a href="{% url 'order_list' %}" class="btn btn-outline-danger flex-fill">Discard</a>
-                    <button type="submit" class="btn btn-outline-primary flex-fill">Save Order</button>
+                    <button type="submit" class="btn btn-outline-primary flex-fill">
+                        {% if is_update %}Update Order{% else %}Save Order{% endif %}
+                    </button>
                 </div>
             </div>
 
@@ -259,6 +281,7 @@
         const variantAttrsWrapper = document.getElementById("variant_attrs_wrapper");
 
         const VARIANTS_BY_PRODUCT = {{ variants_by_product_json|default:"{}"|safe }};
+        const EXISTING_ITEMS = {{ existing_items_json|default:"[]"|safe }};
 
         let items = [];
         let currentAttrSelections = {};
@@ -463,6 +486,20 @@
                 alert("Please add at least one product.");
             }
         });
+
+        // Prefill existing items on load (update mode)
+        if (EXISTING_ITEMS.length) {
+            EXISTING_ITEMS.forEach(function (it) {
+                items.push({
+                    product_id: String(it.product_id),
+                    product_name: it.product_name,
+                    variant_id: it.variant_id,
+                    variant_label: it.variant_label,
+                    quantity: it.quantity,
+                    unit_price: parseFloat(it.unit_price) || 0
+                });
+            });
+        }
 
         renderItems();
     })();

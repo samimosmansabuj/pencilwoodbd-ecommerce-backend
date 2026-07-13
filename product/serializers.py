@@ -92,6 +92,7 @@ from .models import (
     ProductVideo,
     Category,
     ProductGifting,
+    Tag,
 )
 
 
@@ -180,3 +181,9 @@ class AttributeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attribute
         fields = ["id", "name", "slug", "type", "is_variant", "is_filterable", "values"]
+
+
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = ["id", "name", "slug"]
