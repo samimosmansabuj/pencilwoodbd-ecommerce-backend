@@ -9,6 +9,9 @@ urlpatterns = [
     path('admin-login/', UserLoginView.as_view(), name='admin_login'),
     path('admin-logout/', AdminLogoutView.as_view(), name='admin_logout'),
     
+
+    path('users/', UserManagementView.as_view(), name='user_management'),
+
     path('product-list/', ProductListView.as_view(), name='product_list'),
     path('product-add/', add_product, name='product_add'),
     path("product/update/<int:pk>/", product_update, name="product_update"),

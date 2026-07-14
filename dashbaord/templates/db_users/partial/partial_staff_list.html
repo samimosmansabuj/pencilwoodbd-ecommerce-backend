@@ -1,0 +1,154 @@
+{% load static %}
+
+<div class="row g-3 mb-3">
+    <div class="col-auto">
+        <div class="position-relative">
+            <input
+                class="form-control px-5"
+                type="search"
+                name="q"
+                placeholder="Search username, name, email"
+                value="{{ current_search }}"
+                hx-get="{% url 'user_management' %}?tab=staff"
+                hx-trigger="keyup changed delay:400ms, search"
+                hx-target="#user-tab-content"
+                hx-swap="innerHTML"
+                hx-include="#staff-role-select, #staff-per-page-select"
+                hx-push-url="true">
+            <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">search</span>
+        </div>
+    </div>
+
+    <div class="col-auto">
+        <select
+            id="staff-role-select"
+            name="role"
+            class="form-select btn-filter"
+            hx-get="{% url 'user_management' %}?tab=staff"
+            hx-trigger="change"
+            hx-target="#user-tab-content"
+            hx-include="[name='q'], #staff-per-page-select"
+            hx-push-url="true">
+            <option value="">All Roles</option>
+            {% for value, label in role_choices %}
+                <option value="{{ value }}" {% if current_role == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="col-auto">
+        <select
+            id="staff-per-page-select"
+            name="per_page"
+            class="form-select btn-filter"
+            hx-get="{% url 'user_management' %}?tab=staff"
+            hx-trigger="change"
+            hx-target="#user-tab-content"
+            hx-include="[name='q'], #staff-role-select"
+            hx-push-url="true">
+            <option value="25" {% if request.GET.per_page == "25" or not request.GET.per_page %}selected{% endif %}>25 / page</option>
+            <option value="50" {% if request.GET.per_page == "50" %}selected{% endif %}>50 / page</option>
+            <option value="100" {% if request.GET.per_page == "100" %}selected{% endif %}>100 / page</option>
+        </select>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive white-space-nowrap">
+            <table class="table align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Full Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Joined</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in staff_users %}
+                    <tr>
+                        <td>#{{ user.id }}</td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="avatar-initial rounded-circle bg-light-primary text-primary d-flex align-items-center justify-content-center" style="width:36px;height:36px;font-weight:600;">
+                                    {{ user.username|slice:":1"|upper }}
+                                </div>
+                                <span>{{ user.username }}</span>
+                            </div>
+                        </td>
+                        <td>{{ user.first_name }} {{ user.last_name }}</td>
+                        <td>{{ user.email }}</td>
+                        <td>
+                            <span class="badge
+                                {% if user.user_type == 'super_admin' %}bg-light-danger text-danger
+                                {% elif user.user_type == 'admin' %}bg-light-warning text-warning
+                                {% else %}bg-light-info text-info{% endif %}">
+                                {{ user.get_user_type_display }}
+                            </span>
+                        </td>
+                        <td>{{ user.date_joined|date:"M d, Y" }}</td>
+                        <td>
+                            {% if user.is_active %}
+                                <span class="badge bg-light-success text-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-light-secondary text-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-sm btn-filter" title="Edit User">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4 text-secondary">No staff or admin users found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if paginator.num_pages > 1 %}
+        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+            <div class="text-secondary">
+                Page {{ staff_users.number }} of {{ paginator.num_pages }} ({{ paginator.count }} users)
+            </div>
+            <nav>
+                <ul class="pagination mb-0">
+                    {% if staff_users.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?tab=staff&page={{ staff_users.previous_page_number }}"
+                           hx-get="{% url 'user_management' %}?tab=staff&page={{ staff_users.previous_page_number }}"
+                           hx-target="#user-tab-content"
+                           hx-include="[name='q'], #staff-role-select, #staff-per-page-select"
+                           hx-push-url="true">Previous</a>
+                    </li>
+                    {% endif %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ staff_users.number }}</span>
+                    </li>
+                    {% if staff_users.has_next %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?tab=staff&page={{ staff_users.next_page_number }}"
+                           hx-get="{% url 'user_management' %}?tab=staff&page={{ staff_users.next_page_number }}"
+                           hx-target="#user-tab-content"
+                           hx-include="[name='q'], #staff-role-select, #staff-per-page-select"
+                           hx-push-url="true">Next</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
