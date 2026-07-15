@@ -176,29 +176,191 @@ class AdminLogoutView(LoginRequiredMixin, View):
         logout(request)
         return redirect("admin_login")
 
+# ---------------User-----------------
+class UserManagementView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        tab = request.GET.get("tab", "customers")
+
+        if tab == "staff":
+            return self._staff_response(request)
+        return self._customer_response(request)
+
+    def _base_wrapper_context(self):
+        """Provide the stats vars that main_wrapper.html expects."""
+        orders = Order.objects.all().order_by("-created_at")
+        dashboard_view = DashboardView()
+        return {
+            "status_amounts": dashboard_view.get_status_amounts(orders),
+            "today_order_count": dashboard_view.get_today_order_count(orders),
+            "new_orders_count": dashboard_view.new_orders_count(orders),
+            "total_orders": orders.count(),
+            "new_order_request_count": dashboard_view.new_order_request_count(),
+        }
+
+    def _customer_response(self, request):
+        search = request.GET.get("q", "").strip()
+        source = request.GET.get("source", "").strip()
+
+        customers = Customer.objects.select_related("user").order_by("-created_at")
+
+        if search:
+            customers = customers.filter(
+                Q(name__icontains=search)
+                | Q(phone__icontains=search)
+                | Q(second_phone__icontains=search)
+                | Q(email__icontains=search)
+                | Q(company__icontains=search)
+            ).distinct()
+
+        if source:
+            customers = customers.filter(source__iexact=source)
+
+        per_page = parse_int(request.GET.get("per_page"), 25)
+        paginator = Paginator(customers, per_page)
+        page_obj = paginator.get_page(request.GET.get("page", 1))
+
+        sources = (
+            Customer.objects.exclude(source__isnull=True)
+            .exclude(source__exact="")
+            .values_list("source", flat=True)
+            .distinct()
+            .order_by("source")
+        )
+
+        context = {
+            "active_tab": "customers",
+            "customers": page_obj,
+            "paginator": paginator,
+            "current_search": search,
+            "current_source": source,
+            "sources": sources,
+        }
+
+        if request.htmx:
+            return render(request, "db_users/partial/partial_customer_list.html", context)
+
+        context.update(self._base_wrapper_context())
+        return render(request, "db_users/user_management.html", context)
+
+    def _staff_response(self, request):
+        search = request.GET.get("q", "").strip()
+        role = request.GET.get("role", "").strip()
+
+        staff_users = CustomUser.objects.exclude(user_type=USER_TYPE.CUSTOMER).order_by("-date_joined")
+
+        if search:
+            staff_users = staff_users.filter(
+                Q(username__icontains=search)
+                | Q(email__icontains=search)
+                | Q(first_name__icontains=search)
+                | Q(last_name__icontains=search)
+            ).distinct()
+
+        valid_roles = [c[0] for c in USER_TYPE.choices]
+        if role in valid_roles and role != USER_TYPE.CUSTOMER:
+            staff_users = staff_users.filter(user_type=role)
+
+        per_page = parse_int(request.GET.get("per_page"), 25)
+        paginator = Paginator(staff_users, per_page)
+        page_obj = paginator.get_page(request.GET.get("page", 1))
+
+        role_choices = [c for c in USER_TYPE.choices if c[0] != USER_TYPE.CUSTOMER]
+
+        context = {
+            "active_tab": "staff",
+            "staff_users": page_obj,
+            "paginator": paginator,
+            "current_search": search,
+            "current_role": role,
+            "role_choices": role_choices,
+        }
+
+        if request.htmx:
+            return render(request, "db_users/partial/partial_staff_list.html", context)
+
+        context.update(self._base_wrapper_context())
+        return render(request, "db_users/user_management.html", context)
+    
 
 # ------------------Product--------
 class ProductListView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
     def get(self, request, *args, **kwargs):
-        products = Product.objects.annotate(variant_count=Count("variants"))
-        categories = Category.objects.all()
+        products = Product.objects.select_related("category").annotate(
+            variant_count=Count("variants")
+        ).order_by("-created_at")
+
+        categories = Category.objects.all().order_by("name")
         attributes = Attribute.objects.prefetch_related("values").all()
         attributes_data = [
             {"id": a.id, "name": a.name, "values": [{"id": v.id, "value": v.value} for v in a.values.all()]}
             for a in attributes
         ]
 
-        return render(request, "db_product/product_list.html", {
-            "products": products,
+        search = request.GET.get("q", "").strip()
+        category_id = request.GET.get("category")
+        status_filter = request.GET.get("status")  # published / draft / discount / all
+
+        if search:
+            products = products.filter(
+                Q(name__icontains=search)
+                | Q(sku__icontains=search)
+                | Q(short_description__icontains=search)
+                | Q(category__name__icontains=search)
+            ).distinct()
+
+        if category_id:
+            try:
+                category = Category.objects.get(id=category_id)
+                # include products in this category OR any of its children
+                child_ids = list(category.children.values_list("id", flat=True))
+                products = products.filter(category_id__in=[category.id, *child_ids])
+            except Category.DoesNotExist:
+                pass
+
+        if status_filter == "published":
+            products = products.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE)
+        elif status_filter == "draft":
+            products = products.filter(status=CATEGORY_PRODUCT_STATUS.DRAFT)
+        elif status_filter == "discount":
+            products = products.filter(discount_price__gt=0).exclude(discount_price=F("price"))
+
+        # Counts for the top tabs (computed from full unfiltered set, not the filtered qs)
+        base_qs = Product.objects.all()
+        counts = {
+            "all": base_qs.count(),
+            "published": base_qs.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE).count(),
+            "draft": base_qs.filter(status=CATEGORY_PRODUCT_STATUS.DRAFT).count(),
+            "discount": base_qs.filter(discount_price__gt=0).exclude(discount_price=F("price")).count(),
+        }
+
+        per_page = parse_int(request.GET.get("per_page"), 10)
+        paginator = Paginator(products, per_page)
+        page_obj = paginator.get_page(request.GET.get("page", 1))
+
+        context = {
+            "products": page_obj,
+            "paginator": paginator,
+            "page_obj": page_obj,
             "categories": categories,
             "attributes": attributes,
-            "attributes_data": attributes_data,
             "existing_variants_data": [],
             "attributes_data": pyjson.dumps(attributes_data),
+            "current_search": search,
+            "current_category": category_id or "",
+            "current_status": status_filter or "all",
+            "current_per_page": str(per_page),
+            "product_counts": counts,
+        }
 
-        })
+        if request.htmx:
+            return render(request, "db_product/partial/partial_product_list.html", context)
+
+        return render(request, "db_product/product_list.html", context)
+    
 
 def parse_decimal(value, default=Decimal("0")):
     """Safely parse a POST value into Decimal, falling back on blank/invalid input."""

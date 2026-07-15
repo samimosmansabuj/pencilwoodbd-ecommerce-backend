@@ -1,0 +1,53 @@
+{% extends 'dashboard.html' %}
+{% load static %}
+
+{% block dashboard_body_content %}
+<div class="main-content">
+    <!--breadcrumb-->
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a>
+                    </li>
+                    <li class="breadcrumb-item active" aria-current="page">Users</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+    <!--end breadcrumb-->
+
+    <!-- Top-level tabs: Customers / Admin & Staff -->
+    <ul class="nav nav-tabs mb-4" id="userTabs">
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'customers' %}active{% endif %}"
+               href="{% url 'user_management' %}?tab=customers"
+               hx-get="{% url 'user_management' %}?tab=customers"
+               hx-target="#user-tab-content"
+               hx-push-url="true">
+                <i class="material-icons-outlined align-middle me-1" style="font-size:18px;">person</i>
+                Customers
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'staff' %}active{% endif %}"
+               href="{% url 'user_management' %}?tab=staff"
+               hx-get="{% url 'user_management' %}?tab=staff"
+               hx-target="#user-tab-content"
+               hx-push-url="true">
+                <i class="material-icons-outlined align-middle me-1" style="font-size:18px;">admin_panel_settings</i>
+                Admin &amp; Staff
+            </a>
+        </li>
+    </ul>
+
+    <div id="user-tab-content">
+        {% if active_tab == 'staff' %}
+            {% include "db_users/partial/partial_staff_list.html" %}
+        {% else %}
+            {% include "db_users/partial/partial_customer_list.html" %}
+        {% endif %}
+    </div>
+</div>
+{% endblock dashboard_body_content %}

@@ -6,8 +6,13 @@
 {% endblock page_title %}
 
 {% block dashboard_body_content %}
-{% include './partial/partial_product_list.html' %}
+<div class="container-fluid">
+    <div id="product-table-wrapper">
+        {% include './partial/partial_product_list.html' %}
+    </div>
+</div>
 {% endblock dashboard_body_content %}
+
 <!-- {% block db_more_script %}
 <script src="{% static 'dashboard_assets/js/product-add.js' %}"></script>
 {% endblock db_more_script %} -->

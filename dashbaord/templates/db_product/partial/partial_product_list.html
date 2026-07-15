@@ -1,185 +1,261 @@
-<div class="main-content">
-    <!--breadcrumb-->
-    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
-        <div class="breadcrumb-title pe-3">Dashboard</div>
-        <div class="ps-3">
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-0 p-0">
-                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a>
-                    </li>
-                    <li class="breadcrumb-item active" aria-current="page">Products</li>
-                </ol>
-            </nav>
+{% load static %}
+
+<div class="product-count d-flex align-items-center gap-3 gap-lg-4 mb-4 fw-medium flex-wrap font-text1">
+    <a href="javascript:;"
+       hx-get="{% url 'product_list' %}?status=all"
+       hx-target="#product-table-wrapper"
+       hx-swap="innerHTML"
+       hx-include="[name='q'], #category-select, #per-page-select"
+       hx-push-url="true">
+        <span class="me-1 {% if current_status == 'all' %}text-primary{% endif %}">All</span>
+        <span class="text-secondary">({{ product_counts.all }})</span>
+    </a>
+    <a href="javascript:;"
+       hx-get="{% url 'product_list' %}?status=published"
+       hx-target="#product-table-wrapper"
+       hx-swap="innerHTML"
+       hx-include="[name='q'], #category-select, #per-page-select"
+       hx-push-url="true">
+        <span class="me-1 {% if current_status == 'published' %}text-primary{% endif %}">Published</span>
+        <span class="text-secondary">({{ product_counts.published }})</span>
+    </a>
+    <a href="javascript:;"
+       hx-get="{% url 'product_list' %}?status=draft"
+       hx-target="#product-table-wrapper"
+       hx-swap="innerHTML"
+       hx-include="[name='q'], #category-select, #per-page-select"
+       hx-push-url="true">
+        <span class="me-1 {% if current_status == 'draft' %}text-primary{% endif %}">Drafts</span>
+        <span class="text-secondary">({{ product_counts.draft }})</span>
+    </a>
+    <a href="javascript:;"
+       hx-get="{% url 'product_list' %}?status=discount"
+       hx-target="#product-table-wrapper"
+       hx-swap="innerHTML"
+       hx-include="[name='q'], #category-select, #per-page-select"
+       hx-push-url="true">
+        <span class="me-1 {% if current_status == 'discount' %}text-primary{% endif %}">On Discount</span>
+        <span class="text-secondary">({{ product_counts.discount }})</span>
+    </a>
+</div>
+
+<div class="row g-3" id="product-filter-bar">
+    <div class="col-auto">
+        <div class="position-relative">
+            <input
+                class="form-control px-5"
+                type="search"
+                name="q"
+                placeholder="Search Products"
+                value="{{ current_search }}"
+                hx-get="{% url 'product_list' %}"
+                hx-trigger="keyup changed delay:400ms, search"
+                hx-target="#product-table-wrapper"
+                hx-swap="innerHTML"
+                hx-include="#category-select, #per-page-select"
+                hx-vals='{"status": "{{ current_status }}"}'
+                hx-push-url="true">
+            <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">search</span>
         </div>
     </div>
-    <!--end breadcrumb-->
 
-    <div class="product-count d-flex align-items-center gap-3 gap-lg-4 mb-4 fw-medium flex-wrap font-text1">
-        <a href="javascript:;"><span class="me-1">All</span><span class="text-secondary">({{products.count}})</span></a>
-        <a href="javascript:;"><span class="me-1">Published</span><span class="text-secondary">(56242)</span></a>
-        <a href="javascript:;"><span class="me-1">Drafts</span><span class="text-secondary">(17)</span></a>
-        <a href="javascript:;"><span class="me-1">On Discount</span><span class="text-secondary">(88754)</span></a>
+    <div class="col-auto flex-grow-1 overflow-auto">
+        <div class="btn-group position-static">
+            <select
+                id="category-select"
+                name="category"
+                class="form-select btn-filter"
+                hx-get="{% url 'product_list' %}"
+                hx-trigger="change"
+                hx-target="#product-table-wrapper"
+                hx-swap="innerHTML"
+                hx-include="[name='q'], #per-page-select"
+                hx-vals='{"status": "{{ current_status }}"}'
+                hx-push-url="true">
+                <option value="">All Categories</option>
+                {% for cat in categories %}
+                    <option value="{{ cat.id }}" {% if current_category|stringformat:"s" == cat.id|stringformat:"s" %}selected{% endif %}>
+                        {{ cat.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
     </div>
 
-    <div class="row g-3">
-        <div class="col-auto">
-            <div class="position-relative">
-                <input class="form-control px-5" type="search" placeholder="Search Products">
-                <span
-                    class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">search</span>
-            </div>
+    <div class="col-auto">
+        <div class="d-flex align-items-center gap-2 justify-content-lg-end">
+            <select
+                id="per-page-select"
+                name="per_page"
+                class="form-select btn-filter"
+                hx-get="{% url 'product_list' %}"
+                hx-trigger="change"
+                hx-target="#product-table-wrapper"
+                hx-swap="innerHTML"
+                hx-include="[name='q'], #category-select"
+                hx-vals='{"status": "{{ current_status }}"}'
+                hx-push-url="true">
+                <option value="10" {% if current_per_page == "10" or not current_per_page %}selected{% endif %}>10 / page</option>
+                <option value="25" {% if current_per_page == "25" %}selected{% endif %}>25 / page</option>
+                <option value="50" {% if current_per_page == "50" %}selected{% endif %}>50 / page</option>
+                <option value="100" {% if current_per_page == "100" %}selected{% endif %}>100 / page</option>
+            </select>
+            <button class="btn btn-filter px-4"><i class="bi bi-box-arrow-right me-2"></i>Export</button>
+            <a href="{% url 'product_add' %}" class="btn btn-primary px-4">
+                <i class="bi bi-plus-lg me-2"></i>Add Product
+            </a>
         </div>
-        <div class="col-auto flex-grow-1 overflow-auto">
-            <div class="btn-group position-static">
-                <div class="btn-group position-static">
-                    <button type="button" class="btn btn-filter dropdown-toggle px-4" data-bs-toggle="dropdown"
-                        aria-expanded="false">
-                        Category
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="javascript:;">Action</a></li>
-                        <li><a class="dropdown-item" href="javascript:;">Another action</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li><a class="dropdown-item" href="javascript:;">Something else here</a></li>
-                    </ul>
-                </div>
-                <div class="btn-group position-static">
-                    <button type="button" class="btn btn-filter dropdown-toggle px-4" data-bs-toggle="dropdown"
-                        aria-expanded="false">
-                        Vendor
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="javascript:;">Action</a></li>
-                        <li><a class="dropdown-item" href="javascript:;">Another action</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li><a class="dropdown-item" href="javascript:;">Something else here</a></li>
-                    </ul>
-                </div>
-                <div class="btn-group position-static">
-                    <button type="button" class="btn btn-filter dropdown-toggle px-4" data-bs-toggle="dropdown"
-                        aria-expanded="false">
-                        Collection
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="javascript:;">Action</a></li>
-                        <li><a class="dropdown-item" href="javascript:;">Another action</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li><a class="dropdown-item" href="javascript:;">Something else here</a></li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-        <div class="col-auto">
-            <div class="d-flex align-items-center gap-2 justify-content-lg-end">
-                <button class="btn btn-filter px-4"><i class="bi bi-box-arrow-right me-2"></i>Export</button>
-                <button type="button" class="btn btn-primary px-4" data-bs-toggle="modal"
-                    data-bs-target="#ProductAddUpdateModal">
-                    <i class="bi bi-plus-lg me-2"></i>Add Product
-                </button>
-                {% include 'db_product/modal/add_product_modal.html' %}
-                {% include 'db_product/modal/delete_product_modal.html' %}
-            </div>
-        </div>
-    </div><!--end row-->
+    </div>
+</div>
+<!--end row-->
 
-    <div class="card mt-4">
-        <div class="card-body">
-            <div class="product-table">
-                <div class="table-responsive white-space-nowrap">
-                    <table class="table align-middle">
-                        <thead class="table-light">
-                            <tr>
-                                <th>
-                                    <input class="form-check-input" type="checkbox">
-                                </th>
-                                <th>Product ID</th>
-                                <th>Product Name</th>
-                                <th>Cost</th>
-                                <th>Price</th>
-                                <th>Discount Price</th>
-                                <!-- <th>Rating</th> -->
-                                <th>Date</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for product in products %}
-                            <tr>
-                                <td>
-                                    <input class="form-check-input" type="checkbox">
-                                </td>
+<div class="card mt-4">
+    <div class="card-body">
+        <div class="product-table">
+            <div class="table-responsive white-space-nowrap">
+                <table class="table align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>
+                                <input class="form-check-input" type="checkbox">
+                            </th>
+                            <th>Product ID</th>
+                            <th>Product Name</th>
+                            <th>Cost</th>
+                            <th>Price</th>
+                            <th>Discount Price</th>
+                            <th>Date</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in products %}
+                        <tr>
+                            <td>
+                                <input class="form-check-input" type="checkbox">
+                            </td>
 
-                                <td>
-                                    <a href="{% url 'product_update' product.id %}"
-                                       hx-get="{% url 'product_update' product.id %}"
-                                       hx-target="#content-area"
-                                       hx-push-url="true"
-                                       hx-trigger="click, refreshReturnOrderDetailView from:body"
-                                       hx-swap="innerHTML">
-                                        #{{ product.id  }}
-                                    </a>
-                                </td>
+                            <td>
+                                <a href="{% url 'product_update' product.id %}"
+                                   hx-get="{% url 'product_update' product.id %}"
+                                   hx-target="#content-area"
+                                   hx-push-url="true"
+                                   hx-trigger="click, refreshReturnOrderDetailView from:body"
+                                   hx-swap="innerHTML">
+                                    #{{ product.id }}
+                                </a>
+                            </td>
 
-                                <td>
-                                    <div class="d-flex align-items-center gap-3">
-                                        <div class="product-box">
-                                            <img src="{{ product.primary_image }}" width="70" class="rounded-3" alt="{{ product.primary_image }}">
-                                        </div>
-                                        <div class="product-info">
-                                            <a href="javascript:;" class="product-title">
-                                                {{ product.name|truncatechars:30 }}
-                                            </a>
-                                            <p class="mb-0 product-category">
-                                                Category: {{ product.category_path }}
-                                            </p>
-                                            <!-- <p class="mb-0 product-category">Category : Fashion</p> -->
-                                        </div>
+                            <td>
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="product-box">
+                                        <img src="{{ product.primary_image }}" width="70" class="rounded-3" alt="{{ product.name }}">
                                     </div>
-                                </td>
-                                <td>৳{{ product.cost_price }}</td>
-                                <td>৳{{ product.price }}</td>
-                                <td>৳{{ product.discount_price }}</td>
-                                <!-- <td>
-                                    <div class="product-rating">
-                                        <i class="bi bi-star-fill text-warning me-2"></i><span>5.0</span>
-                                    </div>
-                                </td> -->
-                                <td>
-                                    {{ product.created_at|date:"M d, Y" }}
-                                </td>
-                                <td>
-                                    <div class="btn-group">
-                                
-                                        <!-- EDIT -->
-                                        <a href="{% url 'product_update' product.id %}" class="btn btn-sm btn-filter" title="Edit Product">
-                                            <i class="bi bi-pencil"></i>
+                                    <div class="product-info">
+                                        <a href="javascript:;" class="product-title">
+                                            {{ product.name|truncatechars:30 }}
                                         </a>
-                                
-                                        <!-- DELETE -->
-                                        <button type="button"
-                                                class="btn btn-sm btn-filter"
-                                                title="Delete Product"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#DeleteProductModal"
-                                                data-delete-url="{% url 'product_delete' product.id %}">
+                                        <p class="mb-0 product-category">
+                                            Category: {{ product.category_path|default:"—" }}
+                                        </p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>৳{{ product.cost_price|default:"0" }}</td>
+                            <td>৳{{ product.price }}</td>
+                            <td>৳{{ product.discount_price }}</td>
+                            <td>
+                                {{ product.created_at|date:"M d, Y" }}
+                            </td>
+                            <td>
+                                <div class="btn-group">
+                                    <!-- EDIT -->
+                                    <a href="{% url 'product_update' product.id %}" class="btn btn-sm btn-filter" title="Edit Product">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+
+                                    <!-- DELETE -->
+                                    <form method="post" action="{% url 'product_delete' product.id %}" onsubmit="return confirm('Delete this product?');" style="display:inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-filter" title="Delete Product">
                                             <i class="bi bi-trash"></i>
                                         </button>
-                                
-                                    </div>
-                                </td>
-                                
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center py-4 text-secondary">No products found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
+
+        {% if paginator.num_pages > 1 %}
+        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+            <div class="text-secondary">
+                Page {{ products.number }} of {{ paginator.num_pages }} ({{ paginator.count }} products)
+            </div>
+            <nav>
+                <ul class="pagination mb-0">
+                    {% if products.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="javascript:;"
+                           hx-get="{% url 'product_list' %}?page={{ products.previous_page_number }}"
+                           hx-target="#product-table-wrapper"
+                           hx-swap="innerHTML"
+                           hx-include="[name='q'], #category-select, #per-page-select"
+                           hx-vals='{"status": "{{ current_status }}"}'
+                           hx-push-url="true">Previous</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">Previous</span>
+                    </li>
+                    {% endif %}
+
+                    {% for num in paginator.page_range %}
+                        {% if num == products.number %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                        {% elif num > products.number|add:"-3" and num < products.number|add:"3" %}
+                        <li class="page-item">
+                            <a class="page-link"
+                               href="javascript:;"
+                               hx-get="{% url 'product_list' %}?page={{ num }}"
+                               hx-target="#product-table-wrapper"
+                               hx-swap="innerHTML"
+                               hx-include="[name='q'], #category-select, #per-page-select"
+                               hx-vals='{"status": "{{ current_status }}"}'
+                               hx-push-url="true">{{ num }}</a>
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if products.has_next %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="javascript:;"
+                           hx-get="{% url 'product_list' %}?page={{ products.next_page_number }}"
+                           hx-target="#product-table-wrapper"
+                           hx-swap="innerHTML"
+                           hx-include="[name='q'], #category-select, #per-page-select"
+                           hx-vals='{"status": "{{ current_status }}"}'
+                           hx-push-url="true">Next</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">Next</span>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
     </div>
 </div>
