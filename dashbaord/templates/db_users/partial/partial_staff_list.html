@@ -13,7 +13,8 @@
                 hx-trigger="keyup changed delay:400ms, search"
                 hx-target="#user-tab-content"
                 hx-swap="innerHTML"
-                hx-include="#staff-role-select, #staff-per-page-select"
+                hx-include="#staff-role-select"
+                hx-vals='{"per_page": "{{ current_per_page }}"}'
                 hx-push-url="true">
             <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">search</span>
         </div>
@@ -27,7 +28,9 @@
             hx-get="{% url 'user_management' %}?tab=staff"
             hx-trigger="change"
             hx-target="#user-tab-content"
-            hx-include="[name='q'], #staff-per-page-select"
+            hx-swap="innerHTML"
+            hx-include="[name='q']"
+            hx-vals='{"per_page": "{{ current_per_page }}"}'
             hx-push-url="true">
             <option value="">All Roles</option>
             {% for value, label in role_choices %}
@@ -36,21 +39,13 @@
         </select>
     </div>
 
-    <div class="col-auto">
-        <select
-            id="staff-per-page-select"
-            name="per_page"
-            class="form-select btn-filter"
-            hx-get="{% url 'user_management' %}?tab=staff"
-            hx-trigger="change"
-            hx-target="#user-tab-content"
-            hx-include="[name='q'], #staff-role-select"
-            hx-push-url="true">
-            <option value="25" {% if request.GET.per_page == "25" or not request.GET.per_page %}selected{% endif %}>25 / page</option>
-            <option value="50" {% if request.GET.per_page == "50" %}selected{% endif %}>50 / page</option>
-            <option value="100" {% if request.GET.per_page == "100" %}selected{% endif %}>100 / page</option>
-        </select>
+    {% if request.user.user_type == "admin" or request.user.user_type == "super_admin" %}
+    <div class="col-auto ms-auto">
+        <button type="button" class="btn btn-primary" onclick="openStaffModal(null)">
+            <i class="bi bi-plus-lg"></i> Add User
+        </button>
     </div>
+    {% endif %}
 </div>
 
 <div class="card">
@@ -101,9 +96,12 @@
                         </td>
                         <td>
                             <div class="btn-group">
-                                <button type="button" class="btn btn-sm btn-filter" title="Edit User">
+                                {% if request.user.user_type == "admin" or request.user.user_type == "super_admin" or request.user.pk == user.pk %}
+                                <button type="button" class="btn btn-sm btn-filter" title="Edit User"
+                                        onclick="openStaffModal({{ user.id }})">
                                     <i class="bi bi-pencil"></i>
                                 </button>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -115,40 +113,238 @@
                 </tbody>
             </table>
         </div>
-
-        {% if paginator.num_pages > 1 %}
-        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
-            <div class="text-secondary">
-                Page {{ staff_users.number }} of {{ paginator.num_pages }} ({{ paginator.count }} users)
-            </div>
-            <nav>
-                <ul class="pagination mb-0">
-                    {% if staff_users.has_previous %}
-                    <li class="page-item">
-                        <a class="page-link"
-                           href="?tab=staff&page={{ staff_users.previous_page_number }}"
-                           hx-get="{% url 'user_management' %}?tab=staff&page={{ staff_users.previous_page_number }}"
-                           hx-target="#user-tab-content"
-                           hx-include="[name='q'], #staff-role-select, #staff-per-page-select"
-                           hx-push-url="true">Previous</a>
-                    </li>
-                    {% endif %}
-                    <li class="page-item active">
-                        <span class="page-link">{{ staff_users.number }}</span>
-                    </li>
-                    {% if staff_users.has_next %}
-                    <li class="page-item">
-                        <a class="page-link"
-                           href="?tab=staff&page={{ staff_users.next_page_number }}"
-                           hx-get="{% url 'user_management' %}?tab=staff&page={{ staff_users.next_page_number }}"
-                           hx-target="#user-tab-content"
-                           hx-include="[name='q'], #staff-role-select, #staff-per-page-select"
-                           hx-push-url="true">Next</a>
-                    </li>
-                    {% endif %}
-                </ul>
-            </nav>
-        </div>
-        {% endif %}
     </div>
 </div>
+
+<div class="btn btn-grd position-fixed bottom-0 end-0 m-3 d-flex align-items-center gap-2 shadow-lg"
+style="z-index: 1050; margin: auto 22px 45px 0px !important; padding: 0px !important;">
+    <div class="card-body" style="padding: 0px;">
+        <nav aria-label="Page navigation example">
+            <ul class="pagination" style="margin: auto;">
+                <li class="page-item {% if not staff_users.has_previous %}disabled{% endif %}">
+                    <a class="page-link"
+                       hx-get="{% url 'user_management' %}?tab=staff{% if staff_users.has_previous %}&page={{ staff_users.previous_page_number }}&q={{ current_search }}&role={{ current_role }}&per_page={{ current_per_page }}{% endif %}"
+                       hx-target="#user-tab-content"
+                       hx-swap="innerHTML"
+                       hx-push-url="true">
+                        «
+                    </a>
+                </li>
+
+                {% for num in paginator.page_range %}
+                    {% if num >= staff_users.number|add:-2 and num <= staff_users.number|add:2 %}
+                        <li class="page-item {% if staff_users.number == num %}active{% endif %}">
+                            <a class="page-link"
+                               hx-get="{% url 'user_management' %}?tab=staff&page={{ num }}&q={{ current_search }}&role={{ current_role }}&per_page={{ current_per_page }}"
+                               hx-target="#user-tab-content"
+                               hx-swap="innerHTML"
+                               hx-push-url="true">
+                                {{ num }}
+                            </a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                <li class="page-item {% if not staff_users.has_next %}disabled{% endif %}">
+                    <a class="page-link"
+                       hx-get="{% url 'user_management' %}?tab=staff{% if staff_users.has_next %}&page={{ staff_users.next_page_number }}&q={{ current_search }}&role={{ current_role }}&per_page={{ current_per_page }}{% endif %}"
+                       hx-target="#user-tab-content"
+                       hx-swap="innerHTML"
+                       hx-push-url="true">
+                        »
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+
+    <div class="col-auto">
+        <select class="form-select"
+                hx-get="{% url 'user_management' %}?tab=staff&q={{ current_search }}&role={{ current_role }}"
+                hx-trigger="change"
+                hx-target="#user-tab-content"
+                hx-swap="innerHTML"
+                hx-push-url="true"
+                name="per_page">
+            <option value="10" {% if current_per_page == "10" %}selected{% endif %}>10</option>
+            <option value="25" {% if current_per_page == "25" %}selected{% endif %}>25</option>
+            <option value="50" {% if current_per_page == "50" %}selected{% endif %}>50</option>
+            <option value="100" {% if current_per_page == "100" %}selected{% endif %}>100</option>
+        </select>
+    </div>
+</div>
+
+<!-- Shared Add/Edit Modal -->
+<div class="modal fade" id="staffModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form method="post" id="staffModalForm" action="{% url 'staff_create' %}">
+          {% csrf_token %}
+          <div class="modal-header">
+            <h5 class="modal-title" id="staffModalTitle">Add Staff / Admin User</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">First Name</label>
+                <input type="text" name="first_name" id="staff_first_name" class="form-control">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Last Name</label>
+                <input type="text" name="last_name" id="staff_last_name" class="form-control">
+              </div>
+              <div class="col-12">
+                <label class="form-label">Username <span class="text-danger">*</span></label>
+                <input type="text" name="username" id="staff_username" class="form-control" required>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Email <span class="text-danger">*</span></label>
+                <input type="email" name="email" id="staff_email" class="form-control" required>
+              </div>
+
+              <div class="col-12" id="staff_role_wrapper">
+                <label class="form-label">Role <span class="text-danger">*</span></label>
+                <select name="user_type" id="staff_user_type" class="form-select">
+                  <option value="" selected disabled>Select role</option>
+                  <option value="staff">Staff</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+
+              <div class="col-12" id="staff_active_wrapper" style="display:none;">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" name="is_active" id="staff_is_active">
+                  <label class="form-check-label" for="staff_is_active">Active</label>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label" id="staff_password_label">Password <span class="text-danger">*</span></label>
+                <div class="position-relative">
+                  <input type="password" name="password" id="staff_password" class="form-control pe-5" minlength="8">
+                  <span class="position-absolute translate-middle-y top-50 end-0 me-3" style="cursor:pointer;" onclick="togglePasswordVisibility('staff_password', this)">
+                    <i class="bi bi-eye-slash" id="staff_password_icon"></i>
+                  </span>
+                </div>
+                <small class="text-secondary d-none" id="staff_password_hint">Leave blank to keep current password</small>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Confirm Password</label>
+                <div class="position-relative">
+                  <input type="password" name="confirm_password" id="staff_confirm_password" class="form-control pe-5" minlength="8">
+                  <span class="position-absolute translate-middle-y top-50 end-0 me-3" style="cursor:pointer;" onclick="togglePasswordVisibility('staff_confirm_password', this)">
+                    <i class="bi bi-eye-slash" id="staff_confirm_password_icon"></i>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="staffModalSubmit">Create User</button>
+          </div>
+        </form>
+      </div>
+    </div>
+</div>
+
+<script>
+const IS_MANAGER = ["admin", "super_admin"].includes("{{ request.user.user_type }}");
+const CURRENT_USER_ID = {{ request.user.id }};
+const STAFF_CREATE_URL = "{% url 'staff_create' %}";
+const STAFF_UPDATE_URL_BASE = "{% url 'staff_update' 0 %}";
+
+function staffUpdateUrl(id) {
+    return STAFF_UPDATE_URL_BASE.replace('/0/', `/${id}/`);
+}
+
+function resetStaffForm() {
+    document.getElementById("staffModalForm").reset();
+    document.getElementById("staff_password").required = true;
+    document.getElementById("staff_password_label").innerHTML = 'Password <span class="text-danger">*</span>';
+    document.getElementById("staff_password_hint").classList.add("d-none");
+    document.getElementById("staff_active_wrapper").style.display = "none";
+    document.getElementById("staff_role_wrapper").style.display = "";
+    document.getElementById("staff_user_type").value = "";
+    document.getElementById("staff_password").type = "password";
+    document.getElementById("staff_confirm_password").type = "password";
+    document.getElementById("staff_password_icon").className = "bi bi-eye-slash";
+    document.getElementById("staff_confirm_password_icon").className = "bi bi-eye-slash";
+}
+
+function togglePasswordVisibility(inputId, iconWrapper) {
+    const input = document.getElementById(inputId);
+    const icon = iconWrapper.querySelector("i");
+    if (input.type === "password") {
+        input.type = "text";
+        icon.className = "bi bi-eye";
+    } else {
+        input.type = "password";
+        icon.className = "bi bi-eye-slash";
+    }
+}
+
+function openStaffModal(userId) {
+    resetStaffForm();
+
+    const modalTitle = document.getElementById("staffModalTitle");
+    const submitBtn = document.getElementById("staffModalSubmit");
+    const form = document.getElementById("staffModalForm");
+    const modalEl = document.getElementById("staffModal");
+    const modal = new bootstrap.Modal(modalEl);
+
+    if (!userId) {
+        modalTitle.innerText = "Add Staff / Admin User";
+        submitBtn.innerText = "Create User";
+        form.action = STAFF_CREATE_URL;
+        modal.show();
+        return;
+    }
+
+    modalTitle.innerText = "Edit User";
+    submitBtn.innerText = "Save Changes";
+    form.action = staffUpdateUrl(userId);
+
+    document.getElementById("staff_password").required = false;
+    document.getElementById("staff_password_label").innerHTML = "Password";
+    document.getElementById("staff_password_hint").classList.remove("d-none");
+
+    const editingSelf = (userId === CURRENT_USER_ID);
+    const canEditRole = IS_MANAGER && !editingSelf;
+    document.getElementById("staff_role_wrapper").style.display = canEditRole ? "" : "none";
+    document.getElementById("staff_active_wrapper").style.display = canEditRole ? "" : "none";
+
+    submitBtn.disabled = true;
+    submitBtn.innerText = "Loading...";
+
+    fetch(staffUpdateUrl(userId), {
+        headers: { "X-Requested-With": "XMLHttpRequest" }
+    })
+        .then(r => r.json())
+        .then(res => {
+            if (!res.status) {
+                alert(res.message || "Unable to load user");
+                submitBtn.disabled = false;
+                submitBtn.innerText = "Save Changes";
+                return;
+            }
+            const u = res.user;
+            document.getElementById("staff_first_name").value = u.first_name || "";
+            document.getElementById("staff_last_name").value = u.last_name || "";
+            document.getElementById("staff_username").value = u.username || "";
+            document.getElementById("staff_email").value = u.email || "";
+            if (canEditRole) {
+                document.getElementById("staff_user_type").value = u.user_type;
+                document.getElementById("staff_is_active").checked = u.is_active;
+            }
+
+            submitBtn.disabled = false;
+            submitBtn.innerText = "Save Changes";
+            modal.show();
+        })
+        .catch(() => {
+            alert("Failed to load user data. Please try again.");
+        });
+}
+</script>

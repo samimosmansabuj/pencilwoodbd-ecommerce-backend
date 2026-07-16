@@ -11,6 +11,8 @@ urlpatterns = [
     
 
     path('users/', UserManagementView.as_view(), name='user_management'),
+    path("users/staff/create/", StaffCreateView.as_view(), name="staff_create"),
+    path("users/staff/<int:pk>/edit/", StaffUpdateView.as_view(), name="staff_update"),
 
     path('product-list/', ProductListView.as_view(), name='product_list'),
     path('product-add/', add_product, name='product_add'),
