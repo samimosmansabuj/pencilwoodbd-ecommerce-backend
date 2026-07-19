@@ -542,6 +542,14 @@ def parse_int(value, default=0):
         return default
 
 
+def parse_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ("true", "1", "on", "yes")
+
+
 @login_required(login_url="admin_login")
 def add_product(request):
 
@@ -550,6 +558,8 @@ def add_product(request):
         {"id": a.id, "name": a.name, "values": [{"id": v.id, "value": v.value} for v in a.values.all()]}
         for a in attributes
     ]
+
+    valid_statuses = [c[0] for c in CATEGORY_PRODUCT_STATUS.choices]
 
     if request.method == "POST":
         try:
@@ -581,15 +591,39 @@ def add_product(request):
 
                 product_type = PRODUCT_TYPE.VARIABLE if parsed_variants else PRODUCT_TYPE.SIMPLE
 
-                status_value = request.POST.get("status_action") or request.POST.get("status") or CATEGORY_PRODUCT_STATUS.DRAFT
+                status_value = request.POST.get("status_action") or request.POST.get("status")
+                if status_value not in valid_statuses:
+                    status_value = CATEGORY_PRODUCT_STATUS.ACTIVE
+
+                # Determine the "default/featured" variant's price upfront so it can
+                # seed Product.price / Product.discount_price even for variable products.
+                default_variant_data = None
+                if parsed_variants:
+                    default_variant_data = next(
+                        (d for d in parsed_variants if parse_bool(d.get("is_default"))),
+                        parsed_variants[0],
+                    )
+
+                if parsed_variants:
+                    product_price = parse_decimal(
+                        default_variant_data.get("price"),
+                        default=parse_decimal(request.POST.get("price")),
+                    )
+                    product_discount_price = parse_decimal(
+                        default_variant_data.get("discount_price"),
+                        default=parse_decimal(request.POST.get("discount_price")),
+                    )
+                else:
+                    product_price = parse_decimal(request.POST.get("price"))
+                    product_discount_price = parse_decimal(request.POST.get("discount_price"))
 
                 product = Product.objects.create(
                     name=request.POST.get("name", "").strip(),
                     category=category,
                     short_description=request.POST.get("short_description", ""),
                     details=request.POST.get("details", ""),
-                    price=parse_decimal(request.POST.get("price")),
-                    discount_price=parse_decimal(request.POST.get("discount_price")),
+                    price=product_price,
+                    discount_price=product_discount_price,
                     inventory_quantity=parse_int(request.POST.get("inventory_quantity")),
                     status=status_value,
                     product_type=product_type,
@@ -627,9 +661,11 @@ def add_product(request):
                 if video:
                     ProductVideo.objects.create(product=product, video=video)
 
+                created_variants = []
                 for data in parsed_variants:
                     variant_attrs = data.get("attributes") or {}
-                    ProductVariant.objects.create(
+                    is_default_flag = parse_bool(data.get("is_default")) or (data is default_variant_data)
+                    variant = ProductVariant.objects.create(
                         product=product,
                         attributes=variant_attrs,
                         price=parse_decimal(data.get("price"), default=product.price),
@@ -638,7 +674,9 @@ def add_product(request):
                         ),
                         inventory_quantity=parse_int(data.get("inventory_quantity")),
                         is_active=data.get("is_active", True),
+                        is_default=is_default_flag,
                     )
+                    created_variants.append(variant)
 
                 if product.has_variants:
                     product.inventory_quantity = sum(
@@ -668,7 +706,6 @@ def add_product(request):
     )
 
 
-
 @login_required(login_url="admin_login")
 def product_update(request, pk):
 
@@ -688,9 +725,12 @@ def product_update(request, pk):
             "discount_price": str(v.discount_price),
             "inventory_quantity": v.inventory_quantity,
             "is_active": v.is_active,
+            "is_default": v.is_default,
         }
         for v in product.variants.all()
     ]
+
+    valid_statuses = [c[0] for c in CATEGORY_PRODUCT_STATUS.choices]
 
     if request.method == "POST":
 
@@ -708,10 +748,10 @@ def product_update(request, pk):
                 product.category = category
                 product.short_description = request.POST.get("short_description", product.short_description)
                 product.details = request.POST.get("details", product.details)
-                product.price = parse_decimal(request.POST.get("price"), default=product.price)
-                product.discount_price = parse_decimal(request.POST.get("discount_price"), default=product.discount_price)
 
-                status_value = request.POST.get("status_action") or request.POST.get("status") or product.status
+                status_value = request.POST.get("status_action") or request.POST.get("status")
+                if status_value not in valid_statuses:
+                    status_value = product.status
                 product.status = status_value
 
                 product.save()
@@ -786,7 +826,17 @@ def product_update(request, pk):
                         continue
                     parsed_variants.append(data)
 
+                # Figure out which variant (existing or new) should be default
+                default_variant_data = None
+                if parsed_variants:
+                    default_variant_data = next(
+                        (d for d in parsed_variants if parse_bool(d.get("is_default"))),
+                        parsed_variants[0],
+                    )
+
+                for data in parsed_variants:
                     variant_id = data.get("id")
+                    is_default_flag = parse_bool(data.get("is_default")) or (data is default_variant_data)
 
                     if variant_id:
                         variant = ProductVariant.objects.get(id=variant_id, product=product)
@@ -795,6 +845,7 @@ def product_update(request, pk):
                         variant.discount_price = parse_decimal(data.get("discount_price"), default=variant.discount_price)
                         variant.inventory_quantity = parse_int(data.get("inventory_quantity"), default=variant.inventory_quantity)
                         variant.is_active = data.get("is_active", variant.is_active)
+                        variant.is_default = is_default_flag
                         variant.save()
                         existing_ids.append(variant.id)
                     else:
@@ -805,6 +856,7 @@ def product_update(request, pk):
                             discount_price=parse_decimal(data.get("discount_price"), default=product.discount_price),
                             inventory_quantity=parse_int(data.get("inventory_quantity")),
                             is_active=data.get("is_active", True),
+                            is_default=is_default_flag,
                         )
                         existing_ids.append(variant.id)
 
@@ -819,10 +871,18 @@ def product_update(request, pk):
                         v.inventory_quantity
                         for v in product.variants.filter(is_active=True)
                     )
-                    product.save(update_fields=["inventory_quantity"])
+                    # Sync Product.price/discount_price with the default variant
+                    default_variant = product.variants.filter(is_default=True).first() \
+                        or product.variants.first()
+                    if default_variant:
+                        product.price = default_variant.price
+                        product.discount_price = default_variant.discount_price
+                    product.save(update_fields=["inventory_quantity", "price", "discount_price"])
                 elif not request.POST.get("inventory_quantity") is None:
                     product.inventory_quantity = parse_int(request.POST.get("inventory_quantity"), default=product.inventory_quantity)
-                    product.save(update_fields=["inventory_quantity"])
+                    product.price = parse_decimal(request.POST.get("price"), default=product.price)
+                    product.discount_price = parse_decimal(request.POST.get("discount_price"), default=product.discount_price)
+                    product.save(update_fields=["inventory_quantity", "price", "discount_price"])
 
                 messages.success(request, "Product updated successfully")
                 return redirect("product_update", pk=product.pk)

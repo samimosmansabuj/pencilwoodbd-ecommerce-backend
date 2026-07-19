@@ -165,12 +165,13 @@
                                         <th>Price</th>
                                         <th>Discount</th>
                                         <th>Active</th>
+                                        <th>Default</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="pw_variant_table_body">
                                     <tr id="pw_variant_empty_row">
-                                        <td colspan="5" class="text-center text-muted">No variants yet — select an
+                                        <td colspan="6" class="text-center text-muted">No variants yet — select an
                                             attribute and values above, then click Add.</td>
                                     </tr>
                                 </tbody>
@@ -211,7 +212,7 @@
                                 {% for status_value, status_label in CATEGORY_PRODUCT_STATUS_CHOICES %}
                                 <option value="{{ status_value }}"
                                     {% if product and product.status == status_value %}selected
-                                    {% elif not product and status_value == "Draft" %}selected
+                                    {% elif not product and status_value == "draft" %}selected
                                     {% endif %}>
                                     {{ status_label }}
                                 </option>
@@ -298,7 +299,7 @@
 
     <!-- The real status field submitted; kept in sync with pw_status select -->
     <input type="hidden" name="status" id="pw_status_hidden"
-        value="{% if product %}{{ product.status }}{% else %}Draft{% endif %}">
+        value="{% if product %}{{ product.status }}{% else %}draft{% endif %}">
 </form>
 
 <script>
@@ -321,11 +322,10 @@
         });
 
         // ================= Status select -> hidden "status" field =================
-        // Note: buttons "Save Draft" / "Publish" also set name="status" on submit,
-        // but we keep this dropdown as the source of truth for direct saves.
         (function initStatus() {
             var statusSelect = document.getElementById("pw_status");
             var statusHidden = document.getElementById("pw_status_hidden");
+            statusHidden.value = statusSelect.value;
             statusSelect.addEventListener("change", function () {
                 statusHidden.value = statusSelect.value;
             });
@@ -448,14 +448,6 @@
                     previewBox.appendChild(wrap);
                 });
             }
-
-            imageInput.addEventListener("click", function () {
-                // Prevent this same input's previous file list from being
-                // treated as "already selected" when the OS file dialog reopens.
-                // We do NOT clear imageInput.value here because that would lose
-                // the already-picked files; instead we rely on the change handler
-                // below to only append genuinely new files.
-            });
 
             imageInput.addEventListener("change", function () {
                 var newFiles = Array.from(imageInput.files || []);
@@ -702,7 +694,11 @@
             });
         }
 
-        addAttrBtn.addEventListener("click", function () {
+        // FIX #3: type="button" is already set on this button (via HTML above),
+        // and we guard so it ONLY validates when actually clicked — nothing else
+        // in the form can trigger it now since it's not type="submit".
+        addAttrBtn.addEventListener("click", function (e) {
+            e.preventDefault();
             var key = attrSelect.value;
             if (!key) { alert("Select an attribute first."); return; }
             var chosen = valueSelect.value;
@@ -722,7 +718,21 @@
             }, [[]]);
         }
 
-        function addVariantRow(tbody, attrKeys, combo, attributes, existing) {
+        function updateDefaultRadioNames() {
+            // Ensure exactly one radio group covers all current variant rows
+            document.querySelectorAll("#pw_variant_table_body .pw-default-radio").forEach(function (radio) {
+                radio.name = "default_variant_group";
+            });
+        }
+
+        function syncAllVariantRows() {
+            document.querySelectorAll("#pw_variant_table_body tr").forEach(function (tr) {
+                var sync = tr.__syncRow;
+                if (typeof sync === "function") sync();
+            });
+        }
+
+        function addVariantRow(tbody, attrKeys, combo, attributes, existing, forceDefault) {
             var tr = document.createElement("tr");
             var cells = "";
             attrKeys.forEach(function (key, i) {
@@ -734,11 +744,13 @@
             var discountVal = existing ? existing.discount_price : "";
             var activeChecked = existing ? (existing.is_active ? "checked" : "") : "checked";
             var variantId = existing ? existing.id : "";
+            var isDefaultChecked = existing ? !!existing.is_default : !!forceDefault;
 
             cells += '<td><input type="number" class="form-control pw-stock" value="' + stockVal + '"></td>' +
                 '<td><input type="number" step="0.01" class="form-control pw-price" value="' + priceVal + '"></td>' +
                 '<td><input type="number" step="0.01" class="form-control pw-discount" value="' + discountVal + '"></td>' +
                 '<td><div class="form-check form-switch"><input class="form-check-input pw-active-toggle" type="checkbox" ' + activeChecked + '></div></td>' +
+                '<td class="text-center"><input type="radio" class="form-check-input pw-default-radio" name="default_variant_group" ' + (isDefaultChecked ? "checked" : "") + ' title="Show this variant by default"></td>' +
                 '<td><button type="button" class="btn btn-sm btn-outline-danger pw-remove-row"><i class="bi bi-trash"></i></button>' +
                 '<input type="hidden" class="pw-variant-hidden" name="variants"></td>';
 
@@ -750,23 +762,40 @@
                     inventory_quantity: parseInt(tr.querySelector(".pw-stock").value, 10) || 0,
                     price: tr.querySelector(".pw-price").value || 0,
                     discount_price: tr.querySelector(".pw-discount").value || "",
-                    is_active: tr.querySelector(".pw-active-toggle").checked
+                    is_active: tr.querySelector(".pw-active-toggle").checked,
+                    is_default: tr.querySelector(".pw-default-radio").checked
                 };
                 if (variantId) payload.id = variantId;
                 tr.querySelector(".pw-variant-hidden").value = JSON.stringify(payload);
             };
+            tr.__syncRow = syncRow;
 
             tr.querySelectorAll(".pw-stock, .pw-price, .pw-discount, .pw-active-toggle").forEach(function (el) {
                 el.addEventListener("input", syncRow);
                 el.addEventListener("change", syncRow);
             });
+
+            tr.querySelector(".pw-default-radio").addEventListener("change", function () {
+                // Radio group already enforces single-selection across rows;
+                // just re-sync every row's hidden payload so is_default is accurate.
+                syncAllVariantRows();
+            });
+
             tr.querySelector(".pw-remove-row").addEventListener("click", function () {
+                var wasDefault = tr.querySelector(".pw-default-radio").checked;
                 tr.remove();
                 if (!tbody.querySelector("tr")) {
                     var empty = document.createElement("tr");
                     empty.id = "pw_variant_empty_row";
-                    empty.innerHTML = '<td colspan="5" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>';
+                    empty.innerHTML = '<td colspan="6" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>';
                     tbody.appendChild(empty);
+                } else if (wasDefault) {
+                    // If we removed the default row, promote the first remaining row to default
+                    var firstRadio = tbody.querySelector(".pw-default-radio");
+                    if (firstRadio) {
+                        firstRadio.checked = true;
+                        syncAllVariantRows();
+                    }
                 }
                 toggleInventorySection();
             });
@@ -821,7 +850,7 @@
                 th.textContent = state.attributes[key] ? state.attributes[key].displayName : key;
                 thead.appendChild(th);
             });
-            ["Stock", "Price", "Discount", "Active", "Actions"].forEach(function (label) {
+            ["Stock", "Price", "Discount", "Active", "Default", "Actions"].forEach(function (label) {
                 var th = document.createElement("th");
                 th.textContent = label;
                 thead.appendChild(th);
@@ -834,7 +863,7 @@
                 bulkBox.style.display = "none";
                 var empty = document.createElement("tr");
                 empty.id = "pw_variant_empty_row";
-                empty.innerHTML = '<td colspan="5" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>';
+                empty.innerHTML = '<td colspan="6" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>';
                 tbody.appendChild(empty);
                 toggleInventorySection();
                 return;
@@ -844,13 +873,16 @@
             var valueArrays = attrKeys.map(function (key) { return Array.from(state.selected[key]); });
             var combinations = cartesian(valueArrays);
 
-            combinations.forEach(function (combo) {
+            combinations.forEach(function (combo, idx) {
                 var attributes = {};
                 attrKeys.forEach(function (key, i) { attributes[key] = combo[i]; });
                 var existing = existingVariants.find(function (v) {
                     return attrKeys.every(function (k) { return (v.attributes || {})[k] === attributes[k]; });
                 });
-                addVariantRow(tbody, attrKeys, combo, attributes, existing);
+                // If nothing marked default anywhere and this is the first row, default it.
+                var anyExistingDefault = existingVariants.some(function (v) { return v.is_default; });
+                var forceDefault = !existing && !anyExistingDefault && idx === 0;
+                addVariantRow(tbody, attrKeys, combo, attributes, existing, forceDefault);
             });
 
             toggleInventorySection();
@@ -886,5 +918,12 @@
         } else {
             toggleInventorySection();
         }
+
+        // Final safety net: ensure the "status" hidden field always matches
+        // the visible submit button clicked (Save Draft / Publish), which
+        // Django reads via status_action, taking priority over this select.
+        document.getElementById("add_product_form").addEventListener("submit", function () {
+            syncAllVariantRows();
+        });
     })();
 </script>

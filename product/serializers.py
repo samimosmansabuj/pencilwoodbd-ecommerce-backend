@@ -1,99 +1,5 @@
 from rest_framework import serializers
-# from .models import Category, Product, ProductImage, ProductGifting, ProductDeliveryCharge, ProductVariant
 from .models import *
-
-class CategorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Category
-        fields = '__all__'
-
-class ProductImageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ProductImage
-        fields = ['id', 'image']
-        read_only_fields = ['id']
-
-class ProductGiftingSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ProductGifting
-        fields = ["gift_type", "gift_product", "value"]
-    
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        gift_product = Product.objects.get(pk=data.get("gift_product"))
-        data["gift_product"] = {
-            "id": gift_product.id,
-            "name": gift_product.name,
-            "discount_price": gift_product.discount_price,
-        }
-        return data
-
-class ProductDeliveryChargeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ProductDeliveryCharge
-        fields = ["area_and_charge"]
-
-
-
-class ProductVariantSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ProductVariant
-        fields = [
-            "id",
-            "price",
-            "discount_price",
-            "inventory_quantity",
-            "attributes"
-        ]
-
-class ProductSerializer(serializers.ModelSerializer):
-    images = ProductImageSerializer(many=True)
-    gift_product = ProductGiftingSerializer(many=True)
-    delivery_charge = ProductDeliveryChargeSerializer()
-    variants = ProductVariantSerializer(many=True, read_only=True)
-
-
-    class Meta:
-        model = Product
-        fields = [
-            'id', 'category', 'name', 'slug', 'short_description', 'details', 
-            'inventory_quantity', 'price', 'discount_price', 'created_at', 'updated_at', 'images', 'gift_product', 'delivery_charge', 'variants'
-        ]
-        read_only_fields = ['id', 'slug', 'delivery_charge', 'gift_product', 'created_at', 'updated_at']
-    
-    
-    def get_variants(self, obj):
-        variants_qs = obj.variants.filter(is_active=True)  
-        return ProductVariantSerializer(variants_qs, many=True).data
-    
-    def get_images(self, obj):
-        request = self.context.get('request')
-        print("request: ", request)
-        if obj.images:
-            return request.build_absolute_uri(obj.images.url) if request else obj.images.url
-        return None
-
-
-
-
-
-
-
-
-
-
-# Serializer For Product Landing Page---------------
-from rest_framework import serializers
-from .models import (
-    ProductLandingPage,
-    Product,
-    ProductVariant,
-    ProductImage,
-    ProductVideo,
-    Category,
-    ProductGifting,
-    Tag,
-)
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -101,17 +7,23 @@ class CategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Category
-        fields = "__all__"
+        fields = '__all__'
+
 
 class ProductImageSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductImage
-        fields = "__all__"
+        fields = ['id', 'image', 'role', 'position']
+        read_only_fields = ['id']
 
     def get_image(self, obj):
-        return obj.image.url if obj.image else None
+        request = self.context.get('request')
+        if not obj.image:
+            return None
+        return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+
 
 class ProductVideoSerializer(serializers.ModelSerializer):
     video = serializers.SerializerMethodField()
@@ -121,19 +33,59 @@ class ProductVideoSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def get_video(self, obj):
-        return obj.video.url if obj.video else None
+        request = self.context.get('request')
+        if not obj.video:
+            return None
+        return request.build_absolute_uri(obj.video.url) if request else obj.video.url
+
+
+class ProductGiftingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductGifting
+        fields = ["id", "gift_type", "gift_product", "value", "product"]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        gift_product = instance.gift_product
+        request = self.context.get('request')
+
+        image_url = None
+        if gift_product.primary_image:
+            image_url = (
+                request.build_absolute_uri(gift_product.primary_image)
+                if request else gift_product.primary_image
+            )
+
+        data["gift_product"] = {
+            "id": gift_product.id,
+            "name": gift_product.name,
+            "price": gift_product.price,
+            "discount_price": gift_product.discount_price,
+            "image": image_url,
+        }
+        return data
+
+
+class ProductDeliveryChargeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductDeliveryCharge
+        fields = ["area_and_charge"]
+
 
 class ProductVariantSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductVariant
-        fields = "__all__"
+        fields = [
+            "id",
+            "sku",
+            "price",
+            "discount_price",
+            "inventory_quantity",
+            "attributes",
+            "is_active",
+            "is_default",
+        ]
 
-class ProductGiftingSerializer(serializers.ModelSerializer):
-    gift_product_name = serializers.CharField(source="gift_product.name",read_only=True)
-
-    class Meta:
-        model = ProductGifting
-        fields = "__all__"
 
 class ProductSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
@@ -141,14 +93,23 @@ class ProductSerializer(serializers.ModelSerializer):
     videos = ProductVideoSerializer(many=True, read_only=True)
     variants = ProductVariantSerializer(many=True, read_only=True)
     gift_product = ProductGiftingSerializer(many=True, read_only=True)
+    delivery_charge = ProductDeliveryChargeSerializer(read_only=True)
 
-    primary_image = serializers.ReadOnlyField()
+    primary_image = serializers.SerializerMethodField()
     effective_price = serializers.ReadOnlyField()
     category_path = serializers.ReadOnlyField()
 
     class Meta:
         model = Product
         fields = "__all__"
+        read_only_fields = ['id', 'slug', 'delivery_charge', 'gift_product', 'created_at', 'updated_at']
+
+    def get_primary_image(self, obj):
+        request = self.context.get('request')
+        if not obj.primary_image:
+            return None
+        return request.build_absolute_uri(obj.primary_image) if request else obj.primary_image
+
 
 class ProductLandingPageSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
@@ -163,17 +124,23 @@ class ProductLandingPageSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def get_image(self, obj):
-        return obj.image.url if obj.image else None
+        request = self.context.get('request')
+        if not obj.image:
+            return None
+        return request.build_absolute_uri(obj.image.url) if request else obj.image.url
 
     def get_og_image(self, obj):
-        return obj.og_image.url if obj.og_image else None
-# --------------------------------------------------
+        request = self.context.get('request')
+        if not obj.og_image:
+            return None
+        return request.build_absolute_uri(obj.og_image.url) if request else obj.og_image.url
 
 
 class AttributeValueSerializer(serializers.ModelSerializer):
     class Meta:
         model = AttributeValue
         fields = ["id", "value", "hex_code", "sort_order"]
+
 
 class AttributeSerializer(serializers.ModelSerializer):
     values = AttributeValueSerializer(many=True, read_only=True)

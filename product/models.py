@@ -173,9 +173,10 @@ class Product(models.Model):
     @property
     def effective_price(self):
         if self.has_variants:
-            first_variant = self.variants.filter(is_active=True).first()
-            if first_variant:
-                return first_variant.discount_price or first_variant.price
+            variant = self.variants.filter(is_active=True, is_default=True).first() \
+                    or self.variants.filter(is_active=True).first()
+            if variant:
+                return variant.discount_price or variant.price
             return 0
         return self.discount_price or self.price
 
@@ -206,6 +207,7 @@ class ProductVariant(models.Model):  # New model
     dimensions = models.JSONField(default=dict, blank=True)  
     attributes = models.JSONField(default=dict, blank=True)  # {"size":"M","color":"Red"}
     is_active = models.BooleanField(default=True)  
+    is_default = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)  
     updated_at = models.DateTimeField(auto_now=True) 
 
@@ -227,11 +229,18 @@ class ProductVariant(models.Model):  # New model
         is_new = self.pk is None
         if not self.sku:
             self.get_product_sku()
+
         super().save(*args, **kwargs)
 
         if is_new and not self.product.has_variants:
             self.product.has_variants = True
             self.product.save(update_fields=["has_variants"])
+
+        if self.is_default:
+            ProductVariant.objects.filter(product=self.product).exclude(pk=self.pk).update(is_default=False)
+        elif not ProductVariant.objects.filter(product=self.product, is_default=True).exists():
+            ProductVariant.objects.filter(pk=self.pk).update(is_default=True)
+            self.is_default = True  
 
     def __str__(self):  # new
         return f"{self.product.name} - {self.sku or self.pk}"
