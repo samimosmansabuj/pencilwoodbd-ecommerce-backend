@@ -13,7 +13,8 @@
                 hx-trigger="keyup changed delay:400ms, search"
                 hx-target="#user-tab-content"
                 hx-swap="innerHTML"
-                hx-include="#customer-source-select, #customer-per-page-select"
+                hx-include="#customer-source-select"
+                hx-vals='{"per_page": "{{ current_per_page }}"}'
                 hx-push-url="true">
             <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">search</span>
         </div>
@@ -27,28 +28,14 @@
             hx-get="{% url 'user_management' %}?tab=customers"
             hx-trigger="change"
             hx-target="#user-tab-content"
-            hx-include="[name='q'], #customer-per-page-select"
+            hx-swap="innerHTML"
+            hx-include="[name='q']"
+            hx-vals='{"per_page": "{{ current_per_page }}"}'
             hx-push-url="true">
             <option value="">All Sources</option>
             {% for src in sources %}
                 <option value="{{ src }}" {% if current_source == src %}selected{% endif %}>{{ src }}</option>
             {% endfor %}
-        </select>
-    </div>
-
-    <div class="col-auto">
-        <select
-            id="customer-per-page-select"
-            name="per_page"
-            class="form-select btn-filter"
-            hx-get="{% url 'user_management' %}?tab=customers"
-            hx-trigger="change"
-            hx-target="#user-tab-content"
-            hx-include="[name='q'], #customer-source-select"
-            hx-push-url="true">
-            <option value="25" {% if request.GET.per_page == "25" or not request.GET.per_page %}selected{% endif %}>25 / page</option>
-            <option value="50" {% if request.GET.per_page == "50" %}selected{% endif %}>50 / page</option>
-            <option value="100" {% if request.GET.per_page == "100" %}selected{% endif %}>100 / page</option>
         </select>
     </div>
 </div>
@@ -86,9 +73,7 @@
                         <td>{{ customer.phone }}</td>
                         <td>{{ customer.second_phone|default:"—" }}</td>
                         <td>{{ customer.email|default:"—" }}</td>
-                        <td>
-                            <span class="badge bg-light-secondary text-secondary">{{ customer.source|default:"Others" }}</span>
-                        </td>
+                        <td><span class="badge bg-light-secondary text-secondary">{{ customer.source|default:"Others" }}</span></td>
                         <td>{{ customer.created_at|date:"M d, Y" }}</td>
                         <td>
                             <div class="btn-group">
@@ -106,40 +91,63 @@
                 </tbody>
             </table>
         </div>
+    </div>
+</div>
 
-        {% if paginator.num_pages > 1 %}
-        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
-            <div class="text-secondary">
-                Page {{ customers.number }} of {{ paginator.num_pages }} ({{ paginator.count }} customers)
-            </div>
-            <nav>
-                <ul class="pagination mb-0">
-                    {% if customers.has_previous %}
-                    <li class="page-item">
-                        <a class="page-link"
-                           href="?tab=customers&page={{ customers.previous_page_number }}"
-                           hx-get="{% url 'user_management' %}?tab=customers&page={{ customers.previous_page_number }}"
-                           hx-target="#user-tab-content"
-                           hx-include="[name='q'], #customer-source-select, #customer-per-page-select"
-                           hx-push-url="true">Previous</a>
-                    </li>
+<div class="btn btn-grd position-fixed bottom-0 end-0 m-3 d-flex align-items-center gap-2 shadow-lg"
+style="z-index: 1050; margin: auto 22px 45px 0px !important; padding: 0px !important;">
+    <div class="card-body" style="padding: 0px;">
+        <nav aria-label="Page navigation example">
+            <ul class="pagination" style="margin: auto;">
+                <li class="page-item {% if not customers.has_previous %}disabled{% endif %}">
+                    <a class="page-link"
+                       hx-get="{% url 'user_management' %}?tab=customers{% if customers.has_previous %}&page={{ customers.previous_page_number }}&q={{ current_search }}&source={{ current_source }}&per_page={{ current_per_page }}{% endif %}"
+                       hx-target="#user-tab-content"
+                       hx-swap="innerHTML"
+                       hx-push-url="true">
+                        «
+                    </a>
+                </li>
+
+                {% for num in paginator.page_range %}
+                    {% if num >= customers.number|add:-2 and num <= customers.number|add:2 %}
+                        <li class="page-item {% if customers.number == num %}active{% endif %}">
+                            <a class="page-link"
+                               hx-get="{% url 'user_management' %}?tab=customers&page={{ num }}&q={{ current_search }}&source={{ current_source }}&per_page={{ current_per_page }}"
+                               hx-target="#user-tab-content"
+                               hx-swap="innerHTML"
+                               hx-push-url="true">
+                                {{ num }}
+                            </a>
+                        </li>
                     {% endif %}
-                    <li class="page-item active">
-                        <span class="page-link">{{ customers.number }}</span>
-                    </li>
-                    {% if customers.has_next %}
-                    <li class="page-item">
-                        <a class="page-link"
-                           href="?tab=customers&page={{ customers.next_page_number }}"
-                           hx-get="{% url 'user_management' %}?tab=customers&page={{ customers.next_page_number }}"
-                           hx-target="#user-tab-content"
-                           hx-include="[name='q'], #customer-source-select, #customer-per-page-select"
-                           hx-push-url="true">Next</a>
-                    </li>
-                    {% endif %}
-                </ul>
-            </nav>
-        </div>
-        {% endif %}
+                {% endfor %}
+
+                <li class="page-item {% if not customers.has_next %}disabled{% endif %}">
+                    <a class="page-link"
+                       hx-get="{% url 'user_management' %}?tab=customers{% if customers.has_next %}&page={{ customers.next_page_number }}&q={{ current_search }}&source={{ current_source }}&per_page={{ current_per_page }}{% endif %}"
+                       hx-target="#user-tab-content"
+                       hx-swap="innerHTML"
+                       hx-push-url="true">
+                        »
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+
+    <div class="col-auto">
+        <select class="form-select"
+                hx-get="{% url 'user_management' %}?tab=customers&q={{ current_search }}&source={{ current_source }}"
+                hx-trigger="change"
+                hx-target="#user-tab-content"
+                hx-swap="innerHTML"
+                hx-push-url="true"
+                name="per_page">
+            <option value="10" {% if current_per_page == "10" %}selected{% endif %}>10</option>
+            <option value="25" {% if current_per_page == "25" %}selected{% endif %}>25</option>
+            <option value="50" {% if current_per_page == "50" %}selected{% endif %}>50</option>
+            <option value="100" {% if current_per_page == "100" %}selected{% endif %}>100</option>
+        </select>
     </div>
 </div>

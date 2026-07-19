@@ -267,30 +267,58 @@ class OrderCreateAPIView(APIView):
             status=status.HTTP_405_METHOD_NOT_ALLOWED,
         )
 
-    # AMOUNT CHECK BETWEEN DATA AND PRODUCT
     def amount_check(self, data: dict) -> dict:
         if Decimal(str(self.productTotal)) == Decimal(str(data.get("productTotal"))):
             return data
         raise Exception("Total product amount not same.")
 
-    # CREATE ORDER ITEM
     def create_order_item(self, order: object, products, amount):
-        print("products: ", products)
         order_items = []
         for product in products:
-            prod = Product.objects.get(pk=product.get("id"))
+            raw_id = product.get("id")
+            try:
+                product_id = int(raw_id)
+            except (TypeError, ValueError):
+                raise Exception(f"Invalid product id in order item: {raw_id!r}")
+
+            prod = Product.objects.get(pk=product_id)
+            quantity = int(product.get("quantity", 1))
+            unit_price = Decimal(str(product.get("price", 0)))
+            is_gift = product.get("product_type") == "FREE"
+
             order_item = OrderItem.objects.create(
                 order=order,
                 product=prod,
-                quantity=int(product.get("quantity", 1)),
-                price=prod.price,
-                discount_price=Decimal(str(product.get("price", 0))),
-                # discount_total_price=int(product.get("quantity", 1)) * Decimal(str(product.get("price", 0))),
+                quantity=quantity,
+                price=Decimal("0") if is_gift else prod.price,
+                discount_price=unit_price,
+                snapshot={
+                    "product_type": product.get("product_type"),
+                    "reference_product": product.get("reference_product"),
+                    "is_gift": is_gift,
+                },
             )
             order_items.append(order_item)
+
+            if prod.has_variants:
+                variant = prod.variants.filter(is_active=True).first()
+                if variant:
+                    if variant.inventory_quantity < quantity:
+                        raise Exception(f"Not enough inventory for {prod.name}")
+                    variant.inventory_quantity -= quantity
+                    variant.save()
+                    prod.inventory_quantity = sum(
+                        v.inventory_quantity for v in prod.variants.filter(is_active=True)
+                    )
+                    prod.save(update_fields=["inventory_quantity"])
+            else:
+                if prod.inventory_quantity < quantity:
+                    raise Exception(f"Not enough inventory for {prod.name}")
+                prod.inventory_quantity -= quantity
+                prod.save(update_fields=["inventory_quantity"])
+
         return order_items
 
-    # CHECK FREE PRODUCT FOR MAIN PRODUCT
     def check_free_product(self, reference_product: int, product: object):
         reference = Product.objects.get(pk=reference_product)
         if not reference:
@@ -302,21 +330,31 @@ class OrderCreateAPIView(APIView):
                 return True
         return False
 
-    # GET AND VERIFY PRODUCT AND PRICE DETAILS
     def get_product_and_verify(self, product_data: dict) -> object:
         products = []
         self.productTotal = 0
         for prod in product_data:
-            product = get_object_or_404(Product, pk=prod.get("id", None))
+            raw_id = prod.get("id", None)
+            if raw_id is None or str(raw_id).strip().lower() in ("undefined", "null", ""):
+                raise Exception(f"Invalid product id received: {raw_id!r} for item '{prod.get('name', 'unknown')}'")
+
+            try:
+                product_id = int(raw_id)
+            except (TypeError, ValueError):
+                raise Exception(f"Product id must be numeric, got: {raw_id!r}")
+
+            product = get_object_or_404(Product, pk=product_id)
             if not product:
                 raise Exception("No Product Found.")
 
             product_type = prod.get("product_type")
             reference_product = prod.get("reference_product", None)
+
             if product_type == "FREE" and reference_product:
                 if self.check_free_product(reference_product, product) is False:
                     raise Exception("Free Product not available.")
                 products.append(product)
+                # NOTE: FREE items don't add to productTotal — price is 0
             elif product.discount_price != float(prod.get("price")):
                 raise Exception("Product price and given price are not same.")
             elif product.inventory_quantity < prod.get("quantity"):
@@ -326,12 +364,10 @@ class OrderCreateAPIView(APIView):
                 products.append(product)
         return products
 
-    # MAKE ADDRESS
     def get_make_address(self, data):
         address = f"{data.get('address')}, {data.get('district')}"
         return address
 
-    # GET AND CREATE CUSTOMER OBJECT
     def get_customer(self, data):
         customer, created = Customer.objects.get_or_create(
             phone=data.get("phone"), defaults={"name": data.get("name")}
@@ -342,7 +378,6 @@ class OrderCreateAPIView(APIView):
         try:
             with transaction.atomic():
                 data = request.data
-                # print("data: ", data)
                 self.handle_missing_field(data)
 
                 otp_verified = None
@@ -350,7 +385,6 @@ class OrderCreateAPIView(APIView):
 
                 if otp_required:
                     customer_data = data.get("customer", {})
-
                     phone = customer_data.get("phone", "").strip()
                     if not phone.startswith("88"):
                         phone = "88" + phone
@@ -361,20 +395,30 @@ class OrderCreateAPIView(APIView):
 
                     if not otp_verified:
                         raise Exception("OTP not verified")
-
                     if otp_verified.is_expired():
                         raise Exception("OTP expired")
-                
+
                 customer = self.get_customer(data.get("customer", {}))
                 address = self.get_make_address(data.get("customer", {}))
                 products = self.get_product_and_verify(data.get("products", {}))
                 amount = self.amount_check(data.get("amount", {}))
 
+                # ---- Build metadata so it actually persists ----
+                metadata_payload = {
+                    "source": "landing_page",
+                    "district": data.get("customer", {}).get("district"),
+                    "raw_products": data.get("products", []),
+                    "raw_amount": data.get("amount", {}),
+                    "note": data.get("note", ""),
+                }
+
                 order = Order.objects.create(
                     customer=customer,
                     shipping_address=address,
+                    note=data.get("note", ""),
                     shipping_total=Decimal(str(amount.get("deliveryCharge", 0))),
                     total_cost=Decimal(str(amount.get("totalAmount", 0))),
+                    metadata=metadata_payload,
                 )
                 order_item = self.create_order_item(
                     order, data.get("products", {}), amount
@@ -383,14 +427,8 @@ class OrderCreateAPIView(APIView):
                 if otp_required and otp_verified:
                     otp_verified.delete()
 
-                # if data.get("customer", {}).get("email", None):
-                #     send_mail = OrderConfirmatinoEmailSend(
-                #         order, data.get("customer", {}).get("email", None)
-                #     )
-                #     send_mail.order_confirmation_mail_send()
-
                 return Response(
-                    {"success": True, "message": "Order Created"},
+                    {"success": True, "message": "Order Created", "order_id": order.order_id},
                     status=status.HTTP_201_CREATED,
                 )
         except Exception as e:
@@ -400,7 +438,6 @@ class OrderCreateAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    # VERIFY ORDER AMOUNT
     def verify_input_amount(self, data):
         if data:
             input_delivery_charge = data["deliveryCharge"]
@@ -414,24 +451,16 @@ class OrderCreateAPIView(APIView):
         else:
             raise Exception("Customer amount must be set.")
 
-    # VERIFY ORDER CUSTOMER INFORMATION
     def verify_input_customer(self, data):
         if data:
-            required_fields = [
-                "name",
-                "phone",
-                "address",
-                "district",
-            ]
+            required_fields = ["name", "phone", "address", "district"]
             missing_fields = [field for field in required_fields if not data.get(field)]
             return missing_fields
         else:
             raise Exception("Customer data must be set.")
 
-    # HANDLING MISSING FIELD AND SEND ERROR
     def handle_missing_field(self, data):
         customer_missing_fields = self.verify_input_customer(data.get("customer", {}))
-        print("customer_missing_fields: ", customer_missing_fields)
         if customer_missing_fields:
             raise Exception(
                 f"The following fields must be filled: {', '.join(customer_missing_fields)}"

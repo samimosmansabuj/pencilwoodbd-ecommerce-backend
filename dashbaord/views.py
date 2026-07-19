@@ -19,6 +19,7 @@ from django.urls import reverse_lazy
 from django.views.generic import CreateView, UpdateView, DeleteView, ListView
 from decimal import Decimal, InvalidOperation
 import json as pyjson
+from django.contrib.auth.hashers import make_password
 
 
 # Models
@@ -217,7 +218,7 @@ class UserManagementView(LoginRequiredMixin, View):
         if source:
             customers = customers.filter(source__iexact=source)
 
-        per_page = parse_int(request.GET.get("per_page"), 25)
+        per_page = parse_int(request.GET.get("per_page"), 10)
         paginator = Paginator(customers, per_page)
         page_obj = paginator.get_page(request.GET.get("page", 1))
 
@@ -235,6 +236,7 @@ class UserManagementView(LoginRequiredMixin, View):
             "paginator": paginator,
             "current_search": search,
             "current_source": source,
+            "current_per_page": str(per_page),
             "sources": sources,
         }
 
@@ -262,7 +264,7 @@ class UserManagementView(LoginRequiredMixin, View):
         if role in valid_roles and role != USER_TYPE.CUSTOMER:
             staff_users = staff_users.filter(user_type=role)
 
-        per_page = parse_int(request.GET.get("per_page"), 25)
+        per_page = parse_int(request.GET.get("per_page"), 10)
         paginator = Paginator(staff_users, per_page)
         page_obj = paginator.get_page(request.GET.get("page", 1))
 
@@ -274,6 +276,7 @@ class UserManagementView(LoginRequiredMixin, View):
             "paginator": paginator,
             "current_search": search,
             "current_role": role,
+            "current_per_page": str(per_page),
             "role_choices": role_choices,
         }
 
@@ -282,6 +285,164 @@ class UserManagementView(LoginRequiredMixin, View):
 
         context.update(self._base_wrapper_context())
         return render(request, "db_users/user_management.html", context)
+    
+
+class StaffCreateView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def _can_manage_staff(self, request):
+        return request.user.user_type in [USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN]
+
+    def post(self, request):
+        if not self._can_manage_staff(request):
+            messages.error(request, "You don't have permission to create staff/admin users.")
+            return redirect("user_management")
+
+        data = request.POST
+        username = data.get("username", "").strip()
+        email = data.get("email", "").strip()
+        first_name = data.get("first_name", "").strip()
+        last_name = data.get("last_name", "").strip()
+        password = data.get("password", "")
+        confirm_password = data.get("confirm_password", "")
+        role = data.get("user_type", "").strip()
+
+        redirect_url = f"{reverse_lazy('user_management')}?tab=staff"
+        assignable_roles = [USER_TYPE.STAFF, USER_TYPE.ADMIN]
+
+        if not username or not email or not password:
+            messages.error(request, "Username, email and password are required.")
+            return redirect(redirect_url)
+
+        if role not in assignable_roles:
+            messages.error(request, "Invalid role selected.")
+            return redirect(redirect_url)
+
+        if password != confirm_password:
+            messages.error(request, "Passwords do not match.")
+            return redirect(redirect_url)
+
+        if len(password) < 8:
+            messages.error(request, "Password must be at least 8 characters long.")
+            return redirect(redirect_url)
+
+        if CustomUser.objects.filter(username=username).exists():
+            messages.error(request, "This username is already taken.")
+            return redirect(redirect_url)
+
+        if CustomUser.objects.filter(email=email).exists():
+            messages.error(request, "This email is already registered.")
+            return redirect(redirect_url)
+
+        try:
+            with transaction.atomic():
+                user = CustomUser.objects.create(
+                    username=username,
+                    email=email,
+                    first_name=first_name,
+                    last_name=last_name,
+                    user_type=role,
+                    password=make_password(password),
+                    is_active=True,
+                    is_staff=True,  # allows Django-admin login if ever needed
+                )
+            messages.success(request, f"{user.get_user_type_display()} account for '{username}' created successfully.")
+        except Exception as e:
+            messages.error(request, f"Failed to create user: {e}")
+
+        return redirect(redirect_url)
+    
+
+class StaffUpdateView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def _can_manage_staff(self, request):
+        return request.user.user_type in [USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN]
+
+    def get(self, request, pk):
+        # Only admins can edit others; a user can edit only themselves otherwise
+        target = get_object_or_404(CustomUser, pk=pk)
+        if not self._can_manage_staff(request) and request.user.pk != target.pk:
+            return JsonResponse({"status": False, "message": "Permission denied"}, status=HTTPStatus.FORBIDDEN)
+
+        return JsonResponse({
+            "status": True,
+            "user": {
+                "id": target.id,
+                "username": target.username,
+                "email": target.email,
+                "first_name": target.first_name,
+                "last_name": target.last_name,
+                "user_type": target.user_type,
+                "is_active": target.is_active,
+            }
+        })
+
+    def post(self, request, pk):
+        target = get_object_or_404(CustomUser, pk=pk)
+        is_self = request.user.pk == target.pk
+        is_manager = self._can_manage_staff(request)
+
+        if not is_manager and not is_self:
+            messages.error(request, "You don't have permission to edit this user.")
+            return redirect("user_management")
+
+        redirect_url = f"{reverse_lazy('user_management')}?tab=staff"
+        data = request.POST
+
+        username = data.get("username", "").strip()
+        email = data.get("email", "").strip()
+        first_name = data.get("first_name", "").strip()
+        last_name = data.get("last_name", "").strip()
+        password = data.get("password", "")
+        confirm_password = data.get("confirm_password", "")
+        role = data.get("user_type", "").strip()
+
+        if not username or not email:
+            messages.error(request, "Username and email are required.")
+            return redirect(redirect_url)
+
+        if CustomUser.objects.filter(username=username).exclude(pk=target.pk).exists():
+            messages.error(request, "This username is already taken.")
+            return redirect(redirect_url)
+
+        if CustomUser.objects.filter(email=email).exclude(pk=target.pk).exists():
+            messages.error(request, "This email is already registered.")
+            return redirect(redirect_url)
+
+        # Role change: only a manager can change roles, and never to/from SUPER_ADMIN via this form
+        if is_manager:
+            assignable_roles = [USER_TYPE.STAFF, USER_TYPE.ADMIN]
+            if role and target.user_type != USER_TYPE.SUPER_ADMIN:
+                if role not in assignable_roles:
+                    messages.error(request, "Invalid role selected.")
+                    return redirect(redirect_url)
+                target.user_type = role
+            # is_active toggle, manager only
+            target.is_active = data.get("is_active") == "on"
+
+        # Password change (optional on edit)
+        if password or confirm_password:
+            if password != confirm_password:
+                messages.error(request, "Passwords do not match.")
+                return redirect(redirect_url)
+            if len(password) < 8:
+                messages.error(request, "Password must be at least 8 characters long.")
+                return redirect(redirect_url)
+            target.password = make_password(password)
+
+        target.username = username
+        target.email = email
+        target.first_name = first_name
+        target.last_name = last_name
+
+        try:
+            target.save()
+            messages.success(request, f"User '{target.username}' updated successfully.")
+        except Exception as e:
+            messages.error(request, f"Failed to update user: {e}")
+
+        return redirect(redirect_url)
     
 
 # ------------------Product--------
@@ -337,7 +498,7 @@ class ProductListView(LoginRequiredMixin, View):
             "discount": base_qs.filter(discount_price__gt=0).exclude(discount_price=F("price")).count(),
         }
 
-        per_page = parse_int(request.GET.get("per_page"), 10)
+        per_page = parse_int(request.GET.get("per_page"), 6)
         paginator = Paginator(products, per_page)
         page_obj = paginator.get_page(request.GET.get("page", 1))
 
@@ -381,6 +542,14 @@ def parse_int(value, default=0):
         return default
 
 
+def parse_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ("true", "1", "on", "yes")
+
+
 @login_required(login_url="admin_login")
 def add_product(request):
 
@@ -389,6 +558,8 @@ def add_product(request):
         {"id": a.id, "name": a.name, "values": [{"id": v.id, "value": v.value} for v in a.values.all()]}
         for a in attributes
     ]
+
+    valid_statuses = [c[0] for c in CATEGORY_PRODUCT_STATUS.choices]
 
     if request.method == "POST":
         try:
@@ -420,15 +591,39 @@ def add_product(request):
 
                 product_type = PRODUCT_TYPE.VARIABLE if parsed_variants else PRODUCT_TYPE.SIMPLE
 
-                status_value = request.POST.get("status_action") or request.POST.get("status") or CATEGORY_PRODUCT_STATUS.DRAFT
+                status_value = request.POST.get("status_action") or request.POST.get("status")
+                if status_value not in valid_statuses:
+                    status_value = CATEGORY_PRODUCT_STATUS.ACTIVE
+
+                # Determine the "default/featured" variant's price upfront so it can
+                # seed Product.price / Product.discount_price even for variable products.
+                default_variant_data = None
+                if parsed_variants:
+                    default_variant_data = next(
+                        (d for d in parsed_variants if parse_bool(d.get("is_default"))),
+                        parsed_variants[0],
+                    )
+
+                if parsed_variants:
+                    product_price = parse_decimal(
+                        default_variant_data.get("price"),
+                        default=parse_decimal(request.POST.get("price")),
+                    )
+                    product_discount_price = parse_decimal(
+                        default_variant_data.get("discount_price"),
+                        default=parse_decimal(request.POST.get("discount_price")),
+                    )
+                else:
+                    product_price = parse_decimal(request.POST.get("price"))
+                    product_discount_price = parse_decimal(request.POST.get("discount_price"))
 
                 product = Product.objects.create(
                     name=request.POST.get("name", "").strip(),
                     category=category,
                     short_description=request.POST.get("short_description", ""),
                     details=request.POST.get("details", ""),
-                    price=parse_decimal(request.POST.get("price")),
-                    discount_price=parse_decimal(request.POST.get("discount_price")),
+                    price=product_price,
+                    discount_price=product_discount_price,
                     inventory_quantity=parse_int(request.POST.get("inventory_quantity")),
                     status=status_value,
                     product_type=product_type,
@@ -466,9 +661,11 @@ def add_product(request):
                 if video:
                     ProductVideo.objects.create(product=product, video=video)
 
+                created_variants = []
                 for data in parsed_variants:
                     variant_attrs = data.get("attributes") or {}
-                    ProductVariant.objects.create(
+                    is_default_flag = parse_bool(data.get("is_default")) or (data is default_variant_data)
+                    variant = ProductVariant.objects.create(
                         product=product,
                         attributes=variant_attrs,
                         price=parse_decimal(data.get("price"), default=product.price),
@@ -477,7 +674,9 @@ def add_product(request):
                         ),
                         inventory_quantity=parse_int(data.get("inventory_quantity")),
                         is_active=data.get("is_active", True),
+                        is_default=is_default_flag,
                     )
+                    created_variants.append(variant)
 
                 if product.has_variants:
                     product.inventory_quantity = sum(
@@ -507,7 +706,6 @@ def add_product(request):
     )
 
 
-
 @login_required(login_url="admin_login")
 def product_update(request, pk):
 
@@ -527,9 +725,12 @@ def product_update(request, pk):
             "discount_price": str(v.discount_price),
             "inventory_quantity": v.inventory_quantity,
             "is_active": v.is_active,
+            "is_default": v.is_default,
         }
         for v in product.variants.all()
     ]
+
+    valid_statuses = [c[0] for c in CATEGORY_PRODUCT_STATUS.choices]
 
     if request.method == "POST":
 
@@ -547,10 +748,10 @@ def product_update(request, pk):
                 product.category = category
                 product.short_description = request.POST.get("short_description", product.short_description)
                 product.details = request.POST.get("details", product.details)
-                product.price = parse_decimal(request.POST.get("price"), default=product.price)
-                product.discount_price = parse_decimal(request.POST.get("discount_price"), default=product.discount_price)
 
-                status_value = request.POST.get("status_action") or request.POST.get("status") or product.status
+                status_value = request.POST.get("status_action") or request.POST.get("status")
+                if status_value not in valid_statuses:
+                    status_value = product.status
                 product.status = status_value
 
                 product.save()
@@ -625,7 +826,17 @@ def product_update(request, pk):
                         continue
                     parsed_variants.append(data)
 
+                # Figure out which variant (existing or new) should be default
+                default_variant_data = None
+                if parsed_variants:
+                    default_variant_data = next(
+                        (d for d in parsed_variants if parse_bool(d.get("is_default"))),
+                        parsed_variants[0],
+                    )
+
+                for data in parsed_variants:
                     variant_id = data.get("id")
+                    is_default_flag = parse_bool(data.get("is_default")) or (data is default_variant_data)
 
                     if variant_id:
                         variant = ProductVariant.objects.get(id=variant_id, product=product)
@@ -634,6 +845,7 @@ def product_update(request, pk):
                         variant.discount_price = parse_decimal(data.get("discount_price"), default=variant.discount_price)
                         variant.inventory_quantity = parse_int(data.get("inventory_quantity"), default=variant.inventory_quantity)
                         variant.is_active = data.get("is_active", variant.is_active)
+                        variant.is_default = is_default_flag
                         variant.save()
                         existing_ids.append(variant.id)
                     else:
@@ -644,6 +856,7 @@ def product_update(request, pk):
                             discount_price=parse_decimal(data.get("discount_price"), default=product.discount_price),
                             inventory_quantity=parse_int(data.get("inventory_quantity")),
                             is_active=data.get("is_active", True),
+                            is_default=is_default_flag,
                         )
                         existing_ids.append(variant.id)
 
@@ -658,10 +871,18 @@ def product_update(request, pk):
                         v.inventory_quantity
                         for v in product.variants.filter(is_active=True)
                     )
-                    product.save(update_fields=["inventory_quantity"])
+                    # Sync Product.price/discount_price with the default variant
+                    default_variant = product.variants.filter(is_default=True).first() \
+                        or product.variants.first()
+                    if default_variant:
+                        product.price = default_variant.price
+                        product.discount_price = default_variant.discount_price
+                    product.save(update_fields=["inventory_quantity", "price", "discount_price"])
                 elif not request.POST.get("inventory_quantity") is None:
                     product.inventory_quantity = parse_int(request.POST.get("inventory_quantity"), default=product.inventory_quantity)
-                    product.save(update_fields=["inventory_quantity"])
+                    product.price = parse_decimal(request.POST.get("price"), default=product.price)
+                    product.discount_price = parse_decimal(request.POST.get("discount_price"), default=product.discount_price)
+                    product.save(update_fields=["inventory_quantity", "price", "discount_price"])
 
                 messages.success(request, "Product updated successfully")
                 return redirect("product_update", pk=product.pk)
