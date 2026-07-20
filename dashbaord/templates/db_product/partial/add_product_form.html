@@ -143,14 +143,22 @@
                     </div>
 
                     <div class="mb-4">
+                        <p class="small text-muted mb-2">
+                            <i class="bi bi-star-fill text-warning"></i>
+                            Mark one variant as <strong>Default</strong> — this is the variant/price/image shown
+                            first on the storefront before the customer picks an option.
+                        </p>
+
                         <div class="mb-3" id="pw_bulk_price_set" style="display: none;">
                             <h6>Bulk Price & Stock</h6>
                             <div class="row g-2">
                                 <div class="col"><input type="number" class="form-control" id="pw_bulk_stock"
                                         placeholder="Stock"></div>
-                                <div class="col"><input type="number" class="form-control" id="pw_bulk_price"
+                                <div class="col"><input type="number" step="0.01" class="form-control" id="pw_bulk_cost"
+                                        placeholder="Cost"></div>
+                                <div class="col"><input type="number" step="0.01" class="form-control" id="pw_bulk_price"
                                         placeholder="Price"></div>
-                                <div class="col"><input type="number" class="form-control" id="pw_bulk_discount"
+                                <div class="col"><input type="number" step="0.01" class="form-control" id="pw_bulk_discount"
                                         placeholder="Discount"></div>
                                 <div class="col"><button type="button" class="btn btn-dark w-100"
                                         id="pw_apply_bulk">Apply All</button></div>
@@ -162,6 +170,7 @@
                                 <thead class="table-dark">
                                     <tr id="pw_variant_head">
                                         <th>Stock</th>
+                                        <th>Cost</th>
                                         <th>Price</th>
                                         <th>Discount</th>
                                         <th>Active</th>
@@ -171,7 +180,7 @@
                                 </thead>
                                 <tbody id="pw_variant_table_body">
                                     <tr id="pw_variant_empty_row">
-                                        <td colspan="6" class="text-center text-muted">No variants yet — select an
+                                        <td colspan="7" class="text-center text-muted">No variants yet — select an
                                             attribute and values above, then click Add.</td>
                                     </tr>
                                 </tbody>
@@ -187,14 +196,22 @@
             <div class="card">
                 <div class="card-body">
                     <div class="d-flex align-items-center gap-3">
+                        {% if is_update and product %}
+                        <button type="button" class="btn btn-outline-danger flex-fill" data-bs-toggle="modal"
+                            data-bs-target="#DeleteProductModal"
+                            data-delete-url="{% url 'product_delete' product.pk %}">
+                            <i class="bi bi-x-circle me-2"></i>Discard
+                        </button>
+                        {% else %}
                         <a href="{% url 'product_list' %}" class="btn btn-outline-danger flex-fill">
                             <i class="bi bi-x-circle me-2"></i>Discard
                         </a>
-                        <button type="submit" name="status_action" value="draft"
+                        {% endif %}
+                        <button type="submit" name="status_action" value="Draft"
                             class="btn btn-outline-success flex-fill">
                             <i class="bi bi-cloud-download me-2"></i>Save Draft
                         </button>
-                        <button type="submit" name="status_action" value="active"
+                        <button type="submit" name="status_action" value="Active"
                             class="btn btn-outline-primary flex-fill">
                             <i class="bi bi-send me-2"></i>Publish
                         </button>
@@ -212,14 +229,15 @@
                                 {% for status_value, status_label in CATEGORY_PRODUCT_STATUS_CHOICES %}
                                 <option value="{{ status_value }}"
                                     {% if product and product.status == status_value %}selected
-                                    {% elif not product and status_value == "draft" %}selected
+                                    {% elif not product and status_value == "Draft" %}selected
                                     {% endif %}>
                                     {{ status_label }}
                                 </option>
                                 {% endfor %}
                             </select>
-                            <small class="text-muted">This applies to the whole product, whether or not it has
-                                variants.</small>
+                            <small class="text-muted">This is the status that will be applied when you click
+                                <strong>Publish</strong>. Clicking <strong>Save Draft</strong> always saves as Draft
+                                regardless of this selection.</small>
                         </div>
                     </div>
                 </div>
@@ -271,6 +289,12 @@
                     <h5 class="mb-3">Pricing & Inventory</h5>
                     <div class="row g-3">
                         <div class="col-12">
+                            <label class="form-label">Cost Price</label>
+                            <input type="number" step="0.01" name="cost_price" id="pw_cost_price" class="form-control"
+                                placeholder="0.00" value="{% if product %}{{ product.cost_price|default_if_none:'' }}{% endif %}">
+                            <small class="text-muted">Your buying/production cost — used for profit calculations, not shown to customers.</small>
+                        </div>
+                        <div class="col-12">
                             <label class="form-label">Regular Price</label>
                             <input type="number" step="0.01" name="price" id="pw_regular_price" class="form-control"
                                 placeholder="0.00" value="{% if product %}{{ product.price }}{% endif %}">
@@ -299,8 +323,12 @@
 
     <!-- The real status field submitted; kept in sync with pw_status select -->
     <input type="hidden" name="status" id="pw_status_hidden"
-        value="{% if product %}{{ product.status }}{% else %}draft{% endif %}">
+        value="{% if product %}{{ product.status }}{% else %}Draft{% endif %}">
 </form>
+
+{% if is_update and product %}
+{% include "db_product/modal/delete_product_modal.html" %}
+{% endif %}
 
 <script>
     (function () {
@@ -322,6 +350,10 @@
         });
 
         // ================= Status select -> hidden "status" field =================
+        // The dropdown value is submitted as "status". The Publish/Save Draft
+        // buttons submit "status_action" alongside it. The view logic is:
+        //   - status_action == "Draft"  -> force Draft
+        //   - otherwise (Publish, or any future generic submit) -> use "status"
         (function initStatus() {
             var statusSelect = document.getElementById("pw_status");
             var statusHidden = document.getElementById("pw_status_hidden");
@@ -694,9 +726,6 @@
             });
         }
 
-        // FIX #3: type="button" is already set on this button (via HTML above),
-        // and we guard so it ONLY validates when actually clicked — nothing else
-        // in the form can trigger it now since it's not type="submit".
         addAttrBtn.addEventListener("click", function (e) {
             e.preventDefault();
             var key = attrSelect.value;
@@ -718,13 +747,6 @@
             }, [[]]);
         }
 
-        function updateDefaultRadioNames() {
-            // Ensure exactly one radio group covers all current variant rows
-            document.querySelectorAll("#pw_variant_table_body .pw-default-radio").forEach(function (radio) {
-                radio.name = "default_variant_group";
-            });
-        }
-
         function syncAllVariantRows() {
             document.querySelectorAll("#pw_variant_table_body tr").forEach(function (tr) {
                 var sync = tr.__syncRow;
@@ -742,11 +764,13 @@
             var stockVal = existing ? existing.inventory_quantity : "";
             var priceVal = existing ? existing.price : "";
             var discountVal = existing ? existing.discount_price : "";
+            var costVal = existing ? existing.cost_price : "";
             var activeChecked = existing ? (existing.is_active ? "checked" : "") : "checked";
             var variantId = existing ? existing.id : "";
             var isDefaultChecked = existing ? !!existing.is_default : !!forceDefault;
 
             cells += '<td><input type="number" class="form-control pw-stock" value="' + stockVal + '"></td>' +
+                '<td><input type="number" step="0.01" class="form-control pw-cost" value="' + costVal + '"></td>' +
                 '<td><input type="number" step="0.01" class="form-control pw-price" value="' + priceVal + '"></td>' +
                 '<td><input type="number" step="0.01" class="form-control pw-discount" value="' + discountVal + '"></td>' +
                 '<td><div class="form-check form-switch"><input class="form-check-input pw-active-toggle" type="checkbox" ' + activeChecked + '></div></td>' +
@@ -762,6 +786,7 @@
                     inventory_quantity: parseInt(tr.querySelector(".pw-stock").value, 10) || 0,
                     price: tr.querySelector(".pw-price").value || 0,
                     discount_price: tr.querySelector(".pw-discount").value || "",
+                    cost_price: tr.querySelector(".pw-cost").value || "",
                     is_active: tr.querySelector(".pw-active-toggle").checked,
                     is_default: tr.querySelector(".pw-default-radio").checked
                 };
@@ -770,14 +795,12 @@
             };
             tr.__syncRow = syncRow;
 
-            tr.querySelectorAll(".pw-stock, .pw-price, .pw-discount, .pw-active-toggle").forEach(function (el) {
+            tr.querySelectorAll(".pw-stock, .pw-cost, .pw-price, .pw-discount, .pw-active-toggle").forEach(function (el) {
                 el.addEventListener("input", syncRow);
                 el.addEventListener("change", syncRow);
             });
 
             tr.querySelector(".pw-default-radio").addEventListener("change", function () {
-                // Radio group already enforces single-selection across rows;
-                // just re-sync every row's hidden payload so is_default is accurate.
                 syncAllVariantRows();
             });
 
@@ -787,10 +810,9 @@
                 if (!tbody.querySelector("tr")) {
                     var empty = document.createElement("tr");
                     empty.id = "pw_variant_empty_row";
-                    empty.innerHTML = '<td colspan="6" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>';
+                    empty.innerHTML = '<td colspan="7" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>';
                     tbody.appendChild(empty);
                 } else if (wasDefault) {
-                    // If we removed the default row, promote the first remaining row to default
                     var firstRadio = tbody.querySelector(".pw-default-radio");
                     if (firstRadio) {
                         firstRadio.checked = true;
@@ -807,6 +829,7 @@
         function toggleInventorySection() {
             var regularPrice = document.getElementById("pw_regular_price");
             var salePrice = document.getElementById("pw_sale_price");
+            var costPrice = document.getElementById("pw_cost_price");
             var inventoryQty = document.getElementById("pw_inventory_quantity");
             var inventoryHint = document.getElementById("pw_inventory_hint");
             var bulkBox = document.getElementById("pw_bulk_price_set");
@@ -817,6 +840,7 @@
             if (hasVariantRows) {
                 regularPrice.disabled = true;
                 salePrice.disabled = true;
+                costPrice.disabled = true;
                 inventoryQty.disabled = true;
                 inventoryHint.style.display = "block";
                 variantTable.style.opacity = "1";
@@ -828,6 +852,7 @@
             } else {
                 regularPrice.disabled = false;
                 salePrice.disabled = false;
+                costPrice.disabled = false;
                 inventoryQty.disabled = false;
                 inventoryHint.style.display = "none";
                 variantTable.style.opacity = "0.5";
@@ -850,7 +875,7 @@
                 th.textContent = state.attributes[key] ? state.attributes[key].displayName : key;
                 thead.appendChild(th);
             });
-            ["Stock", "Price", "Discount", "Active", "Default", "Actions"].forEach(function (label) {
+            ["Stock", "Cost", "Price", "Discount", "Active", "Default", "Actions"].forEach(function (label) {
                 var th = document.createElement("th");
                 th.textContent = label;
                 thead.appendChild(th);
@@ -863,7 +888,7 @@
                 bulkBox.style.display = "none";
                 var empty = document.createElement("tr");
                 empty.id = "pw_variant_empty_row";
-                empty.innerHTML = '<td colspan="6" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>';
+                empty.innerHTML = '<td colspan="7" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>';
                 tbody.appendChild(empty);
                 toggleInventorySection();
                 return;
@@ -879,7 +904,6 @@
                 var existing = existingVariants.find(function (v) {
                     return attrKeys.every(function (k) { return (v.attributes || {})[k] === attributes[k]; });
                 });
-                // If nothing marked default anywhere and this is the first row, default it.
                 var anyExistingDefault = existingVariants.some(function (v) { return v.is_default; });
                 var forceDefault = !existing && !anyExistingDefault && idx === 0;
                 addVariantRow(tbody, attrKeys, combo, attributes, existing, forceDefault);
@@ -895,9 +919,11 @@
                 var stock = document.getElementById("pw_bulk_stock").value;
                 var price = document.getElementById("pw_bulk_price").value;
                 var discount = document.getElementById("pw_bulk_discount").value;
+                var cost = document.getElementById("pw_bulk_cost").value;
                 document.querySelectorAll("#pw_variant_table_body tr").forEach(function (tr) {
                     if (!tr.querySelector(".pw-stock")) return;
                     if (stock) tr.querySelector(".pw-stock").value = stock;
+                    if (cost) tr.querySelector(".pw-cost").value = cost;
                     if (price) tr.querySelector(".pw-price").value = price;
                     if (discount) tr.querySelector(".pw-discount").value = discount;
                     tr.querySelector(".pw-stock").dispatchEvent(new Event("input"));
@@ -919,9 +945,6 @@
             toggleInventorySection();
         }
 
-        // Final safety net: ensure the "status" hidden field always matches
-        // the visible submit button clicked (Save Draft / Publish), which
-        // Django reads via status_action, taking priority over this select.
         document.getElementById("add_product_form").addEventListener("submit", function () {
             syncAllVariantRows();
         });
