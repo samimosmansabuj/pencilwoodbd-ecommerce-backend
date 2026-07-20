@@ -591,12 +591,26 @@ def add_product(request):
 
                 product_type = PRODUCT_TYPE.VARIABLE if parsed_variants else PRODUCT_TYPE.SIMPLE
 
-                status_value = request.POST.get("status_action") or request.POST.get("status")
-                if status_value not in valid_statuses:
-                    status_value = CATEGORY_PRODUCT_STATUS.ACTIVE
+                # ---- STATUS:
+                # - "Save Draft" button (status_action == "Draft") ALWAYS forces Draft,
+                #   regardless of what the dropdown has selected.
+                # - "Publish" button (status_action == "Active") or any other/no
+                #   button submission -> use whatever the dropdown ("status") has
+                #   selected (Active, Deactive, Draft, Trash, etc).
+                # ----
+                status_action = request.POST.get("status_action")  # "Draft" / "Active" / None
+                dropdown_status = request.POST.get("status")
+
+                if status_action == "Draft":
+                    status_value = CATEGORY_PRODUCT_STATUS.DRAFT
+                elif dropdown_status in valid_statuses:
+                    status_value = dropdown_status
+                else:
+                    status_value = CATEGORY_PRODUCT_STATUS.DRAFT
 
                 # Determine the "default/featured" variant's price upfront so it can
-                # seed Product.price / Product.discount_price even for variable products.
+                # seed Product.price / Product.discount_price / Product.cost_price
+                # even for variable products.
                 default_variant_data = None
                 if parsed_variants:
                     default_variant_data = next(
@@ -613,9 +627,14 @@ def add_product(request):
                         default_variant_data.get("discount_price"),
                         default=parse_decimal(request.POST.get("discount_price")),
                     )
+                    product_cost_price = parse_decimal(
+                        default_variant_data.get("cost_price"),
+                        default=parse_decimal(request.POST.get("cost_price")),
+                    )
                 else:
                     product_price = parse_decimal(request.POST.get("price"))
                     product_discount_price = parse_decimal(request.POST.get("discount_price"))
+                    product_cost_price = parse_decimal(request.POST.get("cost_price"))
 
                 product = Product.objects.create(
                     name=request.POST.get("name", "").strip(),
@@ -624,6 +643,7 @@ def add_product(request):
                     details=request.POST.get("details", ""),
                     price=product_price,
                     discount_price=product_discount_price,
+                    cost_price=product_cost_price,
                     inventory_quantity=parse_int(request.POST.get("inventory_quantity")),
                     status=status_value,
                     product_type=product_type,
@@ -672,6 +692,9 @@ def add_product(request):
                         discount_price=parse_decimal(
                             data.get("discount_price"), default=product.discount_price
                         ),
+                        cost_price=parse_decimal(
+                            data.get("cost_price"), default=product.cost_price
+                        ),
                         inventory_quantity=parse_int(data.get("inventory_quantity")),
                         is_active=data.get("is_active", True),
                         is_default=is_default_flag,
@@ -707,6 +730,7 @@ def add_product(request):
 
 
 @login_required(login_url="admin_login")
+@login_required(login_url="admin_login")
 def product_update(request, pk):
 
     product = get_object_or_404(Product, pk=pk)
@@ -723,6 +747,7 @@ def product_update(request, pk):
             "attributes": v.attributes,
             "price": str(v.price),
             "discount_price": str(v.discount_price),
+            "cost_price": str(v.cost_price) if v.cost_price is not None else "",
             "inventory_quantity": v.inventory_quantity,
             "is_active": v.is_active,
             "is_default": v.is_default,
@@ -749,9 +774,23 @@ def product_update(request, pk):
                 product.short_description = request.POST.get("short_description", product.short_description)
                 product.details = request.POST.get("details", product.details)
 
-                status_value = request.POST.get("status_action") or request.POST.get("status")
-                if status_value not in valid_statuses:
+                # ---- STATUS:
+                # - "Save Draft" button (status_action == "Draft") ALWAYS forces Draft,
+                #   regardless of what the dropdown has selected.
+                # - "Publish" button (status_action == "Active") or any other/no
+                #   button submission -> use whatever the dropdown ("status") has
+                #   selected (Active, Deactive, Draft, Trash, etc).
+                # ----
+                status_action = request.POST.get("status_action")  # "Draft" / "Active" / None
+                dropdown_status = request.POST.get("status")
+
+                if status_action == "Draft":
+                    status_value = CATEGORY_PRODUCT_STATUS.DRAFT
+                elif dropdown_status in valid_statuses:
+                    status_value = dropdown_status
+                else:
                     status_value = product.status
+
                 product.status = status_value
 
                 product.save()
@@ -843,6 +882,7 @@ def product_update(request, pk):
                         variant.attributes = data.get("attributes", {})
                         variant.price = parse_decimal(data.get("price"), default=variant.price)
                         variant.discount_price = parse_decimal(data.get("discount_price"), default=variant.discount_price)
+                        variant.cost_price = parse_decimal(data.get("cost_price"), default=variant.cost_price or Decimal("0"))
                         variant.inventory_quantity = parse_int(data.get("inventory_quantity"), default=variant.inventory_quantity)
                         variant.is_active = data.get("is_active", variant.is_active)
                         variant.is_default = is_default_flag
@@ -854,6 +894,7 @@ def product_update(request, pk):
                             attributes=data.get("attributes", {}),
                             price=parse_decimal(data.get("price"), default=product.price),
                             discount_price=parse_decimal(data.get("discount_price"), default=product.discount_price),
+                            cost_price=parse_decimal(data.get("cost_price"), default=product.cost_price or Decimal("0")),
                             inventory_quantity=parse_int(data.get("inventory_quantity")),
                             is_active=data.get("is_active", True),
                             is_default=is_default_flag,
@@ -871,18 +912,20 @@ def product_update(request, pk):
                         v.inventory_quantity
                         for v in product.variants.filter(is_active=True)
                     )
-                    # Sync Product.price/discount_price with the default variant
+                    # Sync Product.price/discount_price/cost_price with the default variant
                     default_variant = product.variants.filter(is_default=True).first() \
                         or product.variants.first()
                     if default_variant:
                         product.price = default_variant.price
                         product.discount_price = default_variant.discount_price
-                    product.save(update_fields=["inventory_quantity", "price", "discount_price"])
-                elif not request.POST.get("inventory_quantity") is None:
+                        product.cost_price = default_variant.cost_price
+                    product.save(update_fields=["inventory_quantity", "price", "discount_price", "cost_price"])
+                else:
                     product.inventory_quantity = parse_int(request.POST.get("inventory_quantity"), default=product.inventory_quantity)
                     product.price = parse_decimal(request.POST.get("price"), default=product.price)
                     product.discount_price = parse_decimal(request.POST.get("discount_price"), default=product.discount_price)
-                    product.save(update_fields=["inventory_quantity", "price", "discount_price"])
+                    product.cost_price = parse_decimal(request.POST.get("cost_price"), default=product.cost_price or Decimal("0"))
+                    product.save(update_fields=["inventory_quantity", "price", "discount_price", "cost_price"])
 
                 messages.success(request, "Product updated successfully")
                 return redirect("product_update", pk=product.pk)
