@@ -191,16 +191,12 @@ class PlaceOrderAPIView(APIView):
 
                 if not cart_ids:
                     return Response(
-                        {
-                            "status": False,
-                            "message": "No cart items selected"
-                        },
+                        {"status": False, "message": "No cart items selected"},
                         status=400
                     )
 
                 cart_items = AddToCart.objects.select_related(
-                    "product",
-                    "variant"
+                    "product", "variant"
                 ).filter(
                     customer=customer,
                     id__in=cart_ids
@@ -215,15 +211,21 @@ class PlaceOrderAPIView(APIView):
                 address_text = request.data.get("address")
                 district = request.data.get("district")
                 upazila = request.data.get("upazila") or "N/A"
+                name = request.data.get("name")
+                phone = request.data.get("phone")
 
                 if not address_text or not district:
                     return Response(
-                        {
-                            "status": False,
-                            "message": "Address & district required"
-                        },
+                        {"status": False, "message": "Address & district required"},
                         status=400
                     )
+
+                # Keep customer contact info in sync with what was entered at checkout
+                if name:
+                    customer.name = name
+                if phone:
+                    customer.phone = phone
+                customer.save()
 
                 address = Address.objects.create(
                     customer=customer,
@@ -249,90 +251,64 @@ class PlaceOrderAPIView(APIView):
                     product_delivery_charge = Decimal("0")
 
                     if hasattr(product, "delivery_charge"):
-
-                        area_charge = (
-                            product.delivery_charge.area_and_charge
-                            or {}
-                        )
+                        area_charge = product.delivery_charge.area_and_charge or {}
 
                         if district in area_charge:
-
-                            product_delivery_charge = Decimal(
-                                str(area_charge[district])
-                            )
-
+                            product_delivery_charge = Decimal(str(area_charge[district]))
                         elif "all" in area_charge:
+                            product_delivery_charge = Decimal(str(area_charge["all"]))
 
-                            product_delivery_charge = Decimal(
-                                str(area_charge["all"])
-                            )
+                    total_delivery_charge += product_delivery_charge
 
-                    total_delivery_charge += (
-                        product_delivery_charge
-                    )
-
-                    # STOCK CHECK
+                    # STOCK CHECK + DEDUCTION
                     if variant:
-
                         if variant.inventory_quantity < item.quantity:
                             return Response(
-                                {
-                                    "status": False,
-                                    "message": f"{product.name} out of stock"
-                                },
+                                {"status": False, "message": f"{product.name} out of stock"},
                                 status=400
                             )
 
                         variant.inventory_quantity -= item.quantity
                         variant.save()
 
-                        price = (
-                            variant.discount_price
-                            or variant.price
+                        # keep Product.inventory_quantity in sync for variable products
+                        product.inventory_quantity = sum(
+                            v.inventory_quantity for v in product.variants.filter(is_active=True)
                         )
+                        product.save(update_fields=["inventory_quantity"])
+
+                        price = variant.price
+                        discount_price = variant.discount_price or variant.price
 
                     else:
-
                         if product.inventory_quantity < item.quantity:
                             return Response(
-                                {
-                                    "status": False,
-                                    "message": f"{product.name} out of stock"
-                                },
+                                {"status": False, "message": f"{product.name} out of stock"},
                                 status=400
                             )
 
                         product.inventory_quantity -= item.quantity
-                        product.save()
+                        product.save(update_fields=["inventory_quantity"])
 
-                        price = (
-                            product.discount_price
-                            or product.price
-                        )
+                        price = product.price
+                        discount_price = product.discount_price or product.price
 
                     OrderItem.objects.create(
                         order=order,
                         product=product,
                         variant=variant,
+                        product_name=product.name,
                         quantity=item.quantity,
                         price=price,
-                        discount_price=price,
-                        discount_total_price=(
-                            price * item.quantity
-                        )
+                        discount_price=discount_price,
+                        # discount_total_price is a computed @property on the model —
+                        # do NOT pass it here, it has no setter and will crash.
                     )
 
-                    total += price * item.quantity
+                    total += discount_price * item.quantity
 
-                order.total_cost = (
-                    total +
-                    total_delivery_charge
-                )
-
-                order.shipping_total = (
-                    total_delivery_charge
-                )
-
+                order.total_cost = total + total_delivery_charge
+                order.shipping_total = total_delivery_charge
                 order.save()
 
                 cart_items.delete()
@@ -345,10 +321,7 @@ class PlaceOrderAPIView(APIView):
 
         except Exception as e:
             return Response(
-                {
-                    "status": False,
-                    "message": str(e)
-                },
+                {"status": False, "message": str(e)},
                 status=500
             )
 

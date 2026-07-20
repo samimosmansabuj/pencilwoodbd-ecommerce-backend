@@ -280,7 +280,11 @@ class ProductDetailAPIView(APIView):
                             "attributes": v.attributes,
                             "price": v.price,
                             "discount_price": v.discount_price,
-                            "stock": v.inventory_quantity
+                            "stock": v.inventory_quantity,
+                            "image": (
+                                v.images.first().image.url
+                                if v.images.exists() else None
+                            ),
                         }
                         for v in p.variants.all()
                     ]
@@ -312,7 +316,13 @@ class AddToCartAPIView(APIView):
                     if not variant_id:
                         return Response({"status": False, "message": "Variant required"}, status=400)
 
-                    variant = ProductVariant.objects.get(id=variant_id)
+                    variant = ProductVariant.objects.get(id=variant_id, product=product)
+
+                    if variant.inventory_quantity < quantity:
+                        return Response({"status": False, "message": "Selected variant out of stock"}, status=400)
+                else:
+                    if product.inventory_quantity < quantity:
+                        return Response({"status": False, "message": "Product out of stock"}, status=400)
 
                 cart_item, created = AddToCart.objects.get_or_create(
                     customer=customer,
