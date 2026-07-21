@@ -1,8 +1,59 @@
 {% load static %}
 
-<form method="POST" id="order-form" enctype="multipart/form-data"
-    action="{% if is_update %}{% url 'order_update_full' order.pk %}{% else %}{% url 'add_order' %}{% endif %}">
+<form method="POST" id="order-form" enctype="multipart/form-data" action="{% if is_update %}{% url 'order_update_full' order.pk %}{% else %}{% url 'add_order' %}{% endif %}">
     {% csrf_token %}
+
+    {% if is_update %}
+    <!-- No Edit Section=========== -->
+    <div class="card">
+        <div class="card-body">
+            <div
+                class="d-flex flex-lg-row flex-column align-items-start align-items-lg-center justify-content-between gap-3">
+                <div class="flex-grow-1">
+                    <h4 class="fw-bold">Order #{{order.order_id}}</h4>
+                    <p class="mb-0">Customer ID : <a href="javascript:;">{{order.customer.name}}</a></p>
+                </div>
+                <div class="overflow-auto">
+                    <div class="btn-group position-static">
+                        <div class="btn-group position-static">
+                            <button type="button" class="btn btn-outline-primary" onclick="printInvoice({{ order.id }})">
+                                <i class="bi bi-printer-fill me-2"></i>Print
+                            </button>
+                            <script>
+                                function printInvoice(orderId) {
+                                    const url = `/orders/${orderId}/invoice/`;
+                                    const printWindow = window.open(url, '_blank', 'width=900,height=1200');
+
+                                    printWindow.onload = function () {
+                                        printWindow.focus();
+                                        printWindow.print();
+                                    };
+                                    window.onafterprint = function () {
+                                        window.close();
+                                    };
+                                }
+                            </script>
+                        </div>
+                        <div class="btn-group position-static">
+                            <!-- <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"> -->
+                            <button type="button" class="btn btn-outline-primary">
+                                <i class="bi bi-arrow-clockwise me-2"></i>Refund
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="javascript:;">Action</a></li>
+                                <li><a class="dropdown-item" href="javascript:;">Another action</a></li>
+                                <li>
+                                    <hr class="dropdown-divider">
+                                </li>
+                                <li><a class="dropdown-item" href="javascript:;">Something else here</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <div class="row">
         <div class="col-12 col-lg-8">
