@@ -1,0 +1,148 @@
+
+<div class="card" id="pw_delivery_charge_card_{{ widget_id }}">
+    <div class="card-body">
+        <h5 class="mb-3">Delivery Charge</h5>
+        <p class="small text-muted mb-3">
+            If you don't set anything here, the site's global delivery charge will be used —
+            and if that's also not set, a system default of <strong>{{ system_default }} Tk</strong> applies.
+        </p>
+
+        <div class="mb-3">
+            <div class="form-check form-check-inline">
+                <input class="form-check-input pw-dc-mode" type="radio" name="pw_dc_mode_{{ widget_id }}"
+                    id="pw_dc_mode_none_{{ widget_id }}" value="none" checked>
+                <label class="form-check-label" for="pw_dc_mode_none_{{ widget_id }}">
+                    Use default (global / system)
+                </label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input pw-dc-mode" type="radio" name="pw_dc_mode_{{ widget_id }}"
+                    id="pw_dc_mode_all_{{ widget_id }}" value="all">
+                <label class="form-check-label" for="pw_dc_mode_all_{{ widget_id }}">
+                    Same charge for all districts
+                </label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input pw-dc-mode" type="radio" name="pw_dc_mode_{{ widget_id }}"
+                    id="pw_dc_mode_per_{{ widget_id }}" value="per_district">
+                <label class="form-check-label" for="pw_dc_mode_per_{{ widget_id }}">
+                    Set per district
+                </label>
+            </div>
+        </div>
+
+        <!-- Mode: all -->
+        <div id="pw_dc_all_wrap_{{ widget_id }}" style="display:none;" class="mb-3">
+            <label class="form-label">Charge for all districts (Tk)</label>
+            <input type="number" step="0.01" class="form-control" id="pw_dc_all_input_{{ widget_id }}"
+                placeholder="e.g. 150" style="max-width: 220px;">
+        </div>
+
+        <!-- Mode: per_district -->
+        <div id="pw_dc_per_wrap_{{ widget_id }}" style="display:none;" class="mb-3">
+            <div class="mb-2">
+                <label class="form-label">Default charge (used for any district you don't override below)</label>
+                <input type="number" step="0.01" class="form-control" id="pw_dc_bulk_default_{{ widget_id }}"
+                    placeholder="e.g. 150" style="max-width: 220px;">
+            </div>
+            <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+                <table class="table table-sm table-bordered align-middle">
+                    <thead class="table-light">
+                        <tr><th>District</th><th style="width: 160px;">Charge (Tk)</th></tr>
+                    </thead>
+                    <tbody id="pw_dc_district_body_{{ widget_id }}">
+                        {% for district in bd_districts %}
+                        <tr>
+                            <td>{{ district }}</td>
+                            <td>
+                                <input type="number" step="0.01" class="form-control form-control-sm pw-dc-district-input"
+                                    data-district="{{ district }}" placeholder="uses default">
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <input type="hidden" name="delivery_charge_json" id="pw_dc_hidden_{{ widget_id }}" value='{"mode": "none"}'>
+    </div>
+</div>
+
+<script>
+(function () {
+    "use strict";
+    var widgetId = "{{ widget_id }}";
+    var existingData = {};
+    try { existingData = JSON.parse('{{ existing_json|escapejs }}' || '{}'); } catch (e) { existingData = {}; }
+
+    var modeRadios = document.querySelectorAll('input[name="pw_dc_mode_' + widgetId + '"]');
+    var allWrap = document.getElementById('pw_dc_all_wrap_' + widgetId);
+    var perWrap = document.getElementById('pw_dc_per_wrap_' + widgetId);
+    var allInput = document.getElementById('pw_dc_all_input_' + widgetId);
+    var bulkDefaultInput = document.getElementById('pw_dc_bulk_default_' + widgetId);
+    var districtInputs = document.querySelectorAll('#pw_dc_district_body_' + widgetId + ' .pw-dc-district-input');
+    var hiddenInput = document.getElementById('pw_dc_hidden_' + widgetId);
+
+    function currentMode() {
+        var checked = document.querySelector('input[name="pw_dc_mode_' + widgetId + '"]:checked');
+        return checked ? checked.value : "none";
+    }
+
+    function toggleWraps() {
+        var mode = currentMode();
+        allWrap.style.display = (mode === "all") ? "block" : "none";
+        perWrap.style.display = (mode === "per_district") ? "block" : "none";
+        syncHidden();
+    }
+
+    function syncHidden() {
+        var mode = currentMode();
+        var payload = { mode: mode };
+
+        if (mode === "all") {
+            payload.all = allInput.value || "";
+        } else if (mode === "per_district") {
+            if (bulkDefaultInput.value) payload.all = bulkDefaultInput.value;
+            districtInputs.forEach(function (inp) {
+                if (inp.value.trim() !== "") {
+                    payload[inp.dataset.district] = inp.value;
+                }
+            });
+        }
+        hiddenInput.value = JSON.stringify(payload);
+    }
+
+    modeRadios.forEach(function (r) { r.addEventListener("change", toggleWraps); });
+    allInput.addEventListener("input", syncHidden);
+    bulkDefaultInput.addEventListener("input", syncHidden);
+    districtInputs.forEach(function (inp) { inp.addEventListener("input", syncHidden); });
+
+    (function prefill() {
+        var keys = Object.keys(existingData || {});
+        if (!keys.length) {
+            toggleWraps();
+            return;
+        }
+
+        var onlyAllKey = keys.length === 1 && keys[0] === "all";
+        if (onlyAllKey) {
+            document.getElementById('pw_dc_mode_all_' + widgetId).checked = true;
+            allInput.value = existingData.all;
+        } else {
+            document.getElementById('pw_dc_mode_per_' + widgetId).checked = true;
+            if (existingData.all !== undefined) bulkDefaultInput.value = existingData.all;
+            districtInputs.forEach(function (inp) {
+                var d = inp.dataset.district;
+                if (existingData[d] !== undefined) inp.value = existingData[d];
+            });
+        }
+        toggleWraps();
+    })();
+
+    var form = hiddenInput.closest("form");
+    if (form) {
+        form.addEventListener("submit", syncHidden);
+    }
+})();
+</script>

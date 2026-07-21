@@ -20,7 +20,7 @@ from order.models import Order, OrderItem
 from authentication.models import Customer
 from site_app.models import OTPVerification
 from order.utils import OrderConfirmatinoEmailSend
-
+from authentication.utils import normalize_bd_phone
 
 # =========================
 # HOME PAGE
@@ -113,7 +113,7 @@ class LandingPageOrderAPI(APIView):
     
     def get_customer_data(self, data):
         name = data.get("name")
-        phone = data.get("phone")
+        phone = normalize_bd_phone(data.get("phone"))
         whatsapp = data.get("whatsapp_number", "")
         if not name or not phone:
             raise ValueError("Name and phone are required")
@@ -369,8 +369,9 @@ class OrderCreateAPIView(APIView):
         return address
 
     def get_customer(self, data):
+        phone = normalize_bd_phone(data.get("phone"))
         customer, created = Customer.objects.get_or_create(
-            phone=data.get("phone"), defaults={"name": data.get("name")}
+            phone=phone, defaults={"name": data.get("name")}
         )
         return customer
 
@@ -392,6 +393,14 @@ class OrderCreateAPIView(APIView):
                     otp_verified = OTPVerification.objects.filter(
                         phone=phone, is_verified=True
                     ).last()
+
+                    # if otp_required:
+                    #     customer_data = data.get("customer", {})
+                    #     phone = normalize_bd_phone(customer_data.get("phone", ""))
+
+                    #     otp_verified = OTPVerification.objects.filter(
+                    #         phone=phone, is_verified=True
+                    #     ).last()
 
                     if not otp_verified:
                         raise Exception("OTP not verified")

@@ -189,6 +189,10 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Delivery Charge -->
+            {% include "db_product/partial/delivery_charge_widget.html" with widget_id="product" bd_districts=bd_districts existing_json=existing_delivery_charge_json system_default=system_default_charge %}
+
         </div>
 
         <!-- Sidebar -->
@@ -350,10 +354,6 @@
         });
 
         // ================= Status select -> hidden "status" field =================
-        // The dropdown value is submitted as "status". The Publish/Save Draft
-        // buttons submit "status_action" alongside it. The view logic is:
-        //   - status_action == "Draft"  -> force Draft
-        //   - otherwise (Publish, or any future generic submit) -> use "status"
         (function initStatus() {
             var statusSelect = document.getElementById("pw_status");
             var statusHidden = document.getElementById("pw_status_hidden");

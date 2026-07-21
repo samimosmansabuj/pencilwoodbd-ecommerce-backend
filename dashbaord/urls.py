@@ -19,6 +19,7 @@ urlpatterns = [
     path("product/update/<int:pk>/", product_update, name="product_update"),
     path('products/delete/<int:pk>/', ProductDeleteView.as_view(), name='product_delete'),  
 
+    path('settings/delivery-charge/', DeliveryChargeSettingsView.as_view(), name='delivery_charge_settings'),
 
     # path('media-center/', product_list, name='media_center'),
 
