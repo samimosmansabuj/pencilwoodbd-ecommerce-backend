@@ -81,6 +81,9 @@
     <div class="col-auto">
         <div class="d-flex align-items-center gap-2 justify-content-lg-end">
             <button class="btn btn-filter px-4"><i class="bi bi-box-arrow-right me-2"></i>Export</button>
+            <button type="button" class="btn btn-outline-primary px-4" data-bs-toggle="modal" data-bs-target="#GlobalDeliveryChargeModal">
+                <i class="bi bi-truck me-2"></i>Global Delivery Charge
+            </button>
             <a href="{% url 'product_add' %}" class="btn btn-primary px-4">
                 <i class="bi bi-plus-lg me-2"></i>Add Product
             </a>
@@ -223,3 +226,5 @@ style="z-index: 1050; margin: auto 22px 45px 0px !important; padding: 0px !impor
         </select>
     </div>
 </div>
+
+{% include "db_product/modal/global_delivery_charge_modal.html" %}

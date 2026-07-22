@@ -23,8 +23,8 @@
         {% csrf_token %}
         {% include "db_product/partial/delivery_charge_widget.html" with widget_id="global" bd_districts=bd_districts existing_json=existing_delivery_charge_json system_default=system_default_charge %}
 
-        <button type="submit" class="btn btn-dark mt-2">
-            <i class="bi bi-save me-2"></i>Save Global Delivery Charge
+        <button type="submit" class="btn btn-primary mt-2"> 
+            <i class="bi bi-save me-2"></i>Save 
         </button>
     </form>
 </div>

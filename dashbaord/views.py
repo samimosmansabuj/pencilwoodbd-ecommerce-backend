@@ -518,6 +518,9 @@ class ProductListView(LoginRequiredMixin, View):
             "current_status": status_filter or "all",
             "current_per_page": str(per_page),
             "product_counts": counts,
+            "bd_districts": BD_DISTRICTS,
+            "existing_delivery_charge_json": pyjson.dumps(SiteDeliveryChargeConfig.get_solo().area_and_charge or {}),
+            "system_default_charge": SYSTEM_DEFAULT_DELIVERY_CHARGE,
         }
 
         if request.htmx:
@@ -841,6 +844,16 @@ def product_update(request, pk):
                 product.status = status_value
 
                 product.save()
+
+                # ---------------- Delivery Charge (per-product) ----------------
+                area_and_charge, has_charge = parse_delivery_charge_payload(request)
+                if has_charge:
+                    ProductDeliveryCharge.objects.update_or_create(
+                        product=product,
+                        defaults={"area_and_charge": area_and_charge},
+                    )
+                else:
+                    ProductDeliveryCharge.objects.filter(product=product).delete()
 
                 try:
                     tag_ids = json.loads(request.POST.get("tags") or "[]")
