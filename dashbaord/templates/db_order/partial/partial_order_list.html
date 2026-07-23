@@ -201,9 +201,18 @@
                                 <td>৳{{ order.total_cost }}</td>
 
                                 <td>
-                                    <span class="lable-table bg-success-subtle text-success rounded border border-success-subtle font-text2 fw-bold">
-                                        {{ order.status }}
-                                    </span>
+                                    <form class="status-inline-form"
+                                          hx-post="{% url 'order_status_update' order.id %}"
+                                          hx-target="#content-area"
+                                          hx-include="[name='status_{{ order.id }}']"
+                                          hx-trigger="change">
+                                        {% csrf_token %}
+                                        <select name="status" id="status_{{ order.id }}" class="form-select form-select-sm status-select status-{{ order.status }}" style="min-width:130px;">
+                                            {% for value, label in status_choices %}
+                                            <option value="{{ value }}" {% if order.status == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </form>
                                 </td>
 
                                 <td>{{ order.delivery_type|upper }}</td>

@@ -308,33 +308,20 @@
                         
 
                                 <td>
-
-                                    {% if request.status == "pending" %}
-
-                                        <span class="badge bg-warning">
-
-                                            Pending
-
-                                        </span>
-
-                                    {% elif request.status == "converted" %}
-
-                                        <span class="badge bg-success">
-
-                                            Converted
-
-                                        </span>
-
+                                    {% if request.status == "converted" %}
+                                        <span class="badge bg-success">Converted</span>
                                     {% else %}
-
-                                        <span class="badge bg-danger">
-
-                                            Cancelled
-
-                                        </span>
-
+                                    <form hx-post="{% url 'order_request_status_update' request.id %}"
+                                          hx-target="#content-area"
+                                          hx-trigger="change">
+                                        {% csrf_token %}
+                                        <select name="status" class="form-select form-select-sm" style="min-width:120px;">
+                                            <option value="pending" {% if request.status == "pending" %}selected{% endif %}>Pending</option>
+                                            <option value="cancelled" {% if request.status == "cancelled" %}selected{% endif %}>Cancelled</option>
+                                            <option value="converted">Convert to Order</option>
+                                        </select>
+                                    </form>
                                     {% endif %}
-
                                 </td>
 
                                 <td>

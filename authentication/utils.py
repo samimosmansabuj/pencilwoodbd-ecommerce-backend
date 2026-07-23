@@ -23,3 +23,12 @@ def normalize_bd_phone(phone: str) -> str:
         return "88" + local
 
     return ""
+
+def phone_lookup_variants(phone: str):
+    """Given a normalized 88-format phone, return both possible stored formats
+    so lookups work even if some old rows weren't migrated."""
+    normalized = normalize_bd_phone(phone)
+    if not normalized:
+        return []
+    local = normalized[2:]  # strip leading "88"
+    return [normalized, local]

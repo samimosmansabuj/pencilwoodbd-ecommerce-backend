@@ -1,12 +1,12 @@
-from django.db import transaction
+import traceback
+from django.db import transaction, IntegrityError
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import CustomUser, Customer, Role
-from .utils import normalize_bd_phone  
-
+from .utils import normalize_bd_phone, phone_lookup_variants
 
 class PhoneCheckAPIView(APIView):
     """
@@ -20,8 +20,8 @@ class PhoneCheckAPIView(APIView):
 
         if not phone:
             return Response({"status": False, "message": "Invalid phone number"}, status=400)
-        
-        customer = Customer.objects.filter(phone=phone).first()
+
+        customer = Customer.objects.filter(phone__in=phone_lookup_variants(phone)).first()
 
         if not customer:
             return Response({"status": True, "action": "set_password", "phone": phone})
@@ -33,12 +33,6 @@ class PhoneCheckAPIView(APIView):
 
 
 class SetPasswordAPIView(APIView):
-    """
-    Step 2a. Creates (or attaches) a CustomUser to the Customer for this phone,
-    and sets their password. Used both for:
-      - a guest who ordered before and is logging in for the first time
-      - a brand-new user who never ordered, creating an account directly
-    """
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -54,7 +48,8 @@ class SetPasswordAPIView(APIView):
 
         try:
             with transaction.atomic():
-                customer = Customer.objects.filter(phone=phone).first()
+
+                customer = Customer.objects.filter(phone__in=phone_lookup_variants(phone)).first()
 
                 if customer and customer.user and customer.has_password:
                     return Response(
@@ -63,27 +58,32 @@ class SetPasswordAPIView(APIView):
                     )
 
                 if customer and customer.user:
-                    # Customer + user shell already exists (edge case), just set password
                     user = customer.user
+                    user.phone = phone
                     user.set_password(password)
                     user.save()
                 else:
-                    # Create the CustomUser
-                    user = CustomUser.objects.create_user(
-                        username=phone,
-                        phone=phone,
-                        password=password,
-                        user_type="customer"
-                    )
+                    user = CustomUser.objects.filter(phone__in=phone_lookup_variants(phone)).first()
+
+                    if user:
+                        user.phone = phone
+                        user.set_password(password)
+                        user.save()
+                    else:
+                        user = CustomUser.objects.create_user(
+                            username=phone,
+                            phone=phone,
+                            password=password,
+                            user_type="customer"
+                        )
 
                     if customer:
-                        # Guest customer from a prior order — attach user to it
                         customer.user = user
+                        customer.phone = phone
                         if name and not customer.name:
                             customer.name = name
                         customer.save()
                     else:
-                        # Brand new customer, never ordered before
                         customer = Customer.objects.create(
                             user=user,
                             name=name or phone,
@@ -103,9 +103,22 @@ class SetPasswordAPIView(APIView):
                 "refresh": str(refresh)
             }, status=201)
 
-        except Exception as e:
-            return Response({"status": False, "message": str(e)}, status=500)
+        except IntegrityError:
+            traceback.print_exc()
+            customer = Customer.objects.filter(phone__in=phone_lookup_variants(phone)).first()
+            if customer and customer.has_password:
+                return Response(
+                    {"status": False, "message": "Account already exists. Please login."},
+                    status=400
+                )
+            return Response(
+                {"status": False, "message": "Something went wrong, please try again."},
+                status=409
+            )
 
+        except Exception as e:
+            traceback.print_exc()
+            return Response({"status": False, "message": str(e)}, status=500)
 
 class PhoneLoginAPIView(APIView):
     """Step 2b. Normal login when the customer already has a password set."""
@@ -115,23 +128,40 @@ class PhoneLoginAPIView(APIView):
         phone = normalize_bd_phone(request.data.get("phone", ""))
         password = request.data.get("password")
 
-        user = CustomUser.objects.filter(phone=phone).first()
+        if not phone:
+            return Response({"status": False, "message": "Invalid phone number"}, status=400)
 
-        if not user or not user.check_password(password):
-            return Response({"status": False, "message": "Invalid credentials"}, status=401)
+        try:
+            user = CustomUser.objects.filter(phone__in=phone_lookup_variants(phone)).first()
 
-        refresh = RefreshToken.for_user(user)
+            if not user or not user.check_password(password):
+                return Response({"status": False, "message": "Invalid credentials"}, status=401)
 
-        # Merge any guest cart/wishlist items sent along with login
-        customer = getattr(user, "customer_profile", None)
-        if customer:
-            _merge_guest_cart_and_wishlist(customer, request.data)
+            # Heal phone to normalized format on successful login
+            if user.phone != phone:
+                user.phone = phone
+                user.save(update_fields=["phone"])
 
-        return Response({
-            "status": True,
-            "access": str(refresh.access_token),
-            "refresh": str(refresh)
-        })
+            customer = getattr(user, "customer_profile", None)
+            if customer and customer.phone != phone:
+                customer.phone = phone
+                customer.save(update_fields=["phone"])
+
+            refresh = RefreshToken.for_user(user)
+
+            # Merge any guest cart/wishlist items sent along with login
+            if customer:
+                _merge_guest_cart_and_wishlist(customer, request.data)
+
+            return Response({
+                "status": True,
+                "access": str(refresh.access_token),
+                "refresh": str(refresh)
+            })
+
+        except Exception as e:
+            traceback.print_exc()
+            return Response({"status": False, "message": str(e)}, status=500)
 
 
 def _merge_guest_cart_and_wishlist(customer, data):

@@ -17,6 +17,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from pencilwoodbd.choices import USER_TYPE
 from authentication.utils import normalize_bd_phone
+from site_app.delivery_charge import DeliveryChargeResolver
 
 class DeliveryOptionListAPIView(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -74,90 +75,76 @@ class ShipmentSerializerAPIView(views.APIView):
 
 
 class CheckoutSummaryAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # CHANGED from IsAuthenticated
 
     def get(self, request):
         try:
-            customer = request.user.customer_profile
-
-            cart_ids = request.query_params.getlist("cart_ids")
-
-            cart_items = AddToCart.objects.filter(
-                customer=customer
-            )
-
-            if cart_ids:
-                cart_items = cart_items.filter(
-                    id__in=cart_ids
-                )
-
-            if not cart_items.exists():
-                return Response(
-                    {
-                        "status": False,
-                        "message": "Cart empty"
-                    },
-                    status=400
-                )
-
+            selected_district = request.query_params.get("district")
             items_data = []
             subtotal = Decimal("0")
             total_delivery_charge = Decimal("0")
 
-            selected_district = request.query_params.get("district")
+            if request.user.is_authenticated and getattr(request.user, "customer_profile", None):
+                customer = request.user.customer_profile
+                cart_ids = request.query_params.getlist("cart_ids")
+                cart_items = AddToCart.objects.filter(customer=customer)
+                if cart_ids:
+                    cart_items = cart_items.filter(id__in=cart_ids)
 
-            for item in cart_items:
+                if not cart_items.exists():
+                    return Response({"status": False, "message": "Cart empty"}, status=400)
 
-                product = item.product
+                for item in cart_items:
+                    product = item.product
+                    product_delivery_charge = DeliveryChargeResolver.get_charge(product, selected_district)
+                    total_delivery_charge += product_delivery_charge
+                    items_data.append({
+                        "cart_id": item.id,
+                        "product_id": product.id,
+                        "product": product.name,
+                        "quantity": item.quantity,
+                        "price": item.price,
+                        "total": item.total_price,
+                        "delivery_charge": float(product_delivery_charge)
+                    })
+                    subtotal += item.total_price
+            else:
+                # GUEST: frontend sends items as JSON in query param
+                import json as pyjson
+                raw_items = request.query_params.get("items")
+                guest_items = pyjson.loads(raw_items) if raw_items else []
 
-                product_delivery_charge = Decimal("0")
+                if not guest_items:
+                    return Response({"status": False, "message": "Cart empty"}, status=400)
 
-                if hasattr(product, "delivery_charge"):
+                for row in guest_items:
+                    product = Product.objects.filter(id=row.get("product_id")).first()
+                    if not product:
+                        continue
+                    variant = None
+                    if row.get("variant_id"):
+                        variant = ProductVariant.objects.filter(id=row["variant_id"], product=product).first()
 
-                    area_charge = (
-                        product.delivery_charge.area_and_charge
-                        or {}
-                    )
+                    quantity = int(row.get("quantity", 1))
+                    price = variant.price if variant else product.price
+                    discount_price = (variant.discount_price if variant else product.discount_price) or price
+                    line_total = discount_price * quantity
 
-                    if area_charge:
+                    product_delivery_charge = DeliveryChargeResolver.get_charge(product, selected_district)
+                    total_delivery_charge += product_delivery_charge
 
-                        if (
-                            selected_district and
-                            selected_district in area_charge
-                        ):
-                            product_delivery_charge = Decimal(
-                                str(
-                                    area_charge[selected_district]
-                                )
-                            )
+                    items_data.append({
+                        "cart_id": None,
+                        "product_id": product.id,
+                        "product": product.name,
+                        "quantity": quantity,
+                        "price": discount_price,
+                        "total": line_total,
+                        "delivery_charge": float(product_delivery_charge)
+                    })
+                    subtotal += line_total
 
-                        elif "all" in area_charge:
-                            product_delivery_charge = Decimal(
-                                str(area_charge["all"])
-                            )
-
-                total_delivery_charge += (
-                    product_delivery_charge
-                )
-
-                items_data.append({
-                    "cart_id": item.id,
-                    "product_id": product.id,
-                    "product": product.name,
-                    "quantity": item.quantity,
-                    "price": item.price,
-                    "total": item.total_price,
-                    "delivery_charge": float(
-                        product_delivery_charge
-                    )
-                })
-
-                subtotal += item.total_price
-
-            grand_total = (
-                subtotal +
-                total_delivery_charge
-            )
+            grand_total = subtotal + total_delivery_charge
 
             return Response({
                 "status": True,
@@ -170,14 +157,9 @@ class CheckoutSummaryAPIView(APIView):
             })
 
         except Exception as e:
-            return Response(
-                {
-                    "status": False,
-                    "message": str(e)
-                },
-                status=500
-            )
-
+            return Response({"status": False, "message": str(e)}, status=500)
+        
+        
 class PlaceOrderAPIView(APIView):
     permission_classes = [AllowAny]  # CHANGED
 
@@ -264,13 +246,7 @@ class PlaceOrderAPIView(APIView):
                     variant = line["variant"]
                     quantity = line["quantity"]
 
-                    product_delivery_charge = Decimal("0")
-                    if hasattr(product, "delivery_charge"):
-                        area_charge = product.delivery_charge.area_and_charge or {}
-                        if district in area_charge:
-                            product_delivery_charge = Decimal(str(area_charge[district]))
-                        elif "all" in area_charge:
-                            product_delivery_charge = Decimal(str(area_charge["all"]))
+                    product_delivery_charge = DeliveryChargeResolver.get_charge(product, district)
                     total_delivery_charge += product_delivery_charge
 
                     if variant:

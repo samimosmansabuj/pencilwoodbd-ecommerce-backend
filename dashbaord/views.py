@@ -1683,6 +1683,8 @@ class OrderView(LoginRequiredMixin, View):
             ),
 
             "products": products,
+
+            "status_choices": STATUS.choices,
         }
 
         if request.htmx:
@@ -1696,8 +1698,7 @@ class OrderView(LoginRequiredMixin, View):
             request,
             "db_order/order_list.html",
             context,
-        )
-    
+        )   
 
 class OrderDetailView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -1867,7 +1868,54 @@ class OrderInvoiceView(View):
             return render(request, "db_order/invoice.html", {"order": order})
         return redirect(request.META.get("HTTP_REFERER"))
 
+class OrderStatusUpdateView(LoginRequiredMixin, View):
+    login_url = "admin_login"
 
+    def post(self, request, pk):
+        order = get_object_or_404(Order, pk=pk)
+        new_status = request.POST.get("status")
+
+        valid_statuses = [c[0] for c in STATUS.choices]
+        if new_status not in valid_statuses:
+            messages.error(request, "Invalid status selected.")
+        else:
+            order.status = new_status
+            order.save(update_fields=["status"])
+            messages.success(
+                request,
+                f"Order #{order.order_id} status updated to {order.get_status_display()}."
+            )
+
+        if request.htmx:
+            order_view = OrderView()
+            (
+                orders,
+                paginator,
+                per_page,
+                page_number,
+                products,
+            ) = order_view.get_order_queryset(request)
+
+            context = {
+                "orders": orders,
+                "paginator": paginator,
+                "per_page": per_page,
+                "page_number": page_number,
+                "order_count": order_view.status_wise_order_count(),
+                "current_status": request.GET.get("status", "all"),
+                "current_search": request.GET.get("q", ""),
+                "current_product_slug": request.GET.get("product", ""),
+                "start_date": request.GET.get("start_date", ""),
+                "end_date": request.GET.get("end_date", ""),
+                "products": products,
+                "status_choices": STATUS.choices,
+            }
+            return render(request, "db_order/partial/partial_order_list.html", context)
+
+        return redirect("order_list")
+
+
+# Order Request section
 def create_order_from_request(order_request):
     if order_request.status not in [ORDER_REQUEST_STATUS.PENDING, ORDER_REQUEST_STATUS.APPROVED]:
         raise Exception("Only pending or approved requests can be converted.")
@@ -2230,6 +2278,8 @@ class OrderRequestListView(LoginRequiredMixin, View):
                 "end_date",
                 "",
             ),
+
+            "status_choices": ORDER_REQUEST_STATUS.choices,
         }
 
         if request.htmx:
@@ -2244,8 +2294,6 @@ class OrderRequestListView(LoginRequiredMixin, View):
             "db_order_request/order_request_list.html",
             context,
         )
-    
-
 class OrderRequestDetailView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
@@ -2337,6 +2385,67 @@ class UpdateOrderRequestWorkStatusView(LoginRequiredMixin, View):
 
         messages.success(request, "Work status updated.")
         return redirect("order_request_detail", id=pk)  
+    
+
+class OrderRequestStatusUpdateView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk):
+        order_request = get_object_or_404(OrderRequest, pk=pk)
+        new_status = request.POST.get("status")
+
+        valid_statuses = [c[0] for c in ORDER_REQUEST_STATUS.choices]
+
+        if new_status not in valid_statuses:
+            messages.error(request, "Invalid status selected.")
+
+        elif order_request.status == ORDER_REQUEST_STATUS.CONVERTED:
+            messages.error(request, "Converted requests cannot change status.")
+
+        elif new_status == ORDER_REQUEST_STATUS.CONVERTED:
+            # Route through the existing conversion logic instead of a raw status set
+            try:
+                order = create_order_from_request(order_request)
+                messages.success(
+                    request,
+                    f"Order Request approved. Order #{order.order_id} created."
+                )
+            except Exception as e:
+                messages.error(request, str(e))
+
+        else:
+            order_request.status = new_status
+            order_request.save(update_fields=["status"])
+            messages.success(
+                request,
+                f"Order Request #{order_request.id} status updated to {order_request.get_status_display()}."
+            )
+
+        if request.htmx:
+            request_view = OrderRequestListView()
+            (
+                requests_qs,
+                paginator,
+                per_page,
+                page_number,
+            ) = request_view.get_request_queryset(request)
+
+            context = {
+                "requests": requests_qs,
+                "paginator": paginator,
+                "per_page": per_page,
+                "page_number": page_number,
+                "request_count": request_view.status_wise_request_count(),
+                "current_status": request.GET.get("status", "all"),
+                "current_search": request.GET.get("q", ""),
+                "start_date": request.GET.get("start_date", ""),
+                "end_date": request.GET.get("end_date", ""),
+                "status_choices": ORDER_REQUEST_STATUS.choices,
+            }
+            return render(request, "db_order_request/partial/partial_order_request_list.html", context)
+
+        return redirect("order_request_list")
+    
     
 # ------------------Order section FBV-------------
 

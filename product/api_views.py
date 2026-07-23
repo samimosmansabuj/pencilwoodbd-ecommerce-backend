@@ -404,8 +404,10 @@ class AddToWishlistAPIView(APIView):
         try:
             customer = request.user.customer_profile
             product_id = request.data.get("product_id")
+            variant_id = request.data.get("variant_id")
             product = get_object_or_404(Product, id=product_id)
-            obj, created = Wishlist.objects.get_or_create(customer=customer, product=product)
+            variant = ProductVariant.objects.filter(id=variant_id, product=product).first() if variant_id else None
+            obj, created = Wishlist.objects.get_or_create(customer=customer, product=product, variant=variant)
             if not created:
                 return Response({"status": False, "message": "Already in wishlist"}, status=400)
             return Response({"status": True, "message": "Added to wishlist"})
@@ -421,16 +423,18 @@ class WishlistAPIView(APIView):
             return Response({"status": True, "data": []})
         try:
             customer = request.user.customer_profile
-            items = Wishlist.objects.filter(customer=customer).select_related("product")
+            items = Wishlist.objects.filter(customer=customer).select_related("product", "variant")
             data = [{
-                "id": item.id, "product_id": item.product.id, "slug": item.product.slug,
-                "name": item.product.name, "price": item.product.price,
-                "discount_price": item.product.discount_price, "image": item.product.primary_image,
+                "id": item.id, "product_id": item.product.id, "variant_id": item.variant.id if item.variant else None,
+                "slug": item.product.slug, "name": item.product.name,
+                "price": item.variant.price if item.variant else item.product.price,
+                "discount_price": item.variant.discount_price if item.variant else item.product.discount_price,
+                "image": item.product.primary_image,
+                "attributes": item.variant.attributes if item.variant else None,
             } for item in items]
             return Response({"status": True, "data": data})
         except Exception as e:
             return Response({"status": False, "message": str(e)}, status=500)
-
 
 class RemoveWishlistAPIView(APIView):
     permission_classes = [AllowAny]
