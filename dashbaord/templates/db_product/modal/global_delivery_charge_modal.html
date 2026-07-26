@@ -1,0 +1,24 @@
+<!-- Global Delivery Charge Modal -->
+<div class="modal fade" id="GlobalDeliveryChargeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-bottom-0 py-2 bg-grd-primary">
+                <h5 class="modal-title">Global Delivery Charge</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-3">
+                    This charge applies to every product that doesn't set its own delivery charge.
+                </p>
+                <form method="post" action="{% url 'delivery_charge_settings' %}">
+                    {% csrf_token %}
+                    {% include "db_product/partial/delivery_charge_widget.html" with widget_id="global" bd_districts=bd_districts existing_json=existing_delivery_charge_json system_default=system_default_charge %}
+
+                    <button type="submit" class="btn btn-primary mt-2">
+                        <i class="bi bi-save me-2"></i>Save
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

@@ -16,7 +16,8 @@ from decimal import Decimal
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from pencilwoodbd.choices import USER_TYPE
-
+from authentication.utils import normalize_bd_phone
+from site_app.delivery_charge import DeliveryChargeResolver
 
 class DeliveryOptionListAPIView(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -74,90 +75,76 @@ class ShipmentSerializerAPIView(views.APIView):
 
 
 class CheckoutSummaryAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # CHANGED from IsAuthenticated
 
     def get(self, request):
         try:
-            customer = request.user.customer_profile
-
-            cart_ids = request.query_params.getlist("cart_ids")
-
-            cart_items = AddToCart.objects.filter(
-                customer=customer
-            )
-
-            if cart_ids:
-                cart_items = cart_items.filter(
-                    id__in=cart_ids
-                )
-
-            if not cart_items.exists():
-                return Response(
-                    {
-                        "status": False,
-                        "message": "Cart empty"
-                    },
-                    status=400
-                )
-
+            selected_district = request.query_params.get("district")
             items_data = []
             subtotal = Decimal("0")
             total_delivery_charge = Decimal("0")
 
-            selected_district = request.query_params.get("district")
+            if request.user.is_authenticated and getattr(request.user, "customer_profile", None):
+                customer = request.user.customer_profile
+                cart_ids = request.query_params.getlist("cart_ids")
+                cart_items = AddToCart.objects.filter(customer=customer)
+                if cart_ids:
+                    cart_items = cart_items.filter(id__in=cart_ids)
 
-            for item in cart_items:
+                if not cart_items.exists():
+                    return Response({"status": False, "message": "Cart empty"}, status=400)
 
-                product = item.product
+                for item in cart_items:
+                    product = item.product
+                    product_delivery_charge = DeliveryChargeResolver.get_charge(product, selected_district)
+                    total_delivery_charge += product_delivery_charge
+                    items_data.append({
+                        "cart_id": item.id,
+                        "product_id": product.id,
+                        "product": product.name,
+                        "quantity": item.quantity,
+                        "price": item.price,
+                        "total": item.total_price,
+                        "delivery_charge": float(product_delivery_charge)
+                    })
+                    subtotal += item.total_price
+            else:
+                # GUEST: frontend sends items as JSON in query param
+                import json as pyjson
+                raw_items = request.query_params.get("items")
+                guest_items = pyjson.loads(raw_items) if raw_items else []
 
-                product_delivery_charge = Decimal("0")
+                if not guest_items:
+                    return Response({"status": False, "message": "Cart empty"}, status=400)
 
-                if hasattr(product, "delivery_charge"):
+                for row in guest_items:
+                    product = Product.objects.filter(id=row.get("product_id")).first()
+                    if not product:
+                        continue
+                    variant = None
+                    if row.get("variant_id"):
+                        variant = ProductVariant.objects.filter(id=row["variant_id"], product=product).first()
 
-                    area_charge = (
-                        product.delivery_charge.area_and_charge
-                        or {}
-                    )
+                    quantity = int(row.get("quantity", 1))
+                    price = variant.price if variant else product.price
+                    discount_price = (variant.discount_price if variant else product.discount_price) or price
+                    line_total = discount_price * quantity
 
-                    if area_charge:
+                    product_delivery_charge = DeliveryChargeResolver.get_charge(product, selected_district)
+                    total_delivery_charge += product_delivery_charge
 
-                        if (
-                            selected_district and
-                            selected_district in area_charge
-                        ):
-                            product_delivery_charge = Decimal(
-                                str(
-                                    area_charge[selected_district]
-                                )
-                            )
+                    items_data.append({
+                        "cart_id": None,
+                        "product_id": product.id,
+                        "product": product.name,
+                        "quantity": quantity,
+                        "price": discount_price,
+                        "total": line_total,
+                        "delivery_charge": float(product_delivery_charge)
+                    })
+                    subtotal += line_total
 
-                        elif "all" in area_charge:
-                            product_delivery_charge = Decimal(
-                                str(area_charge["all"])
-                            )
-
-                total_delivery_charge += (
-                    product_delivery_charge
-                )
-
-                items_data.append({
-                    "cart_id": item.id,
-                    "product_id": product.id,
-                    "product": product.name,
-                    "quantity": item.quantity,
-                    "price": item.price,
-                    "total": item.total_price,
-                    "delivery_charge": float(
-                        product_delivery_charge
-                    )
-                })
-
-                subtotal += item.total_price
-
-            grand_total = (
-                subtotal +
-                total_delivery_charge
-            )
+            grand_total = subtotal + total_delivery_charge
 
             return Response({
                 "status": True,
@@ -170,68 +157,80 @@ class CheckoutSummaryAPIView(APIView):
             })
 
         except Exception as e:
-            return Response(
-                {
-                    "status": False,
-                    "message": str(e)
-                },
-                status=500
-            )
-
+            return Response({"status": False, "message": str(e)}, status=500)
+        
+        
 class PlaceOrderAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # CHANGED
 
     def post(self, request):
         try:
             with transaction.atomic():
-
-                customer = request.user.customer_profile
-
-                cart_ids = request.data.get("cart_ids", [])
-
-                if not cart_ids:
-                    return Response(
-                        {"status": False, "message": "No cart items selected"},
-                        status=400
-                    )
-
-                cart_items = AddToCart.objects.select_related(
-                    "product", "variant"
-                ).filter(
-                    customer=customer,
-                    id__in=cart_ids
-                )
-
-                if not cart_items.exists():
-                    return Response(
-                        {"status": False, "message": "Cart empty"},
-                        status=400
-                    )
-
+                phone = normalize_bd_phone(request.data.get("phone", ""))
+                name = request.data.get("name")
                 address_text = request.data.get("address")
                 district = request.data.get("district")
                 upazila = request.data.get("upazila") or "N/A"
-                name = request.data.get("name")
-                phone = request.data.get("phone")
 
-                if not address_text or not district:
+                if not phone or not name or not address_text or not district:
                     return Response(
-                        {"status": False, "message": "Address & district required"},
+                        {"status": False, "message": "Name, phone, address & district required"},
                         status=400
                     )
 
-                # Keep customer contact info in sync with what was entered at checkout
-                if name:
+                # Resolve/create the Customer by phone — this is the guest->customer link.
+                customer, created = Customer.objects.get_or_create(
+                    phone=phone,
+                    defaults={"name": name}
+                )
+                if not created:
                     customer.name = name
-                if phone:
-                    customer.phone = phone
-                customer.save()
+                    customer.save()
+
+                # Build the order-item list: logged-in users can pass cart_ids (DB cart),
+                # guests pass "items": [{product_id, variant_id, quantity}, ...] straight from localStorage.
+                if request.user.is_authenticated and getattr(request.user, "customer_profile", None):
+                    # Logged in — use their real customer (in case phone differs from account, prefer account)
+                    customer = request.user.customer_profile
+                    cart_ids = request.data.get("cart_ids", [])
+                    if not cart_ids:
+                        return Response({"status": False, "message": "No cart items selected"}, status=400)
+
+                    cart_items = AddToCart.objects.select_related("product", "variant").filter(
+                        customer=customer, id__in=cart_ids
+                    )
+                    if not cart_items.exists():
+                        return Response({"status": False, "message": "Cart empty"}, status=400)
+
+                    line_items = [
+                        {"product": ci.product, "variant": ci.variant, "quantity": ci.quantity}
+                        for ci in cart_items
+                    ]
+                    should_delete_cart = cart_items
+                else:
+                    raw_items = request.data.get("items", [])
+                    if not raw_items:
+                        return Response({"status": False, "message": "No cart items"}, status=400)
+
+                    line_items = []
+                    for row in raw_items:
+                        product = Product.objects.filter(id=row.get("product_id")).first()
+                        if not product:
+                            continue
+                        variant = None
+                        if row.get("variant_id"):
+                            variant = ProductVariant.objects.filter(id=row["variant_id"], product=product).first()
+                        line_items.append({
+                            "product": product, "variant": variant,
+                            "quantity": int(row.get("quantity", 1))
+                        })
+
+                    if not line_items:
+                        return Response({"status": False, "message": "Cart empty"}, status=400)
+                    should_delete_cart = None
 
                 address = Address.objects.create(
-                    customer=customer,
-                    street_01=address_text,
-                    district=district,
-                    upazila=upazila
+                    customer=customer, street_01=address_text, district=district, upazila=upazila
                 )
 
                 order = Order.objects.create(
@@ -242,76 +241,45 @@ class PlaceOrderAPIView(APIView):
                 total = Decimal("0")
                 total_delivery_charge = Decimal("0")
 
-                for item in cart_items:
+                for line in line_items:
+                    product = line["product"]
+                    variant = line["variant"]
+                    quantity = line["quantity"]
 
-                    product = item.product
-                    variant = item.variant
-
-                    # DELIVERY CHARGE
-                    product_delivery_charge = Decimal("0")
-
-                    if hasattr(product, "delivery_charge"):
-                        area_charge = product.delivery_charge.area_and_charge or {}
-
-                        if district in area_charge:
-                            product_delivery_charge = Decimal(str(area_charge[district]))
-                        elif "all" in area_charge:
-                            product_delivery_charge = Decimal(str(area_charge["all"]))
-
+                    product_delivery_charge = DeliveryChargeResolver.get_charge(product, district)
                     total_delivery_charge += product_delivery_charge
 
-                    # STOCK CHECK + DEDUCTION
                     if variant:
-                        if variant.inventory_quantity < item.quantity:
-                            return Response(
-                                {"status": False, "message": f"{product.name} out of stock"},
-                                status=400
-                            )
-
-                        variant.inventory_quantity -= item.quantity
+                        if variant.inventory_quantity < quantity:
+                            return Response({"status": False, "message": f"{product.name} out of stock"}, status=400)
+                        variant.inventory_quantity -= quantity
                         variant.save()
-
-                        # keep Product.inventory_quantity in sync for variable products
                         product.inventory_quantity = sum(
                             v.inventory_quantity for v in product.variants.filter(is_active=True)
                         )
                         product.save(update_fields=["inventory_quantity"])
-
                         price = variant.price
                         discount_price = variant.discount_price or variant.price
-
                     else:
-                        if product.inventory_quantity < item.quantity:
-                            return Response(
-                                {"status": False, "message": f"{product.name} out of stock"},
-                                status=400
-                            )
-
-                        product.inventory_quantity -= item.quantity
+                        if product.inventory_quantity < quantity:
+                            return Response({"status": False, "message": f"{product.name} out of stock"}, status=400)
+                        product.inventory_quantity -= quantity
                         product.save(update_fields=["inventory_quantity"])
-
                         price = product.price
                         discount_price = product.discount_price or product.price
 
                     OrderItem.objects.create(
-                        order=order,
-                        product=product,
-                        variant=variant,
-                        product_name=product.name,
-                        quantity=item.quantity,
-                        price=price,
-                        discount_price=discount_price,
-                        # discount_total_price is a computed @property on the model —
-                        # do NOT pass it here, it has no setter and will crash.
+                        order=order, product=product, variant=variant, product_name=product.name,
+                        quantity=quantity, price=price, discount_price=discount_price,
                     )
-
-                    total += discount_price * item.quantity
+                    total += discount_price * quantity
 
                 order.total_cost = total + total_delivery_charge
                 order.shipping_total = total_delivery_charge
                 order.save()
 
-                cart_items.delete()
+                if should_delete_cart is not None:
+                    should_delete_cart.delete()
 
                 return Response({
                     "status": True,
@@ -320,10 +288,7 @@ class PlaceOrderAPIView(APIView):
                 })
 
         except Exception as e:
-            return Response(
-                {"status": False, "message": str(e)},
-                status=500
-            )
+            return Response({"status": False, "message": str(e)}, status=500)
 
 class OrderListAPIView(APIView):
     permission_classes = [IsAuthenticated]

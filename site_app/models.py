@@ -5,7 +5,7 @@ from product.models import Product, ProductVariant
 from django.core.validators import FileExtensionValidator
 from django.utils import timezone
 from datetime import timedelta
-
+from site_app.bd_districts import SYSTEM_DEFAULT_DELIVERY_CHARGE  
 
 #Fixed One Object Models=============================================
 class SiteContent(models.Model):
@@ -247,3 +247,44 @@ class OTPVerification(models.Model):
     def __str__(self):
         return f"{self.phone} - {self.otp}"
 
+
+class SiteDeliveryChargeConfig(models.Model):
+    """
+    Singleton-style global delivery charge config.
+    Used as the fallback when a specific Product has no
+    ProductDeliveryCharge (or its area_and_charge is empty/None).
+
+    area_and_charge shape (same convention as ProductDeliveryCharge.area_and_charge):
+        {
+            "all": 150,        # optional bulk/default value for this scope
+            "Dhaka": 80,       # optional per-district overrides
+            "Chattogram": 120
+        }
+    Resolution for a district within ONE scope (product OR global):
+        area_and_charge.get(district) if present
+        else area_and_charge.get("all") if present
+        else None (caller falls through to the next scope)
+    """
+    area_and_charge = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Global Delivery Charge Config"
+        verbose_name_plural = "Global Delivery Charge Config"
+
+    @classmethod
+    def get_solo(cls):
+        """Always returns the single global config row, creating it if missing."""
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def save(self, *args, **kwargs):
+        self.pk = 1  # enforce singleton
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        pass  # never allow deleting the singleton row
+
+    def __str__(self):
+        return "Global Delivery Charge Config"

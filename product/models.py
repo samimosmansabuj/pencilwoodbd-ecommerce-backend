@@ -371,24 +371,18 @@ class AddToCart(models.Model):
     #     if category_products % 2 == 0:
     #         FreeAddToCart.objects.create(customer=self.customer, product=self.product)
 
+# product/models.py
 class Wishlist(models.Model):
-    customer = models.ForeignKey(
-        Customer,
-        on_delete=models.CASCADE,
-        related_name="wishlist"
-    )
-    product = models.ForeignKey(
-        Product,
-        on_delete=models.CASCADE,
-        related_name="wishlisted"
-    )
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name="wishlist")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="wishlisted")
+    variant = models.ForeignKey(ProductVariant, on_delete=models.CASCADE, null=True, blank=True, related_name="wishlisted")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("customer", "product")
+        unique_together = ("customer", "product", "variant")
 
     def __str__(self):
-        return f"{self.customer} - {self.product}"
+        return f"{self.customer} - {self.product} - {self.variant or 'no variant'}"
 
 
 

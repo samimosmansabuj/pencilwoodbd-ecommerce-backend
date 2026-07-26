@@ -19,6 +19,7 @@ urlpatterns = [
     path("product/update/<int:pk>/", product_update, name="product_update"),
     path('products/delete/<int:pk>/', ProductDeleteView.as_view(), name='product_delete'),  
 
+    path('settings/delivery-charge/', DeliveryChargeSettingsView.as_view(), name='delivery_charge_settings'),
 
     # path('media-center/', product_list, name='media_center'),
 
@@ -35,6 +36,7 @@ urlpatterns = [
     path('orders/delivery-option-submit/<int:pk>/', OrderDeliveryOptionSubmitView.as_view(), name='order_delivery_option_submit'),
     path('orders/<int:id>/invoice/', OrderInvoiceView.as_view(), name='order_invoice'),
     path('order-detail/<int:order_id>/update/', update_order, name='order_update'),
+    path('orders/<int:pk>/update-status/', OrderStatusUpdateView.as_view(), name='order_status_update'),
 
     # ------------------Order Request------------------
     path("order-requests/add/",AddOrderRequestView.as_view(),name="add_order_request"),
@@ -44,7 +46,8 @@ urlpatterns = [
     path("order-request/<int:pk>/approve/",ApproveOrderRequestView.as_view(),name="approve_order_request",),
     path("order-request/<int:pk>/reject/",RejectOrderRequestView.as_view(),name="reject_order_request",),
     path("order-request/<int:pk>/work-status/", UpdateOrderRequestWorkStatusView.as_view(), name="update_order_request_work_status"),
-
+    path('order-request/<int:pk>/update-status/', OrderRequestStatusUpdateView.as_view(), name='order_request_status_update'),
+    
     # ------------------Attribute & Attribute Value------------------
     path('attribute-list/', AttributeView.as_view(), name='attribute_list'),
     path('attribute-value/<int:attribute_id>/', AttributeValueView.as_view(), name='attribute_value_list'),

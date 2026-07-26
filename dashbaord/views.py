@@ -24,9 +24,12 @@ from django.contrib.auth.hashers import make_password
 
 # Models
 from order.models import Order, OrderRequest, OrderItem, OrderRequestItem
-from product.models import Product, Category, ProductImage, ProductVideo, Attribute, AttributeValue, ProductVariant, Tag
+from product.models import Product, Category, ProductImage, ProductVideo, Attribute, AttributeValue, ProductVariant, Tag, ProductDeliveryCharge
 from authentication.models import CustomUser, Customer
-from site_app.models import DeliveryOption
+from site_app.models import DeliveryOption, SiteDeliveryChargeConfig
+
+from site_app.bd_districts import BD_DISTRICTS, ALL_DISTRICTS_KEY, SYSTEM_DEFAULT_DELIVERY_CHARGE
+from site_app.delivery_charge import DeliveryChargeResolver
 
 # Forms
 from product.forms import ProductForm, ProductImageForm, ProductVideoForm
@@ -515,6 +518,9 @@ class ProductListView(LoginRequiredMixin, View):
             "current_status": status_filter or "all",
             "current_per_page": str(per_page),
             "product_counts": counts,
+            "bd_districts": BD_DISTRICTS,
+            "existing_delivery_charge_json": pyjson.dumps(SiteDeliveryChargeConfig.get_solo().area_and_charge or {}),
+            "system_default_charge": SYSTEM_DEFAULT_DELIVERY_CHARGE,
         }
 
         if request.htmx:
@@ -549,6 +555,46 @@ def parse_bool(value, default=False):
         return value
     return str(value).strip().lower() in ("true", "1", "on", "yes")
 
+
+def parse_delivery_charge_payload(request):
+    """
+    Expects the form to submit a hidden JSON field: delivery_charge_json
+    Shape sent from frontend JS:
+        {"mode": "all", "all": "150"}
+        or
+        {"mode": "per_district", "Dhaka": "80", "Chattogram": "120", "all": "150"}
+        or
+        {"mode": "none"}   -> means "don't set any product-level charge, use global/system default"
+ 
+    Returns (area_and_charge_dict_or_None, has_any_charge_bool)
+    `None` means: delete/skip ProductDeliveryCharge entirely for this product.
+    """
+    raw = request.POST.get("delivery_charge_json", "").strip()
+    if not raw:
+        return None, False
+ 
+    try:
+        payload = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return None, False
+ 
+    mode = payload.get("mode", "none")
+    if mode == "none":
+        return None, False
+ 
+    area_and_charge = {}
+    for key, value in payload.items():
+        if key == "mode":
+            continue
+        parsed = parse_decimal(value, default=None)
+        if parsed is not None:
+            # store as string for clean JSON (Decimal isn't JSON serializable)
+            area_and_charge[key] = str(parsed)
+ 
+    if not area_and_charge:
+        return None, False
+ 
+    return area_and_charge, True
 
 @login_required(login_url="admin_login")
 def add_product(request):
@@ -649,6 +695,14 @@ def add_product(request):
                     product_type=product_type,
                 )
 
+                # ---------------- Delivery Charge (per-product) ----------------
+                area_and_charge, has_charge = parse_delivery_charge_payload(request)
+                if has_charge:
+                    ProductDeliveryCharge.objects.update_or_create(
+                        product=product,
+                        defaults={"area_and_charge": area_and_charge},
+                    )
+
                 if not product.name:
                     raise ValueError("Product title is required.")
 
@@ -725,6 +779,9 @@ def add_product(request):
             "attributes_data": pyjson.dumps(attributes_data),
             "existing_variants_data": "[]",
             "CATEGORY_PRODUCT_STATUS_CHOICES": CATEGORY_PRODUCT_STATUS.choices,
+            "bd_districts": BD_DISTRICTS,
+            "existing_delivery_charge_json": "{}",
+            "system_default_charge": SYSTEM_DEFAULT_DELIVERY_CHARGE,
         },
     )
 
@@ -774,13 +831,6 @@ def product_update(request, pk):
                 product.short_description = request.POST.get("short_description", product.short_description)
                 product.details = request.POST.get("details", product.details)
 
-                # ---- STATUS:
-                # - "Save Draft" button (status_action == "Draft") ALWAYS forces Draft,
-                #   regardless of what the dropdown has selected.
-                # - "Publish" button (status_action == "Active") or any other/no
-                #   button submission -> use whatever the dropdown ("status") has
-                #   selected (Active, Deactive, Draft, Trash, etc).
-                # ----
                 status_action = request.POST.get("status_action")  # "Draft" / "Active" / None
                 dropdown_status = request.POST.get("status")
 
@@ -794,6 +844,16 @@ def product_update(request, pk):
                 product.status = status_value
 
                 product.save()
+
+                # ---------------- Delivery Charge (per-product) ----------------
+                area_and_charge, has_charge = parse_delivery_charge_payload(request)
+                if has_charge:
+                    ProductDeliveryCharge.objects.update_or_create(
+                        product=product,
+                        defaults={"area_and_charge": area_and_charge},
+                    )
+                else:
+                    ProductDeliveryCharge.objects.filter(product=product).delete()
 
                 try:
                     tag_ids = json.loads(request.POST.get("tags") or "[]")
@@ -936,6 +996,10 @@ def product_update(request, pk):
     existing_variants_data_json = pyjson.dumps(existing_variants_data)
     attributes_data_json = pyjson.dumps(attributes_data)
 
+    existing_delivery_charge = {}
+    if hasattr(product, "delivery_charge"):
+        existing_delivery_charge = product.delivery_charge.area_and_charge or {}
+
     return render(
         request,
         "db_product/add_product.html",
@@ -951,6 +1015,9 @@ def product_update(request, pk):
             "product_tag_ids": pyjson.dumps(
                 [{"id": t.id, "name": t.name} for t in product.tags.all()]
             ),
+            "bd_districts": BD_DISTRICTS,
+            "existing_delivery_charge_json": pyjson.dumps(existing_delivery_charge),
+            "system_default_charge": SYSTEM_DEFAULT_DELIVERY_CHARGE,
         }
     )
 
@@ -1010,6 +1077,7 @@ class CategoryView(LoginRequiredMixin, View):
 
                 parent = None
                 parent_id = data.get("parent")
+
                 if parent_id:
                     parent = Category.objects.filter(id=parent_id).first()
 
@@ -1127,6 +1195,39 @@ def delete_category(request, id):
         {"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST
     )
 
+class DeliveryChargeSettingsView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+ 
+    def _can_manage(self, request):
+        return request.user.user_type in [USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN]
+ 
+    def get(self, request):
+        config = SiteDeliveryChargeConfig.get_solo()
+ 
+        context = {
+            "bd_districts": BD_DISTRICTS,
+            "existing_delivery_charge_json": pyjson.dumps(config.area_and_charge or {}),
+            "system_default_charge": SYSTEM_DEFAULT_DELIVERY_CHARGE,
+        }
+ 
+        if request.htmx:
+            return render(request, "db_settings/partial/partial_delivery_charge_settings.html", context)
+ 
+        return render(request, "db_settings/delivery_charge_settings.html", context)
+ 
+    def post(self, request):
+        if not self._can_manage(request):
+            messages.error(request, "You don't have permission to change global delivery charges.")
+            return redirect("delivery_charge_settings")
+ 
+        area_and_charge, has_charge = parse_delivery_charge_payload(request)
+ 
+        config = SiteDeliveryChargeConfig.get_solo()
+        config.area_and_charge = area_and_charge or {}
+        config.save()
+ 
+        messages.success(request, "Global delivery charge settings updated successfully.")
+        return redirect("delivery_charge_settings")
 # ------------------Attribute--------
 class AttributeView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -1582,6 +1683,8 @@ class OrderView(LoginRequiredMixin, View):
             ),
 
             "products": products,
+
+            "status_choices": STATUS.choices,
         }
 
         if request.htmx:
@@ -1595,8 +1698,7 @@ class OrderView(LoginRequiredMixin, View):
             request,
             "db_order/order_list.html",
             context,
-        )
-    
+        )   
 
 class OrderDetailView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -1766,7 +1868,54 @@ class OrderInvoiceView(View):
             return render(request, "db_order/invoice.html", {"order": order})
         return redirect(request.META.get("HTTP_REFERER"))
 
+class OrderStatusUpdateView(LoginRequiredMixin, View):
+    login_url = "admin_login"
 
+    def post(self, request, pk):
+        order = get_object_or_404(Order, pk=pk)
+        new_status = request.POST.get("status")
+
+        valid_statuses = [c[0] for c in STATUS.choices]
+        if new_status not in valid_statuses:
+            messages.error(request, "Invalid status selected.")
+        else:
+            order.status = new_status
+            order.save(update_fields=["status"])
+            messages.success(
+                request,
+                f"Order #{order.order_id} status updated to {order.get_status_display()}."
+            )
+
+        if request.htmx:
+            order_view = OrderView()
+            (
+                orders,
+                paginator,
+                per_page,
+                page_number,
+                products,
+            ) = order_view.get_order_queryset(request)
+
+            context = {
+                "orders": orders,
+                "paginator": paginator,
+                "per_page": per_page,
+                "page_number": page_number,
+                "order_count": order_view.status_wise_order_count(),
+                "current_status": request.GET.get("status", "all"),
+                "current_search": request.GET.get("q", ""),
+                "current_product_slug": request.GET.get("product", ""),
+                "start_date": request.GET.get("start_date", ""),
+                "end_date": request.GET.get("end_date", ""),
+                "products": products,
+                "status_choices": STATUS.choices,
+            }
+            return render(request, "db_order/partial/partial_order_list.html", context)
+
+        return redirect("order_list")
+
+
+# Order Request section
 def create_order_from_request(order_request):
     if order_request.status not in [ORDER_REQUEST_STATUS.PENDING, ORDER_REQUEST_STATUS.APPROVED]:
         raise Exception("Only pending or approved requests can be converted.")
@@ -2129,6 +2278,8 @@ class OrderRequestListView(LoginRequiredMixin, View):
                 "end_date",
                 "",
             ),
+
+            "status_choices": ORDER_REQUEST_STATUS.choices,
         }
 
         if request.htmx:
@@ -2143,8 +2294,6 @@ class OrderRequestListView(LoginRequiredMixin, View):
             "db_order_request/order_request_list.html",
             context,
         )
-    
-
 class OrderRequestDetailView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
@@ -2236,6 +2385,67 @@ class UpdateOrderRequestWorkStatusView(LoginRequiredMixin, View):
 
         messages.success(request, "Work status updated.")
         return redirect("order_request_detail", id=pk)  
+    
+
+class OrderRequestStatusUpdateView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk):
+        order_request = get_object_or_404(OrderRequest, pk=pk)
+        new_status = request.POST.get("status")
+
+        valid_statuses = [c[0] for c in ORDER_REQUEST_STATUS.choices]
+
+        if new_status not in valid_statuses:
+            messages.error(request, "Invalid status selected.")
+
+        elif order_request.status == ORDER_REQUEST_STATUS.CONVERTED:
+            messages.error(request, "Converted requests cannot change status.")
+
+        elif new_status == ORDER_REQUEST_STATUS.CONVERTED:
+            # Route through the existing conversion logic instead of a raw status set
+            try:
+                order = create_order_from_request(order_request)
+                messages.success(
+                    request,
+                    f"Order Request approved. Order #{order.order_id} created."
+                )
+            except Exception as e:
+                messages.error(request, str(e))
+
+        else:
+            order_request.status = new_status
+            order_request.save(update_fields=["status"])
+            messages.success(
+                request,
+                f"Order Request #{order_request.id} status updated to {order_request.get_status_display()}."
+            )
+
+        if request.htmx:
+            request_view = OrderRequestListView()
+            (
+                requests_qs,
+                paginator,
+                per_page,
+                page_number,
+            ) = request_view.get_request_queryset(request)
+
+            context = {
+                "requests": requests_qs,
+                "paginator": paginator,
+                "per_page": per_page,
+                "page_number": page_number,
+                "request_count": request_view.status_wise_request_count(),
+                "current_status": request.GET.get("status", "all"),
+                "current_search": request.GET.get("q", ""),
+                "start_date": request.GET.get("start_date", ""),
+                "end_date": request.GET.get("end_date", ""),
+                "status_choices": ORDER_REQUEST_STATUS.choices,
+            }
+            return render(request, "db_order_request/partial/partial_order_request_list.html", context)
+
+        return redirect("order_request_list")
+    
     
 # ------------------Order section FBV-------------
 
