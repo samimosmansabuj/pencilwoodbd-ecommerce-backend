@@ -4,8 +4,8 @@ from pencilwoodbd.choices import USER_TYPE
 
 class CustomUser(AbstractUser):
     email = models.EmailField(unique=True, blank=True, null=True)
-    phone = models.CharField(max_length=20, unique=True, blank=True, null=True)
-    user_type = models.CharField(max_length=20, choices=USER_TYPE.choices)
+    phone = models.CharField(max_length=20, blank=True, null=True)
+    user_type = models.CharField(max_length=20, choices=USER_TYPE.choices, default=USER_TYPE.CUSTOMER)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -30,7 +30,7 @@ class Customer(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.SET_NULL, blank=True, null=True, related_name='customer_profile')
     company = models.CharField(max_length=255, blank=True, null=True)
     name = models.CharField(max_length=50)
-    phone = models.CharField(max_length=20, unique=True)
+    phone = models.CharField(max_length=20, blank=True, null=True)
     second_phone = models.CharField(max_length=20, blank=True, null=True)
     whatsapp = models.CharField(max_length=20, blank=True, null=True)
     email = models.EmailField(max_length=200, blank=True, null=True)
