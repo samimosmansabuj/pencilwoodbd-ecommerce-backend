@@ -288,7 +288,6 @@ class UserManagementView(LoginRequiredMixin, View):
 
         context.update(self._base_wrapper_context())
         return render(request, "db_users/user_management.html", context)
-    
 
 class StaffCreateView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -354,7 +353,6 @@ class StaffCreateView(LoginRequiredMixin, View):
             messages.error(request, f"Failed to create user: {e}")
 
         return redirect(redirect_url)
-    
 
 class StaffUpdateView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -1871,49 +1869,67 @@ class OrderInvoiceView(View):
 class OrderStatusUpdateView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
-    def post(self, request, pk):
-        order = get_object_or_404(Order, pk=pk)
-        new_status = request.POST.get("status")
+    # def post(self, request, pk):
+    #     order = get_object_or_404(Order, pk=pk)
+    #     new_status = request.POST.get("status")
 
-        valid_statuses = [c[0] for c in STATUS.choices]
-        if new_status not in valid_statuses:
-            messages.error(request, "Invalid status selected.")
-        else:
-            order.status = new_status
-            order.save(update_fields=["status"])
-            messages.success(
-                request,
-                f"Order #{order.order_id} status updated to {order.get_status_display()}."
-            )
+    #     valid_statuses = [c[0] for c in STATUS.choices]
+    #     if new_status not in valid_statuses:
+    #         messages.error(request, "Invalid status selected.")
+    #     else:
+    #         order.status = new_status
+    #         order.save(update_fields=["status"])
+    #         messages.success(
+    #             request,
+    #             f"Order #{order.order_id} status updated to {order.get_status_display()}."
+    #         )
 
-        if request.htmx:
-            order_view = OrderView()
-            (
-                orders,
-                paginator,
-                per_page,
-                page_number,
-                products,
-            ) = order_view.get_order_queryset(request)
+    #     if request.htmx:
+    #         order_view = OrderView()
+    #         (
+    #             orders,
+    #             paginator,
+    #             per_page,
+    #             page_number,
+    #             products,
+    #         ) = order_view.get_order_queryset(request)
 
-            context = {
-                "orders": orders,
-                "paginator": paginator,
-                "per_page": per_page,
-                "page_number": page_number,
-                "order_count": order_view.status_wise_order_count(),
-                "current_status": request.GET.get("status", "all"),
-                "current_search": request.GET.get("q", ""),
-                "current_product_slug": request.GET.get("product", ""),
-                "start_date": request.GET.get("start_date", ""),
-                "end_date": request.GET.get("end_date", ""),
-                "products": products,
-                "status_choices": STATUS.choices,
-            }
-            return render(request, "db_order/partial/partial_order_list.html", context)
+    #         context = {
+    #             "orders": orders,
+    #             "paginator": paginator,
+    #             "per_page": per_page,
+    #             "page_number": page_number,
+    #             "order_count": order_view.status_wise_order_count(),
+    #             "current_status": request.GET.get("status", "all"),
+    #             "current_search": request.GET.get("q", ""),
+    #             "current_product_slug": request.GET.get("product", ""),
+    #             "start_date": request.GET.get("start_date", ""),
+    #             "end_date": request.GET.get("end_date", ""),
+    #             "products": products,
+    #             "status_choices": STATUS.choices,
+    #         }
+    #         return render(request, "db_order/partial/partial_order_list.html", context)
 
-        return redirect("order_list")
+    #     return redirect("order_list")
 
+    def post(self, request, pk) -> JsonResponse:
+        try:
+            order = get_object_or_404(Order, pk=pk)
+            new_status = request.POST.get("status")
+
+            valid_statuses = [c[0] for c in STATUS.choices]
+            if new_status not in valid_statuses:
+                return JsonResponse({"success": False, "message": "Invalid status selected"})
+            else:
+                order.status = new_status
+                order.save(update_fields=["status"])
+                # messages.success(
+                #     request,
+                #     f"Order #{order.order_id} status updated to {order.get_status_display()}."
+                # )
+            return JsonResponse({"success": True, "message": f"Order #{order.order_id} status updated to {order.get_status_display()}."})
+        except Exception as e:
+            return JsonResponse({"success": False, "message": f"{e}"})
 
 # Order Request section
 def create_order_from_request(order_request):
