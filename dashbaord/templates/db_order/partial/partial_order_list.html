@@ -201,18 +201,11 @@
                                 <td>৳{{ order.total_cost }}</td>
 
                                 <td>
-                                    <form class="status-inline-form"
-                                          hx-post="{% url 'order_status_update' order.id %}"
-                                          hx-target="#content-area"
-                                          hx-include="[name='status_{{ order.id }}']"
-                                          hx-trigger="change">
-                                        {% csrf_token %}
-                                        <select name="status" id="status_{{ order.id }}" class="form-select form-select-sm status-select status-{{ order.status }}" style="min-width:130px;">
-                                            {% for value, label in status_choices %}
-                                            <option value="{{ value }}" {% if order.status == value %}selected{% endif %}>{{ label }}</option>
-                                            {% endfor %}
-                                        </select>
-                                    </form>
+                                    <select name="status" id="status_{{ order.id }}" class="form-select form-select-sm status-select status-{{ order.status }}" style="min-width:130px;" data-url="{% url 'order_status_update' order.id %}">
+                                        {% for value, label in status_choices %}
+                                        <option value="{{ value }}" {% if order.status == value %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
                                 </td>
 
                                 <td>{{ order.delivery_type|upper }}</td>
@@ -258,6 +251,69 @@
                         </tbody>
                     </table>
                     <script>
+                        document.addEventListener('change', function(event) {
+                            if (event.target && event.target.classList.contains('status-select')) {
+                                const selectElement = event.target;
+                                const newStatus = selectElement.value;
+                                const url = selectElement.getAttribute('data-url'); 
+
+                                const formData = new FormData();
+                                formData.append('status', newStatus);
+
+                                fetch(url, {
+                                    method: 'POST',
+                                    body: formData,
+                                    headers: {
+                                        'X-CSRFToken': getCookie('csrftoken')
+                                    }
+                                })
+                                .then(response => response.json())
+                                .then(data => {
+                                    if(data.success) {
+                                        successNotificationCustom(data.message);
+                                    } else {
+                                        errorNotificationCustom("Failed to update status.");
+                                    }
+                                })
+                                .catch(error => {
+                                    errorNotificationCustom("Something went wrong!");
+                                });
+                            }
+                        });
+
+                        // Get Cookie (CSRF For Post Method) Script----
+                        function getCookie(name) {
+                            let cookieValue = null;
+                            if (document.cookie && document.cookie !== '') {
+                                const cookies = document.cookie.split(';');
+                                for (let i = 0; i < cookies.length; i++) {
+                                    const cookie = cookies[i].trim();
+                                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                                        break;
+                                    }
+                                }
+                            }
+                            return cookieValue;
+                        }
+
+                        // Notification Shows Script-------
+                        function successNotificationCustom(message) {
+                            Lobibox.notify('success', {
+                                title: "Success", pauseDelayOnHover: true, size: 'mini', rounded: true,
+                                icon: 'bi bi-check2-circle', delayIndicator: false,
+                                continueDelayOnInactiveTab: false, position: 'top right', msg: message
+                            });
+                        }
+                        function errorNotificationCustom(message) {
+                            Lobibox.notify('error', {
+                                title: "Error", pauseDelayOnHover: true, size: 'mini', rounded: true,
+                                icon: 'bi bi-x-circle', delayIndicator: false,
+                                continueDelayOnInactiveTab: false, position: 'top right', msg: message
+                            });
+                        }
+                        
+                        // Invoice Print Script--------
                         function printInvoice(orderId) {
                             const url = `/orders/${orderId}/invoice/`;
                             const printWindow = window.open(url, '_blank', 'width=900,height=1200');
