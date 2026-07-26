@@ -18,12 +18,12 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='customuser',
             name='phone',
-            field=models.CharField(blank=True, max_length=20, null=True, unique=True),
+            field=models.CharField(blank=True, max_length=20, null=True),
         ),
         migrations.AlterField(
             model_name='customer',
             name='phone',
-            field=models.CharField(max_length=20, unique=True),
+            field=models.CharField(max_length=20),
         ),
         migrations.AlterField(
             model_name='customuser',
