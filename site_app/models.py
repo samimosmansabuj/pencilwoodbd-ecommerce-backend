@@ -132,24 +132,31 @@ class HomeSlider(models.Model):
     title = models.CharField(max_length=55)
     url = models.CharField(max_length=55, blank=True, null=True)
     button_name = models.CharField(max_length=55, blank=True, null=True)
-    is_active = models.BooleanField(default=True)
-    
+    is_active = models.BooleanField(default=False)  # default False now — admin must explicitly activate
+    product = models.ForeignKey('product.Product', on_delete=models.CASCADE,null=True, blank=True, related_name='hero_slides')  
+
     @property
     def display_name(self):
-        return "Slider"
+        return self.product.name if self.product else (self.title or "Slider")
+
+    @property
+    def resolved_url(self):
+        if self.product:
+            return f"/product-details.html?slug={self.product.slug}"
+        return self.url or "#"
 
     def save(self, *args, **kwargs):
         if self.pk and HomeSlider.objects.filter(pk=self.pk).exists():
             old_instance = HomeSlider.objects.get(pk=self.pk)
             previous_image_delete_os(old_instance.image, self.image)
         super().save(*args, **kwargs)
-    
+
     def delete(self, *args, **kwargs):
         image_delete_os(self.image)
-        return super().delete( *args, **kwargs)
-    
+        return super().delete(*args, **kwargs)
+
     def __str__(self):
-        return f'{self.title or None} | {self.pk}'
+        return f'{self.display_name} | {self.pk}'
 
 class NewsFeed(models.Model):
     news = models.CharField(max_length=255)

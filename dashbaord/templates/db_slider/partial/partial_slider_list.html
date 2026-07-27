@@ -1,0 +1,204 @@
+<div class="main-content" id="sliderListTable">
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Slider</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <!-- ACTIVE LIMIT MESSAGE -->
+    <div class="alert {% if limit_reached %}alert-warning{% else %}alert-info{% endif %} py-2 mb-3" id="sliderLimitMsg">
+        <i class="bi bi-info-circle me-2"></i>
+        <span id="sliderLimitText">
+            {{ active_count }} of {{ max_active }} slider slots active.
+            {% if limit_reached %} Turn one off to activate another.{% endif %}
+        </span>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-auto ms-auto">
+            <button class="btn btn-primary px-4" data-bs-toggle="modal" data-bs-target="#SliderModal">
+                <i class="bi bi-plus-lg me-2"></i>Add Slider
+            </button>
+            {% include 'db_slider/partial/add_slider_modal.html' %}
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-body">
+            <div class="product-table">
+                <div class="table-responsive white-space-nowrap">
+                    <table class="table align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Image</th>
+                                <th>Name</th>
+                                <th>Source</th>
+                                <th>Active</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for slider in sliders %}
+                            <tr>
+                                <td>
+                                    {% if slider.image %}
+                                    <div class="position-relative" style="width:90px;">
+                                        <img src="{{ slider.image.url }}" class="img-fluid rounded border pw-slider-thumb"
+                                            style="height:55px; object-fit:cover; width:100%; cursor:pointer;">
+                                        <div class="position-absolute top-0 end-0 d-flex gap-1 p-1">
+                                            <button type="button" class="btn btn-sm btn-light border pw-view-slider-thumb"
+                                                data-img="{{ slider.image.url }}" title="Preview" style="padding:0 5px;">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            {% if not slider.product %}
+                                            <button type="button" class="btn btn-sm btn-danger delete-slider-btn"
+                                                data-id="{{ slider.id }}" data-name="{{ slider.title }}"
+                                                data-bs-toggle="modal" data-bs-target="#deleteSliderModal"
+                                                title="Remove" style="padding:0 6px;">&times;</button>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% else %}
+                                    <span class="text-muted small">No image</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="fw-semibold">{{ slider.display_name }}</span>
+                                </td>
+                                <td>
+                                    {% if slider.product %}
+                                    <span class="badge bg-info-subtle text-info">Product: {{ slider.product.name }}</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary-subtle text-secondary">Manual</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input slider-active-toggle" type="checkbox"
+                                            data-id="{{ slider.id }}"
+                                            {% if slider.is_active %}checked{% endif %}>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="dropdown d-flex gap-1">
+                                        {% if not slider.product %}
+                                        <button class="btn btn-sm btn-filter edit-slider-btn"
+                                            data-id="{{ slider.id }}"
+                                            data-title="{{ slider.title }}"
+                                            data-url="{{ slider.url|default:'' }}"
+                                            data-button-name="{{ slider.button_name|default:'' }}"
+                                            data-image="{{ slider.image.url|default:'' }}"
+                                            data-bs-toggle="modal" data-bs-target="#SliderModal">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        {% else %}
+                                        <a href="{% url 'product_update' slider.product.id %}" class="btn btn-sm btn-filter" title="Edit via Product">
+                                            <i class="bi bi-box-seam"></i>
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4">No sliders found. Click "Add Slider" to create one.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Image Preview Modal -->
+<div class="modal fade" id="pw_slider_preview_modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title">Slider Image Preview</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="pw_slider_preview_img" src="" style="max-width:100%; max-height:70vh; object-fit:contain;">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("click", function (e) {
+    const btn = e.target.closest(".pw-view-slider-thumb");
+    if (btn) {
+        document.getElementById("pw_slider_preview_img").src = btn.dataset.img;
+        new bootstrap.Modal(document.getElementById("pw_slider_preview_modal")).show();
+    }
+});
+
+// ACTIVE TOGGLE with 5-limit enforcement
+document.addEventListener("change", function (e) {
+    if (!e.target.classList.contains("slider-active-toggle")) return;
+
+    const checkbox = e.target;
+    const id = checkbox.dataset.id;
+    const wantActive = checkbox.checked;
+
+    const csrftoken = getCookie("csrftoken");
+
+    fetch(`/toggle-slider/${id}/`, {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": csrftoken,
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: `is_active=${wantActive}`,
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (!data.status) {
+            checkbox.checked = !wantActive; // revert
+            alert(data.message);
+            return;
+        }
+        alert(data.message);
+
+        const msgEl = document.getElementById("sliderLimitText");
+        const boxEl = document.getElementById("sliderLimitMsg");
+        msgEl.textContent = `${data.active_count} of {{ max_active }} slider slots active.` +
+            (data.limit_reached ? " Turn one off to activate another." : "");
+        boxEl.classList.toggle("alert-warning", data.limit_reached);
+        boxEl.classList.toggle("alert-info", !data.limit_reached);
+
+        // disable other unchecked toggles when limit reached
+        document.querySelectorAll(".slider-active-toggle").forEach(cb => {
+            if (!cb.checked) cb.disabled = data.limit_reached;
+        });
+    })
+    .catch(err => {
+        checkbox.checked = !wantActive;
+        alert(err.message);
+    });
+});
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
