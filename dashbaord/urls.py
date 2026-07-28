@@ -38,6 +38,7 @@ urlpatterns = [
     path('order-detail/<int:order_id>/update/', update_order, name='order_update'),
     path('orders/<int:pk>/update-status/', OrderStatusUpdateView.as_view(), name='order_status_update'),
 
+
     # ------------------Order Request------------------
     path("order-requests/add/",AddOrderRequestView.as_view(),name="add_order_request"),
     path("order-requests/<int:pk>/edit/", AddOrderRequestView.as_view(), name="edit_order_request"),
@@ -53,6 +54,12 @@ urlpatterns = [
     path('attribute-value/<int:attribute_id>/', AttributeValueView.as_view(), name='attribute_value_list'),
     path('delete-attribute/<int:id>/', delete_attribute, name='delete_attribute'),
     path('delete-attribute-value/<int:id>/', delete_attribute_value, name='delete_attribute_value'),
+
+    # ----------------- Slider ---------------------
+    path('slider-list/', SliderView.as_view(), name='slider_list'),
+    path('get-slider/<int:id>/', get_slider, name='get_slider'),
+    path('delete-slider/<int:id>/', delete_slider, name='delete_slider'),
+    path('toggle-slider/<int:id>/', toggle_slider_active, name='toggle_slider_active'),
 
 ]
 

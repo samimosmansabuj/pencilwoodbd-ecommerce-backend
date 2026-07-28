@@ -217,7 +217,8 @@ else:
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.getenv('MEDIA_ROOT', default=os.path.join(BASE_DIR, 'media'))
 
-
+HERO_SLIDER_SIZE = (1400, 500)
+HERO_SLIDER_MAX_ACTIVE = 5
 
 
 # Default primary key field type

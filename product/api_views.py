@@ -1,7 +1,7 @@
 from rest_framework import views, status, permissions, viewsets
 from rest_framework.response import Response
 from .serializers import ProductSerializer, CategorySerializer
-from site_app.models import LandingPageProduct, OTPVerification
+from site_app.models import LandingPageProduct, OTPVerification, HomeSlider
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from authentication.models import Customer
@@ -24,6 +24,9 @@ from django.conf import settings
 from rest_framework.permissions import AllowAny
 from rest_framework.permissions import IsAuthenticated
 from .models import Wishlist
+
+from django.http import JsonResponse
+
 
 class CategoryAPIViews(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -63,7 +66,36 @@ class CategoryAPIViews(views.APIView):
             )
 
 
+def home_slider_api(request):
+    sliders = (
+        HomeSlider.objects
+        .filter(is_active=True)
+        .select_related("product")
+        .order_by("-id")[:5]
+    )
 
+    data = []
+    for s in sliders:
+        if s.product:
+            resolved_url = f"/product-details.html?slug={s.product.slug}"
+            price = s.product.effective_price
+            name = s.title or s.product.name
+        else:
+            resolved_url = s.url or "#"
+            price = None
+            name = s.title
+
+        data.append({
+            "id": s.id,
+            "title": name,
+            "image": s.image.url if s.image else None,
+            "url": resolved_url,
+            "button_name": s.button_name or "Shop Now",
+            "price": str(price) if price is not None else None,
+            "is_product": s.product_id is not None,
+        })
+
+    return JsonResponse({"status": True, "data": data})
 
 
 
@@ -289,7 +321,9 @@ class ProductDetailAPIView(APIView):
                 {"status": False, "message": str(e)},
                 status=500
             )
-    
+   
+#-------------Cart-------------
+
 class AddToCartAPIView(APIView):
     permission_classes = [AllowAny]  # CHANGED from IsAuthenticated
 
@@ -394,6 +428,7 @@ class RemoveCartAPIView(APIView):
         except Exception as e:
             return Response({"status": False, "message": str(e)}, status=400)
 
+#----------Wishlist--------------
 
 class AddToWishlistAPIView(APIView):
     permission_classes = [AllowAny]

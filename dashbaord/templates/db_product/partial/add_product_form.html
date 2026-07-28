@@ -108,6 +108,29 @@
                         </div>
                         {% endif %}
                     </div>
+
+                    <div class="mb-4">
+                        <h5 class="mb-3">Hero Slider Image <small class="text-muted">(optional)</small></h5>
+                        <p class="small text-muted mb-2">
+                            If set, this product will appear as a slide in the homepage hero slider.
+                            Image will be auto-cropped to {{ HERO_SLIDER_SIZE_LABEL|default:"1600×600" }}px.
+                        </p>
+                        <input type="file" name="hero_slider_image" class="form-control" accept="image/*">
+                    
+                        {% if is_update and product.hero_slides.first %}
+                        <div class="mt-3 d-flex align-items-center gap-3">
+                            <img src="{{ product.hero_slides.first.image.url }}" style="height:80px; border-radius:6px;" alt="hero slide">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="delete_hero_slider_image" id="pw_delete_hero_slide">
+                                <label class="form-check-label text-danger" for="pw_delete_hero_slide">Remove hero slide image</label>
+                            </div>
+                            <span class="badge {% if product.hero_slides.first.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                {% if product.hero_slides.first.is_active %}Active in Slider{% else %}Not Active{% endif %}
+                            </span>
+                        </div>
+                        {% endif %}
+                    </div>
+
                 </div>
             </div>
 

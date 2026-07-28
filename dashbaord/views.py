@@ -20,13 +20,15 @@ from django.views.generic import CreateView, UpdateView, DeleteView, ListView
 from decimal import Decimal, InvalidOperation
 import json as pyjson
 from django.contrib.auth.hashers import make_password
+from django.conf import settings
+from pencilwoodbd.extra_module import resize_to_fixed
 
 
 # Models
 from order.models import Order, OrderRequest, OrderItem, OrderRequestItem
 from product.models import Product, Category, ProductImage, ProductVideo, Attribute, AttributeValue, ProductVariant, Tag, ProductDeliveryCharge
 from authentication.models import CustomUser, Customer
-from site_app.models import DeliveryOption, SiteDeliveryChargeConfig
+from site_app.models import DeliveryOption, SiteDeliveryChargeConfig, HomeSlider
 
 from site_app.bd_districts import BD_DISTRICTS, ALL_DISTRICTS_KEY, SYSTEM_DEFAULT_DELIVERY_CHARGE
 from site_app.delivery_charge import DeliveryChargeResolver
@@ -445,7 +447,135 @@ class StaffUpdateView(LoginRequiredMixin, View):
 
         return redirect(redirect_url)
     
+#------ Slider----
+HERO_SLIDER_LIMIT = getattr(settings, "HERO_SLIDER_MAX_ACTIVE", 5)
 
+
+class SliderView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        # Manual sliders + product-linked sliders, all in ONE list
+        sliders = HomeSlider.objects.select_related("product").order_by("-id")
+        active_count = sliders.filter(is_active=True).count()
+
+        context = {
+            "sliders": sliders,
+            "active_count": active_count,
+            "max_active": HERO_SLIDER_LIMIT,
+            "limit_reached": active_count >= HERO_SLIDER_LIMIT,
+        }
+
+        if request.htmx:
+            return render(request, "db_slider/partial/partial_slider_list.html", context)
+
+        return render(request, "db_slider/slider_list.html", context)
+
+    def post(self, request):
+        try:
+            with transaction.atomic():
+                data = request.POST
+                slider_id = data.get("slider_id")
+
+                title = data.get("title", "").strip()
+                url = data.get("url", "").strip()
+                button_name = data.get("button_name", "").strip()
+                image = request.FILES.get("image")
+
+                if not title:
+                    return JsonResponse({"status": False, "message": "Slider name is required"}, status=HTTPStatus.BAD_REQUEST)
+
+                if slider_id:
+                    slider = get_object_or_404(HomeSlider, id=slider_id, product__isnull=True)
+                    slider.title = title
+                    slider.url = url or None
+                    slider.button_name = button_name or None
+                    if image:  # only one image per slider — new upload auto-replaces old
+                        slider.image = resize_to_fixed(image, settings.HERO_SLIDER_SIZE)
+                    slider.save()
+                    return JsonResponse({"status": True, "message": "Slider updated successfully"}, status=HTTPStatus.OK)
+
+                if not image:
+                    return JsonResponse({"status": False, "message": "Slider image is required"}, status=HTTPStatus.BAD_REQUEST)
+
+                HomeSlider.objects.create(
+                    title=title,
+                    url=url or None,
+                    button_name=button_name or None,
+                    image=resize_to_fixed(image, settings.HERO_SLIDER_SIZE),
+                    is_active=False,  # admin must explicitly activate
+                )
+                return JsonResponse({"status": True, "message": "Slider added successfully"}, status=HTTPStatus.CREATED)
+
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def get_slider(request, id):
+    try:
+        slider = get_object_or_404(HomeSlider, id=id)
+        return JsonResponse({
+            "status": True,
+            "slider": {
+                "id": slider.id,
+                "title": slider.title,
+                "url": slider.url,
+                "button_name": slider.button_name,
+                "image": slider.image.url if slider.image else None,
+                "is_product": slider.product_id is not None,
+            },
+        }, status=HTTPStatus.OK)
+    except Exception as e:
+        return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def delete_slider(request, id):
+    if request.method == "DELETE":
+        try:
+            slider = get_object_or_404(HomeSlider, id=id, product__isnull=True)  # can't delete product-linked ones from here
+            slider.delete()
+            return JsonResponse({"status": True, "message": "Slider deleted successfully"}, status=HTTPStatus.OK)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+    return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def toggle_slider_active(request, id):
+    """Handles Active/Inactive toggle with the max-5 enforcement."""
+    if request.method != "POST":
+        return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+
+    try:
+        slider = get_object_or_404(HomeSlider, id=id)
+        want_active = request.POST.get("is_active") == "true"
+
+        if want_active and not slider.is_active:
+            active_count = HomeSlider.objects.filter(is_active=True).count()
+            if active_count >= HERO_SLIDER_LIMIT:
+                return JsonResponse({
+                    "status": False,
+                    "message": f"You can only have {HERO_SLIDER_LIMIT} active sliders at a time. Turn one off first."
+                }, status=HTTPStatus.BAD_REQUEST)
+
+        slider.is_active = want_active
+        slider.save(update_fields=["is_active"])
+
+        new_active_count = HomeSlider.objects.filter(is_active=True).count()
+
+        return JsonResponse({
+            "status": True,
+            "message": "Slider status updated",
+            "is_active": slider.is_active,
+            "active_count": new_active_count,
+            "limit_reached": new_active_count >= HERO_SLIDER_LIMIT,
+        }, status=HTTPStatus.OK)
+
+    except Exception as e:
+        return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+    
 # ------------------Product--------
 class ProductListView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -693,6 +823,17 @@ def add_product(request):
                     product_type=product_type,
                 )
 
+                hero_slider_image = request.FILES.get("hero_slider_image")
+                if hero_slider_image:
+                    resized = resize_to_fixed(hero_slider_image, settings.HERO_SLIDER_SIZE)
+                    hero_slide, _ = HomeSlider.objects.update_or_create(
+                        product=product,
+                        defaults={
+                            "title": product.name,
+                            "image": resized,
+                            "is_active": False,  # never auto-active — admin decides in Slider list
+                        }
+                    )
                 # ---------------- Delivery Charge (per-product) ----------------
                 area_and_charge, has_charge = parse_delivery_charge_payload(request)
                 if has_charge:
@@ -842,6 +983,25 @@ def product_update(request, pk):
                 product.status = status_value
 
                 product.save()
+
+                hero_slider_image = request.FILES.get("hero_slider_image")
+                delete_hero_slider = request.POST.get("delete_hero_slider_image")
+
+                if delete_hero_slider:
+                    for slider in HomeSlider.objects.filter(product=product):
+                        slider.delete()
+                elif hero_slider_image:
+                    resized = resize_to_fixed(hero_slider_image, settings.HERO_SLIDER_SIZE)
+                    HomeSlider.objects.update_or_create(
+                        product=product,
+                        defaults={
+                            "title": product.name,
+                            "image": resized,
+                            "is_active": HomeSlider.objects.filter(product=product).values_list("is_active", flat=True).first() or False,
+                        }
+                    )
+                else:
+                    HomeSlider.objects.filter(product=product).update(title=product.name)
 
                 # ---------------- Delivery Charge (per-product) ----------------
                 area_and_charge, has_charge = parse_delivery_charge_payload(request)
@@ -1027,6 +1187,10 @@ class ProductDeleteView(LoginRequiredMixin, View):
 
     def post(self, request, pk, *args, **kwargs):
         product = get_object_or_404(Product, pk=pk)
+
+        for slider in HomeSlider.objects.filter(product=product):
+            slider.delete()
+
         product.delete()
         messages.success(request, "Product deleted successfully!")
         return redirect("product_list")

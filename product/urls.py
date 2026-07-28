@@ -16,6 +16,7 @@ from .api_views import (
     AddToWishlistAPIView,
     WishlistAPIView,
     RemoveWishlistAPIView,
+    home_slider_api,
 )
 from rest_framework.routers import DefaultRouter
 
@@ -33,7 +34,7 @@ urlpatterns = [
     
     # path("api/product-fetch/<int:code>/", LandingPageProductViews.as_view(), name="product_fetch_api"),
     # path("api/landing-page/order/create/", LandingPageOrderAPI.as_view(), name="order-create-api"),
-    
+    path('api/ecom/home-slider/', home_slider_api, name='home_slider_api'),
     
     path("api/", include(global_api_router.urls)),
     # path("api/order/create/", GlobalOrderCreateApi.as_view(),name="global-order-create" ),
