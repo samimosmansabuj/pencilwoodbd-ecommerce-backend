@@ -486,6 +486,135 @@ class RemoveWishlistAPIView(APIView):
             return Response({"status": False, "message": str(e)}, status=500)
 
 
+#----------Guest Cart Refresh (real-time price/stock)--------------
+
+class GuestCartRefreshAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        ids_param = request.query_params.get("ids", "")
+        ids = [int(i) for i in ids_param.split(",") if i.strip().isdigit()]
+
+        if not ids:
+            return Response({"status": True, "data": []})
+
+        products = Product.objects.filter(
+            id__in=ids, status=CATEGORY_PRODUCT_STATUS.ACTIVE
+        ).prefetch_related("variants")
+
+        data = []
+        for p in products:
+            stock = p.inventory_quantity
+            if p.has_variants:
+                stock = sum(v.inventory_quantity for v in p.variants.filter(is_active=True))
+
+            data.append({
+                "id": p.id,
+                "name": p.name,
+                "image": p.primary_image,
+                "price": p.price,
+                "discount_price": p.discount_price,
+                "stock": stock,
+                "has_variants": p.has_variants,
+                "variants": [
+                    {
+                        "id": v.id,
+                        "price": v.price,
+                        "discount_price": v.discount_price,
+                        "stock": v.inventory_quantity,
+                    }
+                    for v in p.variants.filter(is_active=True)
+                ] if p.has_variants else [],
+            })
+
+        return Response({"status": True, "data": data})
+
+
+#----------Merge Guest Cart/Wishlist into Account--------------
+
+class MergeGuestCartWishlistAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        customer = getattr(request.user, "customer_profile", None)
+        if not customer:
+            return Response({"status": False, "message": "No customer profile"}, status=400)
+
+        cart_items = request.data.get("cart", [])
+        wishlist_items = request.data.get("wishlist", [])
+
+        merged_cart = 0
+        merged_wishlist = 0
+        skipped_cart = 0
+
+        with transaction.atomic():
+            for item in cart_items:
+                product_id = item.get("product_id")
+                variant_id = item.get("variant_id")
+                quantity = int(item.get("quantity", 1))
+
+                try:
+                    product = Product.objects.get(id=product_id, status=CATEGORY_PRODUCT_STATUS.ACTIVE)
+                except Product.DoesNotExist:
+                    skipped_cart += 1
+                    continue
+
+                variant = None
+                if product.has_variants:
+                    if not variant_id:
+                        skipped_cart += 1
+                        continue
+                    variant = ProductVariant.objects.filter(
+                        id=variant_id, product=product, is_active=True
+                    ).first()
+                    if not variant:
+                        skipped_cart += 1
+                        continue
+
+                available_stock = variant.inventory_quantity if variant else product.inventory_quantity
+                if available_stock < 1:
+                    skipped_cart += 1
+                    continue
+
+                cart_item, created = AddToCart.objects.get_or_create(
+                    customer=customer, product=product, variant=variant,
+                    defaults={"quantity": min(quantity, available_stock)}
+                )
+                if not created:
+                    new_qty = cart_item.quantity + quantity
+                    cart_item.quantity = min(new_qty, available_stock)
+                    cart_item.save()
+
+                merged_cart += 1
+
+            for item in wishlist_items:
+                product_id = item.get("product_id")
+                variant_id = item.get("variant_id")
+
+                try:
+                    product = Product.objects.get(id=product_id, status=CATEGORY_PRODUCT_STATUS.ACTIVE)
+                except Product.DoesNotExist:
+                    continue
+
+                variant = None
+                if variant_id:
+                    variant = ProductVariant.objects.filter(
+                        id=variant_id, product=product
+                    ).first()
+
+                _, created = Wishlist.objects.get_or_create(
+                    customer=customer, product=product, variant=variant
+                )
+                if created:
+                    merged_wishlist += 1
+
+        return Response({
+            "status": True,
+            "message": "Merged successfully",
+            "merged_cart": merged_cart,
+            "merged_wishlist": merged_wishlist,
+            "skipped_cart": skipped_cart,
+        })
 
 
 

@@ -75,7 +75,7 @@ class ShipmentSerializerAPIView(views.APIView):
 
 
 class CheckoutSummaryAPIView(APIView):
-    permission_classes = [AllowAny]  # CHANGED from IsAuthenticated
+    permission_classes = [AllowAny]
 
     def get(self, request):
         try:
@@ -87,7 +87,7 @@ class CheckoutSummaryAPIView(APIView):
             if request.user.is_authenticated and getattr(request.user, "customer_profile", None):
                 customer = request.user.customer_profile
                 cart_ids = request.query_params.getlist("cart_ids")
-                cart_items = AddToCart.objects.filter(customer=customer)
+                cart_items = AddToCart.objects.select_related("product", "variant").filter(customer=customer)
                 if cart_ids:
                     cart_items = cart_items.filter(id__in=cart_ids)
 
@@ -101,7 +101,9 @@ class CheckoutSummaryAPIView(APIView):
                     items_data.append({
                         "cart_id": item.id,
                         "product_id": product.id,
+                        "variant_id": item.variant.id if item.variant else None,
                         "product": product.name,
+                        "variant": item.variant.attributes if item.variant else None,
                         "quantity": item.quantity,
                         "price": item.price,
                         "total": item.total_price,
@@ -109,7 +111,6 @@ class CheckoutSummaryAPIView(APIView):
                     })
                     subtotal += item.total_price
             else:
-                # GUEST: frontend sends items as JSON in query param
                 import json as pyjson
                 raw_items = request.query_params.get("items")
                 guest_items = pyjson.loads(raw_items) if raw_items else []
@@ -136,7 +137,9 @@ class CheckoutSummaryAPIView(APIView):
                     items_data.append({
                         "cart_id": None,
                         "product_id": product.id,
+                        "variant_id": variant.id if variant else None,
                         "product": product.name,
+                        "variant": variant.attributes if variant else None,
                         "quantity": quantity,
                         "price": discount_price,
                         "total": line_total,
@@ -303,7 +306,8 @@ class OrderListAPIView(APIView):
             .prefetch_related(
                 "order_items",
                 "order_items__product",
-                "order_items__product__images"
+                "order_items__product__images",
+                "order_items__variant"
             )
             .order_by("-created_at")
         )
@@ -327,7 +331,8 @@ class OrderListAPIView(APIView):
                     "name": item.product_name,
                     "qty": item.quantity,
                     "price": item.price,
-                    "image": image
+                    "image": image,
+                    "variant": item.variant.attributes if item.variant else None,
                 })
 
             data.append({
@@ -336,22 +341,15 @@ class OrderListAPIView(APIView):
                 "status": order.status,
                 "payment_status": order.payment_status,
                 "total": order.total_cost,
-
-                # Reference UI er jonno
                 "items": items,
-
-                # First product image
                 "thumbnail": items[0]["image"] if items else "",
-
-                # Product count
                 "item_count": order.get_total_quantity
             })
 
         return Response({
             "status": True,
             "data": data
-        })
-    
+        })   
 
 
 
