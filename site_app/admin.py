@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     HomeSlider, OTPVerification, SiteContent, SiteColorSection, NewsFeed, SocialLink, FooterTagLink, 
     AboutUs, About_WhyChooseUs, ContactInformation, RefundPolicy, TermsAndCondition, 
-    PrivacyPolicy, FAQ_List, LandingPageProduct, DeliveryOption
+    PrivacyPolicy, FAQ_List, LandingPageProduct, DeliveryOption, NavMenuLink
 )
 
 @admin.register(HomeSlider)
@@ -69,6 +69,12 @@ class TermsAndConditionAdmin(admin.ModelAdmin):
 class PrivacyPolicyAdmin(admin.ModelAdmin):
     list_display = ('id',)
     search_fields = ('short_description',)
+
+@admin.register(NavMenuLink)
+class NavMenuLinkAdmin(admin.ModelAdmin):
+    list_display = ('name', 'url', 'sort_order', 'is_active')
+    search_fields = ('name', 'url')
+    list_filter = ('is_active',)
 
 @admin.register(FAQ_List)
 class FAQListAdmin(admin.ModelAdmin):

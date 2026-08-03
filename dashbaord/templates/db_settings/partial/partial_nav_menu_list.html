@@ -1,0 +1,291 @@
+<div class="main-content" id="navMenuListTable">
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Navbar Menu</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-auto">
+            <p class="text-muted mb-0">These links appear in the website's sub-navigation bar (below the main header).</p>
+        </div>
+        <div class="col-auto ms-auto">
+            <button class="btn btn-primary px-4" data-bs-toggle="modal" data-bs-target="#NavMenuModal">
+                <i class="bi bi-plus-lg me-2"></i>Add Menu Link
+            </button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive white-space-nowrap">
+                <table class="table align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>URL</th>
+                            <th>Sort Order</th>
+                            <th>Open New Tab</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for link in links %}
+                        <tr>
+                            <td class="fw-semibold">{{ link.name }}</td>
+                            <td>{{ link.url|default:"—" }}</td>
+                            <td>{{ link.sort_order }}</td>
+                            <td>
+                                {% if link.open_new_tab %}
+                                <span class="badge bg-info-subtle text-info">Yes</span>
+                                {% else %}
+                                <span class="badge bg-secondary-subtle text-secondary">No</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input toggle-nav-menu-active" type="checkbox"
+                                        role="switch" data-id="{{ link.id }}"
+                                        {% if link.is_active %}checked{% endif %}>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-sm btn-filter edit-nav-menu-btn"
+                                        data-id="{{ link.id }}"
+                                        data-name="{{ link.name }}"
+                                        data-url="{{ link.url|default:'' }}"
+                                        data-sort-order="{{ link.sort_order }}"
+                                        data-open-new-tab="{{ link.open_new_tab|yesno:'true,false' }}"
+                                        data-is-active="{{ link.is_active|yesno:'true,false' }}"
+                                        data-bs-toggle="modal" data-bs-target="#NavMenuModal">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-danger delete-nav-menu-btn"
+                                        data-id="{{ link.id }}" data-name="{{ link.name }}"
+                                        data-bs-toggle="modal" data-bs-target="#deleteNavMenuModal">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4">No menu links found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Nav Menu Modal -->
+<form method="post" id="add_nav_menu_form" hx-ignore="true" autocomplete="off">
+    <input type="hidden" name="link_id" id="nav_menu_id">
+
+    <div class="modal fade" id="NavMenuModal">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header border-bottom-0 bg-grd-primary py-2">
+                    <h5 class="modal-title" id="nav_menu_modal_title">Add Menu Link</h5>
+                    <a href="javascript:;" class="primaery-menu-close" data-bs-dismiss="modal" id="close_add_nav_menu_modal">
+                        <i class="material-icons-outlined">close</i>
+                    </a>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="name" placeholder="New Arrivals, Sale..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">URL</label>
+                        <input type="text" class="form-control" name="url" placeholder="/product-list.html?tag=new">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Sort Order</label>
+                        <input type="number" class="form-control" name="sort_order" value="0">
+                        <div class="form-text">Lower numbers show first.</div>
+                    </div>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" name="open_new_tab" id="nav_menu_open_new_tab">
+                        <label class="form-check-label" for="nav_menu_open_new_tab">Open in new tab</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="is_active" id="nav_menu_is_active" checked>
+                        <label class="form-check-label" for="nav_menu_is_active">Active</label>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0">
+                    <button type="button" class="btn btn-grd-danger" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-grd-info">Save changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Delete Nav Menu Modal -->
+<div class="modal fade" id="deleteNavMenuModal">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-bottom-0 py-2">
+                <h5 class="modal-title">Delete Menu Link</h5>
+                <a href="javascript:;" class="primaery-menu-close" data-bs-dismiss="modal" id="close_delete_nav_menu_modal">
+                    <i class="material-icons-outlined">close</i>
+                </a>
+            </div>
+            <div class="modal-body delete-nav-menu-modal-body">Are you sure you want to delete this menu link?</div>
+            <div class="modal-footer border-top-0">
+                <button type="button" class="btn btn-grd-danger" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-grd-info" id="confirmDeleteNavMenuBtn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("submit", async function (e) {
+    if (e.target.id !== "add_nav_menu_form") return;
+    e.preventDefault();
+
+    const csrftoken = getCookieNavMenu("csrftoken");
+    if (!csrftoken) {
+        alert("Session expired. Please refresh the page and try again.");
+        return;
+    }
+
+    const form = e.target;
+    if (!form.querySelector("input[name='name']").value.trim()) {
+        alert("Name is required");
+        return;
+    }
+
+    try {
+        const formData = new FormData(form);
+        formData.set("csrfmiddlewaretoken", csrftoken);
+
+        const response = await fetch("{% url 'nav_menu' %}", {
+            method: "POST",
+            body: formData,
+            headers: { "X-CSRFToken": csrftoken, "X-Requested-With": "XMLHttpRequest" },
+        });
+
+        const data = await response.json();
+
+        if (data.status) {
+            document.getElementById("close_add_nav_menu_modal").click();
+            form.reset();
+            document.getElementById("nav_menu_id").value = "";
+            document.getElementById("nav_menu_modal_title").textContent = "Add Menu Link";
+            alert(data.message);
+            setTimeout(function () { window.location.reload(); }, 600);
+        } else {
+            alert(data.message);
+        }
+    } catch (error) {
+        alert(error.message);
+    }
+});
+
+document.addEventListener("click", function (e) {
+    const btn = e.target.closest(".edit-nav-menu-btn");
+    if (btn) {
+        document.getElementById("nav_menu_modal_title").textContent = "Update Menu Link";
+        document.getElementById("nav_menu_id").value = btn.dataset.id;
+
+        const form = document.getElementById("add_nav_menu_form");
+        form.querySelector("input[name='name']").value = btn.dataset.name;
+        form.querySelector("input[name='url']").value = btn.dataset.url;
+        form.querySelector("input[name='sort_order']").value = btn.dataset.sortOrder;
+        form.querySelector("#nav_menu_open_new_tab").checked = btn.dataset.openNewTab === "true";
+        form.querySelector("#nav_menu_is_active").checked = btn.dataset.isActive === "true";
+    }
+});
+
+document.getElementById("NavMenuModal")?.addEventListener("hidden.bs.modal", function () {
+    const form = document.getElementById("add_nav_menu_form");
+    form.reset();
+    document.getElementById("nav_menu_id").value = "";
+    document.getElementById("nav_menu_modal_title").textContent = "Add Menu Link";
+});
+
+let deleteNavMenuId = null;
+document.addEventListener("click", function (e) {
+    const btn = e.target.closest(".delete-nav-menu-btn");
+    if (btn) {
+        deleteNavMenuId = btn.dataset.id;
+        document.querySelector(".delete-nav-menu-modal-body").textContent =
+            'Are you sure you want to delete "' + btn.dataset.name + '"?';
+    }
+});
+
+document.addEventListener("click", function (e) {
+    if (!e.target.closest("#confirmDeleteNavMenuBtn")) return;
+    if (!deleteNavMenuId) { alert("Menu link ID is not found"); return; }
+    const csrftoken = getCookieNavMenu("csrftoken");
+    fetch(`/settings/nav-menu/delete/${deleteNavMenuId}/`, {
+        method: "DELETE",
+        headers: { "X-CSRFToken": csrftoken, "X-Requested-With": "XMLHttpRequest" },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status) {
+            document.getElementById("close_delete_nav_menu_modal").click();
+            alert(data.message);
+            setTimeout(function () { window.location.reload(); }, 600);
+        } else {
+            alert(data.message);
+        }
+    })
+    .catch(error => alert(error.message));
+});
+
+document.addEventListener("change", function (e) {
+    const toggle = e.target.closest(".toggle-nav-menu-active");
+    if (!toggle) return;
+    const id = toggle.dataset.id;
+    const wantActive = toggle.checked;
+    const csrftoken = getCookieNavMenu("csrftoken");
+
+    fetch(`/settings/nav-menu/toggle/${id}/`, {
+        method: "POST",
+        headers: { "X-CSRFToken": csrftoken, "X-Requested-With": "XMLHttpRequest", "Content-Type": "application/x-www-form-urlencoded" },
+        body: `is_active=${wantActive}`,
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.status) {
+            toggle.checked = !wantActive;
+            alert(data.message);
+        }
+    })
+    .catch(error => {
+        toggle.checked = !wantActive;
+        alert(error.message);
+    });
+});
+
+function getCookieNavMenu(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>

@@ -1,0 +1,483 @@
+<ul class="nav nav-tabs mb-3" id="soldCountTabs">
+    <li class="nav-item">
+        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-global" type="button">
+            Global
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-single" type="button">
+            Single / Per Product
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-list" type="button" id="soldCountListTabBtn">
+            List <span class="badge bg-secondary ms-1" id="soldCountListBadge">{{ overridden_products|length }}</span>
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+
+    <!-- ===================== GLOBAL TAB ===================== -->
+    <div class="tab-pane fade show active" id="tab-global">
+        <p class="small text-muted mb-3">
+            This value applies to <b>every product</b> that doesn't have its own custom sold count set.
+        </p>
+        <form id="globalSoldCountForm">
+            {% csrf_token %}
+            <input type="hidden" name="mode" value="global">
+            <div class="mb-3">
+                <label class="form-label">Global Sold Count</label>
+                <input type="number" min="0" name="global_sold_count" class="form-control"
+                       value="{{ settings.default_sold_count }}" placeholder="e.g. 500">
+                <small class="text-muted">Frontend will show this as "{value}+ sold" for all products without an override.</small>
+            </div>
+            <button type="submit" class="btn btn-primary" id="globalSaveBtn">
+                <span class="btn-label"><i class="bi bi-save me-2"></i>Save Global Value</span>
+                <span class="btn-spinner spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
+            </button>
+            <span class="save-status-text ms-2"></span>
+        </form>
+    </div>
+
+    <!-- ===================== SINGLE / PER PRODUCT TAB ===================== -->
+    <div class="tab-pane fade" id="tab-single">
+        <p class="small text-muted mb-3">
+            Select a product and set a custom sold count just for that product (overrides global).
+        </p>
+        <form id="singleSoldCountForm">
+            {% csrf_token %}
+            <input type="hidden" name="mode" value="single">
+
+            <div class="mb-3">
+                <label class="form-label">Select Product</label>
+                <select name="product_id" id="soldCountProductSelect" class="form-select">
+                    <option value="">-- Select a product --</option>
+                    {% for p in products %}
+                        <option value="{{ p.id }}">{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Sold Count</label>
+                <input type="number" min="0" name="sold_count" id="soldCountValueInput" class="form-control"
+                       placeholder="e.g. 120">
+                <small class="text-muted">
+                    Leave empty and save to clear the override (falls back to Global value).
+                    Current actual sold count: <span id="actualSoldCountText">—</span>
+                </small>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="singleSaveBtn">
+                <span class="btn-label"><i class="bi bi-save me-2"></i>Save For This Product</span>
+                <span class="btn-spinner spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
+            </button>
+            <span class="save-status-text ms-2"></span>
+        </form>
+    </div>
+
+    <!-- ===================== LIST TAB ===================== -->
+    <div class="tab-pane fade" id="tab-list">
+
+        <div class="sc-global-banner mb-3">
+            <div class="sc-global-banner-icon">
+                <i class="bi bi-globe2"></i>
+            </div>
+            <div class="sc-global-banner-text">
+                <div class="sc-global-banner-label">Global Sold Count (default)</div>
+                <div class="sc-global-banner-value"><span id="listGlobalValue">{{ settings.default_sold_count|default:0 }}</span>+</div>
+            </div>
+        </div>
+
+        <div class="sc-list-wrap" id="soldCountListWrap">
+            <div class="sc-list-header d-none d-md-flex">
+                <div class="sc-col-product">Product</div>
+                <div class="sc-col-count">Custom Sold Count</div>
+                <div class="sc-col-action"></div>
+            </div>
+
+            <div id="soldCountListTbody">
+                {% for p in overridden_products %}
+                <div class="sc-list-row" data-product-id="{{ p.id }}">
+                    <div class="sc-col-product" data-label="Product">{{ p.name }}</div>
+                    <div class="sc-col-count" data-label="Custom Sold Count">
+                        <span class="badge bg-success">{{ p.manual_sold_count }}+</span>
+                    </div>
+                    <div class="sc-col-action">
+                        <button type="button" class="btn btn-sm btn-outline-danger clear-override-btn"
+                                data-product-id="{{ p.id }}">
+                            <i class="bi bi-x-lg"></i> Clear
+                        </button>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="sc-list-empty" id="noOverridesRow">
+                    <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                    No per-product overrides set yet.
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<style>
+.save-status-text {
+    font-size: 13px;
+    font-weight: 500;
+    transition: opacity 0.3s ease;
+}
+.save-status-text.success { color: #16a34a; }
+.save-status-text.error { color: #dc2626; }
+
+/* ---- Global banner (List tab) ---- */
+.sc-global-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.15));
+    border: 1px solid rgba(139,92,246,0.35);
+}
+.sc-global-banner-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(139,92,246,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: #a78bfa;
+    flex-shrink: 0;
+}
+.sc-global-banner-label {
+    font-size: 12px;
+    opacity: 0.7;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.sc-global-banner-value {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+/* ---- List card ---- */
+.sc-list-wrap {
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.sc-list-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    background: rgba(255,255,255,0.04);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    opacity: 0.65;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.sc-list-row {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    transition: background 0.15s ease;
+}
+.sc-list-row:last-child {
+    border-bottom: none;
+}
+.sc-list-row:hover {
+    background: rgba(255,255,255,0.03);
+}
+
+.sc-col-product {
+    flex: 1 1 auto;
+    font-weight: 500;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.sc-col-count {
+    flex: 0 0 160px;
+}
+.sc-col-action {
+    flex: 0 0 110px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.sc-list-row .badge.bg-success {
+    font-size: 13px;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 6px;
+    background-color: #16a34a !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255,255,255,0.15);
+}
+
+.sc-list-row .clear-override-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    padding: 4px 10px;
+    white-space: nowrap;
+}
+
+.sc-list-empty {
+    text-align: center;
+    padding: 40px 20px;
+    opacity: 0.55;
+}
+
+/* ---- Responsive: stack rows into cards on small screens ---- */
+@media (max-width: 576px) {
+    .sc-list-row {
+        flex-wrap: wrap;
+        row-gap: 8px;
+        position: relative;
+        padding: 14px 16px;
+    }
+    .sc-col-product {
+        flex: 1 1 100%;
+        white-space: normal;
+        font-size: 15px;
+    }
+    .sc-col-count {
+        flex: 1 1 auto;
+    }
+    .sc-col-count::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 11px;
+        opacity: 0.55;
+        margin-bottom: 2px;
+        text-transform: uppercase;
+    }
+    .sc-col-action {
+        flex: 0 0 auto;
+        margin-left: auto;
+    }
+}
+</style>
+
+<script>
+(function() {
+    const productSelect = document.getElementById("soldCountProductSelect");
+    const valueInput = document.getElementById("soldCountValueInput");
+    const actualText = document.getElementById("actualSoldCountText");
+    const listTabBtn = document.getElementById("soldCountListTabBtn");
+    const listBadge = document.getElementById("soldCountListBadge");
+    const listGlobalValue = document.getElementById("listGlobalValue");
+    const listTbody = document.getElementById("soldCountListTbody");
+
+    function updateBadgeCount() {
+        const count = listTbody.querySelectorAll(".sc-list-row").length;
+        if (listBadge) listBadge.textContent = count;
+    }
+    updateBadgeCount();
+
+    productSelect?.addEventListener("change", async function() {
+        const id = this.value;
+        valueInput.value = "";
+        actualText.textContent = "—";
+        if (!id) return;
+
+        try {
+            const res = await fetch(`/get-product-sold-count/${id}/`);
+            const data = await res.json();
+            if (data.status) {
+                const d = data.data;
+                actualText.textContent = d.actual_sold_count;
+                if (!d.use_global_sold_count && d.manual_sold_count !== null) {
+                    valueInput.value = d.manual_sold_count;
+                }
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    });
+
+    function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+    function setButtonLoading(btn, isLoading) {
+        const spinner = btn.querySelector(".btn-spinner");
+        btn.disabled = isLoading;
+        if (isLoading) {
+            spinner.classList.remove("d-none");
+            btn.classList.add("opacity-75");
+        } else {
+            spinner.classList.add("d-none");
+            btn.classList.remove("opacity-75");
+        }
+    }
+
+    function showStatusText(formEl, success, message) {
+        const statusEl = formEl.querySelector(".save-status-text");
+        if (!statusEl) return;
+        statusEl.textContent = success ? `✔ ${message}` : `✖ ${message}`;
+        statusEl.classList.remove("success", "error");
+        statusEl.classList.add(success ? "success" : "error");
+        statusEl.style.opacity = "1";
+        setTimeout(() => { statusEl.style.opacity = "0"; }, 2500);
+    }
+
+    function clearEmptyPlaceholderIfAny() {
+        document.getElementById("noOverridesRow")?.remove();
+    }
+
+    function showEmptyPlaceholderIfNeeded() {
+        if (!listTbody.querySelector(".sc-list-row")) {
+            listTbody.innerHTML = `
+                <div class="sc-list-empty" id="noOverridesRow">
+                    <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                    No per-product overrides set yet.
+                </div>`;
+        }
+    }
+
+    function refreshListFromResponse(mode, formData) {
+        if (mode === "global") {
+            const val = formData.get("global_sold_count") || 0;
+            listGlobalValue.textContent = val;
+            return;
+        }
+
+        if (mode === "single") {
+            const productId = formData.get("product_id");
+            const productName = productSelect.options[productSelect.selectedIndex]?.text || "";
+            const rawValue = formData.get("sold_count");
+
+            clearEmptyPlaceholderIfAny();
+
+            let row = listTbody.querySelector(`.sc-list-row[data-product-id="${productId}"]`);
+
+            if (rawValue === null || String(rawValue).trim() === "") {
+                row?.remove();
+                showEmptyPlaceholderIfNeeded();
+                updateBadgeCount();
+                return;
+            }
+
+            const rowHtml = `
+                <div class="sc-col-product" data-label="Product">${productName}</div>
+                <div class="sc-col-count" data-label="Custom Sold Count">
+                    <span class="badge bg-success">${rawValue}+</span>
+                </div>
+                <div class="sc-col-action">
+                    <button type="button" class="btn btn-sm btn-outline-danger clear-override-btn" data-product-id="${productId}">
+                        <i class="bi bi-x-lg"></i> Clear
+                    </button>
+                </div>
+            `;
+
+            if (row) {
+                row.innerHTML = rowHtml;
+            } else {
+                row = document.createElement("div");
+                row.className = "sc-list-row";
+                row.setAttribute("data-product-id", productId);
+                row.innerHTML = rowHtml;
+                listTbody.appendChild(row);
+            }
+            updateBadgeCount();
+        }
+    }
+
+    async function submitForm(formEl) {
+        const btn = formEl.querySelector('button[type="submit"]');
+        const formData = new FormData(formEl);
+        const mode = formData.get("mode");
+
+        setButtonLoading(btn, true);
+
+        try {
+            const res = await fetch("{% url 'sold_count_settings' %}", {
+                method: "POST",
+                headers: { "X-CSRFToken": getCookie("csrftoken") },
+                body: formData
+            });
+            const data = await res.json();
+
+            setButtonLoading(btn, false);
+            showStatusText(formEl, data.status, data.message || (data.status ? "Saved" : "Failed"));
+
+            if (data.status) {
+                refreshListFromResponse(mode, formData);
+                setTimeout(() => {
+                    const listTabTrigger = new bootstrap.Tab(listTabBtn);
+                    listTabTrigger.show();
+                }, 600);
+            }
+        } catch (e) {
+            console.error(e);
+            setButtonLoading(btn, false);
+            showStatusText(formEl, false, "Request failed");
+        }
+    }
+
+    document.getElementById("globalSoldCountForm")?.addEventListener("submit", function(e) {
+        e.preventDefault();
+        submitForm(this);
+    });
+
+    document.getElementById("singleSoldCountForm")?.addEventListener("submit", function(e) {
+        e.preventDefault();
+        submitForm(this);
+    });
+
+    listTbody?.addEventListener("click", async function(e) {
+        const btn = e.target.closest(".clear-override-btn");
+        if (!btn) return;
+
+        const productId = btn.dataset.productId;
+        if (!confirm("Clear the custom sold count for this product?")) return;
+
+        const formData = new FormData();
+        formData.append("mode", "single");
+        formData.append("product_id", productId);
+        formData.append("sold_count", "");
+
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
+
+        try {
+            const res = await fetch("{% url 'sold_count_settings' %}", {
+                method: "POST",
+                headers: { "X-CSRFToken": getCookie("csrftoken") },
+                body: formData
+            });
+            const data = await res.json();
+            if (data.status) {
+                btn.closest(".sc-list-row")?.remove();
+                showEmptyPlaceholderIfNeeded();
+                updateBadgeCount();
+            } else {
+                alert(data.message || "Failed to clear");
+                btn.disabled = false;
+                btn.innerHTML = `<i class="bi bi-x-lg"></i> Clear`;
+            }
+        } catch (err) {
+            console.error(err);
+            btn.disabled = false;
+            btn.innerHTML = `<i class="bi bi-x-lg"></i> Clear`;
+        }
+    });
+})();
+</script>

@@ -161,8 +161,12 @@ class HomeSlider(models.Model):
 class NewsFeed(models.Model):
     news = models.CharField(max_length=255)
     url = models.CharField(max_length=255, blank=True, null=True)
+    sort_order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
-    
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+
     @property
     def display_name(self):
         return "News Feed"
@@ -174,8 +178,12 @@ class SocialLink(models.Model):
     name = models.CharField(max_length=55)
     icon = models.CharField(max_length=20, blank=True, null=True)
     url = models.CharField(max_length=255, blank=True, null=True)
+    sort_order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
-    
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+
     @property
     def display_name(self):
         return "Social Link"
@@ -186,12 +194,33 @@ class SocialLink(models.Model):
 class FooterTagLink(models.Model):
     name = models.CharField(max_length=55)
     url = models.CharField(max_length=55, blank=True, null=True)
+    sort_order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
-    
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+
     @property
     def display_name(self):
         return "Footer Tag Link"
     
+    def __str__(self):
+        return self.name
+
+class NavMenuLink(models.Model):
+    name = models.CharField(max_length=55)
+    url = models.CharField(max_length=255, blank=True, null=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    open_new_tab = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+
+    @property
+    def display_name(self):
+        return "Nav Menu Link"
+
     def __str__(self):
         return self.name
 

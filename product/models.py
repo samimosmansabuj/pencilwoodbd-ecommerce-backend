@@ -152,6 +152,26 @@ class Product(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    sold_count = models.PositiveIntegerField(default=0)  # actual/real sold count (auto, from orders)
+    manual_sold_count = models.PositiveIntegerField(null=True, blank=True)  # NEW - per-product override
+    use_global_sold_count = models.BooleanField(default=True)  # NEW - toggle per product
+
+    @property
+    def display_sold_count(self):
+        """
+        Priority:
+        1. If manual_sold_count is set AND use_global_sold_count is False -> use manual_sold_count
+        2. Else use global default_sold_count from ReviewSettings
+        3. If global is also 0/not set, fall back to actual sold_count
+        """
+        if not self.use_global_sold_count and self.manual_sold_count is not None:
+            return self.manual_sold_count
+
+        settings_row = ReviewSettings.get_solo()
+        if settings_row.default_sold_count and settings_row.default_sold_count > 0:
+            return settings_row.default_sold_count
+
+        return self.sold_count
     @property
     def active_variants(self):  # New property
         return self.variants.filter(is_active=True) 
@@ -488,6 +508,7 @@ class ProductFAQ(models.Model):
 class ReviewSettings(models.Model):
     default_rating = models.DecimalField(max_digits=2, decimal_places=1, default=4.8)
     default_review_count = models.PositiveIntegerField(default=0)
+    default_sold_count = models.PositiveIntegerField(default=0)  # NEW - global sold count
 
     class Meta:
         verbose_name = "Global Review Settings"
