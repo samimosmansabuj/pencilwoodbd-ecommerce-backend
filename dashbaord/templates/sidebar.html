@@ -110,6 +110,49 @@
                     </li>
                 </ul>
             </li>
+
+            <!-- FAQ Section------- -->
+            <li>
+                <a href="javascript:;" class="has-arrow">
+                    <div class="parent-icon"><i class="material-icons-outlined">quiz</i>
+                    </div>
+                    <div class="menu-title">FAQ</div>
+                </a>
+                <ul>
+                    <li>
+                        <a href="{% url 'faq_list' %}?scope=global">
+                            <i class="material-icons-outlined">arrow_right</i>Global FAQs
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{% url 'faq_list' %}?scope=product">
+                            <i class="material-icons-outlined">arrow_right</i>Per-Product FAQs
+                        </a>
+                    </li>
+                </ul>
+            </li>
+ 
+            <!-- Review Section------- -->
+            <li>
+                <a href="javascript:;" class="has-arrow">
+                    <div class="parent-icon"><i class="material-icons-outlined">star_rate</i>
+                    </div>
+                    <div class="menu-title">Reviews</div>
+                </a>
+                <ul>
+                    <li>
+                        <a href="{% url 'review_list' %}">
+                            <i class="material-icons-outlined">arrow_right</i>Review List
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{% url 'review_settings' %}">
+                            <i class="material-icons-outlined">arrow_right</i>Global Settings
+                        </a>
+                    </li>
+                </ul>
+            </li>
+            
             <!-- Order Section------- -->
 <li>
     <a class="has-arrow" href="javascript:;">

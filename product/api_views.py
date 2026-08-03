@@ -5,14 +5,14 @@ from site_app.models import LandingPageProduct, OTPVerification, HomeSlider
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from authentication.models import Customer
-from order.models import Order, OrderItem
+from order.models import Order, OrderItem, Review
 from product.models import Product, Category, ProductVariant, ProductImage, AddToCart
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from decimal import Decimal
-from pencilwoodbd.choices import STATUS, PAYMENT_TYPE, PAYMENT_STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, PRODUCT_GIFT_TYPE
+from pencilwoodbd.choices import STATUS, PAYMENT_TYPE, PAYMENT_STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, PRODUCT_GIFT_TYPE, REVIEW_STATUS
 from rest_framework.pagination import PageNumberPagination
-from django.db.models import Q
+from django.db.models import Q, Avg
 from django.db.models import Prefetch
 from django.db.models import Prefetch, Case, When
 from authentication.utils import normalize_bd_phone
@@ -23,7 +23,7 @@ from rest_framework.views import APIView
 from django.conf import settings
 from rest_framework.permissions import AllowAny
 from rest_framework.permissions import IsAuthenticated
-from .models import Wishlist
+from .models import Wishlist, ProductFeature, ProductFAQ, ReviewSettings
 
 from django.http import JsonResponse
 
@@ -271,13 +271,13 @@ class ProductDetailAPIView(APIView):
             p = Product.objects.prefetch_related(
                 "images",
                 "variants",
-                "variants__images"
+                "variants__images",
+                "features",
             ).filter(slug=slug).first()
 
             if not p:
                 return Response({"status": False}, status=404)
 
-            # Stock Calculation
             if p.has_variants:
                 stock = sum(
                     v.inventory_quantity
@@ -285,6 +285,26 @@ class ProductDetailAPIView(APIView):
                 )
             else:
                 stock = p.inventory_quantity
+
+            approved_reviews = Review.objects.filter(
+                product=p, status=REVIEW_STATUS.APPROVED
+            ).select_related("customer").order_by("-created_at")
+
+            review_count = approved_reviews.count()
+            avg_rating = approved_reviews.aggregate(avg=Avg("rating"))["avg"]
+
+            settings_row = ReviewSettings.get_solo()
+
+            if review_count > 0:
+                rating = round(float(avg_rating), 1)
+                final_review_count = review_count
+            else:
+                rating = float(settings_row.default_rating)
+                final_review_count = settings_row.default_review_count
+
+            faqs = ProductFAQ.objects.filter(
+                Q(product=p) | Q(product__isnull=True), is_active=True
+            ).order_by("sort_order", "id")
 
             return Response({
                 "status": True,
@@ -312,7 +332,33 @@ class ProductDetailAPIView(APIView):
                             ),
                         }
                         for v in p.variants.all()
-                    ]
+                    ],
+                    "features": [
+                        {
+                            "icon": f.icon,
+                            "title": f.title,
+                            "description": f.description,
+                        }
+                        for f in p.features.all()
+                    ],
+                    "faqs": [
+                        {"question": f.question, "answer": f.answer}
+                        for f in faqs
+                    ],
+                    "reviews": [
+                        {
+                            "name": r.customer.name if r.customer else "Anonymous",
+                            "rating": r.rating,
+                            "comment": r.comment,
+                            "verified": r.order_id is not None,
+                            "date": r.created_at.strftime("%d %b %Y"),
+                        }
+                        for r in approved_reviews[:20]
+                    ],
+                    "rating": rating,
+                    "review_count": final_review_count,
+                    "sold_count": p.sold_count,
+                    "is_bestseller": p.is_bestseller,
                 }
             })
 

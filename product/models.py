@@ -145,6 +145,8 @@ class Product(models.Model):
 
     seo = models.JSONField(default=dict, blank=True)
     tags = models.ManyToManyField(Tag, blank=True, related_name="products")
+    sold_count = models.PositiveIntegerField(default=0)
+    is_bestseller = models.BooleanField(default=False)
     status = models.CharField(max_length=50, choices=CATEGORY_PRODUCT_STATUS.choices, default=CATEGORY_PRODUCT_STATUS.DRAFT)
     metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -452,4 +454,56 @@ class ProductLandingPage(models.Model):
         return self.title
 
 
+class ProductFeature(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="features")
+    icon = models.CharField(max_length=10, blank=True, default="✔")
+    title = models.CharField(max_length=100)
+    description = models.CharField(max_length=255)
+    sort_order = models.IntegerField(default=0)
 
+    class Meta:
+        ordering = ["sort_order", "id"]
+
+    def __str__(self):
+        return f"{self.title} ({self.product.name})"
+
+
+class ProductFAQ(models.Model):
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, null=True, blank=True, related_name="faqs"
+    )  # null = global FAQ, shows on every product
+    question = models.CharField(max_length=255)
+    answer = models.TextField()
+    sort_order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+
+    def __str__(self):
+        scope = self.product.name if self.product else "Global"
+        return f"[{scope}] {self.question}"
+
+
+class ReviewSettings(models.Model):
+    default_rating = models.DecimalField(max_digits=2, decimal_places=1, default=4.8)
+    default_review_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Global Review Settings"
+        verbose_name_plural = "Global Review Settings"
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        pass
+
+    def __str__(self):
+        return "Global Review Settings"
