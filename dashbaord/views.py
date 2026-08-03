@@ -25,8 +25,8 @@ from pencilwoodbd.extra_module import resize_to_fixed
 
 
 # Models
-from order.models import Order, OrderRequest, OrderItem, OrderRequestItem
-from product.models import Product, Category, ProductImage, ProductVideo, Attribute, AttributeValue, ProductVariant, Tag, ProductDeliveryCharge
+from order.models import Order, OrderRequest, OrderItem, OrderRequestItem, Review
+from product.models import Product, Category, ProductImage, ProductVideo, Attribute, AttributeValue, ProductVariant, Tag, ProductDeliveryCharge, ProductFeature, ProductFAQ, ReviewSettings
 from authentication.models import CustomUser, Customer
 from site_app.models import DeliveryOption, SiteDeliveryChargeConfig, HomeSlider
 
@@ -41,7 +41,7 @@ from django.forms import modelformset_factory
 from order.utils import SteadFastParcelAPI
 
 # Choices
-from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, PAYMENT_TYPE, PAYMENT_STATUS, ATTRIBUTE_TYPE, PRODUCT_TYPE, ORDER_REQUEST_WORK_STATUS
+from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, PAYMENT_TYPE, PAYMENT_STATUS, ATTRIBUTE_TYPE, PRODUCT_TYPE, ORDER_REQUEST_WORK_STATUS, REVIEW_STATUS
 
 
 # ------------------Dashboard--------
@@ -1195,7 +1195,250 @@ class ProductDeleteView(LoginRequiredMixin, View):
         messages.success(request, "Product deleted successfully!")
         return redirect("product_list")
 
+# ------------------Product Features--------
+class ProductFeatureView(LoginRequiredMixin, View):
+    login_url = "admin_login"
 
+    def get(self, request, product_id):
+        product = get_object_or_404(Product, id=product_id)
+        features = product.features.all().order_by("sort_order", "id")
+        return render(request, "db_product/partial/partial_feature_list.html", {
+            "product": product,
+            "features": features,
+        })
+
+    def post(self, request, product_id):
+        try:
+            product = get_object_or_404(Product, id=product_id)
+            data = request.POST
+            feature_id = data.get("feature_id")
+
+            icon = data.get("icon", "✔").strip() or "✔"
+            title = data.get("title", "").strip()
+            description = data.get("description", "").strip()
+            sort_order = parse_int(data.get("sort_order"), 0)
+
+            if not title:
+                return JsonResponse({"status": False, "message": "Title is required"}, status=HTTPStatus.BAD_REQUEST)
+
+            if feature_id:
+                feature = get_object_or_404(ProductFeature, id=feature_id, product=product)
+                feature.icon = icon
+                feature.title = title
+                feature.description = description
+                feature.sort_order = sort_order
+                feature.save()
+                return JsonResponse({"status": True, "message": "Feature updated successfully"}, status=HTTPStatus.OK)
+
+            ProductFeature.objects.create(
+                product=product, icon=icon, title=title,
+                description=description, sort_order=sort_order,
+            )
+            return JsonResponse({"status": True, "message": "Feature added successfully"}, status=HTTPStatus.CREATED)
+
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def delete_product_feature(request, id):
+    if request.method == "DELETE":
+        try:
+            feature = get_object_or_404(ProductFeature, id=id)
+            feature.delete()
+            return JsonResponse({"status": True, "message": "Feature deleted successfully"}, status=HTTPStatus.OK)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+    return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+
+
+# ------------------Product FAQs (global + per-product)--------
+class FAQManagementView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        scope = request.GET.get("scope", "global")  # "global" or "product"
+        product_id = request.GET.get("product_id")
+
+        if scope == "product" and product_id:
+            product = get_object_or_404(Product, id=product_id)
+            faqs = ProductFAQ.objects.filter(product=product).order_by("sort_order", "id")
+        else:
+            product = None
+            faqs = ProductFAQ.objects.filter(product__isnull=True).order_by("sort_order", "id")
+
+        context = {
+            "faqs": faqs,
+            "scope": scope,
+            "product": product,
+            "products": Product.objects.order_by("name"),
+        }
+
+        if request.htmx:
+            return render(request, "db_faq/partial/partial_faq_list.html", context)
+
+        return render(request, "db_faq/faq_list.html", context)
+
+    def post(self, request):
+        try:
+            data = request.POST
+            faq_id = data.get("faq_id")
+            scope = data.get("scope", "global")
+            product_id = data.get("product_id")
+
+            question = data.get("question", "").strip()
+            answer = data.get("answer", "").strip()
+            sort_order = parse_int(data.get("sort_order"), 0)
+            is_active = data.get("is_active") == "on"
+
+            if not question or not answer:
+                return JsonResponse({"status": False, "message": "Question and answer are required"}, status=HTTPStatus.BAD_REQUEST)
+
+            product = None
+            if scope == "product":
+                if not product_id:
+                    return JsonResponse({"status": False, "message": "Select a product"}, status=HTTPStatus.BAD_REQUEST)
+                product = get_object_or_404(Product, id=product_id)
+
+            if faq_id:
+                faq = get_object_or_404(ProductFAQ, id=faq_id)
+                faq.product = product
+                faq.question = question
+                faq.answer = answer
+                faq.sort_order = sort_order
+                faq.is_active = is_active
+                faq.save()
+                return JsonResponse({"status": True, "message": "FAQ updated successfully"}, status=HTTPStatus.OK)
+
+            ProductFAQ.objects.create(
+                product=product, question=question, answer=answer,
+                sort_order=sort_order, is_active=is_active,
+            )
+            return JsonResponse({"status": True, "message": "FAQ added successfully"}, status=HTTPStatus.CREATED)
+
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def delete_faq(request, id):
+    if request.method == "DELETE":
+        try:
+            faq = get_object_or_404(ProductFAQ, id=id)
+            faq.delete()
+            return JsonResponse({"status": True, "message": "FAQ deleted successfully"}, status=HTTPStatus.OK)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+    return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+
+
+# ------------------Product Reviews--------
+class ReviewManagementView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        product_id = request.GET.get("product_id")
+        status_filter = request.GET.get("status")
+
+        reviews = Review.objects.select_related("product", "customer").order_by("-created_at")
+
+        if product_id:
+            reviews = reviews.filter(product_id=product_id)
+
+        if status_filter and status_filter in [c[0] for c in REVIEW_STATUS.choices]:
+            reviews = reviews.filter(status=status_filter)
+
+        per_page = parse_int(request.GET.get("per_page"), 10)
+        paginator = Paginator(reviews, per_page)
+        page_obj = paginator.get_page(request.GET.get("page", 1))
+
+        context = {
+            "reviews": page_obj,
+            "paginator": paginator,
+            "products": Product.objects.order_by("name"),
+            "status_choices": REVIEW_STATUS.choices,
+            "current_product": product_id or "",
+            "current_status": status_filter or "",
+        }
+
+        if request.htmx:
+            return render(request, "db_review/partial/partial_review_list.html", context)
+
+        return render(request, "db_review/review_list.html", context)
+
+    def post(self, request):
+        try:
+            data = request.POST
+            review_id = data.get("review_id")
+
+            product_id = data.get("product_id")
+            customer_name = data.get("customer_name", "").strip()
+            rating = parse_int(data.get("rating"), 5)
+            title = data.get("title", "").strip()
+            comment = data.get("comment", "").strip()
+            review_status = data.get("status", REVIEW_STATUS.APPROVED)
+
+            if rating < 1 or rating > 5:
+                return JsonResponse({"status": False, "message": "Rating must be between 1 and 5"}, status=HTTPStatus.BAD_REQUEST)
+
+            if review_id:
+                review = get_object_or_404(Review, id=review_id)
+                if product_id:
+                    review.product = get_object_or_404(Product, id=product_id)
+                review.rating = rating
+                review.title = title
+                review.comment = comment
+                review.status = review_status
+                review.save()
+                return JsonResponse({"status": True, "message": "Review updated successfully"}, status=HTTPStatus.OK)
+
+            if not product_id:
+                return JsonResponse({"status": False, "message": "Select a product"}, status=HTTPStatus.BAD_REQUEST)
+
+            product = get_object_or_404(Product, id=product_id)
+
+            customer = None
+            if customer_name:
+                customer = Customer.objects.filter(name__iexact=customer_name).first()
+                if not customer:
+                    customer = Customer.objects.create(name=customer_name)
+
+            Review.objects.create(
+                product=product, customer=customer, rating=rating,
+                title=title, comment=comment, status=review_status,
+            )
+            return JsonResponse({"status": True, "message": "Review added successfully"}, status=HTTPStatus.CREATED)
+
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def delete_review(request, id):
+    if request.method == "DELETE":
+        try:
+            review = get_object_or_404(Review, id=id)
+            review.delete()
+            return JsonResponse({"status": True, "message": "Review deleted successfully"}, status=HTTPStatus.OK)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+    return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+
+
+class ReviewSettingsView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        settings_row = ReviewSettings.get_solo()
+        return render(request, "db_review/review_settings.html", {"settings": settings_row})
+
+    def post(self, request):
+        settings_row = ReviewSettings.get_solo()
+        settings_row.default_rating = parse_decimal(request.POST.get("default_rating"), Decimal("4.8"))
+        settings_row.default_review_count = parse_int(request.POST.get("default_review_count"), 0)
+        settings_row.save()
+        messages.success(request, "Global review settings updated successfully.")
+        return redirect("review_settings")
 
 # ------------------Category--------
 class CategoryView(LoginRequiredMixin, View):

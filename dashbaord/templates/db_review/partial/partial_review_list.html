@@ -1,0 +1,313 @@
+<div class="main-content" id="reviewListTable">
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Reviews</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-auto">
+            <select class="form-select" id="reviewProductFilter">
+                <option value="">All Products</option>
+                {% for p in products %}
+                <option value="{{ p.id }}" {% if current_product == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-auto">
+            <select class="form-select" id="reviewStatusFilter">
+                <option value="">All Status</option>
+                {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-auto ms-auto">
+            <a href="{% url 'review_settings' %}" class="btn btn-outline-secondary me-2">
+                <i class="bi bi-gear me-2"></i>Global Settings
+            </a>
+            <button class="btn btn-primary px-4" data-bs-toggle="modal" data-bs-target="#ReviewModal">
+                <i class="bi bi-plus-lg me-2"></i>Add Review
+            </button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive white-space-nowrap">
+                <table class="table align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Product</th>
+                            <th>Customer</th>
+                            <th>Rating</th>
+                            <th>Comment</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for review in reviews %}
+                        <tr>
+                            <td>{{ review.product.name }}</td>
+                            <td>{{ review.customer.name|default:"Anonymous" }}</td>
+                            <td>{{ review.rating }} / 5</td>
+                            <td style="max-width:250px; white-space:normal;">{{ review.comment|truncatewords:12 }}</td>
+                            <td>
+                                {% if review.status == "Approved" %}
+                                <span class="badge bg-success-subtle text-success">Approved</span>
+                                {% elif review.status == "Pending" %}
+                                <span class="badge bg-warning-subtle text-warning">Pending</span>
+                                {% else %}
+                                <span class="badge bg-secondary-subtle text-secondary">{{ review.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ review.created_at|date:"d M Y" }}</td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-sm btn-filter edit-review-btn"
+                                        data-id="{{ review.id }}"
+                                        data-product-id="{{ review.product.id }}"
+                                        data-customer-name="{{ review.customer.name|default:'' }}"
+                                        data-rating="{{ review.rating }}"
+                                        data-title="{{ review.title }}"
+                                        data-comment="{{ review.comment }}"
+                                        data-status="{{ review.status }}"
+                                        data-bs-toggle="modal" data-bs-target="#ReviewModal">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-danger delete-review-btn"
+                                        data-id="{{ review.id }}"
+                                        data-bs-toggle="modal" data-bs-target="#deleteReviewModal">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4">No reviews found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if paginator.num_pages > 1 %}
+            <nav class="mt-3">
+                <ul class="pagination">
+                    {% for i in paginator.page_range %}
+                    <li class="page-item {% if reviews.number == i %}active{% endif %}">
+                        <a class="page-link" href="?page={{ i }}{% if current_product %}&product_id={{ current_product }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}">{{ i }}</a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Review Modal -->
+<form method="post" id="add_review_form" hx-ignore="true" autocomplete="off">
+    <input type="hidden" name="review_id" id="review_id">
+
+    <div class="modal fade" id="ReviewModal">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header border-bottom-0 bg-grd-primary py-2">
+                    <h5 class="modal-title" id="review_modal_title">Add Review</h5>
+                    <a href="javascript:;" class="primaery-menu-close" data-bs-dismiss="modal" id="close_add_review_modal">
+                        <i class="material-icons-outlined">close</i>
+                    </a>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Product <span class="text-danger">*</span></label>
+                        <select class="form-select" name="product_id" required>
+                            <option value="">Select Product</option>
+                            {% for p in products %}
+                            <option value="{{ p.id }}">{{ p.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Customer Name</label>
+                        <input type="text" class="form-control" name="customer_name" placeholder="e.g. Rahim Uddin">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Rating <span class="text-danger">*</span></label>
+                        <select class="form-select" name="rating" required>
+                            <option value="5">5 - Excellent</option>
+                            <option value="4">4 - Good</option>
+                            <option value="3">3 - Average</option>
+                            <option value="2">2 - Poor</option>
+                            <option value="1">1 - Terrible</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Title</label>
+                        <input type="text" class="form-control" name="title">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Comment</label>
+                        <textarea class="form-control" name="comment" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" name="status">
+                            {% for value, label in status_choices %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0">
+                    <button type="button" class="btn btn-grd-danger" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-grd-info">Save changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Delete Review Modal -->
+<div class="modal fade" id="deleteReviewModal">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-bottom-0 py-2">
+                <h5 class="modal-title">Delete Review</h5>
+                <a href="javascript:;" class="primaery-menu-close" data-bs-dismiss="modal" id="close_delete_review_modal">
+                    <i class="material-icons-outlined">close</i>
+                </a>
+            </div>
+            <div class="modal-body">Are you sure you want to delete this review?</div>
+            <div class="modal-footer border-top-0">
+                <button type="button" class="btn btn-grd-danger" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-grd-info" id="confirmDeleteReviewBtn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById("reviewProductFilter")?.addEventListener("change", function () {
+    const status = document.getElementById("reviewStatusFilter").value;
+    window.location.href = `{% url 'review_list' %}?product_id=${this.value}${status ? '&status='+status : ''}`;
+});
+document.getElementById("reviewStatusFilter")?.addEventListener("change", function () {
+    const product = document.getElementById("reviewProductFilter").value;
+    window.location.href = `{% url 'review_list' %}?status=${this.value}${product ? '&product_id='+product : ''}`;
+});
+
+document.addEventListener("submit", async function (e) {
+    if (e.target.id !== "add_review_form") return;
+    e.preventDefault();
+
+    const csrftoken = getCookie("csrftoken");
+    if (!csrftoken) {
+        alert("Session expired. Please refresh the page and try again.");
+        return;
+    }
+
+    const form = e.target;
+
+    try {
+        const formData = new FormData(form);
+        formData.set("csrfmiddlewaretoken", csrftoken);
+
+        const response = await fetch("{% url 'review_list' %}", {
+            method: "POST",
+            body: formData,
+            headers: { "X-CSRFToken": csrftoken, "X-Requested-With": "XMLHttpRequest" },
+        });
+
+        const data = await response.json();
+
+        if (data.status) {
+            document.getElementById("close_add_review_modal").click();
+            form.reset();
+            document.getElementById("review_id").value = "";
+            document.getElementById("review_modal_title").textContent = "Add Review";
+            alert(data.message);
+            setTimeout(function () { window.location.reload(); }, 600);
+        } else {
+            alert(data.message);
+        }
+    } catch (error) {
+        alert(error.message);
+    }
+});
+
+document.addEventListener("click", function (e) {
+    const btn = e.target.closest(".edit-review-btn");
+    if (btn) {
+        document.getElementById("review_modal_title").textContent = "Update Review";
+        document.getElementById("review_id").value = btn.dataset.id;
+
+        const form = document.getElementById("add_review_form");
+        form.querySelector("select[name='product_id']").value = btn.dataset.productId;
+        form.querySelector("input[name='customer_name']").value = btn.dataset.customerName;
+        form.querySelector("select[name='rating']").value = btn.dataset.rating;
+        form.querySelector("input[name='title']").value = btn.dataset.title;
+        form.querySelector("textarea[name='comment']").value = btn.dataset.comment;
+        form.querySelector("select[name='status']").value = btn.dataset.status;
+    }
+});
+
+document.getElementById("ReviewModal")?.addEventListener("hidden.bs.modal", function () {
+    const form = document.getElementById("add_review_form");
+    form.reset();
+    document.getElementById("review_id").value = "";
+    document.getElementById("review_modal_title").textContent = "Add Review";
+});
+
+let deleteReviewId = null;
+document.addEventListener("click", function (e) {
+    const btn = e.target.closest(".delete-review-btn");
+    if (btn) deleteReviewId = btn.dataset.id;
+});
+
+document.addEventListener("click", function (e) {
+    if (!e.target.closest("#confirmDeleteReviewBtn")) return;
+    if (!deleteReviewId) { alert("Review ID is not found"); return; }
+    const csrftoken = getCookie("csrftoken");
+    fetch(`/review/delete/${deleteReviewId}/`, {
+        method: "DELETE",
+        headers: { "X-CSRFToken": csrftoken, "X-Requested-With": "XMLHttpRequest" },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status) {
+            document.getElementById("close_delete_review_modal").click();
+            alert(data.message);
+            setTimeout(function () { window.location.reload(); }, 600);
+        } else {
+            alert(data.message);
+        }
+    })
+    .catch(error => alert(error.message));
+});
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>

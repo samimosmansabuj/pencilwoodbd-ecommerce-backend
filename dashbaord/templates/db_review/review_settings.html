@@ -1,0 +1,42 @@
+{% extends 'dashboard.html' %}
+{% block page_title %}<title>Review Settings | PencilWoodBD</title>{% endblock %}
+{% block dashboard_body_content %}
+<div class="main-content">
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'review_list' %}">Reviews</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Global Settings</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h5 class="mb-3">Global Rating Fallback</h5>
+            <p class="text-muted">
+                Used only for products that have no real approved reviews yet. Once a product gets
+                real reviews, its own average rating takes over automatically.
+            </p>
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-3" style="max-width:250px;">
+                    <label class="form-label">Default Rating (1.0 - 5.0)</label>
+                    <input type="number" step="0.1" min="1" max="5" class="form-control"
+                        name="default_rating" value="{{ settings.default_rating }}">
+                </div>
+                <div class="mb-3" style="max-width:250px;">
+                    <label class="form-label">Default Review Count</label>
+                    <input type="number" min="0" class="form-control"
+                        name="default_review_count" value="{{ settings.default_review_count }}">
+                </div>
+                <button type="submit" class="btn btn-grd-info">Save Settings</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -38,6 +38,18 @@ urlpatterns = [
     path('order-detail/<int:order_id>/update/', update_order, name='order_update'),
     path('orders/<int:pk>/update-status/', OrderStatusUpdateView.as_view(), name='order_status_update'),
 
+    # ----------------- Product Features ---------------------
+    path('product/<int:product_id>/features/', ProductFeatureView.as_view(), name='product_features'),
+    path('product-feature/delete/<int:id>/', delete_product_feature, name='delete_product_feature'),
+
+    # ----------------- FAQ ---------------------
+    path('faq-list/', FAQManagementView.as_view(), name='faq_list'),
+    path('faq/delete/<int:id>/', delete_faq, name='delete_faq'),
+
+    # ----------------- Reviews ---------------------
+    path('review-list/', ReviewManagementView.as_view(), name='review_list'),
+    path('review/delete/<int:id>/', delete_review, name='delete_review'),
+    path('review-settings/', ReviewSettingsView.as_view(), name='review_settings'),
 
     # ------------------Order Request------------------
     path("order-requests/add/",AddOrderRequestView.as_view(),name="add_order_request"),
