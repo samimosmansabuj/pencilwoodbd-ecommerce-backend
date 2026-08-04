@@ -1048,8 +1048,12 @@
             var tbody = document.getElementById("pw_feature_table_body");
             if (!addBtn || !tbody) return;
 
+            // Prevent double-binding if this script block ever runs more than once on the page
+            if (addBtn.dataset.pwBound === "true") return;
+            addBtn.dataset.pwBound = "true";
+
             var productId = {% if is_update and product %}{{ product.id }}{% else %}null{% endif %};
-            var featureUrl = productId ? "/dashboard/product/" + productId + "/features/" : null;
+            var featureUrl = {% if is_update and product %}"{% url 'product_features' product.id %}"{% else %}null{% endif %};
             var csrftoken = document.querySelector("[name=csrfmiddlewaretoken]").value;
 
             var iconInput = document.getElementById("pw_feature_icon");
@@ -1057,6 +1061,7 @@
             var descInput = document.getElementById("pw_feature_description");
             var sortInput = document.getElementById("pw_feature_sort_order");
             var editingId = null;
+            var isSubmitting = false;
 
             function resetForm() {
                 editingId = null;
@@ -1069,12 +1074,16 @@
 
             addBtn.addEventListener("click", function (e) {
                 e.preventDefault();
+                if (isSubmitting) return;
                 if (!featureUrl) return;
 
                 var title = titleInput.value.trim();
                 var description = descInput.value.trim();
                 if (!title) { alert("Title is required"); return; }
                 if (!description) { alert("Description is required"); return; }
+
+                isSubmitting = true;
+                addBtn.disabled = true;
 
                 var formData = new FormData();
                 formData.set("csrfmiddlewaretoken", csrftoken);
@@ -1096,9 +1105,15 @@
                             window.location.reload();
                         } else {
                             alert(data.message);
+                            isSubmitting = false;
+                            addBtn.disabled = false;
                         }
                     })
-                    .catch(function (err) { alert(err.message); });
+                    .catch(function (err) {
+                        alert(err.message);
+                        isSubmitting = false;
+                        addBtn.disabled = false;
+                    });
             });
 
             tbody.addEventListener("click", function (e) {

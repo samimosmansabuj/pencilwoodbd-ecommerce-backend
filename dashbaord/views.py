@@ -28,10 +28,12 @@ from pencilwoodbd.extra_module import resize_to_fixed
 from order.models import Order, OrderRequest, OrderItem, OrderRequestItem, Review
 from product.models import Product, Category, ProductImage, ProductVideo, Attribute, AttributeValue, ProductVariant, Tag, ProductDeliveryCharge, ProductFeature, ProductFAQ, ReviewSettings
 from authentication.models import CustomUser, Customer
-from site_app.models import DeliveryOption, SiteDeliveryChargeConfig, HomeSlider
+from site_app.models import DeliveryOption, SiteDeliveryChargeConfig, HomeSlider, FooterTagLink, SocialLink, NavMenuLink, NewsFeed
 
 from site_app.bd_districts import BD_DISTRICTS, ALL_DISTRICTS_KEY, SYSTEM_DEFAULT_DELIVERY_CHARGE
 from site_app.delivery_charge import DeliveryChargeResolver
+
+from marketing.models import MarketingIntegration
 
 # Forms
 from product.forms import ProductForm, ProductImageForm, ProductVideoForm
@@ -41,7 +43,7 @@ from django.forms import modelformset_factory
 from order.utils import SteadFastParcelAPI
 
 # Choices
-from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, PAYMENT_TYPE, PAYMENT_STATUS, ATTRIBUTE_TYPE, PRODUCT_TYPE, ORDER_REQUEST_WORK_STATUS, REVIEW_STATUS
+from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, PAYMENT_TYPE, PAYMENT_STATUS, ATTRIBUTE_TYPE, PRODUCT_TYPE, ORDER_REQUEST_WORK_STATUS, REVIEW_STATUS, MarketingIntegrationProviderChoices, MarketingIntegrationStatusChoices
 
 
 # ------------------Dashboard--------
@@ -1440,6 +1442,93 @@ class ReviewSettingsView(LoginRequiredMixin, View):
         messages.success(request, "Global review settings updated successfully.")
         return redirect("review_settings")
 
+# ------------------Product SoldCount----------
+class SoldCountSettingsView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        settings_row = ReviewSettings.get_solo()
+        products = Product.objects.order_by("name")
+        overridden_products = Product.objects.filter(
+            use_global_sold_count=False, manual_sold_count__isnull=False
+        ).order_by("name")
+
+        context = {
+            "settings": settings_row,
+            "products": products,
+            "overridden_products": overridden_products,
+        }
+
+        if request.htmx:
+            return render(request, "db_product/partial/partial_sold_count_modal_content.html", context)
+
+        return render(request, "db_product/sold_count_settings.html", context)
+
+    def post(self, request):
+        try:
+            mode = request.POST.get("mode")  # "global" or "single"
+
+            if mode == "global":
+                value = parse_int(request.POST.get("global_sold_count"), 0)
+                settings_row = ReviewSettings.get_solo()
+                settings_row.default_sold_count = value
+                settings_row.save()
+                return JsonResponse({
+                    "status": True,
+                    "message": f"Global sold count set to {value}+ for all products."
+                })
+
+            elif mode == "single":
+                product_id = request.POST.get("product_id")
+                value = request.POST.get("sold_count")
+
+                if not product_id:
+                    return JsonResponse({"status": False, "message": "Please select a product"}, status=400)
+
+                product = get_object_or_404(Product, id=product_id)
+
+                if value is None or str(value).strip() == "":
+                    # clear override -> fall back to global
+                    product.manual_sold_count = None
+                    product.use_global_sold_count = True
+                else:
+                    product.manual_sold_count = parse_int(value, 0)
+                    product.use_global_sold_count = False
+
+                product.save(update_fields=["manual_sold_count", "use_global_sold_count"])
+
+                return JsonResponse({
+                    "status": True,
+                    "message": f"Sold count for '{product.name}' set to {product.display_sold_count}+."
+                })
+
+            else:
+                return JsonResponse({"status": False, "message": "Invalid mode"}, status=400)
+
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=400)
+
+
+@login_required(login_url="admin_login")
+def get_product_sold_count(request, id):
+    """AJAX endpoint: fetch current sold-count info for a single product (used when admin picks a product in the dropdown)"""
+    try:
+        product = get_object_or_404(Product, id=id)
+        return JsonResponse({
+            "status": True,
+            "data": {
+                "id": product.id,
+                "name": product.name,
+                "manual_sold_count": product.manual_sold_count,
+                "use_global_sold_count": product.use_global_sold_count,
+                "actual_sold_count": product.sold_count,
+                "display_sold_count": product.display_sold_count,
+            }
+        })
+    except Exception as e:
+        return JsonResponse({"status": False, "message": str(e)}, status=400)
+    
+
 # ------------------Category--------
 class CategoryView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -1633,6 +1722,7 @@ class DeliveryChargeSettingsView(LoginRequiredMixin, View):
  
         messages.success(request, "Global delivery charge settings updated successfully.")
         return redirect("delivery_charge_settings")
+
 # ------------------Attribute--------
 class AttributeView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -2717,6 +2807,7 @@ class OrderRequestListView(LoginRequiredMixin, View):
             "db_order_request/order_request_list.html",
             context,
         )
+
 class OrderRequestDetailView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
@@ -3051,6 +3142,357 @@ class OrderDeliveryOptionSubmitView(LoginRequiredMixin, View):
                     return self.return_response(False, steadfast_response.get("message"), status=HTTPStatus.BAD_REQUEST)
         except Exception as e:
             return self.return_response(False, f"{str(e)}", status=HTTPStatus.BAD_REQUEST)
+
+
+
+#------------------ Pixel Setup --------------
+class PixelSettingsView(LoginRequiredMixin, View):
+    login_url = '/dashboard/login/'
+    template_name = 'db_settings/pixel_settings.html'
+
+    def get(self, request):
+        if request.user.user_type != USER_TYPE.ADMIN:
+            messages.error(request, "You don't have permission to access this page.")
+            return redirect('dashboard_home')
+
+        providers = [
+            MarketingIntegrationProviderChoices.facebook_pixel,
+            MarketingIntegrationProviderChoices.facebook_capi,
+            MarketingIntegrationProviderChoices.gtm,
+            MarketingIntegrationProviderChoices.ga4,
+        ]
+
+        integrations = {}
+        for provider in providers:
+            obj, _ = MarketingIntegration.objects.get_or_create(
+                provider=provider,
+                defaults={"status": MarketingIntegrationStatusChoices.INACTIVE, "config": {}}
+            )
+            integrations[provider] = obj
+
+        context = {"integrations": integrations}
+        return render(request, self.template_name, context)
+
+    def post(self, request):
+        if request.user.user_type != USER_TYPE.ADMIN:
+            messages.error(request, "You don't have permission to perform this action.")
+            return redirect('dashboard_home')
+
+        provider = request.POST.get("provider")
+        is_active = request.POST.get("is_active") == "on"
+
+        try:
+            integration, _ = MarketingIntegration.objects.get_or_create(provider=provider)
+
+            config = {}
+            if provider == MarketingIntegrationProviderChoices.facebook_pixel:
+                config = {"pixel_id": request.POST.get("pixel_id", "").strip()}
+            elif provider == MarketingIntegrationProviderChoices.facebook_capi:
+                config = {
+                    "pixel_id": request.POST.get("capi_pixel_id", "").strip(),
+                    "access_token": request.POST.get("capi_access_token", "").strip(),
+                }
+            elif provider == MarketingIntegrationProviderChoices.gtm:
+                config = {"container_id": request.POST.get("container_id", "").strip()}
+            elif provider == MarketingIntegrationProviderChoices.ga4:
+                config = {"measurement_id": request.POST.get("measurement_id", "").strip()}
+
+            integration.config = config
+            integration.status = (
+                MarketingIntegrationStatusChoices.ACTIVE if is_active
+                else MarketingIntegrationStatusChoices.INACTIVE
+            )
+            integration.save()
+
+            messages.success(request, f"{integration.get_provider_display()} settings updated successfully.")
+        except Exception as e:
+            messages.error(request, f"Failed to update settings: {str(e)}")
+
+        return redirect('pixel_settings')
+    
+
+
+# ------------------Site Content: Footer Links--------
+class FooterLinkManagementView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        links = FooterTagLink.objects.all()
+        context = {"links": links}
+
+        if request.htmx:
+            return render(request, "db_settings/partial/partial_footer_link_list.html", context)
+
+        return render(request, "db_settings/footer_links.html", context)
+
+    def post(self, request):
+        try:
+            data = request.POST
+            link_id = data.get("link_id")
+
+            name = data.get("name", "").strip()
+            url = data.get("url", "").strip()
+            sort_order = parse_int(data.get("sort_order"), 0)
+            is_active = data.get("is_active") == "on"
+
+            if not name:
+                return JsonResponse({"status": False, "message": "Name is required"}, status=HTTPStatus.BAD_REQUEST)
+
+            if link_id:
+                link = get_object_or_404(FooterTagLink, id=link_id)
+                link.name = name
+                link.url = url or None
+                link.sort_order = sort_order
+                link.is_active = is_active
+                link.save()
+                return JsonResponse({"status": True, "message": "Footer link updated successfully"}, status=HTTPStatus.OK)
+
+            FooterTagLink.objects.create(
+                name=name, url=url or None, sort_order=sort_order, is_active=is_active,
+            )
+            return JsonResponse({"status": True, "message": "Footer link added successfully"}, status=HTTPStatus.CREATED)
+
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def delete_footer_link(request, id):
+    if request.method == "DELETE":
+        try:
+            link = get_object_or_404(FooterTagLink, id=id)
+            link.delete()
+            return JsonResponse({"status": True, "message": "Footer link deleted successfully"}, status=HTTPStatus.OK)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+    return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def toggle_footer_link_active(request, id):
+    if request.method != "POST":
+        return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+    try:
+        link = get_object_or_404(FooterTagLink, id=id)
+        link.is_active = request.POST.get("is_active") == "true"
+        link.save(update_fields=["is_active"])
+        return JsonResponse({"status": True, "message": "Footer link status updated", "is_active": link.is_active}, status=HTTPStatus.OK)
+    except Exception as e:
+        return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+# ------------------Site Content: Social Links--------
+class SocialLinkManagementView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        links = SocialLink.objects.all()
+        context = {"links": links}
+
+        if request.htmx:
+            return render(request, "db_settings/partial/partial_social_link_list.html", context)
+
+        return render(request, "db_settings/social_links.html", context)
+
+    def post(self, request):
+        try:
+            data = request.POST
+            link_id = data.get("link_id")
+
+            name = data.get("name", "").strip()
+            icon = data.get("icon", "").strip()
+            url = data.get("url", "").strip()
+            sort_order = parse_int(data.get("sort_order"), 0)
+            is_active = data.get("is_active") == "on"
+
+            if not name:
+                return JsonResponse({"status": False, "message": "Name is required"}, status=HTTPStatus.BAD_REQUEST)
+
+            if link_id:
+                link = get_object_or_404(SocialLink, id=link_id)
+                link.name = name
+                link.icon = icon or None
+                link.url = url or None
+                link.sort_order = sort_order
+                link.is_active = is_active
+                link.save()
+                return JsonResponse({"status": True, "message": "Social link updated successfully"}, status=HTTPStatus.OK)
+
+            SocialLink.objects.create(
+                name=name, icon=icon or None, url=url or None,
+                sort_order=sort_order, is_active=is_active,
+            )
+            return JsonResponse({"status": True, "message": "Social link added successfully"}, status=HTTPStatus.CREATED)
+
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def delete_social_link(request, id):
+    if request.method == "DELETE":
+        try:
+            link = get_object_or_404(SocialLink, id=id)
+            link.delete()
+            return JsonResponse({"status": True, "message": "Social link deleted successfully"}, status=HTTPStatus.OK)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+    return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def toggle_social_link_active(request, id):
+    if request.method != "POST":
+        return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+    try:
+        link = get_object_or_404(SocialLink, id=id)
+        link.is_active = request.POST.get("is_active") == "true"
+        link.save(update_fields=["is_active"])
+        return JsonResponse({"status": True, "message": "Social link status updated", "is_active": link.is_active}, status=HTTPStatus.OK)
+    except Exception as e:
+        return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+# ------------------Site Content: Navbar / Subnav Menu Links--------
+class NavMenuManagementView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        links = NavMenuLink.objects.all()
+        context = {"links": links}
+
+        if request.htmx:
+            return render(request, "db_settings/partial/partial_nav_menu_list.html", context)
+
+        return render(request, "db_settings/nav_menu.html", context)
+
+    def post(self, request):
+        try:
+            data = request.POST
+            link_id = data.get("link_id")
+
+            name = data.get("name", "").strip()
+            url = data.get("url", "").strip()
+            sort_order = parse_int(data.get("sort_order"), 0)
+            open_new_tab = data.get("open_new_tab") == "on"
+            is_active = data.get("is_active") == "on"
+
+            if not name:
+                return JsonResponse({"status": False, "message": "Name is required"}, status=HTTPStatus.BAD_REQUEST)
+
+            if link_id:
+                link = get_object_or_404(NavMenuLink, id=link_id)
+                link.name = name
+                link.url = url or "#"
+                link.sort_order = sort_order
+                link.open_new_tab = open_new_tab
+                link.is_active = is_active
+                link.save()
+                return JsonResponse({"status": True, "message": "Menu link updated successfully"}, status=HTTPStatus.OK)
+
+            NavMenuLink.objects.create(
+                name=name, url=url or "#", sort_order=sort_order,
+                open_new_tab=open_new_tab, is_active=is_active,
+            )
+            return JsonResponse({"status": True, "message": "Menu link added successfully"}, status=HTTPStatus.CREATED)
+
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def delete_nav_menu_link(request, id):
+    if request.method == "DELETE":
+        try:
+            link = get_object_or_404(NavMenuLink, id=id)
+            link.delete()
+            return JsonResponse({"status": True, "message": "Menu link deleted successfully"}, status=HTTPStatus.OK)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+    return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def toggle_nav_menu_link_active(request, id):
+    if request.method != "POST":
+        return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+    try:
+        link = get_object_or_404(NavMenuLink, id=id)
+        link.is_active = request.POST.get("is_active") == "true"
+        link.save(update_fields=["is_active"])
+        return JsonResponse({"status": True, "message": "Menu link status updated", "is_active": link.is_active}, status=HTTPStatus.OK)
+    except Exception as e:
+        return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+# ------------------Site Content: News Feed (Top Bar Ticker)--------
+class NewsFeedManagementView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        items = NewsFeed.objects.all()
+        context = {"items": items}
+
+        if request.htmx:
+            return render(request, "db_settings/partial/partial_news_feed_list.html", context)
+
+        return render(request, "db_settings/news_feed.html", context)
+
+    def post(self, request):
+        try:
+            data = request.POST
+            item_id = data.get("item_id")
+
+            news = data.get("news", "").strip()
+            url = data.get("url", "").strip()
+            sort_order = parse_int(data.get("sort_order"), 0)
+            is_active = data.get("is_active") == "on"
+
+            if not news:
+                return JsonResponse({"status": False, "message": "News text is required"}, status=HTTPStatus.BAD_REQUEST)
+
+            if item_id:
+                item = get_object_or_404(NewsFeed, id=item_id)
+                item.news = news
+                item.url = url or None
+                item.sort_order = sort_order
+                item.is_active = is_active
+                item.save()
+                return JsonResponse({"status": True, "message": "News feed item updated successfully"}, status=HTTPStatus.OK)
+
+            NewsFeed.objects.create(
+                news=news, url=url or None, sort_order=sort_order, is_active=is_active,
+            )
+            return JsonResponse({"status": True, "message": "News feed item added successfully"}, status=HTTPStatus.CREATED)
+
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def delete_news_feed(request, id):
+    if request.method == "DELETE":
+        try:
+            item = get_object_or_404(NewsFeed, id=id)
+            item.delete()
+            return JsonResponse({"status": True, "message": "News feed item deleted successfully"}, status=HTTPStatus.OK)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+    return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def toggle_news_feed_active(request, id):
+    if request.method != "POST":
+        return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+    try:
+        item = get_object_or_404(NewsFeed, id=id)
+        item.is_active = request.POST.get("is_active") == "true"
+        item.save(update_fields=["is_active"])
+        return JsonResponse({"status": True, "message": "News feed status updated", "is_active": item.is_active}, status=HTTPStatus.OK)
+    except Exception as e:
+        return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
 
 
 # class RedirectView(View):

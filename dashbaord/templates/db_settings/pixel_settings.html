@@ -1,0 +1,131 @@
+{% extends 'dashboard.html' %}
+{% load static %}
+
+{% block page_title %}
+<title>Marketing / Pixel Settings | PencilWoodBD</title>
+{% endblock page_title %}
+
+{% block dashboard_body_content %}
+<div class="main-content">
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Marketing / Pixel Settings</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Facebook Pixel</h5>
+            <p class="text-muted">Used for browser-side view_item, add_to_cart, begin_checkout and purchase events.</p>
+            <form method="post" action="{% url 'pixel_settings' %}">
+                {% csrf_token %}
+                <input type="hidden" name="provider" value="facebook_pixel">
+                <div class="mb-3">
+                    <label class="form-label">Pixel ID</label>
+                    <input type="text" name="pixel_id" class="form-control"
+                           value="{{ integrations.facebook_pixel.config.pixel_id|default:'' }}"
+                           placeholder="e.g. 1234567890123456">
+                </div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" name="is_active" id="fbPixelActive"
+                           {% if integrations.facebook_pixel.status == "active" %}checked{% endif %}>
+                    <label class="form-check-label" for="fbPixelActive">Active</label>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save me-2"></i>Save Facebook Pixel
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Facebook Conversions API (Server-side)</h5>
+            <p class="text-muted">Sends a server-side copy of events for better accuracy (works around ad blockers / iOS restrictions).</p>
+            <form method="post" action="{% url 'pixel_settings' %}">
+                {% csrf_token %}
+                <input type="hidden" name="provider" value="facebook_capi">
+                <div class="mb-3">
+                    <label class="form-label">Pixel ID</label>
+                    <input type="text" name="capi_pixel_id" class="form-control"
+                           value="{{ integrations.facebook_capi.config.pixel_id|default:'' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Access Token</label>
+                    <input type="password" name="capi_access_token" class="form-control"
+                           value="{{ integrations.facebook_capi.config.access_token|default:'' }}"
+                           placeholder="System User Access Token from Meta Events Manager">
+                </div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" name="is_active" id="capiActive"
+                           {% if integrations.facebook_capi.status == "active" %}checked{% endif %}>
+                    <label class="form-check-label" for="capiActive">Active</label>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save me-2"></i>Save Conversions API
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Google Tag Manager</h5>
+            <form method="post" action="{% url 'pixel_settings' %}">
+                {% csrf_token %}
+                <input type="hidden" name="provider" value="gtm">
+                <div class="mb-3">
+                    <label class="form-label">Container ID</label>
+                    <input type="text" name="container_id" class="form-control"
+                           value="{{ integrations.gtm.config.container_id|default:'' }}"
+                           placeholder="e.g. GTM-XXXXXXX">
+                </div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" name="is_active" id="gtmActive"
+                           {% if integrations.gtm.status == "active" %}checked{% endif %}>
+                    <label class="form-check-label" for="gtmActive">Active</label>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save me-2"></i>Save GTM
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Google Analytics 4</h5>
+            <form method="post" action="{% url 'pixel_settings' %}">
+                {% csrf_token %}
+                <input type="hidden" name="provider" value="ga4">
+                <div class="mb-3">
+                    <label class="form-label">Measurement ID</label>
+                    <input type="text" name="measurement_id" class="form-control"
+                           value="{{ integrations.ga4.config.measurement_id|default:'' }}"
+                           placeholder="e.g. G-XXXXXXXXXX">
+                </div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" name="is_active" id="ga4Active"
+                           {% if integrations.ga4.status == "active" %}checked{% endif %}>
+                    <label class="form-check-label" for="ga4Active">Active</label>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save me-2"></i>Save GA4
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock dashboard_body_content %}

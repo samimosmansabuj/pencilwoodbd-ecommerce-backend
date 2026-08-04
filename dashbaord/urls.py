@@ -51,6 +51,10 @@ urlpatterns = [
     path('review/delete/<int:id>/', delete_review, name='delete_review'),
     path('review-settings/', ReviewSettingsView.as_view(), name='review_settings'),
 
+    #----------------- SoldCount ---------------------
+    path('settings/sold-count/', SoldCountSettingsView.as_view(), name='sold_count_settings'),
+    path('get-product-sold-count/<int:id>/', get_product_sold_count, name='get_product_sold_count'),
+
     # ------------------Order Request------------------
     path("order-requests/add/",AddOrderRequestView.as_view(),name="add_order_request"),
     path("order-requests/<int:pk>/edit/", AddOrderRequestView.as_view(), name="edit_order_request"),
@@ -73,6 +77,28 @@ urlpatterns = [
     path('delete-slider/<int:id>/', delete_slider, name='delete_slider'),
     path('toggle-slider/<int:id>/', toggle_slider_active, name='toggle_slider_active'),
 
+    # ----------------- Pixel ---------------------
+    path('settings/pixel/', PixelSettingsView.as_view(), name='pixel_settings'),
+
+    # ----------------- Site Settings: Footer Links ---------------------
+    path('settings/footer-links/', FooterLinkManagementView.as_view(), name='footer_links'),
+    path('settings/footer-links/delete/<int:id>/', delete_footer_link, name='delete_footer_link'),
+    path('settings/footer-links/toggle/<int:id>/', toggle_footer_link_active, name='toggle_footer_link_active'),
+
+    # ----------------- Site Settings: Social Links ---------------------
+    path('settings/social-links/', SocialLinkManagementView.as_view(), name='social_links'),
+    path('settings/social-links/delete/<int:id>/', delete_social_link, name='delete_social_link'),
+    path('settings/social-links/toggle/<int:id>/', toggle_social_link_active, name='toggle_social_link_active'),
+
+    # ----------------- Site Settings: Navbar / Subnav Menu ---------------------
+    path('settings/nav-menu/', NavMenuManagementView.as_view(), name='nav_menu'),
+    path('settings/nav-menu/delete/<int:id>/', delete_nav_menu_link, name='delete_nav_menu_link'),
+    path('settings/nav-menu/toggle/<int:id>/', toggle_nav_menu_link_active, name='toggle_nav_menu_link_active'),
+
+    # ----------------- Site Settings: News Feed (Top Bar Ticker) ---------------------
+    path('settings/news-feed/', NewsFeedManagementView.as_view(), name='news_feed'),
+    path('settings/news-feed/delete/<int:id>/', delete_news_feed, name='delete_news_feed'),
+    path('settings/news-feed/toggle/<int:id>/', toggle_news_feed_active, name='toggle_news_feed_active'),
 ]
 
 

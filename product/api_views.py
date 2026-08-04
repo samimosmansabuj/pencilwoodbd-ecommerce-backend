@@ -1,7 +1,7 @@
 from rest_framework import views, status, permissions, viewsets
 from rest_framework.response import Response
 from .serializers import ProductSerializer, CategorySerializer
-from site_app.models import LandingPageProduct, OTPVerification, HomeSlider
+from site_app.models import LandingPageProduct, OTPVerification, HomeSlider, FooterTagLink, SocialLink, NavMenuLink, NewsFeed
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from authentication.models import Customer
@@ -97,7 +97,33 @@ def home_slider_api(request):
 
     return JsonResponse({"status": True, "data": data})
 
+def site_content_api(request):
+    nav_links = NavMenuLink.objects.filter(is_active=True).order_by("sort_order", "id")
+    footer_links = FooterTagLink.objects.filter(is_active=True).order_by("sort_order", "id")
+    social_links = SocialLink.objects.filter(is_active=True).order_by("sort_order", "id")
+    news_items = NewsFeed.objects.filter(is_active=True).order_by("sort_order", "id")
 
+    return JsonResponse({
+        "status": True,
+        "data": {
+            "nav_menu": [
+                {"id": n.id, "name": n.name, "url": n.url or "#", "open_new_tab": n.open_new_tab}
+                for n in nav_links
+            ],
+            "footer_links": [
+                {"id": f.id, "name": f.name, "url": f.url or "#"}
+                for f in footer_links
+            ],
+            "social_links": [
+                {"id": s.id, "name": s.name, "icon": s.icon, "url": s.url or "#"}
+                for s in social_links
+            ],
+            "news_feed": [
+                {"id": nf.id, "text": nf.news, "url": nf.url or None}
+                for nf in news_items
+            ],
+        },
+    })
 
 # otp/views.py
 import os
@@ -357,7 +383,7 @@ class ProductDetailAPIView(APIView):
                     ],
                     "rating": rating,
                     "review_count": final_review_count,
-                    "sold_count": p.sold_count,
+                    "sold_count": p.display_sold_count,
                     "is_bestseller": p.is_bestseller,
                 }
             })

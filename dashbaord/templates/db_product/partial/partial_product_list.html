@@ -84,12 +84,19 @@
             <button type="button" class="btn btn-outline-primary px-4" data-bs-toggle="modal" data-bs-target="#GlobalDeliveryChargeModal">
                 <i class="bi bi-truck me-2"></i>Global Delivery Charge
             </button>
+            <button type="button" class="btn btn-outline-success px-4" data-bs-toggle="modal" data-bs-target="#SoldCountModal"
+                    hx-get="{% url 'sold_count_settings' %}"
+                    hx-target="#soldCountModalBody"
+                    hx-trigger="click once">
+                <i class="bi bi-graph-up me-2"></i>Sold Count
+            </button>
             <a href="{% url 'product_add' %}" class="btn btn-primary px-4">
                 <i class="bi bi-plus-lg me-2"></i>Add Product
             </a>
         </div>
     </div>
 </div>
+
 <!--end row-->
 
 <div class="card mt-4">
@@ -228,3 +235,4 @@ style="z-index: 1050; margin: auto 22px 45px 0px !important; padding: 0px !impor
 </div>
 
 {% include "db_product/modal/global_delivery_charge_modal.html" %}
+{% include "db_product/modal/sold_count_modal.html" %}
