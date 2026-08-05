@@ -99,6 +99,32 @@ urlpatterns = [
     path('settings/news-feed/', NewsFeedManagementView.as_view(), name='news_feed'),
     path('settings/news-feed/delete/<int:id>/', delete_news_feed, name='delete_news_feed'),
     path('settings/news-feed/toggle/<int:id>/', toggle_news_feed_active, name='toggle_news_feed_active'),
+
+    # ----------------- Todo -----------------
+    path('todo-list/', TodoListView.as_view(), name='todo_list'),
+    path('todo/add/', TodoCreateUpdateView.as_view(), name='todo_add'),
+    path('todo/<int:pk>/edit/', TodoCreateUpdateView.as_view(), name='todo_edit'),
+    path('todo/<int:pk>/toggle/', TodoToggleCompleteView.as_view(), name='todo_toggle'),
+    path('todo/<int:pk>/delete/', TodoDeleteView.as_view(), name='todo_delete'),
+
+    # ----------------- Reminder -----------------
+    path('reminder-list/', ReminderListView.as_view(), name='reminder_list'),
+    path('reminder/add/', ReminderCreateView.as_view(), name='reminder_add'),
+    path('reminder/<int:pk>/toggle/', ReminderToggleCompleteView.as_view(), name='reminder_toggle'),
+    path('reminder/<int:pk>/delete/', ReminderDeleteView.as_view(), name='reminder_delete'),
+
+    # ----------------- Finance -----------------
+    path('finance/maintenance-cost/', MaintenanceCostListView.as_view(), name='maintenance_cost_list'),
+    path('finance/maintenance-cost/add/', MaintenanceCostCreateUpdateView.as_view(), name='maintenance_cost_add'),
+    path('finance/maintenance-cost/<int:pk>/edit/', MaintenanceCostCreateUpdateView.as_view(), name='maintenance_cost_edit'),
+    path('finance/maintenance-cost/<int:pk>/delete/', MaintenanceCostDeleteView.as_view(), name='maintenance_cost_delete'),
+    path('finance/daily-profit/', DailyProfitListView.as_view(), name='daily_profit_list'),
+
+    # ----------------- Invoice Color -----------------
+    path('settings/invoice-color/', InvoiceColorSettingsView.as_view(), name='invoice_color_settings'),
+
+    # ----------------- Today Work List (overview) -----------------
+    path('today-work-list/', TodayWorkListView.as_view(), name='today_work_list'),
 ]
 
 

@@ -1,0 +1,18 @@
+{% extends 'dashboard.html' %}
+{% block page_title %}<title>Daily Profit | PencilWoodBD</title>{% endblock %}
+{% block dashboard_body_content %}
+<div class="container-fluid">
+    <table class="table">
+        <thead><tr><th>Date</th><th>Total Cost</th><th>Cost Items</th></tr></thead>
+        <tbody>
+        {% for dp in daily_profits %}
+            <tr>
+                <td>{{ dp.date }}</td>
+                <td>৳{{ dp.total_cost }}</td>
+                <td>{{ dp.costs.count }} item(s)</td>
+            </tr>
+        {% empty %}<tr><td colspan="3" class="text-center">No data.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

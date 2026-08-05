@@ -1,0 +1,29 @@
+<table class="table">
+    <thead><tr><th>Note</th><th>For</th><th>Date/Time</th><th>Assigned To</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+    {% for reminder in reminders %}
+        <tr>
+            <td>{{ reminder.note|truncatechars:50 }}</td>
+            <td>
+                {% if reminder.order %}Order #{{ reminder.order.order_id }}
+                {% elif reminder.order_request %}Order Request #{{ reminder.order_request.id }}
+                {% endif %}
+            </td>
+            <td>{{ reminder.remind_date }} {{ reminder.remind_time }}</td>
+            <td>{{ reminder.assigned_to.get_full_name|default:"-" }}</td>
+            <td>
+                <button class="btn btn-sm {% if reminder.is_complete %}btn-success{% else %}btn-warning{% endif %}"
+                        hx-post="{% url 'reminder_toggle' reminder.pk %}" hx-target="#reminder-table-wrapper">
+                    {% if reminder.is_complete %}Done{% else %}Pending{% endif %}
+                </button>
+            </td>
+            <td>
+                <button class="btn btn-sm btn-danger" hx-post="{% url 'reminder_delete' reminder.pk %}"
+                        hx-target="#reminder-table-wrapper" hx-confirm="Delete this reminder?">Delete</button>
+            </td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="6" class="text-center">No reminders found.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>

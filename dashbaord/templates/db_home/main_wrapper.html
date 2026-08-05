@@ -16,7 +16,24 @@
     </div>
     <!--end breadcrumb-->
 
+    <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#todayWorkListModal"
+    hx-get="{% url 'today_work_list' %}" hx-target="#todayWorkListModalBody" hx-trigger="click">
+<i class="bi bi-calendar-check me-1"></i> Today's Work List
+</button>
 
+<div class="modal fade" id="todayWorkListModal" tabindex="-1" aria-hidden="true">
+<div class="modal-dialog modal-lg">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Today's Work List</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="todayWorkListModalBody">
+            <!-- content loads here when button is clicked -->
+        </div>
+    </div>
+</div>
+</div>
     <div class="row">
         <div class="col-12 col-lg-6 col-xxl-6 d-flex">
             <div class="card w-100 rounded-4">

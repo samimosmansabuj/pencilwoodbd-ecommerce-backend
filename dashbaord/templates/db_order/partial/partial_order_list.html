@@ -207,6 +207,7 @@
                                         {% endfor %}
                                     </select>
                                 </td>
+                                
 
                                 <td>{{ order.delivery_type|upper }}</td>
 
@@ -233,6 +234,9 @@
                                             <i class="bi bi-pencil"></i>
                                         </a>
 
+                                        <button class="nav-link" hx-get="{% url 'order_list' %}?urgent=1" hx-target="#order-table-wrapper">
+                                            Urgent <span class="badge bg-danger">{{ urgent_count }}</span>
+                                        </button>
 
                                         <button class="btn btn-sm btn-filter delivery-option-btn" data-id="{{ order.id }}" data-bs-toggle="modal" data-bs-target="#deliveryOptionModal">
                                             <i class="lni lni-delivery"></i>
@@ -244,6 +248,7 @@
                                         <button type="button" class="btn btn-sm btn-filter" onclick="printInvoice({{ order.id }})">
                                             <i class="material-icons-outlined">print</i>
                                         </button>
+
                                     </div>
                                 </td>
                             </tr>

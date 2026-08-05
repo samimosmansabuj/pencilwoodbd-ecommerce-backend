@@ -109,6 +109,10 @@
         </button>
     </form>
 
+    <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#reminderAddModalRequest">
+        <i class="bi bi-alarm me-1"></i> Add Reminder
+    </button>
+
     {% endif %}
 
 
@@ -822,4 +826,26 @@
 
     </div>
 
+    <div class="modal fade" id="reminderAddModalRequest" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <form class="modal-content" hx-post="{% url 'reminder_add' %}" hx-target="#content-area">
+                {% csrf_token %}
+                <input type="hidden" name="order_request_id" value="{{ order_request.id }}">
+                <div class="modal-header"><h5 class="modal-title">Add Reminder</h5></div>
+                <div class="modal-body">
+                    <textarea name="note" class="form-control mb-2" placeholder="Note" required></textarea>
+                    <input type="date" name="remind_date" class="form-control mb-2" required>
+                    <input type="time" name="remind_time" class="form-control mb-2" required>
+                    <select name="assigned_to" class="form-select">
+                        <option value="">-- Assign To Staff --</option>
+                        {% for staff in staff_list %}
+                        <option value="{{ staff.id }}">{{ staff.get_full_name|default:staff.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="modal-footer"><button type="submit" class="btn btn-primary">Save Reminder</button></div>
+            </form>
+        </div>
+    </div>
+    
 </div>

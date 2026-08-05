@@ -1,0 +1,27 @@
+<button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#costAddModal">+ Add Cost</button>
+<table class="table">
+    <thead><tr><th>Name</th><th>Amount</th><th>Date</th><th>Note</th><th>Actions</th></tr></thead>
+    <tbody>
+    {% for cost in costs %}
+        <tr>
+            <td>{{ cost.name }}</td><td>৳{{ cost.amount }}</td><td>{{ cost.date }}</td><td>{{ cost.note|default:"-" }}</td>
+            <td><button class="btn btn-sm btn-danger" hx-post="{% url 'maintenance_cost_delete' cost.pk %}"
+                    hx-target="#cost-table-wrapper" hx-confirm="Delete?">Delete</button></td>
+        </tr>
+    {% empty %}<tr><td colspan="5" class="text-center">No costs recorded.</td></tr>{% endfor %}
+    </tbody>
+</table>
+<div class="modal fade" id="costAddModal">
+    <div class="modal-dialog">
+        <form class="modal-content" hx-post="{% url 'maintenance_cost_add' %}" hx-target="#cost-table-wrapper">
+            <div class="modal-header"><h5>Add Maintenance Cost</h5></div>
+            <div class="modal-body">
+                <input type="text" name="name" class="form-control mb-2" placeholder="Cost name" required>
+                <input type="number" step="0.01" name="amount" class="form-control mb-2" placeholder="Amount" required>
+                <input type="date" name="date" class="form-control mb-2" required>
+                <textarea name="note" class="form-control" placeholder="Note"></textarea>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-primary">Save</button></div>
+        </form>
+    </div>
+</div>

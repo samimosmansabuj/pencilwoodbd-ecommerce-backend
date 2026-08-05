@@ -28,7 +28,7 @@ from pencilwoodbd.extra_module import resize_to_fixed
 from order.models import Order, OrderRequest, OrderItem, OrderRequestItem, Review
 from product.models import Product, Category, ProductImage, ProductVideo, Attribute, AttributeValue, ProductVariant, Tag, ProductDeliveryCharge, ProductFeature, ProductFAQ, ReviewSettings
 from authentication.models import CustomUser, Customer
-from site_app.models import DeliveryOption, SiteDeliveryChargeConfig, HomeSlider, FooterTagLink, SocialLink, NavMenuLink, NewsFeed
+from site_app.models import DeliveryOption, SiteDeliveryChargeConfig, HomeSlider, FooterTagLink, SocialLink, NavMenuLink, NewsFeed, Todo, Reminder, MaintenanceCost, DailyProfit, InvoiceColorConfig
 
 from site_app.bd_districts import BD_DISTRICTS, ALL_DISTRICTS_KEY, SYSTEM_DEFAULT_DELIVERY_CHARGE
 from site_app.delivery_charge import DeliveryChargeResolver
@@ -3493,6 +3493,305 @@ def toggle_news_feed_active(request, id):
     except Exception as e:
         return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
 
+
+
+STAFF_TYPES = ['staff', 'admin', 'super_admin']
+
+
+# ----------------- TODO -----------------
+
+class TodoListView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+    template_name = "db_todo/todo_list.html"
+
+    def get(self, request):
+        todos = Todo.objects.select_related('assigned_to', 'created_by').all()
+        priority = request.GET.get('priority')
+        if priority:
+            todos = todos.filter(priority=priority)
+        status = request.GET.get('status')
+        if status == 'complete':
+            todos = todos.filter(is_complete=True)
+        elif status == 'pending':
+            todos = todos.filter(is_complete=False)
+        search = request.GET.get('search')
+        if search:
+            todos = todos.filter(title__icontains=search)
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+        if start_date:
+            todos = todos.filter(due_date__gte=start_date)
+        if end_date:
+            todos = todos.filter(due_date__lte=end_date)
+
+        context = {
+            "todos": todos,
+            "staff_list": CustomUser.objects.filter(user_type__in=STAFF_TYPES),
+            "priority_choices": Todo.Priority.choices,
+        }
+        if request.htmx:
+            return render(request, "db_todo/partial/partial_todo_list.html", context)
+        return render(request, self.template_name, context)
+
+
+class TodoCreateUpdateView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk=None):
+        todo = get_object_or_404(Todo, pk=pk) if pk else Todo()
+        todo.title = request.POST.get('title')
+        todo.description = request.POST.get('description')
+        todo.priority = request.POST.get('priority', Todo.Priority.MEDIUM)
+        todo.due_date = request.POST.get('due_date') or None
+        todo.assigned_to_id = request.POST.get('assigned_to') or None
+        if not pk:
+            todo.created_by = request.user
+        todo.save()
+        messages.success(request, "Todo saved successfully.")
+        return self._list_response(request)
+
+    def _list_response(self, request):
+        if request.htmx:
+            todos = Todo.objects.select_related('assigned_to', 'created_by').all()
+            return render(request, "db_todo/partial/partial_todo_list.html", {
+                "todos": todos,
+                "staff_list": CustomUser.objects.filter(user_type__in=STAFF_TYPES),
+                "priority_choices": Todo.Priority.choices,
+            })
+        return redirect('todo_list')
+
+
+class TodoToggleCompleteView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk):
+        todo = get_object_or_404(Todo, pk=pk)
+        todo.is_complete = not todo.is_complete
+        todo.save(update_fields=['is_complete'])
+        return TodoCreateUpdateView()._list_response(request)
+
+
+class TodoDeleteView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk):
+        get_object_or_404(Todo, pk=pk).delete()
+        messages.success(request, "Todo deleted.")
+        return TodoCreateUpdateView()._list_response(request)
+
+
+# ----------------- REMINDER -----------------
+
+class ReminderListView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+    template_name = "db_reminder/reminder_list.html"
+
+    def get(self, request):
+        reminders = Reminder.objects.select_related('order', 'order_request', 'assigned_to').all()
+        status = request.GET.get('status')
+        if status == 'complete':
+            reminders = reminders.filter(is_complete=True)
+        elif status == 'pending':
+            reminders = reminders.filter(is_complete=False)
+        assigned_to = request.GET.get('assigned_to')
+        if assigned_to:
+            reminders = reminders.filter(assigned_to_id=assigned_to)
+
+        context = {
+            "reminders": reminders,
+            "staff_list": CustomUser.objects.filter(user_type__in=STAFF_TYPES),
+        }
+        if request.htmx:
+            return render(request, "db_reminder/partial/partial_reminder_list.html", context)
+        return render(request, self.template_name, context)
+
+
+class ReminderCreateView(LoginRequiredMixin, View):
+    """Called from the 'Add Reminder' modal on order detail or order-request detail.
+    POST either order_id or order_request_id (not both)."""
+    login_url = "admin_login"
+
+    def post(self, request):
+        reminder = Reminder()
+        order_id = request.POST.get('order_id')
+        order_request_id = request.POST.get('order_request_id')
+        if order_id:
+            reminder.order = get_object_or_404(Order, pk=order_id)
+        if order_request_id:
+            reminder.order_request = get_object_or_404(OrderRequest, pk=order_request_id)
+        reminder.note = request.POST.get('note')
+        reminder.remind_date = request.POST.get('remind_date')
+        reminder.remind_time = request.POST.get('remind_time')
+        reminder.assigned_to_id = request.POST.get('assigned_to') or None
+        reminder.created_by = request.user
+        reminder.save()
+        messages.success(request, "Reminder added.")
+
+        if order_id:
+            order = get_object_or_404(Order, pk=order_id)
+            return render(request, "db_order/partial/partial_order_detail.html", {"order": order})
+        if order_request_id:
+            order_request = get_object_or_404(OrderRequest, pk=order_request_id)
+            return render(request, "db_order_request/partial/partial_order_request_detail.html", {"order_request": order_request})
+        return redirect('reminder_list')
+
+
+class ReminderToggleCompleteView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk):
+        reminder = get_object_or_404(Reminder, pk=pk)
+        reminder.is_complete = not reminder.is_complete
+        reminder.save(update_fields=['is_complete'])
+        return self._list_response(request)
+
+    def _list_response(self, request):
+        if request.htmx:
+            reminders = Reminder.objects.select_related('order', 'order_request', 'assigned_to').all()
+            return render(request, "db_reminder/partial/partial_reminder_list.html", {
+                "reminders": reminders,
+                "staff_list": CustomUser.objects.filter(user_type__in=STAFF_TYPES),
+            })
+        return redirect('reminder_list')
+
+
+class ReminderDeleteView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk):
+        get_object_or_404(Reminder, pk=pk).delete()
+        messages.success(request, "Reminder deleted.")
+        return ReminderToggleCompleteView()._list_response(request)
+
+
+# ----------------- FINANCE -----------------
+
+class MaintenanceCostListView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+    template_name = "db_finance/maintenance_cost_list.html"
+
+    def get(self, request):
+        costs = MaintenanceCost.objects.select_related('created_by').all()
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+        if start_date:
+            costs = costs.filter(date__gte=start_date)
+        if end_date:
+            costs = costs.filter(date__lte=end_date)
+        search = request.GET.get('search')
+        if search:
+            costs = costs.filter(name__icontains=search)
+
+        context = {"costs": costs}
+        if request.htmx:
+            return render(request, "db_finance/partial/partial_maintenance_cost_list.html", context)
+        return render(request, self.template_name, context)
+
+
+class MaintenanceCostCreateUpdateView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk=None):
+        cost = get_object_or_404(MaintenanceCost, pk=pk) if pk else MaintenanceCost()
+        cost.name = request.POST.get('name')
+        cost.amount = request.POST.get('amount')
+        cost.date = request.POST.get('date')
+        cost.note = request.POST.get('note')
+        if not pk:
+            cost.created_by = request.user
+        cost.save()  # signal auto-links to that day's DailyProfit
+        messages.success(request, "Maintenance cost saved.")
+        return self._list_response(request)
+
+    def _list_response(self, request):
+        if request.htmx:
+            costs = MaintenanceCost.objects.select_related('created_by').all()
+            return render(request, "db_finance/partial/partial_maintenance_cost_list.html", {"costs": costs})
+        return redirect('maintenance_cost_list')
+
+
+class MaintenanceCostDeleteView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk):
+        get_object_or_404(MaintenanceCost, pk=pk).delete()
+        messages.success(request, "Maintenance cost deleted.")
+        return MaintenanceCostCreateUpdateView()._list_response(request)
+
+
+class DailyProfitListView(LoginRequiredMixin, ListView):
+    login_url = "admin_login"
+    model = DailyProfit
+    template_name = "db_finance/daily_profit_list.html"
+    context_object_name = "daily_profits"
+    paginate_by = 30
+
+    def get_queryset(self):
+        qs = DailyProfit.objects.prefetch_related('costs').all()
+        start_date = self.request.GET.get('start_date')
+        end_date = self.request.GET.get('end_date')
+        if start_date:
+            qs = qs.filter(date__gte=start_date)
+        if end_date:
+            qs = qs.filter(date__lte=end_date)
+        return qs
+
+
+# ----------------- INVOICE COLOR CONFIG -----------------
+
+class InvoiceColorSettingsView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+    template_name = "db_settings/invoice_color_settings.html"
+
+    def get(self, request):
+        return render(request, self.template_name, {"config": InvoiceColorConfig.get_config()})
+
+    def post(self, request):
+        config = InvoiceColorConfig.get_config()
+        config.header_bg = request.POST.get('header_bg')
+        config.footer_bg = request.POST.get('footer_bg')
+        config.header_text_color = request.POST.get('header_text_color')
+        config.footer_text_color = request.POST.get('footer_text_color')
+        config.highlight_color = request.POST.get('highlight_color')
+        config.table_header_text_color = request.POST.get('table_header_text_color')
+        config.save()
+        messages.success(request, "Invoice color settings updated.")
+        return redirect('invoice_color_settings')
+
+
+# ----------------- OVERVIEW DASHBOARD: TODAY WORK LIST -----------------
+
+class TodayWorkListView(LoginRequiredMixin, View):
+    """Powers the 'Today Work List' popup on the dashboard home page."""
+    login_url = "admin_login"
+
+    def get(self, request):
+        today = timezone.localdate()
+
+        urgent_count = Order.objects.filter(is_urgent=True).exclude(status__in=['delivered', 'cancelled', 'returned', 'refunded']).count()
+        today_orders = Order.objects.filter(created_at__date=today)
+        today_order_count = today_orders.count()
+        total_order_count = Order.objects.count()
+        total_order_request_count = OrderRequest.objects.count()
+        total_user_count = CustomUser.objects.filter(user_type='customer').count()
+
+        product_wise_today = (
+            OrderItem.objects.filter(order__created_at__date=today)
+            .values('product__name')
+            .annotate(qty=Sum('quantity'))
+            .order_by('-qty')
+        )
+
+        context = {
+            "urgent_count": urgent_count,
+            "today_order_count": today_order_count,
+            "total_order_count": total_order_count,
+            "total_order_request_count": total_order_request_count,
+            "total_user_count": total_user_count,
+            "product_wise_today": product_wise_today,
+        }
+        return render(request, "db_home/partial/today_work_list_modal.html", context)
+    
 
 
 # class RedirectView(View):

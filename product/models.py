@@ -152,9 +152,9 @@ class Product(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    sold_count = models.PositiveIntegerField(default=0)  # actual/real sold count (auto, from orders)
-    manual_sold_count = models.PositiveIntegerField(null=True, blank=True)  # NEW - per-product override
-    use_global_sold_count = models.BooleanField(default=True)  # NEW - toggle per product
+    sold_count = models.PositiveIntegerField(default=0)  
+    manual_sold_count = models.PositiveIntegerField(null=True, blank=True)  
+    use_global_sold_count = models.BooleanField(default=True)  
 
     @property
     def display_sold_count(self):
