@@ -11,7 +11,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q, Sum, F, Value, DecimalField
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, TruncDate
 from django.utils.text import slugify
 from django.utils import timezone
 from django.urls import reverse_lazy
@@ -1917,11 +1917,9 @@ class AddOrderView(LoginRequiredMixin, View):
                 source = data.get("source", "Others").strip()
 
                 if not name:
-                    messages.error(request, "Customer name is required.")
-                    return redirect("add_order")
+                    return JsonResponse({"status": False, "message": "Customer name is required."}, status=400)
                 if not phone:
-                    messages.error(request, "Phone number is required.")
-                    return redirect("add_order")
+                    return JsonResponse({"status": False, "message": "Phone number is required."}, status=400)
 
                 customer = Customer.objects.create(
                     company=company or None,
@@ -1957,12 +1955,10 @@ class AddOrderView(LoginRequiredMixin, View):
                 try:
                     items = json.loads(data.get("items", "[]"))
                 except json.JSONDecodeError:
-                    messages.error(request, "Invalid product data.")
-                    return redirect("add_order")
+                    return JsonResponse({"status": False, "message": "Invalid product data."}, status=400)
 
                 if not items:
-                    messages.error(request, "Please add at least one product.")
-                    return redirect("add_order")
+                    return JsonResponse({"status": False, "message": "Please add at least one product."}, status=400)
 
                 order = Order.objects.create(
                     customer=customer,
@@ -2020,13 +2016,13 @@ class AddOrderView(LoginRequiredMixin, View):
                 order.total_cost = grand_total
                 order.save(update_fields=["total_cost"])
 
-                messages.success(request, f"Order {order.order_id} created successfully.")
-                return redirect("order_list")
+                return JsonResponse({
+                    "status": True,
+                    "message": f"Order {order.order_id} created successfully."
+                }, status=201)
 
         except Exception as e:
-            messages.error(request, str(e))
-            return redirect("add_order")
-        
+            return JsonResponse({"status": False, "message": str(e)}, status=400)
 
 class OrderView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -2047,6 +2043,10 @@ class OrderView(LoginRequiredMixin, View):
             order_count[row["status"]] = row["total"]
 
         order_count["all"] = sum(order_count.values())
+
+        order_count["urgent"] = Order.objects.filter(is_urgent=True).exclude(
+            status__in=[STATUS.DELIVERED, STATUS.CANCELLED, STATUS.RETURNED, STATUS.REFUNDED]
+        ).count()
 
         return order_count
 
@@ -2384,11 +2384,11 @@ class OrderStatusUpdateView(LoginRequiredMixin, View):
                 return JsonResponse({"success": False, "message": "Invalid status selected"})
             else:
                 order.status = new_status
-                order.save(update_fields=["status"])
-                # messages.success(
-                #     request,
-                #     f"Order #{order.order_id} status updated to {order.get_status_display()}."
-                # )
+                update_fields = ["status"]
+                if new_status == STATUS.DELIVERED and not order.delivered_at:
+                    order.delivered_at = timezone.now()
+                    update_fields.append("delivered_at")
+                order.save(update_fields=update_fields)
             return JsonResponse({"success": True, "message": f"Order #{order.order_id} status updated to {order.get_status_display()}."})
         except Exception as e:
             return JsonResponse({"success": False, "message": f"{e}"})
@@ -3648,7 +3648,11 @@ class MaintenanceCostListView(LoginRequiredMixin, View):
         if search:
             costs = costs.filter(name__icontains=search)
 
-        context = {"costs": costs}
+        context = {
+            "costs": costs,
+            "category_choices": MaintenanceCost.Category.choices,
+            "payment_method_choices": MaintenanceCost.PaymentMethod.choices,
+        }
         if request.htmx:
             return render(request, "db_finance/partial/partial_maintenance_cost_list.html", context)
         return render(request, self.template_name, context)
@@ -3662,6 +3666,10 @@ class MaintenanceCostCreateUpdateView(LoginRequiredMixin, View):
         cost.name = request.POST.get('name')
         cost.amount = request.POST.get('amount')
         cost.date = request.POST.get('date')
+        cost.category = request.POST.get('category') or MaintenanceCost.Category.OTHERS
+        cost.vendor_name = request.POST.get('vendor_name') or None
+        cost.payment_method = request.POST.get('payment_method') or None
+        cost.reference_number = request.POST.get('reference_number') or None
         cost.note = request.POST.get('note')
         if not pk:
             cost.created_by = request.user
@@ -3672,9 +3680,12 @@ class MaintenanceCostCreateUpdateView(LoginRequiredMixin, View):
     def _list_response(self, request):
         if request.htmx:
             costs = MaintenanceCost.objects.select_related('created_by').all()
-            return render(request, "db_finance/partial/partial_maintenance_cost_list.html", {"costs": costs})
+            return render(request, "db_finance/partial/partial_maintenance_cost_list.html", {
+                "costs": costs,
+                "category_choices": MaintenanceCost.Category.choices,
+                "payment_method_choices": MaintenanceCost.PaymentMethod.choices,
+            })
         return redirect('maintenance_cost_list')
-
 
 class MaintenanceCostDeleteView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -3685,24 +3696,102 @@ class MaintenanceCostDeleteView(LoginRequiredMixin, View):
         return MaintenanceCostCreateUpdateView()._list_response(request)
 
 
-class DailyProfitListView(LoginRequiredMixin, ListView):
+class DailyProfitListView(LoginRequiredMixin, View):
+    """Real profit view:
+    - Booked Revenue: value of orders PLACED that day (sales-performance number, includes orders that may still cancel/return)
+    - Realized Revenue: value of orders DELIVERED that day (actual-cash number, based on delivered_at)
+    - Profit: Realized Revenue - Expense (the only honest profit figure for a COD business)
+    """
     login_url = "admin_login"
-    model = DailyProfit
     template_name = "db_finance/daily_profit_list.html"
-    context_object_name = "daily_profits"
-    paginate_by = 30
 
-    def get_queryset(self):
-        qs = DailyProfit.objects.prefetch_related('costs').all()
-        start_date = self.request.GET.get('start_date')
-        end_date = self.request.GET.get('end_date')
+    def get(self, request):
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+
+        # ---- Booked Revenue: by order creation date ----
+        booked_qs = Order.objects.all()
         if start_date:
-            qs = qs.filter(date__gte=start_date)
+            booked_qs = booked_qs.filter(created_at__date__gte=start_date)
         if end_date:
-            qs = qs.filter(date__lte=end_date)
-        return qs
+            booked_qs = booked_qs.filter(created_at__date__lte=end_date)
 
+        booked_rows = (
+            booked_qs
+            .annotate(order_date=TruncDate('created_at'))
+            .values('order_date')
+            .annotate(
+                booked_revenue=Coalesce(
+                    Sum(F('order_items__discount_price') * F('order_items__quantity') + F('shipping_total')),
+                    Value(0), output_field=DecimalField(max_digits=12, decimal_places=2)
+                )
+            )
+        )
+        booked_map = {row['order_date']: row['booked_revenue'] for row in booked_rows}
 
+        # ---- Realized Revenue: by delivered_at date (actual cash) ----
+        realized_qs = Order.objects.filter(status=STATUS.DELIVERED, delivered_at__isnull=False)
+        if start_date:
+            realized_qs = realized_qs.filter(delivered_at__date__gte=start_date)
+        if end_date:
+            realized_qs = realized_qs.filter(delivered_at__date__lte=end_date)
+
+        realized_rows = (
+            realized_qs
+            .annotate(delivered_date=TruncDate('delivered_at'))
+            .values('delivered_date')
+            .annotate(
+                realized_revenue=Coalesce(
+                    Sum(F('order_items__discount_price') * F('order_items__quantity') + F('shipping_total')),
+                    Value(0), output_field=DecimalField(max_digits=12, decimal_places=2)
+                )
+            )
+        )
+        realized_map = {row['delivered_date']: row['realized_revenue'] for row in realized_rows}
+
+        # ---- Expense: from Maintenance Cost via DailyProfit ----
+        daily_profit_qs = DailyProfit.objects.prefetch_related('costs').all()
+        if start_date:
+            daily_profit_qs = daily_profit_qs.filter(date__gte=start_date)
+        if end_date:
+            daily_profit_qs = daily_profit_qs.filter(date__lte=end_date)
+
+        cost_map = {}
+        cost_count_map = {}
+        for dp in daily_profit_qs:
+            cost_map[dp.date] = dp.total_cost()
+            cost_count_map[dp.date] = dp.costs.count()
+
+        # ---- Merge into one row per date ----
+        all_dates = sorted(
+            set(booked_map.keys()) | set(realized_map.keys()) | set(cost_map.keys()),
+            reverse=True
+        )
+
+        rows = []
+        for d in all_dates:
+            booked = booked_map.get(d) or 0
+            realized = realized_map.get(d) or 0
+            expense = cost_map.get(d) or 0
+            rows.append({
+                "date": d,
+                "booked_revenue": booked,
+                "realized_revenue": realized,
+                "expense": expense,
+                "expense_items": cost_count_map.get(d, 0),
+                "profit": realized - expense,
+            })
+
+        paginator = Paginator(rows, 30)
+        page_obj = paginator.get_page(request.GET.get('page', 1))
+
+        context = {
+            "rows": page_obj,
+            "paginator": paginator,
+            "start_date": start_date or "",
+            "end_date": end_date or "",
+        }
+        return render(request, self.template_name, context)
 # ----------------- INVOICE COLOR CONFIG -----------------
 
 class InvoiceColorSettingsView(LoginRequiredMixin, View):
@@ -3845,12 +3934,26 @@ class OrderBulkActionView(LoginRequiredMixin, View):
                 valid_statuses = [c[0] for c in STATUS.choices]
                 if new_status not in valid_statuses:
                     return JsonResponse({"success": False, "message": "Invalid status."}, status=400)
+
+                if new_status == STATUS.DELIVERED:
+                    # Need per-row delivered_at, so can't use a single bulk .update()
+                    now = timezone.now()
+                    updated_count = 0
+                    for order in orders.filter(delivered_at__isnull=True):
+                        order.status = new_status
+                        order.delivered_at = now
+                        order.is_urgent = False
+                        order.save(update_fields=["status", "delivered_at", "is_urgent"])
+                        updated_count += 1
+                    # any already-delivered ones in the selection just get status re-confirmed
+                    orders.exclude(delivered_at__isnull=True).update(status=new_status, is_urgent=False)
+                    return JsonResponse({"success": True, "message": f"{orders.count()} order(s) updated to {new_status}."})
+
                 update_fields = {"status": new_status}
-                if new_status in [STATUS.DELIVERED, STATUS.CANCELLED, STATUS.RETURNED, STATUS.REFUNDED]:
+                if new_status in [STATUS.CANCELLED, STATUS.RETURNED, STATUS.REFUNDED]:
                     update_fields["is_urgent"] = False
                 orders.update(**update_fields)
                 return JsonResponse({"success": True, "message": f"{orders.count()} order(s) updated to {new_status}."})
-
             elif action == "work_assign":
                 staff_id = data.get("staff_id")
                 orders.update(work_assign_id=staff_id)

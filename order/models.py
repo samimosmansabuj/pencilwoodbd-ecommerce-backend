@@ -67,6 +67,7 @@ class Order(models.Model):
     note = models.TextField(blank=True, null=True)
     delivery_type = models.CharField(max_length=50, choices=DELIVERY_TYPE.choices, default=DELIVERY_TYPE.HOME_DELIVERY)
     delivery_date = models.DateField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True, help_text="Auto-set the moment status changes to Delivered")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

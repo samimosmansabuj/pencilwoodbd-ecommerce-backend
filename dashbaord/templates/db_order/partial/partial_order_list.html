@@ -55,7 +55,7 @@
         <a href="{% url 'order_list' %}?status=all&urgent=1&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}" hx-get="{% url 'order_list' %}?status=all&urgent=1&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}" hx-target="#content-area"
             hx-push-url="true" class="{% if request.GET.urgent == '1' %}active{% endif %} text-danger">
             <span class="me-1">URGENT</span>
-            <span class="text-secondary">({{ urgent_count }})</span>
+            <span class="text-danger">({{ order_count.urgent }})</span>
         </a>
     </div>
     <div class="row g-3 align-items-end mb-3">
@@ -100,10 +100,10 @@
         <button class="btn btn-filter px-4">
             <i class="bi bi-box-arrow-right me-2"></i>Export
         </button>
-        <button type="button" class="btn btn-primary px-4" data-bs-toggle="modal"
+        <!-- <button type="button" class="btn btn-primary px-4" data-bs-toggle="modal"
                 data-bs-target="#OrderFormModal">
             <i class="bi bi-plus-lg me-2"></i>Add Order
-        </button>
+        </button> -->
         {% include 'db_order/modal/order_form_modal.html' %}
     </div>
 </div>

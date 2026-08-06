@@ -399,10 +399,35 @@ class Reminder(models.Model):
 
 
 class MaintenanceCost(models.Model):
+    class Category(models.TextChoices):
+        RENT = 'rent', 'Rent'
+        UTILITIES = 'utilities', 'Utilities (Electricity/Gas/Water)'
+        SALARY = 'salary', 'Salary / Wages'
+        RAW_MATERIALS = 'raw_materials', 'Raw Materials'
+        PACKAGING = 'packaging', 'Packaging Materials'
+        MARKETING = 'marketing', 'Marketing / Ads'
+        EQUIPMENT = 'equipment', 'Equipment / Machinery'
+        TRANSPORT = 'transport', 'Transport / Delivery'
+        MAINTENANCE_REPAIR = 'maintenance_repair', 'Maintenance / Repair'
+        SOFTWARE = 'software', 'Software / Subscription'
+        OTHERS = 'others', 'Others'
+
+    class PaymentMethod(models.TextChoices):
+        CASH = 'cash', 'Cash'
+        BANK = 'bank', 'Bank Transfer'
+        MOBILE_BANKING = 'mobile_banking', 'Mobile Banking (bKash/Nagad)'
+        CARD = 'card', 'Card'
+
     name = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     date = models.DateField()
+
+    category = models.CharField(max_length=30, choices=Category.choices, default=Category.OTHERS, blank=True)
+    vendor_name = models.CharField(max_length=255, blank=True, null=True)
+    payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices, blank=True, null=True)
+    reference_number = models.CharField(max_length=100, blank=True, null=True)
     note = models.TextField(blank=True, null=True)
+
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='maintenance_costs'
@@ -415,7 +440,6 @@ class MaintenanceCost(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.amount} ({self.date})"
-
 
 class DailyProfit(models.Model):
     date = models.DateField(unique=True)

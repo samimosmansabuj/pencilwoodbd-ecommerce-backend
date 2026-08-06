@@ -1,24 +1,56 @@
 <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#costAddModal">+ Add Cost</button>
 <table class="table">
-    <thead><tr><th>Name</th><th>Amount</th><th>Date</th><th>Note</th><th>Actions</th></tr></thead>
+    <thead>
+        <tr>
+            <th>Name</th><th>Category</th><th>Amount</th><th>Date</th>
+            <th>Vendor</th><th>Payment</th><th>Ref #</th><th>Note</th><th>Actions</th>
+        </tr>
+    </thead>
     <tbody>
     {% for cost in costs %}
         <tr>
-            <td>{{ cost.name }}</td><td>৳{{ cost.amount }}</td><td>{{ cost.date }}</td><td>{{ cost.note|default:"-" }}</td>
+            <td>{{ cost.name }}</td>
+            <td>{{ cost.get_category_display }}</td>
+            <td>৳{{ cost.amount }}</td>
+            <td>{{ cost.date }}</td>
+            <td>{{ cost.vendor_name|default:"-" }}</td>
+            <td>{{ cost.get_payment_method_display|default:"-" }}</td>
+            <td>{{ cost.reference_number|default:"-" }}</td>
+            <td>{{ cost.note|default:"-" }}</td>
             <td><button class="btn btn-sm btn-danger" hx-post="{% url 'maintenance_cost_delete' cost.pk %}"
                     hx-target="#cost-table-wrapper" hx-confirm="Delete?">Delete</button></td>
         </tr>
-    {% empty %}<tr><td colspan="5" class="text-center">No costs recorded.</td></tr>{% endfor %}
+    {% empty %}<tr><td colspan="9" class="text-center">No costs recorded.</td></tr>{% endfor %}
     </tbody>
 </table>
+
 <div class="modal fade" id="costAddModal">
     <div class="modal-dialog">
         <form class="modal-content" hx-post="{% url 'maintenance_cost_add' %}" hx-target="#cost-table-wrapper">
             <div class="modal-header"><h5>Add Maintenance Cost</h5></div>
             <div class="modal-body">
-                <input type="text" name="name" class="form-control mb-2" placeholder="Cost name" required>
-                <input type="number" step="0.01" name="amount" class="form-control mb-2" placeholder="Amount" required>
-                <input type="date" name="date" class="form-control mb-2" required>
+
+                <!-- Basic — required -->
+                <input type="text" name="name" class="form-control mb-2" placeholder="Cost name *" required>
+                <input type="number" step="0.01" name="amount" class="form-control mb-2" placeholder="Amount *" required>
+                <input type="date" name="date" class="form-control mb-3" required>
+
+                <!-- Extra — all optional -->
+                <hr>
+                <small class="text-muted">Optional details</small>
+                <select name="category" class="form-select mb-2">
+                    {% for value, label in category_choices %}
+                    <option value="{{ value }}" {% if value == "others" %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <input type="text" name="vendor_name" class="form-control mb-2" placeholder="Paid to (vendor / staff / shop)">
+                <select name="payment_method" class="form-select mb-2">
+                    <option value="">-- Payment Method --</option>
+                    {% for value, label in payment_method_choices %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <input type="text" name="reference_number" class="form-control mb-2" placeholder="Invoice / Receipt No.">
                 <textarea name="note" class="form-control" placeholder="Note"></textarea>
             </div>
             <div class="modal-footer"><button type="submit" class="btn btn-primary">Save</button></div>
