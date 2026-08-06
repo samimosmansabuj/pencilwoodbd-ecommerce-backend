@@ -217,6 +217,65 @@
     </ul>
 </li>
 
+<!-- Work & Reminders Section------- -->
+<li class="menu-label">Work & Reminders</li>
+<li>
+    <a class="has-arrow" href="javascript:;">
+        <div class="parent-icon">
+            <i class="material-icons-outlined">checklist</i>
+        </div>
+        <div class="menu-title">Todo</div>
+    </a>
+    <ul>
+        <li>
+            <a href="{% url 'todo_list' %}">
+                <i class="material-icons-outlined">arrow_right</i>
+                Todo List
+            </a>
+        </li>
+    </ul>
+</li>
+<li>
+    <a class="has-arrow" href="javascript:;">
+        <div class="parent-icon">
+            <i class="material-icons-outlined">alarm</i>
+        </div>
+        <div class="menu-title">Reminders</div>
+    </a>
+    <ul>
+        <li>
+            <a href="{% url 'reminder_list' %}">
+                <i class="material-icons-outlined">arrow_right</i>
+                Reminder List
+            </a>
+        </li>
+    </ul>
+</li>
+
+<!-- Finance Section------- -->
+<li class="menu-label">Finance</li>
+<li>
+    <a class="has-arrow" href="javascript:;">
+        <div class="parent-icon">
+            <i class="material-icons-outlined">payments</i>
+        </div>
+        <div class="menu-title">Finance</div>
+    </a>
+    <ul>
+        <li>
+            <a href="{% url 'maintenance_cost_list' %}">
+                <i class="material-icons-outlined">arrow_right</i>
+                Maintenance Cost
+            </a>
+        </li>
+        <li>
+            <a href="{% url 'daily_profit_list' %}">
+                <i class="material-icons-outlined">arrow_right</i>
+                Daily Profit
+            </a>
+        </li>
+    </ul>
+</li>
 
 <!-- Settings Section------- -->
 <li class="menu-label">Settings</li>
@@ -262,6 +321,12 @@
             <a href="{% url 'news_feed' %}">
                 <i class="material-icons-outlined">arrow_right</i>
                 News Feed (Top Bar)
+            </a>
+        </li>
+        <li>
+            <a href="{% url 'invoice_color_settings' %}">
+                <i class="material-icons-outlined">arrow_right</i>
+                Invoice Color Settings
             </a>
         </li>
     </ul>

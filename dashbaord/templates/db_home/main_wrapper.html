@@ -21,6 +21,13 @@
 <i class="bi bi-calendar-check me-1"></i> Today's Work List
 </button>
 
+<div class="col-3">
+    <div class="card p-3" hx-get="{% url 'order_list' %}?status=all&urgent=1" hx-target="#content-area" style="cursor:pointer;">
+        <h6>Urgent Orders</h6>
+        <h3 class="text-danger">{{ urgent_count }}</h3>
+    </div>
+</div>
+
 <div class="modal fade" id="todayWorkListModal" tabindex="-1" aria-hidden="true">
 <div class="modal-dialog modal-lg">
     <div class="modal-content">

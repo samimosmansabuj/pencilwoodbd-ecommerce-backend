@@ -262,6 +262,8 @@ class DeliveryOption(models.Model):
     api_url = models.CharField(max_length=255, blank=True, null=True)
     api_key = models.CharField(max_length=255, blank=True, null=True)
     secret_key = models.CharField(max_length=255, blank=True, null=True)
+    extra_username = models.CharField(max_length=255, blank=True, null=True)
+    extra_password = models.CharField(max_length=255, blank=True, null=True)
     is_active = models.BooleanField(default=True)
     
     def __str__(self):
@@ -269,6 +271,13 @@ class DeliveryOption(models.Model):
             return f'{self.name} - {self.type}'
         return self.name
 
+class WebhookLog(models.Model):
+    source = models.CharField(max_length=50)  # 'steadfast' / 'pathao'
+    payload = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.source} webhook - {self.created_at}"
 
 class OTPVerification(models.Model):
     phone = models.CharField(max_length=15)

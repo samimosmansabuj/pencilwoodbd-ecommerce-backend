@@ -40,7 +40,7 @@ from product.forms import ProductForm, ProductImageForm, ProductVideoForm
 from django.forms import modelformset_factory
 
 # Utilities
-from order.utils import SteadFastParcelAPI
+from order.utils import PathaoParcelAPI, SteadFastParcelAPI
 
 # Choices
 from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, PAYMENT_TYPE, PAYMENT_STATUS, ATTRIBUTE_TYPE, PRODUCT_TYPE, ORDER_REQUEST_WORK_STATUS, REVIEW_STATUS, MarketingIntegrationProviderChoices, MarketingIntegrationStatusChoices
@@ -119,6 +119,11 @@ class DashboardView(LoginRequiredMixin, View):
 
         return amounts
 
+    def get_urgent_count(self, orders):
+        return orders.filter(is_urgent=True).exclude(status__in=[STATUS.DELIVERED, STATUS.CANCELLED, STATUS.RETURNED, STATUS.REFUNDED]).count()
+
+    def get_total_customer_count(self):
+        return CustomUser.objects.filter(user_type=USER_TYPE.CUSTOMER).count()
 
     def get(self, request):
         orders = Order.objects.all().order_by("-created_at")
@@ -133,6 +138,8 @@ class DashboardView(LoginRequiredMixin, View):
             "status_amounts": self.get_status_amounts(orders),
             "total_orders": orders.count(),
             "new_order_request_count": self.new_order_request_count(),
+            "urgent_count": self.get_urgent_count(orders),
+            "total_customer_count": self.get_total_customer_count(),
         }
 
         if not is_staff:
@@ -196,7 +203,6 @@ class UserManagementView(LoginRequiredMixin, View):
         return self._customer_response(request)
 
     def _base_wrapper_context(self):
-        """Provide the stats vars that main_wrapper.html expects."""
         orders = Order.objects.all().order_by("-created_at")
         dashboard_view = DashboardView()
         return {
@@ -205,6 +211,8 @@ class UserManagementView(LoginRequiredMixin, View):
             "new_orders_count": dashboard_view.new_orders_count(orders),
             "total_orders": orders.count(),
             "new_order_request_count": dashboard_view.new_order_request_count(),
+            "urgent_count": dashboard_view.get_urgent_count(orders),   
+            
         }
 
     def _customer_response(self, request):
@@ -2062,10 +2070,7 @@ class OrderView(LoginRequiredMixin, View):
             .order_by("-created_at")
         )
 
-        valid_status = {
-            status
-            for status, _ in STATUS.choices
-        }
+        valid_status = {status for status, _ in STATUS.choices}
 
         if order_status in valid_status:
             orders = orders.filter(status=order_status)
@@ -2073,42 +2078,30 @@ class OrderView(LoginRequiredMixin, View):
         if product_slug:
             orders = orders.filter(
                 Q(order_items__product__slug=product_slug)
-                |
-                Q(order_items__variant__product__slug=product_slug)
+                | Q(order_items__variant__product__slug=product_slug)
             ).distinct()
 
         if start_date and end_date:
-            orders = orders.filter(
-                created_at__date__gte=start_date,
-                created_at__date__lte=end_date,
-            )
-
+            orders = orders.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
         elif start_date:
-            orders = orders.filter(
-                created_at__date=start_date,
-            )
-
+            orders = orders.filter(created_at__date=start_date)
         elif end_date:
-            orders = orders.filter(
-                created_at__date__lte=end_date,
-            )
+            orders = orders.filter(created_at__date__lte=end_date)
 
         if search:
             orders = orders.filter(
                 Q(order_id__icontains=search)
-                |
-                Q(customer__name__icontains=search)
-                |
-                Q(customer__phone__icontains=search)
-                |
-                Q(shipping_address__icontains=search)
-                |
-                Q(status__iexact=search)
-                |
-                Q(payment_status__iexact=search)
-                |
-                Q(delivery_type__iexact=search)
+                | Q(customer__name__icontains=search)
+                | Q(customer__phone__icontains=search)
+                | Q(shipping_address__icontains=search)
+                | Q(status__iexact=search)
+                | Q(payment_status__iexact=search)
+                | Q(delivery_type__iexact=search)
             ).distinct()
+
+        # move urgent filter here, BEFORE pagination
+        if request.GET.get("urgent") == "1":
+            orders = orders.filter(is_urgent=True)
 
         try:
             per_page = int(request.GET.get("per_page", 10))
@@ -2117,12 +2110,8 @@ class OrderView(LoginRequiredMixin, View):
 
         page_number = request.GET.get("page", 1)
 
-        paginator = Paginator(
-            orders,
-            per_page,
-        )
-
-        orders = paginator.get_page(page_number)
+        paginator = Paginator(orders, per_page)
+        orders = paginator.get_page(page_number)   # QuerySet -> Page happens last
 
         products = Product.objects.order_by("name")
 
@@ -2133,9 +2122,8 @@ class OrderView(LoginRequiredMixin, View):
             page_number,
             products,
         )
-
+    
     def get(self, request):
-
         (
             orders,
             paginator,
@@ -2144,57 +2132,31 @@ class OrderView(LoginRequiredMixin, View):
             products,
         ) = self.get_order_queryset(request)
 
+        urgent_count = Order.objects.filter(is_urgent=True).exclude(
+            status__in=[STATUS.DELIVERED, STATUS.CANCELLED, STATUS.RETURNED, STATUS.REFUNDED]
+        ).count()
+
         context = {
             "orders": orders,
             "paginator": paginator,
             "per_page": per_page,
             "page_number": page_number,
-
             "order_count": self.status_wise_order_count(),
-
-            "current_status": request.GET.get(
-                "status",
-                "all",
-            ),
-
-            "current_search": request.GET.get(
-                "q",
-                "",
-            ),
-
-            "current_product_slug": request.GET.get(
-                "product",
-                "",
-            ),
-
-            "start_date": request.GET.get(
-                "start_date",
-                "",
-            ),
-
-            "end_date": request.GET.get(
-                "end_date",
-                "",
-            ),
-
+            "current_status": request.GET.get("status", "all"),
+            "current_search": request.GET.get("q", ""),
+            "current_product_slug": request.GET.get("product", ""),
+            "start_date": request.GET.get("start_date", ""),
+            "end_date": request.GET.get("end_date", ""),
             "products": products,
-
             "status_choices": STATUS.choices,
+            "delivery_types": DELIVERY_TYPE.choices,   
+            "payment_types": PAYMENT_TYPE.choices,     
         }
 
         if request.htmx:
-            return render(
-                request,
-                "db_order/partial/partial_order_list.html",
-                context,
-            )
+            return render(request, "db_order/partial/partial_order_list.html", context)
 
-        return render(
-            request,
-            "db_order/order_list.html",
-            context,
-        )   
-
+        return render(request, "db_order/order_list.html", context)
 class OrderDetailView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
@@ -2242,6 +2204,9 @@ class OrderDetailView(LoginRequiredMixin, View):
             "variants_by_product_json": pyjson.dumps(build_variants_by_product(products)),
             "assignable_users": assignable_users,
             "existing_items_json": pyjson.dumps(existing_items_data),
+            "staff_list": CustomUser.objects.filter(
+                user_type__in=[USER_TYPE.STAFF, USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN]
+            ),
 
             # Needed because the inherited base template references these
             "status_amounts": dashboard_view.get_status_amounts(orders),
@@ -2831,6 +2796,12 @@ class OrderRequestDetailView(LoginRequiredMixin, View):
         context = {
             "order_request": order_request,
             "work_status_choices": ORDER_REQUEST_WORK_STATUS.choices,
+            "staff_list": CustomUser.objects.filter(
+                user_type__in=[
+                    USER_TYPE.STAFF, 
+                    USER_TYPE.ADMIN, 
+                    USER_TYPE.SUPER_ADMIN
+                    ]),
         }
 
         if request.htmx:
@@ -3607,8 +3578,6 @@ class ReminderListView(LoginRequiredMixin, View):
 
 
 class ReminderCreateView(LoginRequiredMixin, View):
-    """Called from the 'Add Reminder' modal on order detail or order-request detail.
-    POST either order_id or order_request_id (not both)."""
     login_url = "admin_login"
 
     def post(self, request):
@@ -3628,13 +3597,10 @@ class ReminderCreateView(LoginRequiredMixin, View):
         messages.success(request, "Reminder added.")
 
         if order_id:
-            order = get_object_or_404(Order, pk=order_id)
-            return render(request, "db_order/partial/partial_order_detail.html", {"order": order})
+            return OrderDetailView().get(request, id=order_id)
         if order_request_id:
-            order_request = get_object_or_404(OrderRequest, pk=order_request_id)
-            return render(request, "db_order_request/partial/partial_order_request_detail.html", {"order_request": order_request})
+            return OrderRequestDetailView().get(request, id=order_request_id)
         return redirect('reminder_list')
-
 
 class ReminderToggleCompleteView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -3762,7 +3728,6 @@ class InvoiceColorSettingsView(LoginRequiredMixin, View):
 # ----------------- OVERVIEW DASHBOARD: TODAY WORK LIST -----------------
 
 class TodayWorkListView(LoginRequiredMixin, View):
-    """Powers the 'Today Work List' popup on the dashboard home page."""
     login_url = "admin_login"
 
     def get(self, request):
@@ -3775,12 +3740,36 @@ class TodayWorkListView(LoginRequiredMixin, View):
         total_order_request_count = OrderRequest.objects.count()
         total_user_count = CustomUser.objects.filter(user_type='customer').count()
 
+        # Raw demand: just today's ordered quantity per product
         product_wise_today = (
             OrderItem.objects.filter(order__created_at__date=today)
             .values('product__name')
             .annotate(qty=Sum('quantity'))
             .order_by('-qty')
         )
+
+        # Inventory comparison: shortfall or remaining stock after fulfilling today's demand
+        product_wise_today_ids = (
+            OrderItem.objects.filter(order__created_at__date=today)
+            .values('product_id', 'product__name')
+            .annotate(qty=Sum('quantity'))
+            .order_by('-qty')
+        )
+
+        inventory_comparison = []
+        for row in product_wise_today_ids:
+            product = Product.objects.filter(id=row['product_id']).first()
+            current_stock = product.inventory_quantity if product else 0
+            needed = row['qty']
+            shortfall = max(needed - current_stock, 0)
+            remaining = max(current_stock - needed, 0)
+            inventory_comparison.append({
+                'product_name': row['product__name'],
+                'needed': needed,
+                'current_stock': current_stock,
+                'shortfall': shortfall,
+                'remaining': remaining,
+            })
 
         context = {
             "urgent_count": urgent_count,
@@ -3789,10 +3778,145 @@ class TodayWorkListView(LoginRequiredMixin, View):
             "total_order_request_count": total_order_request_count,
             "total_user_count": total_user_count,
             "product_wise_today": product_wise_today,
+            "inventory_comparison": inventory_comparison,
         }
-        return render(request, "db_home/partial/today_work_list_modal.html", context)
+        return render(request, "db_home/partial/today_work_list.html", context)   
+
+class OrderTokenPrintView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request, pk):
+        order = get_object_or_404(Order, pk=pk)
+        order.status = STATUS.TOKEN_PRINT
+        order.save(update_fields=["status"])
+        shipment = order.shipments.order_by('-created_at').first()
+        due_amount = (order.total_cost or 0) - (order.advance_amount or 0)
+        return render(request, "db_order/token.html", {
+            "order": order,
+            "shipment": shipment,
+            "due_amount": due_amount,
+        })
     
 
+class OrderPathaoParcelSubmitView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk):
+        try:
+            with transaction.atomic():
+                data = json.loads(request.body)
+                logistics_partner = DeliveryOption.objects.get(id=data.get("logistics_partner"))
+                order = get_object_or_404(Order, pk=pk)
+                order_data = {
+                    "recipient_name": order.customer.name,
+                    "recipient_phone": order.customer.phone,
+                    "recipient_address": order.shipping_address,
+                    "amount_to_collect": float(order.total_cost),
+                    "item_description": f"Order {order.order_id}",
+                }
+                pathao = PathaoParcelAPI(logistics_partner.id)
+                pathao_response = pathao.create_order(order_data)
+                shipment = order.shipments.create(
+                    courier=logistics_partner,
+                    tracking_number=pathao_response.get("consignment_id"),
+                    status=pathao_response.get("order_status", "pending"),
+                )
+                return JsonResponse({"success": True, "message": "Pathao parcel created.", "tracking_number": shipment.tracking_number})
+        except Exception as e:
+            return JsonResponse({"success": False, "message": str(e)}, status=400)
+
+
+class OrderBulkActionView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            order_ids = data.get("order_ids", [])
+            action = data.get("action")
+
+            if not order_ids:
+                return JsonResponse({"success": False, "message": "No orders selected."}, status=400)
+
+            orders = Order.objects.filter(id__in=order_ids)
+
+            if action == "status":
+                new_status = data.get("status")
+                valid_statuses = [c[0] for c in STATUS.choices]
+                if new_status not in valid_statuses:
+                    return JsonResponse({"success": False, "message": "Invalid status."}, status=400)
+                update_fields = {"status": new_status}
+                if new_status in [STATUS.DELIVERED, STATUS.CANCELLED, STATUS.RETURNED, STATUS.REFUNDED]:
+                    update_fields["is_urgent"] = False
+                orders.update(**update_fields)
+                return JsonResponse({"success": True, "message": f"{orders.count()} order(s) updated to {new_status}."})
+
+            elif action == "work_assign":
+                staff_id = data.get("staff_id")
+                orders.update(work_assign_id=staff_id)
+                return JsonResponse({"success": True, "message": f"{orders.count()} order(s) assigned."})
+
+            elif action == "create_parcel":
+                logistics_partner_id = data.get("logistics_partner")
+                logistics_partner = DeliveryOption.objects.get(id=logistics_partner_id)
+                success_count, fail_count, fail_messages = 0, 0, []
+                submit_view = OrderDeliveryOptionSubmitView()
+                for order in orders:
+                    try:
+                        order_data = submit_view.get_order_data(order)
+                        steadfast = SteadFastParcelAPI(logistics_partner.id)
+                        response = steadfast.create_order(order_data)
+                        if response.get("status") == 200:
+                            order.shipments.create(
+                                courier=logistics_partner,
+                                tracking_number=response["consignment"]["consignment_id"],
+                                status=response["consignment"]["status"],
+                            )
+                            success_count += 1
+                        else:
+                            fail_count += 1
+                            fail_messages.append(f"{order.order_id}: {response.get('message')}")
+                    except Exception as e:
+                        fail_count += 1
+                        fail_messages.append(f"{order.order_id}: {str(e)}")
+                return JsonResponse({
+                    "success": True,
+                    "message": f"{success_count} parcel(s) created, {fail_count} failed.",
+                    "failures": fail_messages,
+                })
+
+            return JsonResponse({"success": False, "message": "Unknown action."}, status=400)
+        except Exception as e:
+            return JsonResponse({"success": False, "message": str(e)}, status=400)
+        
+
+class OrderUrgentToggleView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk):
+        order = get_object_or_404(Order, pk=pk)
+        order.is_urgent = not order.is_urgent
+        order.save(update_fields=['is_urgent'])
+
+        if request.htmx:
+            order_view = OrderView()
+            (orders, paginator, per_page, page_number, products) = order_view.get_order_queryset(request)
+            context = {
+                "orders": orders,
+                "paginator": paginator,
+                "per_page": per_page,
+                "page_number": page_number,
+                "order_count": order_view.status_wise_order_count(),
+                "current_status": request.GET.get("status", "all"),
+                "current_search": request.GET.get("q", ""),
+                "current_product_slug": request.GET.get("product", ""),
+                "start_date": request.GET.get("start_date", ""),
+                "end_date": request.GET.get("end_date", ""),
+                "products": products,
+                "status_choices": STATUS.choices,
+            }
+            return render(request, "db_order/partial/partial_order_list.html", context)
+        return redirect('order_list')
 
 # class RedirectView(View):
 #     permanent = False

@@ -37,6 +37,7 @@ urlpatterns = [
     path('orders/<int:id>/invoice/', OrderInvoiceView.as_view(), name='order_invoice'),
     path('order-detail/<int:order_id>/update/', update_order, name='order_update'),
     path('orders/<int:pk>/update-status/', OrderStatusUpdateView.as_view(), name='order_status_update'),
+    path('orders/bulk-action/', OrderBulkActionView.as_view(), name='order_bulk_action'),
 
     # ----------------- Product Features ---------------------
     path('product/<int:product_id>/features/', ProductFeatureView.as_view(), name='product_features'),
@@ -125,6 +126,14 @@ urlpatterns = [
 
     # ----------------- Today Work List (overview) -----------------
     path('today-work-list/', TodayWorkListView.as_view(), name='today_work_list'),
+
+    # ----------------- Token -----------------
+    path('orders/<int:pk>/token-print/', OrderTokenPrintView.as_view(), name='order_token_print'),
+
+    path('orders/<int:pk>/pathao-submit/', OrderPathaoParcelSubmitView.as_view(), name='order_pathao_submit'),
+
+    path('orders/<int:pk>/toggle-urgent/', OrderUrgentToggleView.as_view(), name='order_toggle_urgent'),
+    
 ]
 
 

@@ -52,6 +52,11 @@
             <span class="me-1">CANCELLED</span>
             <span class="text-secondary">({{ order_count.cancelled }})</span>
         </a>
+        <a href="{% url 'order_list' %}?status=all&urgent=1&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}" hx-get="{% url 'order_list' %}?status=all&urgent=1&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}" hx-target="#content-area"
+            hx-push-url="true" class="{% if request.GET.urgent == '1' %}active{% endif %} text-danger">
+            <span class="me-1">URGENT</span>
+            <span class="text-secondary">({{ urgent_count }})</span>
+        </a>
     </div>
     <div class="row g-3 align-items-end mb-3">
         <!-- Search -->
@@ -150,17 +155,28 @@
     <!-- Order List Table Div ============ -->
     <div class="card mt-4">
         <div class="card-body">
+
+            <!-- Bulk Action Bar (shows only when at least one checkbox is checked) -->
+            <div class="d-flex gap-2 mb-2" id="bulkActionBar" style="display:none;">
+                <select id="bulkStatusSelect" class="form-select w-auto">
+                    {% for value, label in status_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                </select>
+                <button class="btn btn-sm btn-primary" onclick="submitBulkAction('status')">Update Status</button>
+                <button class="btn btn-sm btn-warning" onclick="submitBulkAction('create_parcel')">Create Parcels</button>
+            </div>
+
             <div class="customer-table">
-                <div class="table-responsive white-space-nowrap">
+                <div class="table-responsive white-space-nowrap" id="order-table-wrapper">
                     <table class="table align-middle">
                         <thead class="table-light">
                             <tr>
-                                <th><input class="form-check-input" type="checkbox"></th>
+                                <th><input class="form-check-input" type="checkbox" id="selectAllOrders"></th>
                                 <th>Order Id</th>
                                 <th>Customer</th>
                                 <th>Phone</th>
                                 <th>Price</th>
                                 <th>Status</th>
+                                <th>Urgent</th>
                                 <th>Delivery Type</th>
                                 <th>Delivery Date</th>
                                 <th>Date</th>
@@ -170,7 +186,7 @@
                         <tbody>
                             {% for order in orders %}
                             <tr>
-                                <td><input class="form-check-input" type="checkbox"></td>
+                                <td><input class="form-check-input order-checkbox" type="checkbox" value="{{ order.id }}"></td>
 
                                 <td>
                                     <a href="{% url 'order_detail' order.id %}"
@@ -207,7 +223,16 @@
                                         {% endfor %}
                                     </select>
                                 </td>
-                                
+
+                                <td>
+                                    <button class="btn btn-sm {% if order.is_urgent %}btn-danger{% else %}btn-outline-danger{% endif %}"
+                                            hx-post="{% url 'order_toggle_urgent' order.pk %}"
+                                            hx-target="#content-area"
+                                            hx-swap="innerHTML"
+                                            title="Toggle urgent">
+                                        <i class="bi bi-exclamation-triangle-fill"></i>
+                                    </button>
+                                </td>
 
                                 <td>{{ order.delivery_type|upper }}</td>
 
@@ -233,10 +258,6 @@
                                         hx-trigger="click, refreshReturnOrderDetailView from:body">
                                             <i class="bi bi-pencil"></i>
                                         </a>
-
-                                        <button class="nav-link" hx-get="{% url 'order_list' %}?urgent=1" hx-target="#order-table-wrapper">
-                                            Urgent <span class="badge bg-danger">{{ urgent_count }}</span>
-                                        </button>
 
                                         <button class="btn btn-sm btn-filter delivery-option-btn" data-id="{{ order.id }}" data-bs-toggle="modal" data-bs-target="#deliveryOptionModal">
                                             <i class="lni lni-delivery"></i>
@@ -331,6 +352,38 @@
                                 window.close();
                             };
                         }
+
+                        // ----------------- Bulk Actions -----------------
+                        const selectAllCheckbox = document.getElementById('selectAllOrders');
+                        if (selectAllCheckbox) {
+                            selectAllCheckbox.addEventListener('change', function() {
+                                document.querySelectorAll('.order-checkbox').forEach(cb => cb.checked = this.checked);
+                                toggleBulkBar();
+                            });
+                        }
+                        document.querySelectorAll('.order-checkbox').forEach(cb => cb.addEventListener('change', toggleBulkBar));
+
+                        function toggleBulkBar() {
+                            const checked = document.querySelectorAll('.order-checkbox:checked').length;
+                            document.getElementById('bulkActionBar').style.display = checked > 0 ? 'flex' : 'none';
+                        }
+
+                        function getSelectedOrderIds() {
+                            return Array.from(document.querySelectorAll('.order-checkbox:checked')).map(cb => parseInt(cb.value));
+                        }
+
+                        function submitBulkAction(action) {
+                            const payload = { order_ids: getSelectedOrderIds(), action: action };
+                            if (action === 'status') payload.status = document.getElementById('bulkStatusSelect').value;
+
+                            fetch("{% url 'order_bulk_action' %}", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json", "X-CSRFToken": getCookie('csrftoken') },
+                                body: JSON.stringify(payload)
+                            })
+                            .then(r => r.json())
+                            .then(data => { alert(data.message); location.reload(); });
+                        }
                     </script>
                 </div>
             </div>
@@ -400,6 +453,3 @@ style="z-index: 1050; margin: auto 22px 45px 0px !important; padding: 0px !impor
 <!-- Include Delete Order Modal -->
 {% include 'db_order/modal/delete_order_modal.html' %}
 {% include 'db_order/modal/delivery_option_modal.html' %}
-
-
- 
