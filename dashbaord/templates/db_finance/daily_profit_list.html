@@ -10,70 +10,99 @@
         <div class="col-auto">
             <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
         </div>
+        <input type="hidden" name="per_page" value="{{ per_page }}">
         <div class="col-auto">
             <button type="submit" class="btn btn-secondary">Filter</button>
         </div>
+        <div class="col-auto">
+            <a href="{% url 'daily_profit_list' %}" class="btn btn-outline-secondary">Clear</a>
+        </div>
     </form>
 
-    <p class="text-muted small">
+    <!-- <p class="text-muted small">
         <strong>Booked Revenue</strong> = value of orders placed that day (sales, may include not-yet-delivered orders).
         <strong>Realized Revenue</strong> = value of orders actually delivered that day (real cash collected via COD).
         <strong>Profit</strong> is calculated from Realized Revenue, not Booked, since that's the only honest cash
         figure.
-    </p>
+    </p> -->
 
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Booked Revenue</th>
-                <th>Realized Revenue</th>
-                <th>Expense</th>
-                <th>Profit</th>
-                <th>Expense Items</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in rows %}
-            <tr>
-                <td>{{ row.date }}</td>
-                <td class="text-info">৳{{ row.booked_revenue }}</td>
-                <td>৳{{ row.realized_revenue }}</td>
-                <td>৳{{ row.expense }}</td>
-                <td class="{% if row.profit >= 0 %}text-success{% else %}text-danger{% endif %} fw-bold">
-                    ৳{{ row.profit }}
-                </td>
-                <td>{{ row.expense_items }} item(s)</td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="6" class="text-center">No data.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    {% if paginator.num_pages > 1 %}
-    <nav>
-        <ul class="pagination">
-            <li class="page-item {% if not rows.has_previous %}disabled{% endif %}">
-                <a class="page-link"
-                    href="?page={{ rows.previous_page_number }}&start_date={{ start_date }}&end_date={{ end_date }}">«</a>
-            </li>
-            {% for page_num in paginator.page_range %}
-            {% if page_num >= rows.number|add:-2 and page_num <= rows.number|add:2 %} <li
-                class="page-item {% if rows.number == page_num %}active{% endif %}">
-                <a class="page-link" href="?page={{ page_num }}&start_date={{ start_date }}&end_date={{ end_date }}">{{
-                    page_num }}</a>
-                </li>
-                {% endif %}
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Date</th>
+                    <th>Booked Revenue</th>
+                    <th>Realized Revenue</th>
+                    <th>Expense</th>
+                    <th>Profit</th>
+                    <th>Expense Items</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>{{ row.date }}</td>
+                    <td class="text-info">৳{{ row.booked_revenue }}</td>
+                    <td>৳{{ row.realized_revenue }}</td>
+                    <td>৳{{ row.expense }}</td>
+                    <td class="{% if row.profit >= 0 %}text-success{% else %}text-danger{% endif %} fw-bold">
+                        ৳{{ row.profit }}
+                    </td>
+                    <td>{{ row.expense_items }} item(s)</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center">No data.</td>
+                </tr>
                 {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Floating Pagination Bar (order_list er style, but plain <a href>) -->
+<div class="btn btn-grd position-fixed bottom-0 end-0 m-3 d-flex align-items-center gap-2 shadow-lg"
+    style="z-index: 1050; margin: auto 22px 45px 0px !important; padding: 0px !important;">
+
+    <div class="card-body" style="padding: 0px;">
+        <nav aria-label="Page navigation">
+            <ul class="pagination" style="margin: auto;">
+                <li class="page-item {% if not rows.has_previous %}disabled{% endif %}">
+                    <a class="page-link"
+                        href="{% if rows.has_previous %}?page={{ rows.previous_page_number }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% else %}#{% endif %}">
+                        «
+                    </a>
+                </li>
+
+                {% for num in paginator.page_range %}
+                    {% if num >= rows.number|add:-2 and num <= rows.number|add:2 %}
+                    <li class="page-item {% if rows.number == num %}active{% endif %}">
+                        <a class="page-link"
+                            href="?page={{ num }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}">
+                            {{ num }}
+                        </a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+
                 <li class="page-item {% if not rows.has_next %}disabled{% endif %}">
                     <a class="page-link"
-                        href="?page={{ rows.next_page_number }}&start_date={{ start_date }}&end_date={{ end_date }}">»</a>
+                        href="{% if rows.has_next %}?page={{ rows.next_page_number }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% else %}#{% endif %}">
+                        »
+                    </a>
                 </li>
-        </ul>
-    </nav>
-    {% endif %}
+            </ul>
+        </nav>
+    </div>
+
+    <div class="col-auto">
+        <select class="form-select" name="per_page"
+            onchange="window.location.href='?start_date={{ start_date }}&end_date={{ end_date }}&per_page=' + this.value">
+            <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+            <option value="30" {% if per_page == 30 %}selected{% endif %}>30</option>
+            <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+            <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+        </select>
+    </div>
 </div>
 {% endblock %}
