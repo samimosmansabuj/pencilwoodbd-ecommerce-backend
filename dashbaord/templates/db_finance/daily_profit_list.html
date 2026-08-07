@@ -1,0 +1,79 @@
+{% extends 'dashboard.html' %}
+{% block page_title %}<title>Daily Profit | PencilWoodBD</title>{% endblock %}
+{% block dashboard_body_content %}
+<div class="container-fluid">
+
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-auto">
+            <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+        </div>
+        <div class="col-auto">
+            <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-secondary">Filter</button>
+        </div>
+    </form>
+
+    <p class="text-muted small">
+        <strong>Booked Revenue</strong> = value of orders placed that day (sales, may include not-yet-delivered orders).
+        <strong>Realized Revenue</strong> = value of orders actually delivered that day (real cash collected via COD).
+        <strong>Profit</strong> is calculated from Realized Revenue, not Booked, since that's the only honest cash
+        figure.
+    </p>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Booked Revenue</th>
+                <th>Realized Revenue</th>
+                <th>Expense</th>
+                <th>Profit</th>
+                <th>Expense Items</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td>{{ row.date }}</td>
+                <td class="text-info">৳{{ row.booked_revenue }}</td>
+                <td>৳{{ row.realized_revenue }}</td>
+                <td>৳{{ row.expense }}</td>
+                <td class="{% if row.profit >= 0 %}text-success{% else %}text-danger{% endif %} fw-bold">
+                    ৳{{ row.profit }}
+                </td>
+                <td>{{ row.expense_items }} item(s)</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="text-center">No data.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if paginator.num_pages > 1 %}
+    <nav>
+        <ul class="pagination">
+            <li class="page-item {% if not rows.has_previous %}disabled{% endif %}">
+                <a class="page-link"
+                    href="?page={{ rows.previous_page_number }}&start_date={{ start_date }}&end_date={{ end_date }}">«</a>
+            </li>
+            {% for page_num in paginator.page_range %}
+            {% if page_num >= rows.number|add:-2 and page_num <= rows.number|add:2 %} <li
+                class="page-item {% if rows.number == page_num %}active{% endif %}">
+                <a class="page-link" href="?page={{ page_num }}&start_date={{ start_date }}&end_date={{ end_date }}">{{
+                    page_num }}</a>
+                </li>
+                {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not rows.has_next %}disabled{% endif %}">
+                    <a class="page-link"
+                        href="?page={{ rows.next_page_number }}&start_date={{ start_date }}&end_date={{ end_date }}">»</a>
+                </li>
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

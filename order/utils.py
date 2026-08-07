@@ -165,3 +165,38 @@ class SteadFastParcelAPI:
         #     raise ValueError("Invalid response structure")
         # return True, data.get("delivery_status")
 
+class PathaoParcelAPI:
+    def __init__(self, id):
+        self.id = id
+
+    def get_pathao_credentials(self):
+        try:
+            return get_object_or_404(DeliveryOption, id=self.id)
+        except DeliveryOption.DoesNotExist:
+            return None
+
+    def get_access_token(self):
+        partner = self.get_pathao_credentials()
+        url = f"{partner.api_url}/aladdin/api/v1/issue-token"
+        payload = {
+            "client_id": partner.api_key,
+            "client_secret": partner.secret_key,
+            "grant_type": "password",
+            "username": partner.extra_username,
+            "password": partner.extra_password, 
+        }
+        response = requests.post(url, json=payload)
+        response.raise_for_status()
+        return response.json().get("access_token")
+
+    def create_order(self, order_data):
+        partner = self.get_pathao_credentials()
+        token = self.get_access_token()
+        url = f"{partner.api_url}/aladdin/api/v1/orders"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        }
+        response = requests.post(url, headers=headers, json=order_data)
+        response.raise_for_status()
+        return response.json()

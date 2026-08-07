@@ -285,6 +285,11 @@
                 <div class="card-body d-flex gap-2">
                     <a href="{% url 'order_list' %}" class="btn btn-outline-danger flex-fill">Discard</a>
                     <button type="submit" class="btn btn-outline-primary flex-fill">Save Order</button>
+                    {% if order and order.pk %}
+                    <a href="{% url 'order_token_print' order.pk %}" target="_blank" class="btn btn-sm btn-secondary">
+                        <i class="bi bi-printer"></i> Generate Token
+                    </a>
+                    {% endif %}
                 </div>
             </div>
 

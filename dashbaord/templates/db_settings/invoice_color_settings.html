@@ -1,0 +1,16 @@
+{% extends 'dashboard.html' %}
+{% block page_title %}<title>Invoice Color Settings | PencilWoodBD</title>{% endblock %}
+{% block dashboard_body_content %}
+<div class="container-fluid">
+    <form method="post">
+        {% csrf_token %}
+        <div class="mb-2"><label>Header Background</label><input type="color" name="header_bg" value="{{ config.header_bg }}" class="form-control"></div>
+        <div class="mb-2"><label>Footer Background</label><input type="color" name="footer_bg" value="{{ config.footer_bg }}" class="form-control"></div>
+        <div class="mb-2"><label>Header Text Color</label><input type="color" name="header_text_color" value="{{ config.header_text_color }}" class="form-control"></div>
+        <div class="mb-2"><label>Footer Text Color</label><input type="color" name="footer_text_color" value="{{ config.footer_text_color }}" class="form-control"></div>
+        <div class="mb-2"><label>Highlight Color</label><input type="color" name="highlight_color" value="{{ config.highlight_color }}" class="form-control"></div>
+        <div class="mb-2"><label>Table Header Text</label><input type="color" name="table_header_text_color" value="{{ config.table_header_text_color }}" class="form-control"></div>
+        <button type="submit" class="btn btn-primary mt-2">Save</button>
+    </form>
+</div>
+{% endblock %}

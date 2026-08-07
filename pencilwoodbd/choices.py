@@ -26,6 +26,7 @@ class STATUS(models.TextChoices):
     NEW = "new"
     FOLLOW_UP = "follow_up"
     CONFIRMED = "confirmed"
+    TOKEN_PRINT = "token_print"
     SHIPPED = "shipped"
     DELIVERED = "delivered"
     CANCELLED = "cancelled"

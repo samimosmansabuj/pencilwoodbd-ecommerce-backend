@@ -1,5 +1,6 @@
 from typing import Iterable
 from django.db import models
+from django.conf import settings
 from pencilwoodbd.extra_module import image_delete_os, previous_image_delete_os
 from product.models import Product, ProductVariant
 from django.core.validators import FileExtensionValidator
@@ -261,6 +262,8 @@ class DeliveryOption(models.Model):
     api_url = models.CharField(max_length=255, blank=True, null=True)
     api_key = models.CharField(max_length=255, blank=True, null=True)
     secret_key = models.CharField(max_length=255, blank=True, null=True)
+    extra_username = models.CharField(max_length=255, blank=True, null=True)
+    extra_password = models.CharField(max_length=255, blank=True, null=True)
     is_active = models.BooleanField(default=True)
     
     def __str__(self):
@@ -268,6 +271,13 @@ class DeliveryOption(models.Model):
             return f'{self.name} - {self.type}'
         return self.name
 
+class WebhookLog(models.Model):
+    source = models.CharField(max_length=50)  # 'steadfast' / 'pathao'
+    payload = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.source} webhook - {self.created_at}"
 
 class OTPVerification(models.Model):
     phone = models.CharField(max_length=15)
@@ -324,3 +334,148 @@ class SiteDeliveryChargeConfig(models.Model):
 
     def __str__(self):
         return "Global Delivery Charge Config"
+    
+
+
+
+
+class Todo(models.Model):
+    class Priority(models.TextChoices):
+        LOW = 'low', 'Low'
+        MEDIUM = 'medium', 'Medium'
+        HIGH = 'high', 'High'
+
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    priority = models.CharField(max_length=10, choices=Priority.choices, default=Priority.MEDIUM)
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='assigned_todos'
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_todos'
+    )
+    due_date = models.DateField(blank=True, null=True)
+    is_complete = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.title
+
+
+class Reminder(models.Model):
+    order = models.ForeignKey(
+        'order.Order', on_delete=models.CASCADE, null=True, blank=True, related_name='reminders'
+    )
+    order_request = models.ForeignKey(
+        'order.OrderRequest', on_delete=models.CASCADE, null=True, blank=True, related_name='reminders'
+    )
+    note = models.TextField()
+    remind_date = models.DateField()
+    remind_time = models.TimeField()
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='assigned_reminders'
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_reminders'
+    )
+    is_complete = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['remind_date', 'remind_time']
+
+    def __str__(self):
+        target = self.order or self.order_request
+        return f"Reminder for {target} on {self.remind_date}"
+
+
+class MaintenanceCost(models.Model):
+    class Category(models.TextChoices):
+        RENT = 'rent', 'Rent'
+        UTILITIES = 'utilities', 'Utilities (Electricity/Gas/Water)'
+        SALARY = 'salary', 'Salary / Wages'
+        RAW_MATERIALS = 'raw_materials', 'Raw Materials'
+        PACKAGING = 'packaging', 'Packaging Materials'
+        MARKETING = 'marketing', 'Marketing / Ads'
+        EQUIPMENT = 'equipment', 'Equipment / Machinery'
+        TRANSPORT = 'transport', 'Transport / Delivery'
+        MAINTENANCE_REPAIR = 'maintenance_repair', 'Maintenance / Repair'
+        SOFTWARE = 'software', 'Software / Subscription'
+        OTHERS = 'others', 'Others'
+
+    class PaymentMethod(models.TextChoices):
+        CASH = 'cash', 'Cash'
+        BANK = 'bank', 'Bank Transfer'
+        MOBILE_BANKING = 'mobile_banking', 'Mobile Banking (bKash/Nagad)'
+        CARD = 'card', 'Card'
+
+    name = models.CharField(max_length=255)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    date = models.DateField()
+
+    category = models.CharField(max_length=30, choices=Category.choices, default=Category.OTHERS, blank=True)
+    vendor_name = models.CharField(max_length=255, blank=True, null=True)
+    payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices, blank=True, null=True)
+    reference_number = models.CharField(max_length=100, blank=True, null=True)
+    note = models.TextField(blank=True, null=True)
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='maintenance_costs'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"{self.name} - {self.amount} ({self.date})"
+
+class DailyProfit(models.Model):
+    date = models.DateField(unique=True)
+    costs = models.ManyToManyField(MaintenanceCost, blank=True, related_name='daily_profit_entries')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-date']
+
+    def total_cost(self):
+        return sum((cost.amount for cost in self.costs.all()), start=0)
+
+    def __str__(self):
+        return f"Daily Profit - {self.date}"
+
+
+def maintenance_cost_saved(sender, instance, **kwargs):
+    """Auto-link a MaintenanceCost to that day's DailyProfit record."""
+    daily_profit, _created = DailyProfit.objects.get_or_create(date=instance.date)
+    daily_profit.costs.add(instance)
+
+
+class InvoiceColorConfig(models.Model):
+    header_bg = models.CharField(max_length=10, blank=True, null=True, default='#000000')
+    footer_bg = models.CharField(max_length=10, blank=True, null=True, default='#000000')
+    header_text_color = models.CharField(max_length=10, blank=True, null=True, default='#ffffff')
+    footer_text_color = models.CharField(max_length=10, blank=True, null=True, default='#ffffff')
+    highlight_color = models.CharField(max_length=10, blank=True, null=True, default='#f5f5f5')
+    table_header_text_color = models.CharField(max_length=10, blank=True, null=True, default='#000000')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Invoice Color Config - {self.pk}"
+
+    @classmethod
+    def get_config(cls):
+        obj, _created = cls.objects.get_or_create(pk=1)
+        return obj

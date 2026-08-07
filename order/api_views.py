@@ -1,14 +1,16 @@
+import json
+from django.views import View
 from rest_framework import permissions, status, views
 from rest_framework.response import Response
 from authentication.models import Customer
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
 from product.models import Product, AddToCart
-from pencilwoodbd.choices import PRODUCT_GIFT_TYPE, PAYMENT_STATUS, PAYMENT_TYPE
+from pencilwoodbd.choices import PRODUCT_GIFT_TYPE, PAYMENT_STATUS, PAYMENT_TYPE, STATUS
 from django.db import transaction
 from order.models import Order, OrderItem, Shipment, Address, Payment, PaymentMethod
 from .utils import OrderConfirmatinoEmailSend
-from site_app.models import DeliveryOption, OTPVerification
+from site_app.models import DeliveryOption, OTPVerification, WebhookLog
 from .serializers import DeliveryOptionSerializer, ShipmentSerializer
 from product.models import Product, ProductVariant
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -18,6 +20,9 @@ from rest_framework.response import Response
 from pencilwoodbd.choices import USER_TYPE
 from authentication.utils import normalize_bd_phone
 from site_app.delivery_charge import DeliveryChargeResolver
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+
 
 class DeliveryOptionListAPIView(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -70,7 +75,41 @@ class ShipmentSerializerAPIView(views.APIView):
                 }, status=status.HTTP_400_BAD_REQUEST
             )
 
+@method_decorator(csrf_exempt, name='dispatch')
+class SteadfastWebhookView(View):
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({"success": False, "message": "Invalid payload."}, status=400)
 
+        WebhookLog.objects.create(source='steadfast', payload=data)
+
+        consignment_id = data.get("consignment_id") or data.get("cid")
+        delivery_status = data.get("delivery_status") or data.get("status")
+
+        if not consignment_id:
+            return JsonResponse({"success": False, "message": "Missing consignment_id."}, status=400)
+
+        shipment = Shipment.objects.filter(tracking_number=str(consignment_id)).first()
+        if not shipment:
+            return JsonResponse({"success": False, "message": "Shipment not found."}, status=404)
+
+        shipment.status = delivery_status or shipment.status
+        shipment.save(update_fields=["status"])
+
+        # Optional: map courier status to Order status if you want auto-sync
+        status_map = {
+            "delivered": STATUS.DELIVERED,
+            "cancelled": STATUS.CANCELLED,
+            "returned": STATUS.RETURNED,
+        }
+        mapped = status_map.get((delivery_status or "").lower())
+        if mapped:
+            shipment.order.status = mapped
+            shipment.order.save(update_fields=["status"])
+
+        return JsonResponse({"success": True})
 
 
 

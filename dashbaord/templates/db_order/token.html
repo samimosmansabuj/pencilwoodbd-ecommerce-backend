@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Token - {{ order.order_id }}</title>
+<style>
+    @page { size: 3in 4in; margin: 5mm; }
+    body { font-family: Arial, sans-serif; font-size: 11px; width: 3in; margin: 0; padding: 5px; }
+    h3 { text-align: center; margin: 4px 0; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 6px; }
+    td, th { border: 1px solid #000; padding: 2px 4px; }
+    .row { display: flex; justify-content: space-between; margin: 2px 0; }
+    .barcode { text-align: center; font-family: 'Libre Barcode 39', monospace; font-size: 24px; margin: 6px 0; }
+</style>
+</head>
+<body>
+    <h3>PencilWoodBD</h3>
+    <div class="row"><strong>Order:</strong><span>{{ order.order_id }}</span></div>
+    <div class="row"><strong>Customer:</strong><span>{{ order.customer.name }}</span></div>
+    <div class="row"><strong>Phone:</strong><span>{{ order.customer.phone }}</span></div>
+    <div class="row"><strong>Address:</strong><span>{{ order.shipping_address }}</span></div>
+
+    {% if shipment %}
+    <div class="barcode">*{{ shipment.tracking_number }}*</div>
+    <div class="row"><strong>Courier:</strong><span>{{ shipment.courier.name }}</span></div>
+    {% endif %}
+
+    <table>
+        <thead><tr><th>Product</th><th>Qty</th><th>Price</th></tr></thead>
+        <tbody>
+        {% for item in order.order_items.all %}
+            <tr><td>{{ item.product_name }}</td><td>{{ item.quantity }}</td><td>৳{{ item.discount_price }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="row"><strong>Delivery Fee:</strong><span>৳{{ order.shipping_total }}</span></div>
+    <div class="row"><strong>Advance Paid:</strong><span>৳{{ order.advance_amount }}</span></div>
+    <div class="row"><strong>Due Amount:</strong><span>৳{{ due_amount }}</span></div>
+
+    {% if order.special_instructions %}
+    <div class="row"><strong>Note:</strong><span>{{ order.special_instructions }}</span></div>
+    {% endif %}
+
+    <script>window.onload = function() { window.print(); }</script>
+</body>
+</html>
