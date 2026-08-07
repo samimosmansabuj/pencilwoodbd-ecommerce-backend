@@ -3697,11 +3697,6 @@ class MaintenanceCostDeleteView(LoginRequiredMixin, View):
 
 
 class DailyProfitListView(LoginRequiredMixin, View):
-    """Real profit view:
-    - Booked Revenue: value of orders PLACED that day (sales-performance number, includes orders that may still cancel/return)
-    - Realized Revenue: value of orders DELIVERED that day (actual-cash number, based on delivered_at)
-    - Profit: Realized Revenue - Expense (the only honest profit figure for a COD business)
-    """
     login_url = "admin_login"
     template_name = "db_finance/daily_profit_list.html"
 
@@ -3782,15 +3777,18 @@ class DailyProfitListView(LoginRequiredMixin, View):
                 "profit": realized - expense,
             })
 
-        paginator = Paginator(rows, 30)
+        per_page = parse_int(request.GET.get("per_page"), 30)
+        paginator = Paginator(rows, per_page)
         page_obj = paginator.get_page(request.GET.get('page', 1))
 
         context = {
             "rows": page_obj,
             "paginator": paginator,
+            "per_page": per_page,
             "start_date": start_date or "",
             "end_date": end_date or "",
         }
+
         return render(request, self.template_name, context)
 # ----------------- INVOICE COLOR CONFIG -----------------
 
