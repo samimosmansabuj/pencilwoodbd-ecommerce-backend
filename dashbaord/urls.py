@@ -133,6 +133,8 @@ urlpatterns = [
     path('orders/<int:pk>/pathao-submit/', OrderPathaoParcelSubmitView.as_view(), name='order_pathao_submit'),
 
     path('orders/<int:pk>/toggle-urgent/', OrderUrgentToggleView.as_view(), name='order_toggle_urgent'),
+
+    path("stock-alert-list/", StockAlertListView.as_view(), name="stock_alert_list"),
     
 ]
 

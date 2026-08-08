@@ -4,6 +4,10 @@
     action="{% if is_update %}{% url 'order_update_full' order.pk %}{% else %}{% url 'add_order' %}{% endif %}">
     {% csrf_token %}
 
+    {% if is_modal %}
+    <input type="hidden" name="is_modal" value="1">
+    {% endif %}
+
     {% if is_update %}
     <!-- No Edit Section=========== -->
     <div class="card">
@@ -343,6 +347,7 @@
         const itemsHiddenInput = document.getElementById("items_hidden_input");
         const shippingInput = document.getElementById("shipping_total_input");
         const advanceInput = document.getElementById("advance_amount_input");
+        const orderForm = document.getElementById("order-form");
 
         const variantAttrsContainer = document.getElementById("variant_attrs_container");
         const variantAttrsWrapper = document.getElementById("variant_attrs_wrapper");
@@ -547,11 +552,53 @@
         shippingInput.addEventListener("input", updateTotals);
         advanceInput.addEventListener("input", updateTotals);
 
-        document.getElementById("order-form").addEventListener("submit", function (e) {
+        // ---------------- SUBMIT HANDLER (modal vs direct page) ----------------
+        orderForm.addEventListener("submit", function (e) {
             if (items.length === 0) {
                 e.preventDefault();
                 alert("Please add at least one product.");
+                return;
             }
+
+            const isModalInput = orderForm.querySelector('[name="is_modal"]');
+
+            if (!isModalInput) {
+                // Direct page (add_order.html) -> normal form submit, browser navigates/redirects
+                return;
+            }
+
+            // Modal flow -> AJAX submit, no page reload
+            e.preventDefault();
+
+            const formData = new FormData(orderForm);
+            const submitBtn = orderForm.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+
+            fetch(orderForm.action, {
+                method: "POST",
+                body: formData,
+                headers: { "X-CSRFToken": getCookie('csrftoken') }
+            })
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
+                    if (data.status) {
+                        successNotificationCustom(data.message);
+                        const modalEl = document.getElementById('OrderFormModal');
+                        if (modalEl) {
+                            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                            if (modalInstance) modalInstance.hide();
+                        }
+                        htmx.ajax('GET', window.location.href, { target: '#content-area', swap: 'innerHTML' });
+                    } else {
+                        errorNotificationCustom(data.message || "Failed to create order.");
+                    }
+                })
+                .catch(function () {
+                    errorNotificationCustom("Something went wrong!");
+                })
+                .finally(function () {
+                    if (submitBtn) submitBtn.disabled = false;
+                });
         });
 
         if (EXISTING_ITEMS.length) {
