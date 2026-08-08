@@ -53,7 +53,20 @@
         deliveryOptionBtn.forEach(btn => {
             btn.addEventListener("click", function () {
                 const orderId = this.getAttribute("data-id");
+
+                // Reset bulk mode whenever the single-order icon is used
+                deliveryOptionForm.dataset.bulkMode = "false";
+                deliveryOptionForm.dataset.bulkIds = "";
+
                 deliveryOptionForm.action = baseUrl.replace("0", orderId);
+
+                // Re-enable radios and reset submit button in case a previous bulk/single submit disabled them
+                document.querySelectorAll('input[name="logistics_partner"]').forEach(el => {
+                    el.disabled = false;
+                });
+                const resetSubmitBtn = deliveryOptionForm.querySelector("button[type='submit']");
+                resetSubmitBtn.disabled = false;
+                resetSubmitBtn.innerHTML = "Submit";
 
                 // Clear old cards
                 logisticsContainer.innerHTML = `
@@ -142,7 +155,6 @@
         deliveryOptionForm.addEventListener("submit", function (e) {
             e.preventDefault();
 
-            const formAction = deliveryOptionForm.action;
             const selectedOption = document.querySelector('input[name="logistics_partner"]:checked');
 
             if (!selectedOption) {
@@ -155,6 +167,75 @@
             const submitBtn = deliveryOptionForm.querySelector("button[type='submit']");
             submitBtn.disabled = true;
             submitBtn.innerHTML = "Processing...";
+
+            const isBulk = deliveryOptionForm.dataset.bulkMode === "true";
+
+            // ---- BULK MODE: multiple orders -> hit order_bulk_action ----
+            if (isBulk) {
+                let orderIds = [];
+                try {
+                    orderIds = JSON.parse(deliveryOptionForm.dataset.bulkIds || "[]");
+                } catch (err) {
+                    orderIds = [];
+                }
+
+                if (!orderIds.length) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = "Submit";
+                    alert("No orders selected.");
+                    return;
+                }
+
+                fetch("{% url 'order_bulk_action' %}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": csrfToken
+                    },
+                    body: JSON.stringify({
+                        order_ids: orderIds,
+                        action: "create_parcel",
+                        logistics_partner: selectedOption.value
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = "Submit";
+
+                    if (typeof successNotificationCustom === "function" && typeof errorNotificationCustom === "function") {
+                        if (data.success) {
+                            successNotificationCustom(data.message);
+                        } else {
+                            errorNotificationCustom(data.message || "Something went wrong.");
+                        }
+                    } else {
+                        alert(data.message || "Done.");
+                    }
+
+                    deliveryOptionForm.dataset.bulkMode = "false";
+                    deliveryOptionForm.dataset.bulkIds = "";
+
+                    const modalEl = document.getElementById('deliveryOptionModal');
+                    const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+                    modalInstance.hide();
+
+                    if (window.htmx) {
+                        htmx.ajax('GET', window.location.href, { target: '#content-area', swap: 'innerHTML' });
+                    }
+                })
+                .catch(error => {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = "Submit";
+                    alert("Server error occurred.");
+                    console.error(error);
+                });
+
+                return;
+            }
+
+            // ---- SINGLE ORDER MODE: existing behavior unchanged ----
+            const formAction = deliveryOptionForm.action;
 
             fetch(formAction, {
                 method: "POST",

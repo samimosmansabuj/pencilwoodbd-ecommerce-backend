@@ -1,0 +1,138 @@
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h6 class="mb-0">
+        {% if view_mode == "all" %}
+            All Products — Stock (Low to High)
+        {% else %}
+            Products at or below {{ stock_alert_threshold }} in stock
+        {% endif %}
+    </h6>
+
+    {% if view_mode == "all" %}
+    <button class="btn btn-sm btn-outline-primary"
+        hx-get="{% url 'stock_alert_list' %}?view=short" hx-target="#stockAlertModalBody" hx-trigger="click">
+        Show Short in Stock Only
+    </button>
+    {% else %}
+    <button class="btn btn-sm btn-outline-secondary"
+        hx-get="{% url 'stock_alert_list' %}?view=all" hx-target="#stockAlertModalBody" hx-trigger="click">
+        See All Product Stock
+    </button>
+    {% endif %}
+</div>
+
+<form class="row g-2 mb-3 align-items-end" hx-get="{% url 'stock_alert_list' %}" hx-target="#stockAlertModalBody" hx-trigger="submit">
+    <input type="hidden" name="view" value="{{ view_mode }}">
+
+    <div class="col-md-4">
+        <label class="form-label mb-1 small">Product name or SKU</label>
+        <input type="text" name="q" value="{{ current_search }}" class="form-control form-control-sm"
+            placeholder="Search product name or SKU...">
+    </div>
+
+    <div class="col-md-3">
+        <label class="form-label mb-1 small">Min stock</label>
+        <input type="number" name="min_stock" value="{{ current_min_stock }}" class="form-control form-control-sm"
+            placeholder="e.g. 0">
+    </div>
+
+    <div class="col-md-3">
+        <label class="form-label mb-1 small">Max stock</label>
+        <input type="number" name="max_stock" value="{{ current_max_stock }}" class="form-control form-control-sm"
+            placeholder="e.g. 10">
+    </div>
+
+    <div class="col-md-2 d-flex gap-2">
+        <button type="submit" class="btn btn-sm btn-primary w-100">Search</button>
+        {% if current_search or current_min_stock or current_max_stock %}
+        <button type="button" class="btn btn-sm btn-outline-secondary w-100"
+            hx-get="{% url 'stock_alert_list' %}?view={{ view_mode }}" hx-target="#stockAlertModalBody"
+            hx-trigger="click">
+            <i class="bi bi-x-lg"></i>
+        </button>
+        {% endif %}
+    </div>
+</form>
+
+<div class="table-responsive" style="max-height: 60vh; overflow-y: auto;">
+    <table class="table align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Product</th>
+                <th>SKU</th>
+                <th>Current Stock</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for product in products %}
+            <tr>
+                <td>{{ product.name }}</td>
+                <td>{{ product.sku }}</td>
+                <td>
+                    <span class="fw-bold {% if product.inventory_quantity <= stock_alert_threshold %}text-danger{% endif %}">
+                        {{ product.inventory_quantity }}
+                    </span>
+                </td>
+                <td>
+                    {% if product.inventory_quantity <= 0 %}
+                        <span class="badge bg-dark">Out of Stock</span>
+                    {% elif product.inventory_quantity <= stock_alert_threshold %}
+                        <span class="badge bg-danger">Short in Stock</span>
+                    {% else %}
+                        <span class="badge bg-success">In Stock</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4" class="text-center text-muted py-4">No products found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if paginator.num_pages > 1 %}
+<div class="d-flex justify-content-center mt-3">
+    <nav aria-label="Stock alert pagination">
+        <ul class="pagination mb-0">
+            <li class="page-item {% if not products.has_previous %}disabled{% endif %}">
+                <a class="page-link"
+                    hx-get="{% url 'stock_alert_list' %}{% if products.has_previous %}?page={{ products.previous_page_number }}&view={{ view_mode }}&q={{ current_search }}&min_stock={{ current_min_stock }}&max_stock={{ current_max_stock }}{% endif %}"
+                    hx-target="#stockAlertModalBody" href="javascript:;">
+                    «
+                </a>
+            </li>
+
+            {% for num in paginator.page_range %}
+            {% if num >= products.number|add:-2 and num <= products.number|add:2 %}
+            <li class="page-item {% if products.number == num %}active{% endif %}">
+                <a class="page-link"
+                    hx-get="{% url 'stock_alert_list' %}?page={{ num }}&view={{ view_mode }}&q={{ current_search }}&min_stock={{ current_min_stock }}&max_stock={{ current_max_stock }}"
+                    hx-target="#stockAlertModalBody" href="javascript:;">
+                    {{ num }}
+                </a>
+            </li>
+            {% endif %}
+            {% endfor %}
+
+            <li class="page-item {% if not products.has_next %}disabled{% endif %}">
+                <a class="page-link"
+                    hx-get="{% url 'stock_alert_list' %}{% if products.has_next %}?page={{ products.next_page_number }}&view={{ view_mode }}&q={{ current_search }}&min_stock={{ current_min_stock }}&max_stock={{ current_max_stock }}{% endif %}"
+                    hx-target="#stockAlertModalBody" href="javascript:;">
+                    »
+                </a>
+            </li>
+        </ul>
+    </nav>
+
+    <select class="form-select ms-3" style="width:auto;"
+        hx-get="{% url 'stock_alert_list' %}?view={{ view_mode }}&q={{ current_search }}&min_stock={{ current_min_stock }}&max_stock={{ current_max_stock }}"
+        hx-trigger="change" hx-target="#stockAlertModalBody" name="per_page">
+        <option value="10" {% if current_per_page == "10" %}selected{% endif %}>10</option>
+        <option value="15" {% if current_per_page == "15" %}selected{% endif %}>15</option>
+        <option value="30" {% if current_per_page == "30" %}selected{% endif %}>30</option>
+        <option value="50" {% if current_per_page == "50" %}selected{% endif %}>50</option>
+    </select>
+</div>
+{% endif %}

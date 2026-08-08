@@ -1,0 +1,214 @@
+<div class="customer-table">
+    <div class="table-responsive white-space-nowrap" id="order-table-wrapper">
+        <table class="table align-middle">
+            <thead class="table-light">
+                <tr>
+                    {% if show_bulk_select %}<th><input class="form-check-input" type="checkbox" id="selectAllOrders"></th>{% endif %}
+                    <th>Order Id</th>
+                    <th>Customer</th>
+                    <th>Phone</th>
+                    <th>Price</th>
+                    <th>Status</th>
+                    <th>Urgent</th>
+                    <th>Delivery Type</th>
+                    <th>Delivery Date</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                <tr>
+                    {% if show_bulk_select %}
+                    <td><input class="form-check-input order-checkbox" type="checkbox" value="{{ order.id }}"></td>
+                    {% endif %}
+
+                    <td>
+                        <a href="{% url 'order_detail' order.id %}"
+                            hx-get="{% url 'order_detail' order.id %}" hx-target="#content-area"
+                            hx-push-url="true" hx-trigger="click, refreshReturnOrderDetailView from:body"
+                            hx-swap="innerHTML">
+                            #{{ order.order_id }}
+                        </a>
+                    </td>
+
+                    <td>
+                        <a class="d-flex align-items-center gap-3" href="javascript:;">
+                            <div class="customer-pic">
+                                <img src="https://placehold.co/110x110/png" class="rounded-circle"
+                                    width="40" height="40">
+                            </div>
+                            <p class="mb-0 customer-name fw-bold">
+                                {{ order.customer.name }}
+                            </p>
+                        </a>
+                    </td>
+
+                    <td>
+                        {{ order.customer.phone }}
+                    </td>
+
+                    <td>৳{{ order.total_cost }}</td>
+
+                    <td>
+                        <select name="status" id="status_{{ order.id }}"
+                            class="form-select form-select-sm status-select status-{{ order.status }}"
+                            style="min-width:130px;" data-url="{% url 'order_status_update' order.id %}">
+                            {% for value, label in status_choices %}
+                            <option value="{{ value }}" {% if order.status == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+
+                    <td>
+                        <button
+                            class="btn btn-sm {% if order.is_urgent %}btn-danger{% else %}btn-outline-danger{% endif %}"
+                            hx-post="{% url 'order_toggle_urgent' order.pk %}"
+                            hx-vals='{"source": "{{ source|default:"order_list" }}"}'
+                            hx-target="#content-area" hx-swap="innerHTML" title="Toggle urgent">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                        </button>
+                    </td>
+
+                    <td>{{ order.delivery_type|upper }}</td>
+
+                    <td>
+                        {% if order.delivery_date %}
+                        {{ order.delivery_date|date:"M d, Y" }}
+                        {% else %}
+                        Not Set
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {{ order.created_at }}
+                    </td>
+
+                    <td>
+                        <div class="dropdown">
+                            <a href="{% url 'order_detail' order.id %}"
+                                class="btn btn-sm btn-filter edit-order-btn"
+                                hx-get="{% url 'order_detail' order.id %}" hx-target="#content-area"
+                                hx-push-url="true"
+                                hx-trigger="click, refreshReturnOrderDetailView from:body">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+
+                            <button class="btn btn-sm btn-filter delivery-option-btn"
+                                data-id="{{ order.id }}" data-bs-toggle="modal"
+                                data-bs-target="#deliveryOptionModal">
+                                <i class="lni lni-delivery"></i>
+                            </button>
+
+                            <button class="btn btn-sm btn-filter delete-order-btn" data-id="{{ order.id }}"
+                                data-bs-toggle="modal" data-bs-target="#deleteOrderModal">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-filter"
+                                onclick="printInvoice({{ order.id }})">
+                                <i class="material-icons-outlined">print</i>
+                            </button>
+                            <a href="{% url 'order_token_print' order.id %}" class="btn btn-sm btn-filter"
+                                title="Print Token">
+                                <i class="bi bi-ticket-perforated"></i>
+                            </a>
+
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if show_see_more %}
+<div class="text-center mt-3">
+    <a href="{% url 'order_list' %}" class="btn btn-outline-primary"
+        hx-get="{% url 'order_list' %}" hx-target="#content-area" hx-push-url="true">
+        See More Orders
+    </a>
+</div>
+{% endif %}
+
+<script>
+    if (!window.__orderTableScriptsBound) {
+        window.__orderTableScriptsBound = true;
+
+        document.addEventListener('change', function (event) {
+            if (event.target && event.target.classList.contains('status-select')) {
+                const selectElement = event.target;
+                const newStatus = selectElement.value;
+                const url = selectElement.getAttribute('data-url');
+
+                const formData = new FormData();
+                formData.append('status', newStatus);
+
+                fetch(url, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            successNotificationCustom(data.message);
+                        } else {
+                            errorNotificationCustom("Failed to update status.");
+                        }
+                    })
+                    .catch(error => {
+                        errorNotificationCustom("Something went wrong!");
+                    });
+            }
+        });
+
+        // Get Cookie (CSRF For Post Method) Script----
+        window.getCookie = function (name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        };
+
+        // Notification Shows Script-------
+        window.successNotificationCustom = function (message) {
+            Lobibox.notify('success', {
+                title: "Success", pauseDelayOnHover: true, size: 'mini', rounded: true,
+                icon: 'bi bi-check2-circle', delayIndicator: false,
+                continueDelayOnInactiveTab: false, position: 'top right', msg: message
+            });
+        };
+        window.errorNotificationCustom = function (message) {
+            Lobibox.notify('error', {
+                title: "Error", pauseDelayOnHover: true, size: 'mini', rounded: true,
+                icon: 'bi bi-x-circle', delayIndicator: false,
+                continueDelayOnInactiveTab: false, position: 'top right', msg: message
+            });
+        };
+
+        // Invoice Print Script--------
+        window.printInvoice = function (orderId) {
+            const url = `/orders/${orderId}/invoice/`;
+            const printWindow = window.open(url, '_blank', 'width=900,height=1200');
+
+            printWindow.onload = function () {
+                printWindow.focus();
+                printWindow.print();
+            };
+            window.onafterprint = function () {
+                window.close();
+            };
+        };
+    }
+</script>

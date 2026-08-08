@@ -47,6 +47,9 @@ from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DEL
 
 
 # ------------------Dashboard--------
+STOCK_ALERT_THRESHOLD = 10
+
+
 class DashboardView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
@@ -64,7 +67,7 @@ class DashboardView(LoginRequiredMixin, View):
 
     def new_orders_count(self, orders):
         return orders.filter(status=STATUS.NEW).count()
-    
+
     def new_order_request_count(self):
         return OrderRequest.objects.filter(
             status=ORDER_REQUEST_STATUS.PENDING
@@ -88,14 +91,7 @@ class DashboardView(LoginRequiredMixin, View):
 
         final_total = items_total + shipping_total
         return final_total
-        # return orders.aggregate(
-        #     total_amount=Coalesce(
-        #         Sum(F("order_items__discount_total_price") + F("shipping_total")),
-        #         Value(0),
-        #         output_field=DecimalField(max_digits=12, decimal_places=2),
-        #     )
-        # )["total_amount"]
-    
+
     def get_status_amounts(self, orders):
         """Return a dict with total Tk per status"""
         amounts = {}
@@ -107,8 +103,7 @@ class DashboardView(LoginRequiredMixin, View):
                     output_field=DecimalField(max_digits=12, decimal_places=2)
                 )
             )["total"]
-        
-        # Add Returned + Refund combined total
+
         amounts["returned_refund"] = orders.filter(status__in=["returned", "refund"]).aggregate(
             total=Coalesce(
                 Sum(F("order_items__discount_price") * F("order_items__quantity") + F("shipping_total")),
@@ -121,6 +116,14 @@ class DashboardView(LoginRequiredMixin, View):
 
     def get_urgent_count(self, orders):
         return orders.filter(is_urgent=True).exclude(status__in=[STATUS.DELIVERED, STATUS.CANCELLED, STATUS.RETURNED, STATUS.REFUNDED]).count()
+
+    def get_short_in_stock_count(self):
+        return Product.objects.filter(
+            inventory_quantity__gt=0, inventory_quantity__lte=STOCK_ALERT_THRESHOLD
+        ).count()
+
+    def get_out_of_stock_count(self):
+        return Product.objects.filter(inventory_quantity__lte=0).count()
 
     def get_total_customer_count(self):
         return CustomUser.objects.filter(user_type=USER_TYPE.CUSTOMER).count()
@@ -139,7 +142,10 @@ class DashboardView(LoginRequiredMixin, View):
             "total_orders": orders.count(),
             "new_order_request_count": self.new_order_request_count(),
             "urgent_count": self.get_urgent_count(orders),
+            "short_in_stock_count": self.get_short_in_stock_count(),
+            "out_of_stock_count": self.get_out_of_stock_count(),
             "total_customer_count": self.get_total_customer_count(),
+            "status_choices": STATUS.choices,
         }
 
         if not is_staff:
@@ -1905,6 +1911,8 @@ class AddOrderView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
     def post(self, request):
+        is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
         try:
             with transaction.atomic():
                 data = request.POST
@@ -1917,9 +1925,16 @@ class AddOrderView(LoginRequiredMixin, View):
                 source = data.get("source", "Others").strip()
 
                 if not name:
-                    return JsonResponse({"status": False, "message": "Customer name is required."}, status=400)
+                    if is_ajax:
+                        return JsonResponse({"status": False, "message": "Customer name is required."}, status=400)
+                    messages.error(request, "Customer name is required.")
+                    return redirect("add_order")
+
                 if not phone:
-                    return JsonResponse({"status": False, "message": "Phone number is required."}, status=400)
+                    if is_ajax:
+                        return JsonResponse({"status": False, "message": "Phone number is required."}, status=400)
+                    messages.error(request, "Phone number is required.")
+                    return redirect("add_order")
 
                 customer = Customer.objects.create(
                     company=company or None,
@@ -1955,10 +1970,16 @@ class AddOrderView(LoginRequiredMixin, View):
                 try:
                     items = json.loads(data.get("items", "[]"))
                 except json.JSONDecodeError:
-                    return JsonResponse({"status": False, "message": "Invalid product data."}, status=400)
+                    if is_ajax:
+                        return JsonResponse({"status": False, "message": "Invalid product data."}, status=400)
+                    messages.error(request, "Invalid product data.")
+                    return redirect("add_order")
 
                 if not items:
-                    return JsonResponse({"status": False, "message": "Please add at least one product."}, status=400)
+                    if is_ajax:
+                        return JsonResponse({"status": False, "message": "Please add at least one product."}, status=400)
+                    messages.error(request, "Please add at least one product.")
+                    return redirect("add_order")
 
                 order = Order.objects.create(
                     customer=customer,
@@ -2016,14 +2037,22 @@ class AddOrderView(LoginRequiredMixin, View):
                 order.total_cost = grand_total
                 order.save(update_fields=["total_cost"])
 
-                return JsonResponse({
-                    "status": True,
-                    "message": f"Order {order.order_id} created successfully."
-                }, status=201)
+                if is_ajax:
+                    return JsonResponse({
+                        "status": True,
+                        "message": f"Order {order.order_id} created successfully."
+                    }, status=201)
+                else:
+                    messages.success(request, f"Order {order.order_id} created successfully.")
+                    return redirect("order_detail", id=order.id)
 
         except Exception as e:
-            return JsonResponse({"status": False, "message": str(e)}, status=400)
-
+            if is_ajax:
+                return JsonResponse({"status": False, "message": str(e)}, status=400)
+            messages.error(request, str(e))
+            return redirect("add_order")
+        
+        
 class OrderView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
@@ -2157,6 +2186,7 @@ class OrderView(LoginRequiredMixin, View):
             return render(request, "db_order/partial/partial_order_list.html", context)
 
         return render(request, "db_order/order_list.html", context)
+
 class OrderDetailView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
@@ -3876,14 +3906,15 @@ class OrderTokenPrintView(LoginRequiredMixin, View):
         order = get_object_or_404(Order, pk=pk)
         order.status = STATUS.TOKEN_PRINT
         order.save(update_fields=["status"])
-        shipment = order.shipments.order_by('-created_at').first()
+
+        shipment = order.shipments.select_related("courier").order_by("-created_at").first()
         due_amount = (order.total_cost or 0) - (order.advance_amount or 0)
+
         return render(request, "db_order/token.html", {
             "order": order,
             "shipment": shipment,
             "due_amount": due_amount,
         })
-    
 
 class OrderPathaoParcelSubmitView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -3999,25 +4030,108 @@ class OrderUrgentToggleView(LoginRequiredMixin, View):
         order.is_urgent = not order.is_urgent
         order.save(update_fields=['is_urgent'])
 
+        status_text = "marked as urgent" if order.is_urgent else "removed from urgent list"
+        message = f"Order #{order.order_id} {status_text}."
+        source = request.POST.get("source", "order_list")
+
         if request.htmx:
-            order_view = OrderView()
-            (orders, paginator, per_page, page_number, products) = order_view.get_order_queryset(request)
-            context = {
-                "orders": orders,
-                "paginator": paginator,
-                "per_page": per_page,
-                "page_number": page_number,
-                "order_count": order_view.status_wise_order_count(),
-                "current_status": request.GET.get("status", "all"),
-                "current_search": request.GET.get("q", ""),
-                "current_product_slug": request.GET.get("product", ""),
-                "start_date": request.GET.get("start_date", ""),
-                "end_date": request.GET.get("end_date", ""),
-                "products": products,
-                "status_choices": STATUS.choices,
-            }
-            return render(request, "db_order/partial/partial_order_list.html", context)
+            if source == "dashboard":
+                dashboard_view = DashboardView()
+                orders_qs = Order.objects.all().order_by("-created_at")
+                is_staff = request.user.user_type == USER_TYPE.STAFF
+
+                context = {
+                    "orders": orders_qs[:10],
+                    "today_order_count": dashboard_view.get_today_order_count(orders_qs),
+                    "new_orders_count": dashboard_view.new_orders_count(orders_qs),
+                    "status_amounts": dashboard_view.get_status_amounts(orders_qs),
+                    "total_orders": orders_qs.count(),
+                    "new_order_request_count": dashboard_view.new_order_request_count(),
+                    "urgent_count": dashboard_view.get_urgent_count(orders_qs),
+                    "short_in_stock_count": dashboard_view.get_short_in_stock_count(),
+                    "out_of_stock_count": dashboard_view.get_out_of_stock_count(),
+                    "total_customer_count": dashboard_view.get_total_customer_count(),
+                    "status_choices": STATUS.choices,
+                }
+                if not is_staff:
+                    context["total_order_amount"] = dashboard_view.get_total_order_amount(orders_qs)
+                    context["today_sales_amount"] = dashboard_view.get_today_sales_amount(orders_qs)
+                else:
+                    context["total_order_amount"] = None
+                    context["today_sales_amount"] = None
+
+                response = render(request, "db_home/main_wrapper.html", context)
+            else:
+                order_view = OrderView()
+                (orders, paginator, per_page, page_number, products) = order_view.get_order_queryset(request)
+                context = {
+                    "orders": orders,
+                    "paginator": paginator,
+                    "per_page": per_page,
+                    "page_number": page_number,
+                    "order_count": order_view.status_wise_order_count(),
+                    "current_status": request.GET.get("status", "all"),
+                    "current_search": request.GET.get("q", ""),
+                    "current_product_slug": request.GET.get("product", ""),
+                    "start_date": request.GET.get("start_date", ""),
+                    "end_date": request.GET.get("end_date", ""),
+                    "products": products,
+                    "status_choices": STATUS.choices,
+                }
+                response = render(request, "db_order/partial/partial_order_list.html", context)
+
+            response["HX-Trigger"] = json.dumps({
+                "showToast": {"message": message, "type": "success"}
+            })
+            return response
+
+        messages.success(request, message)
         return redirect('order_list')
+
+
+class StockAlertListView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        view_mode = request.GET.get("view", "short")
+        search = request.GET.get("q", "").strip()
+        min_stock = request.GET.get("min_stock", "").strip()
+        max_stock = request.GET.get("max_stock", "").strip()
+        per_page = parse_int(request.GET.get("per_page"), 15)
+
+        if view_mode == "all":
+            products = Product.objects.order_by("inventory_quantity", "name")
+        else:
+            products = Product.objects.filter(
+                inventory_quantity__lte=STOCK_ALERT_THRESHOLD
+            ).order_by("inventory_quantity", "name")
+
+        if search:
+            products = products.filter(
+                Q(name__icontains=search) | Q(sku__icontains=search)
+            )
+
+        if min_stock != "":
+            products = products.filter(inventory_quantity__gte=parse_int(min_stock, 0))
+
+        if max_stock != "":
+            products = products.filter(inventory_quantity__lte=parse_int(max_stock, 0))
+
+        paginator = Paginator(products, per_page)
+        page_obj = paginator.get_page(request.GET.get("page", 1))
+
+        context = {
+            "products": page_obj,
+            "paginator": paginator,
+            "view_mode": view_mode,
+            "current_search": search,
+            "current_min_stock": min_stock,
+            "current_max_stock": max_stock,
+            "current_per_page": str(per_page),
+            "stock_alert_threshold": STOCK_ALERT_THRESHOLD,
+        }
+        return render(request, "db_home/partial/stock_alert_list.html", context)
+    
 
 # class RedirectView(View):
 #     permanent = False
