@@ -303,10 +303,14 @@ class PlaceOrderAPIView(APIView):
                         price = variant.price
                         discount_price = variant.discount_price or variant.price
                     else:
-                        if product.inventory_quantity < quantity:
+                        if not product.is_in_stock:
                             return Response({"status": False, "message": f"{product.name} out of stock"}, status=400)
-                        product.inventory_quantity -= quantity
-                        product.save(update_fields=["inventory_quantity"])
+                        if product.inventory_type == "in_stock":
+                            if product.inventory_quantity < quantity:
+                                return Response({"status": False, "message": f"{product.name} out of stock"}, status=400)
+                            product.inventory_quantity -= quantity
+                            product.save(update_fields=["inventory_quantity"])
+                        
                         price = product.price
                         discount_price = product.discount_price or product.price
 

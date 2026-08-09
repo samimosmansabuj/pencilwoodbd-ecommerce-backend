@@ -121,3 +121,8 @@ class ORDER_REQUEST_WORK_STATUS(models.TextChoices):
     DONE = "done", "Done"
     HOLD = "hold", "Hold"
     CANCEL = "cancel", "Cancel"
+
+class INVENTORY_TYPE(models.TextChoices):
+    IN_STOCK = "in_stock", "In Stock"
+    OUT_OF_STOCK = "out_of_stock", "Out of Stock"
+    UNLIMITED = "unlimited", "Unlimited"

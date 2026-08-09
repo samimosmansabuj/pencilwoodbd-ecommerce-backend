@@ -58,7 +58,7 @@
                                     <img src="{{ img.image.url }}"
                                         class="img-fluid rounded border pw-existing-thumb-img"
                                         style="height:100px; object-fit:cover; width:100%; cursor:pointer;">
-                                    {% if img.role == 'primary' %}
+                                    {% if img.role == "primary" %}
                                     <span
                                         class="badge bg-success position-absolute top-0 start-0 pw-existing-primary-badge">Primary</span>
                                     {% endif %}
@@ -146,8 +146,7 @@
                                 <select class="form-select" id="pw_attr_select">
                                     <option value="" disabled selected>-- Select Attribute --</option>
                                     {% for attr in attributes %}
-                                    <option value="{{ attr.name|lower }}" data-name="{{ attr.name }}">{{ attr.name }}
-                                    </option>
+                                    <option value="{{ attr.name|lower }}" data-name="{{ attr.name }}">{{ attr.name }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -175,16 +174,11 @@
                         <div class="mb-3" id="pw_bulk_price_set" style="display: none;">
                             <h6>Bulk Price & Stock</h6>
                             <div class="row g-2">
-                                <div class="col"><input type="number" class="form-control" id="pw_bulk_stock"
-                                        placeholder="Stock"></div>
-                                <div class="col"><input type="number" step="0.01" class="form-control" id="pw_bulk_cost"
-                                        placeholder="Cost"></div>
-                                <div class="col"><input type="number" step="0.01" class="form-control" id="pw_bulk_price"
-                                        placeholder="Price"></div>
-                                <div class="col"><input type="number" step="0.01" class="form-control" id="pw_bulk_discount"
-                                        placeholder="Discount"></div>
-                                <div class="col"><button type="button" class="btn btn-dark w-100"
-                                        id="pw_apply_bulk">Apply All</button></div>
+                                <div class="col"><input type="number" class="form-control" id="pw_bulk_stock" placeholder="Stock"></div>
+                                <div class="col"><input type="number" step="0.01" class="form-control" id="pw_bulk_cost" placeholder="Cost"></div>
+                                <div class="col"><input type="number" step="0.01" class="form-control" id="pw_bulk_price" placeholder="Price"></div>
+                                <div class="col"><input type="number" step="0.01" class="form-control" id="pw_bulk_discount" placeholder="Discount"></div>
+                                <div class="col"><button type="button" class="btn btn-dark w-100" id="pw_apply_bulk">Apply All</button></div>
                             </div>
                         </div>
 
@@ -402,15 +396,36 @@
                                 class="form-control" placeholder="0.00"
                                 value="{% if product %}{{ product.discount_price }}{% endif %}">
                         </div>
+
                         <div class="col-12">
+                            <label for="pw_inventory_type" class="form-label">Inventory Type</label>
+                            <select class="form-select" name="inventory_type" id="pw_inventory_type"
+                                {% if product and product.has_variants %}disabled{% endif %}>
+                                <option value="in_stock"
+                                    {% if product and product.inventory_type == "in_stock" %}selected
+                                    {% elif not product %}selected
+                                    {% endif %}>In Stock</option>
+                                <option value="out_of_stock"
+                                    {% if product and product.inventory_type == "out_of_stock" %}selected{% endif %}>Out of Stock</option>
+                                <option value="unlimited"
+                                    {% if product and product.inventory_type == "unlimited" %}selected{% endif %}>Unlimited</option>
+                            </select>
+                            <small class="text-muted" id="pw_inventory_type_hint"
+                                style="{% if not product or not product.has_variants %}display:none;{% endif %}">
+                                Inventory type is per-variant when this product has variants.
+                            </small>
+                        </div>
+
+                        <div class="col-12" id="pw_inventory_quantity_wrap">
                             <label class="form-label">Inventory Quantity</label>
                             <input type="number" name="inventory_quantity" id="pw_inventory_quantity"
                                 class="form-control" placeholder="0"
                                 value="{% if product %}{{ product.inventory_quantity }}{% endif %}"
                                 {% if product and product.has_variants %}disabled{% endif %}>
                             <small class="text-muted" id="pw_inventory_hint"
-                                style="{% if not product or not product.has_variants %}display:none;{% endif %}">Auto-calculated
-                                from variant stock.</small>
+                                style="{% if not product or not product.has_variants %}display:none;{% endif %}">
+                                Auto-calculated from variant stock.
+                            </small>
                         </div>
                     </div>
                 </div>
@@ -454,6 +469,27 @@
             statusSelect.addEventListener("change", function () {
                 statusHidden.value = statusSelect.value;
             });
+        })();
+
+        // ================= Inventory Type toggle =================
+        (function initInventoryType() {
+            var typeSelect = document.getElementById("pw_inventory_type");
+            var qtyWrap = document.getElementById("pw_inventory_quantity_wrap");
+            var qtyInput = document.getElementById("pw_inventory_quantity");
+
+            if (!typeSelect || !qtyWrap || !qtyInput) return;
+
+            function syncVisibility() {
+                if (typeSelect.value === "in_stock") {
+                    qtyWrap.style.display = "block";
+                } else {
+                    qtyWrap.style.display = "none";
+                    qtyInput.value = 0;
+                }
+            }
+
+            typeSelect.addEventListener("change", syncVisibility);
+            syncVisibility();
         })();
 
         // ================= Quill Editor (init once) =================
@@ -1048,7 +1084,6 @@
             var tbody = document.getElementById("pw_feature_table_body");
             if (!addBtn || !tbody) return;
 
-            // Prevent double-binding if this script block ever runs more than once on the page
             if (addBtn.dataset.pwBound === "true") return;
             addBtn.dataset.pwBound = "true";
 
@@ -1145,4 +1180,4 @@
             });
         })();
     })();
-</script>
+</script>python m

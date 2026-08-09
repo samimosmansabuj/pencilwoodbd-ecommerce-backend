@@ -310,7 +310,7 @@ class ProductDetailAPIView(APIView):
                     for v in p.variants.filter(is_active=True)
                 )
             else:
-                stock = p.inventory_quantity
+                stock = p.available_stock
 
             approved_reviews = Review.objects.filter(
                 product=p, status=REVIEW_STATUS.APPROVED
@@ -418,7 +418,9 @@ class AddToCartAPIView(APIView):
                     if variant.inventory_quantity < quantity:
                         return Response({"status": False, "message": "Selected variant out of stock"}, status=400)
                 else:
-                    if product.inventory_quantity < quantity:
+                    if not product.is_in_stock:
+                        return Response({"status": False, "message": "Product out of stock"}, status=400)
+                    if product.inventory_type == "in_stock" and product.inventory_quantity < quantity:
                         return Response({"status": False, "message": "Product out of stock"}, status=400)
 
                 if customer:
