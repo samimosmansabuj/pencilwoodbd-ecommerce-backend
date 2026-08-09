@@ -111,7 +111,7 @@
                         <div class="col-md-6">
                             <label class="form-label">Source</label>
                             <select class="form-select" name="source">
-                                {% with current_source=order.customer.source|default:"Others" %}
+                                {% with current_source=order.source|default:"Others" %}
                                 {% for value, label in source_choices %}
                                 <option value="{{ value }}" {% if value == current_source %}selected{% endif %}>{{ label }}</option>
                                 {% endfor %}

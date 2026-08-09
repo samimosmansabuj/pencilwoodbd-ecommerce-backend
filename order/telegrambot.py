@@ -1,11 +1,12 @@
 import requests
 import logging
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
 
 class TelegramBotService:
-    
+
     @classmethod
     def send_order_notification(cls, order, config):
         if not config:
@@ -32,9 +33,11 @@ class TelegramBotService:
 
         total_cost = order.total_cost or 0
 
+        local_created_at = timezone.localtime(order.created_at)
+
         message = (
             f"🛒 <b>NEW ORDER <code>#{order.order_id}</code></b>\n"
-            f"📅 {order.created_at.strftime('%d %b %Y, %I:%M %p')}\n"
+            f"📅 {local_created_at.strftime('%d %b %Y, %I:%M %p')}\n"
             f"📌 Status: 🟡 <b>{order.get_status_display()}</b>\n\n"
             f"👤 <b>Customer:</b> {customer_name}\n"
             f"📞 <b>Phone:</b> {phone_display}\n"

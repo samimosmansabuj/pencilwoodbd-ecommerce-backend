@@ -3,7 +3,7 @@ from django.db import models
 from django.forms import ValidationError
 from authentication.models import Customer
 from product.models import Product, ProductVariant
-from pencilwoodbd.choices import PAYMENT_STATUS, PAYMENT_TYPE, STATUS, REVIEW_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, ORDER_REQUEST_WORK_STATUS
+from pencilwoodbd.choices import ORDER_SOURCE, PAYMENT_STATUS, PAYMENT_TYPE, STATUS, REVIEW_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, ORDER_REQUEST_WORK_STATUS
 from datetime import datetime
 from site_app.models import DeliveryOption
 
@@ -62,6 +62,7 @@ class Order(models.Model):
     work_assign = models.CharField(max_length=255, blank=True, null=True)
     special_instructions = models.TextField(blank=True, null=True)
     order_created_date = models.DateField(null=True, blank=True)
+    source = models.CharField(max_length=100, blank=True, null=True, choices=ORDER_SOURCE.choices, default=ORDER_SOURCE.OTHERS)
 
     metadata = models.JSONField(default=dict, blank=True)
     note = models.TextField(blank=True, null=True)
@@ -253,6 +254,7 @@ class OrderRequest(models.Model):
     order_created_date = models.DateField(null=True, blank=True)
     delivery_date = models.DateField(null=True, blank=True)
     advance_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    source = models.CharField(max_length=100, blank=True, null=True, choices=ORDER_SOURCE.choices, default=ORDER_SOURCE.OTHERS)
 
     payment_type = models.CharField(max_length=50, choices=PAYMENT_TYPE.choices, default=PAYMENT_TYPE.COD)
     delivery_type = models.CharField(max_length=50, choices=DELIVERY_TYPE.choices, default=DELIVERY_TYPE.HOME_DELIVERY)

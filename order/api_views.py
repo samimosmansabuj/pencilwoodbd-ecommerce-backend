@@ -22,7 +22,7 @@ from authentication.utils import normalize_bd_phone
 from site_app.delivery_charge import DeliveryChargeResolver
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-
+from order.telegram_notify import notify_telegram_for_order
 
 class DeliveryOptionListAPIView(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -203,7 +203,7 @@ class CheckoutSummaryAPIView(APIView):
         
         
 class PlaceOrderAPIView(APIView):
-    permission_classes = [AllowAny]  # CHANGED
+    permission_classes = [AllowAny]  
 
     def post(self, request):
         try:
@@ -220,19 +220,15 @@ class PlaceOrderAPIView(APIView):
                         status=400
                     )
 
-                # Resolve/create the Customer by phone — this is the guest->customer link.
                 customer, created = Customer.objects.get_or_create(
                     phone=phone,
-                    defaults={"name": name, "source": ORDER_SOURCE.WEBSITE}
+                    defaults={"name": name}
                 )
                 if not created:
                     customer.name = name
-                    if not customer.source:
-                        customer.source = ORDER_SOURCE.WEBSITE
                     customer.save()
 
                 if request.user.is_authenticated and getattr(request.user, "customer_profile", None):
-                    # Logged in — use their real customer (in case phone differs from account, prefer account)
                     customer = request.user.customer_profile
                     cart_ids = request.data.get("cart_ids", [])
                     if not cart_ids:
@@ -277,7 +273,8 @@ class PlaceOrderAPIView(APIView):
 
                 order = Order.objects.create(
                     customer=customer,
-                    shipping_address=f"{address.street_01}, {address.district}"
+                    shipping_address=f"{address.street_01}, {address.district}",
+                    source=ORDER_SOURCE.WEBSITE,
                 )
 
                 total = Decimal("0")
@@ -310,7 +307,7 @@ class PlaceOrderAPIView(APIView):
                                 return Response({"status": False, "message": f"{product.name} out of stock"}, status=400)
                             product.inventory_quantity -= quantity
                             product.save(update_fields=["inventory_quantity"])
-                        
+
                         price = product.price
                         discount_price = product.discount_price or product.price
 
@@ -327,6 +324,8 @@ class PlaceOrderAPIView(APIView):
                 if should_delete_cart is not None:
                     should_delete_cart.delete()
 
+                notify_telegram_for_order(order)
+
                 return Response({
                     "status": True,
                     "message": "Order placed successfully",
@@ -335,6 +334,7 @@ class PlaceOrderAPIView(APIView):
 
         except Exception as e:
             return Response({"status": False, "message": str(e)}, status=500)
+        
 
 class OrderListAPIView(APIView):
     permission_classes = [IsAuthenticated]
