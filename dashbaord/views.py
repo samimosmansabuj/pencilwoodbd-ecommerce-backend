@@ -25,7 +25,7 @@ from pencilwoodbd.extra_module import resize_to_fixed
 
 
 # Models
-from order.models import Order, OrderRequest, OrderItem, OrderRequestItem, Review
+from order.models import Order, OrderRequest, OrderItem, OrderRequestItem, Review, TelegramBotConfig
 from product.models import Product, Category, ProductImage, ProductVideo, Attribute, AttributeValue, ProductVariant, Tag, ProductDeliveryCharge, ProductFeature, ProductFAQ, ReviewSettings
 from authentication.models import CustomUser, Customer
 from site_app.models import DeliveryOption, SiteDeliveryChargeConfig, HomeSlider, FooterTagLink, SocialLink, NavMenuLink, NewsFeed, Todo, Reminder, MaintenanceCost, DailyProfit, InvoiceColorConfig
@@ -3012,6 +3012,77 @@ class OrderRequestStatusUpdateView(LoginRequiredMixin, View):
 
         return redirect("order_request_list")
     
+class TelegramBotSettingsView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        configs = TelegramBotConfig.objects.all().order_by("-created_at")
+        context = {
+            "configs": configs,
+            "order_source_choices": ORDER_SOURCE.choices,
+        }
+        return render(request, "db_settings/telegram_bot_settings.html", context)
+
+    def post(self, request):
+        try:
+            data = request.POST
+            config_id = data.get("config_id")
+
+            name = data.get("name", "").strip() or "Default Bot"
+            bot_token = data.get("bot_token", "").strip()
+            group_chat_id = data.get("group_chat_id", "").strip()
+            is_active = data.get("is_active") == "on"
+            notify_sources = data.getlist("notify_sources")
+
+            if not bot_token or not group_chat_id:
+                return JsonResponse({"status": False, "message": "Bot token and Group Chat ID are required."}, status=HTTPStatus.BAD_REQUEST)
+
+            if config_id:
+                config = get_object_or_404(TelegramBotConfig, id=config_id)
+            else:
+                config = TelegramBotConfig()
+
+            if is_active:
+                TelegramBotConfig.objects.exclude(id=config.id).update(is_active=False)
+
+            config.name = name
+            config.bot_token = bot_token
+            config.group_chat_id = group_chat_id
+            config.is_active = is_active
+            config.notify_sources = notify_sources
+            config.save()
+
+            return JsonResponse({"status": True, "message": "Telegram bot settings saved successfully."}, status=HTTPStatus.OK)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def delete_telegram_bot_config(request, id):
+    if request.method == "DELETE":
+        try:
+            config = get_object_or_404(TelegramBotConfig, id=id)
+            config.delete()
+            return JsonResponse({"status": True, "message": "Config deleted successfully"}, status=HTTPStatus.OK)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+    return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def toggle_telegram_bot_active(request, id):
+    if request.method != "POST":
+        return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+    try:
+        config = get_object_or_404(TelegramBotConfig, id=id)
+        want_active = request.POST.get("is_active") == "true"
+        if want_active:
+            TelegramBotConfig.objects.exclude(id=config.id).update(is_active=False)
+        config.is_active = want_active
+        config.save(update_fields=["is_active"])
+        return JsonResponse({"status": True, "message": "Status updated", "is_active": config.is_active}, status=HTTPStatus.OK)
+    except Exception as e:
+        return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
     
 # ------------------Order section FBV-------------
 

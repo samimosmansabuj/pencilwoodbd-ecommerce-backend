@@ -431,3 +431,32 @@ class OrderRequestItem(models.Model):
     def __str__(self):
         return f"{self.order_request} - {self.product_name}"
     
+
+class TelegramBotConfig(models.Model):
+    name = models.CharField(max_length=100, default="Default Bot", help_text="Just a label, e.g. 'Order Notify Bot'")
+    bot_token = models.CharField(max_length=255)
+    group_chat_id = models.CharField(max_length=100, help_text="e.g. -1001234567890")
+    is_active = models.BooleanField(default=True)
+
+    notify_sources = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of ORDER_SOURCE values that should trigger a Telegram notification"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Telegram Bot Config"
+        verbose_name_plural = "Telegram Bot Configs"
+
+    def __str__(self):
+        return f"{self.name} ({'Active' if self.is_active else 'Inactive'})"
+
+    @classmethod
+    def get_active_config(cls):
+        return cls.objects.filter(is_active=True).first()
+
+    def should_notify_for(self, source):
+        return source in (self.notify_sources or [])

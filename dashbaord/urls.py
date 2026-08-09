@@ -66,6 +66,10 @@ urlpatterns = [
     path("order-request/<int:pk>/work-status/", UpdateOrderRequestWorkStatusView.as_view(), name="update_order_request_work_status"),
     path('order-request/<int:pk>/update-status/', OrderRequestStatusUpdateView.as_view(), name='order_request_status_update'),
     
+    path('settings/telegram-bot/', TelegramBotSettingsView.as_view(), name='telegram_bot_settings'),
+    path('settings/telegram-bot/delete/<int:id>/', delete_telegram_bot_config, name='delete_telegram_bot_config'),
+    path('settings/telegram-bot/toggle/<int:id>/', toggle_telegram_bot_active, name='toggle_telegram_bot_active'),
+
     # ------------------Attribute & Attribute Value------------------
     path('attribute-list/', AttributeView.as_view(), name='attribute_list'),
     path('attribute-value/<int:attribute_id>/', AttributeValueView.as_view(), name='attribute_value_list'),
