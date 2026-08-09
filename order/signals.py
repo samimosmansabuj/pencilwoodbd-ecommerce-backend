@@ -9,12 +9,12 @@ def order_created_telegram_notification(sender, instance, created, **kwargs):
     if not created:
         return
 
-    source = getattr(instance.customer, "source", None) if instance.customer else None
-    if not source:
-        return
+    # source = getattr(instance.customer, "source", None) if instance.customer else None
+    # if not source:
+    #     return
 
     config = TelegramBotConfig.get_active_config()
-    if not config or not config.should_notify_for(source):
-        return
+    # if not config or not config.should_notify_for(source):
+    #     return
 
     TelegramBotService.send_order_notification(instance, config)
