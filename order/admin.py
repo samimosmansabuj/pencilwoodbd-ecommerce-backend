@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import PaymentMethod, Address, Order, OrderItem, OrderRequest, Shipment, Payment, Review
+from .models import PaymentMethod, Address, Order, OrderItem, OrderRequest, Shipment, Payment, Review, TelegramBotConfig
 from django_json_widget.widgets import JSONEditorWidget
 from django.db import models
 
@@ -8,6 +8,10 @@ from django.db import models
 #         models.JSONField: {'widget': JSONEditorWidget},  # <-- JSONField er jonno widget
 #     }
 
+
+@admin.register(TelegramBotConfig)
+class TelegramBotConfigAdmin(admin.ModelAdmin):
+    list_display = ("name", "group_chat_id", "is_active", "notify_sources", "updated_at")
 
 admin.site.register(PaymentMethod)
 admin.site.register(Address)
