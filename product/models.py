@@ -2,7 +2,7 @@ from django.db import models
 from authentication.models import Customer
 from django.utils.text import slugify
 from pencilwoodbd.extra_module import previous_image_delete_os, image_delete_os
-from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS, PRODUCT_TYPE, PRODUCT_MEDIA_TYPE, PRODUCT_MEDIA_ROLE, PRODUCT_GIFT_TYPE, ATTRIBUTE_TYPE
+from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS, PRODUCT_TYPE, PRODUCT_MEDIA_TYPE, PRODUCT_MEDIA_ROLE, PRODUCT_GIFT_TYPE, ATTRIBUTE_TYPE, INVENTORY_TYPE
 import random, string
 
 def generate_unique_slug(model_object, field_value, old_slug=None):
@@ -139,6 +139,7 @@ class Product(models.Model):
     price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     discount_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     inventory_quantity = models.IntegerField(default=0)
+    inventory_type = models.CharField(max_length=20, choices=INVENTORY_TYPE.choices, default=INVENTORY_TYPE.IN_STOCK)
 
     weight = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)
     dimensions = models.JSONField(default=dict, blank=True, null=True)
@@ -158,12 +159,6 @@ class Product(models.Model):
 
     @property
     def display_sold_count(self):
-        """
-        Priority:
-        1. If manual_sold_count is set AND use_global_sold_count is False -> use manual_sold_count
-        2. Else use global default_sold_count from ReviewSettings
-        3. If global is also 0/not set, fall back to actual sold_count
-        """
         if not self.use_global_sold_count and self.manual_sold_count is not None:
             return self.manual_sold_count
 
@@ -201,6 +196,23 @@ class Product(models.Model):
                 return variant.discount_price or variant.price
             return 0
         return self.discount_price or self.price
+    
+    @property
+    def is_in_stock(self):
+        if self.inventory_type == INVENTORY_TYPE.UNLIMITED:
+            return True
+        if self.inventory_type == INVENTORY_TYPE.OUT_OF_STOCK:
+            return False
+        return self.inventory_quantity > 0
+
+    @property
+    def available_stock(self):
+        """Returns a large number for unlimited so quantity checks never fail."""
+        if self.inventory_type == INVENTORY_TYPE.UNLIMITED:
+            return 999999
+        if self.inventory_type == INVENTORY_TYPE.OUT_OF_STOCK:
+            return 0
+        return self.inventory_quantity
 
 
     def save(self, *args, **kwargs):
@@ -225,6 +237,7 @@ class ProductVariant(models.Model):  # New model
     compare_at_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)  
     cost_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)  
     inventory_quantity = models.IntegerField(default=0)  
+    inventory_type = models.CharField(max_length=20, default=INVENTORY_TYPE.IN_STOCK, choices=INVENTORY_TYPE.choices)
     weight = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)  
     dimensions = models.JSONField(default=dict, blank=True)  
     attributes = models.JSONField(default=dict, blank=True)  # {"size":"M","color":"Red"}
@@ -246,6 +259,22 @@ class ProductVariant(models.Model):  # New model
                 sku = f"{sku}-{value}"
 
         self.sku = sku
+
+    @property
+    def is_in_stock(self):
+        if self.inventory_type == INVENTORY_TYPE.UNLIMITED:
+            return True
+        if self.inventory_type == INVENTORY_TYPE.OUT_OF_STOCK:
+            return False
+        return self.inventory_quantity > 0
+
+    @property
+    def available_stock(self):
+        if self.inventory_type == INVENTORY_TYPE.UNLIMITED:
+            return 999999
+        if self.inventory_type == INVENTORY_TYPE.OUT_OF_STOCK:
+            return 0
+        return self.inventory_quantity
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None

@@ -17,7 +17,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from decimal import Decimal
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from pencilwoodbd.choices import USER_TYPE
+from pencilwoodbd.choices import USER_TYPE, ORDER_SOURCE
 from authentication.utils import normalize_bd_phone
 from site_app.delivery_charge import DeliveryChargeResolver
 from django.views.decorators.csrf import csrf_exempt
@@ -223,14 +223,14 @@ class PlaceOrderAPIView(APIView):
                 # Resolve/create the Customer by phone — this is the guest->customer link.
                 customer, created = Customer.objects.get_or_create(
                     phone=phone,
-                    defaults={"name": name}
+                    defaults={"name": name, "source": ORDER_SOURCE.WEBSITE}
                 )
                 if not created:
                     customer.name = name
+                    if not customer.source:
+                        customer.source = ORDER_SOURCE.WEBSITE
                     customer.save()
 
-                # Build the order-item list: logged-in users can pass cart_ids (DB cart),
-                # guests pass "items": [{product_id, variant_id, quantity}, ...] straight from localStorage.
                 if request.user.is_authenticated and getattr(request.user, "customer_profile", None):
                     # Logged in — use their real customer (in case phone differs from account, prefer account)
                     customer = request.user.customer_profile
@@ -303,10 +303,14 @@ class PlaceOrderAPIView(APIView):
                         price = variant.price
                         discount_price = variant.discount_price or variant.price
                     else:
-                        if product.inventory_quantity < quantity:
+                        if not product.is_in_stock:
                             return Response({"status": False, "message": f"{product.name} out of stock"}, status=400)
-                        product.inventory_quantity -= quantity
-                        product.save(update_fields=["inventory_quantity"])
+                        if product.inventory_type == "in_stock":
+                            if product.inventory_quantity < quantity:
+                                return Response({"status": False, "message": f"{product.name} out of stock"}, status=400)
+                            product.inventory_quantity -= quantity
+                            product.save(update_fields=["inventory_quantity"])
+                        
                         price = product.price
                         discount_price = product.discount_price or product.price
 

@@ -112,12 +112,9 @@
                             <label class="form-label">Source</label>
                             <select class="form-select" name="source">
                                 {% with current_source=order.customer.source|default:"Others" %}
-                                <option value="Others" {% if current_source == "Others" %}selected{% endif %}>Others</option>
-                                <option value="Facebook" {% if current_source == "Facebook" %}selected{% endif %}>Facebook</option>
-                                <option value="Instagram" {% if current_source == "Instagram" %}selected{% endif %}>Instagram</option>
-                                <option value="WhatsApp" {% if current_source == "WhatsApp" %}selected{% endif %}>WhatsApp</option>
-                                <option value="Website" {% if current_source == "Website" %}selected{% endif %}>Website</option>
-                                <option value="Referral" {% if current_source == "Referral" %}selected{% endif %}>Referral</option>
+                                {% for value, label in source_choices %}
+                                <option value="{{ value }}" {% if value == current_source %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
                                 {% endwith %}
                             </select>
                         </div>

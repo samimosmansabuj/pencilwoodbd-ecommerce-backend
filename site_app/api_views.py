@@ -15,6 +15,7 @@ from pencilwoodbd.choices import (
     PRODUCT_GIFT_TYPE,
     PAYMENT_TYPE,
     PAYMENT_STATUS,
+    ORDER_SOURCE,
 )
 from order.models import Order, OrderItem
 from authentication.models import Customer
@@ -119,8 +120,12 @@ class LandingPageOrderAPI(APIView):
             raise ValueError("Name and phone are required")
         customer, created = Customer.objects.get_or_create(
             phone=phone,
-            defaults={"name": name, "whatsapp": whatsapp}
+            defaults={"name": name, "whatsapp": whatsapp, "source": ORDER_SOURCE.LANDING_PAGE}
         )
+        if not created and not customer.source:
+            customer.source = ORDER_SOURCE.LANDING_PAGE
+            customer.whatsapp = whatsapp or customer.whatsapp
+            customer.save()
         return customer
 
     def get_address(self, data):
@@ -371,8 +376,11 @@ class OrderCreateAPIView(APIView):
     def get_customer(self, data):
         phone = normalize_bd_phone(data.get("phone"))
         customer, created = Customer.objects.get_or_create(
-            phone=phone, defaults={"name": data.get("name")}
+            phone=phone, defaults={"name": data.get("name"), "source": ORDER_SOURCE.LANDING_PAGE}
         )
+        if not created and not customer.source:
+            customer.source = ORDER_SOURCE.LANDING_PAGE
+            customer.save()
         return customer
 
     def post(self, request, *args, **kwargs):

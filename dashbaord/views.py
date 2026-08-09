@@ -43,8 +43,7 @@ from django.forms import modelformset_factory
 from order.utils import PathaoParcelAPI, SteadFastParcelAPI
 
 # Choices
-from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, PAYMENT_TYPE, PAYMENT_STATUS, ATTRIBUTE_TYPE, PRODUCT_TYPE, ORDER_REQUEST_WORK_STATUS, REVIEW_STATUS, MarketingIntegrationProviderChoices, MarketingIntegrationStatusChoices
-
+from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, PAYMENT_TYPE, PAYMENT_STATUS, ATTRIBUTE_TYPE, PRODUCT_TYPE, ORDER_REQUEST_WORK_STATUS, REVIEW_STATUS, MarketingIntegrationProviderChoices, MarketingIntegrationStatusChoices, INVENTORY_TYPE, ORDER_SOURCE
 
 # ------------------Dashboard--------
 STOCK_ALERT_THRESHOLD = 10
@@ -119,11 +118,16 @@ class DashboardView(LoginRequiredMixin, View):
 
     def get_short_in_stock_count(self):
         return Product.objects.filter(
-            inventory_quantity__gt=0, inventory_quantity__lte=STOCK_ALERT_THRESHOLD
+            inventory_type=INVENTORY_TYPE.IN_STOCK,
+            inventory_quantity__gt=0,
+            inventory_quantity__lte=STOCK_ALERT_THRESHOLD,
         ).count()
 
     def get_out_of_stock_count(self):
-        return Product.objects.filter(inventory_quantity__lte=0).count()
+        return Product.objects.filter(
+            Q(inventory_type=INVENTORY_TYPE.OUT_OF_STOCK)
+            | Q(inventory_type=INVENTORY_TYPE.IN_STOCK, inventory_quantity__lte=0)
+        ).count()
 
     def get_total_customer_count(self):
         return CustomUser.objects.filter(user_type=USER_TYPE.CUSTOMER).count()
@@ -798,9 +802,7 @@ def add_product(request):
                 else:
                     status_value = CATEGORY_PRODUCT_STATUS.DRAFT
 
-                # Determine the "default/featured" variant's price upfront so it can
-                # seed Product.price / Product.discount_price / Product.cost_price
-                # even for variable products.
+            
                 default_variant_data = None
                 if parsed_variants:
                     default_variant_data = next(
@@ -826,6 +828,19 @@ def add_product(request):
                     product_discount_price = parse_decimal(request.POST.get("discount_price"))
                     product_cost_price = parse_decimal(request.POST.get("cost_price"))
 
+                
+                inventory_type = request.POST.get("inventory_type", INVENTORY_TYPE.IN_STOCK)
+                valid_inventory_types = [c[0] for c in INVENTORY_TYPE.choices]
+                if inventory_type not in valid_inventory_types:
+                    inventory_type = INVENTORY_TYPE.IN_STOCK
+
+                if inventory_type == INVENTORY_TYPE.UNLIMITED:
+                    inventory_qty_value = 0
+                elif inventory_type == INVENTORY_TYPE.OUT_OF_STOCK:
+                    inventory_qty_value = 0
+                else:
+                    inventory_qty_value = parse_int(request.POST.get("inventory_quantity"))
+
                 product = Product.objects.create(
                     name=request.POST.get("name", "").strip(),
                     category=category,
@@ -834,7 +849,8 @@ def add_product(request):
                     price=product_price,
                     discount_price=product_discount_price,
                     cost_price=product_cost_price,
-                    inventory_quantity=parse_int(request.POST.get("inventory_quantity")),
+                    inventory_quantity=inventory_qty_value,
+                    inventory_type=inventory_type,
                     status=status_value,
                     product_type=product_type,
                 )
@@ -941,7 +957,6 @@ def add_product(request):
     )
 
 
-@login_required(login_url="admin_login")
 @login_required(login_url="admin_login")
 def product_update(request, pk):
 
@@ -1146,7 +1161,6 @@ def product_update(request, pk):
                         v.inventory_quantity
                         for v in product.variants.filter(is_active=True)
                     )
-                    # Sync Product.price/discount_price/cost_price with the default variant
                     default_variant = product.variants.filter(is_default=True).first() \
                         or product.variants.first()
                     if default_variant:
@@ -1155,11 +1169,23 @@ def product_update(request, pk):
                         product.cost_price = default_variant.cost_price
                     product.save(update_fields=["inventory_quantity", "price", "discount_price", "cost_price"])
                 else:
-                    product.inventory_quantity = parse_int(request.POST.get("inventory_quantity"), default=product.inventory_quantity)
+                    inventory_type = request.POST.get("inventory_type", product.inventory_type)
+                    valid_inventory_types = [c[0] for c in INVENTORY_TYPE.choices]
+                    if inventory_type not in valid_inventory_types:
+                        inventory_type = product.inventory_type
+
+                    if inventory_type == INVENTORY_TYPE.UNLIMITED:
+                        product.inventory_quantity = 0
+                    elif inventory_type == INVENTORY_TYPE.OUT_OF_STOCK:
+                        product.inventory_quantity = 0
+                    else:
+                        product.inventory_quantity = parse_int(request.POST.get("inventory_quantity"), default=product.inventory_quantity)
+
+                    product.inventory_type = inventory_type
                     product.price = parse_decimal(request.POST.get("price"), default=product.price)
                     product.discount_price = parse_decimal(request.POST.get("discount_price"), default=product.discount_price)
                     product.cost_price = parse_decimal(request.POST.get("cost_price"), default=product.cost_price or Decimal("0"))
-                    product.save(update_fields=["inventory_quantity", "price", "discount_price", "cost_price"])
+                    product.save(update_fields=["inventory_quantity", "inventory_type", "price", "discount_price", "cost_price"])
 
                 messages.success(request, "Product updated successfully")
                 return redirect("product_update", pk=product.pk)
@@ -1905,6 +1931,7 @@ class AddOrderView(LoginRequiredMixin, View):
             "status_choices": STATUS.choices,
             "variants_by_product_json": pyjson.dumps(build_variants_by_product(products)),
             "assignable_users": assignable_users,
+            "source_choices": ORDER_SOURCE.choices,
             "existing_items_json": "[]",
             "is_update": False,
         }
@@ -1922,7 +1949,10 @@ class AddOrderView(LoginRequiredMixin, View):
                 email = data.get("email", "").strip()
                 phone = data.get("phone", "").strip()
                 second_phone = data.get("second_phone", "").strip()
-                source = data.get("source", "Others").strip()
+                valid_sources = [c[0] for c in ORDER_SOURCE.choices]
+                source = data.get("source", ORDER_SOURCE.OTHERS).strip()
+                if source not in valid_sources:
+                    source = ORDER_SOURCE.OTHERS
 
                 if not name:
                     if is_ajax:
@@ -1936,14 +1966,23 @@ class AddOrderView(LoginRequiredMixin, View):
                     messages.error(request, "Phone number is required.")
                     return redirect("add_order")
 
-                customer = Customer.objects.create(
-                    company=company or None,
-                    name=name,
+                customer, created = Customer.objects.get_or_create(
                     phone=phone,
-                    second_phone=second_phone or None,
-                    email=email or None,
-                    source=source or "Others",
+                    defaults={
+                        "company": company or None,
+                        "name": name,
+                        "second_phone": second_phone or None,
+                        "email": email or None,
+                        "source": source,
+                    }
                 )
+                if not created:
+                    customer.company = company or customer.company
+                    customer.name = name or customer.name
+                    customer.second_phone = second_phone or customer.second_phone
+                    customer.email = email or customer.email
+                    customer.source = source  # dashboard manual selection always wins here
+                    customer.save()
 
                 shipping_address = data.get("shipping_address", "").strip()
                 note = data.get("note", "").strip()
@@ -2052,7 +2091,7 @@ class AddOrderView(LoginRequiredMixin, View):
             messages.error(request, str(e))
             return redirect("add_order")
         
-        
+
 class OrderView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
@@ -2224,27 +2263,26 @@ class OrderDetailView(LoginRequiredMixin, View):
         dashboard_view = DashboardView()
 
         context = {
-            "order": order,
-            "is_update": True,
-            "products": products,
-            "categories": Category.objects.order_by("name"),
-            "payment_types": PAYMENT_TYPE.choices,
-            "delivery_types": DELIVERY_TYPE.choices,
-            "status_choices": STATUS.choices,
-            "variants_by_product_json": pyjson.dumps(build_variants_by_product(products)),
-            "assignable_users": assignable_users,
-            "existing_items_json": pyjson.dumps(existing_items_data),
-            "staff_list": CustomUser.objects.filter(
-                user_type__in=[USER_TYPE.STAFF, USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN]
-            ),
-
-            # Needed because the inherited base template references these
-            "status_amounts": dashboard_view.get_status_amounts(orders),
-            "today_order_count": dashboard_view.get_today_order_count(orders),
-            "new_orders_count": dashboard_view.new_orders_count(orders),
-            "total_orders": orders.count(),
-            "new_order_request_count": dashboard_view.new_order_request_count(),
-        }
+        "order": order,
+        "is_update": True,
+        "products": products,
+        "categories": Category.objects.order_by("name"),
+        "payment_types": PAYMENT_TYPE.choices,
+        "delivery_types": DELIVERY_TYPE.choices,
+        "status_choices": STATUS.choices,
+        "variants_by_product_json": pyjson.dumps(build_variants_by_product(products)),
+        "assignable_users": assignable_users,
+        "existing_items_json": pyjson.dumps(existing_items_data),
+        "source_choices": ORDER_SOURCE.choices,   # <-- ADD THIS LINE
+        "staff_list": CustomUser.objects.filter(
+            user_type__in=[USER_TYPE.STAFF, USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN]
+        ),
+        "status_amounts": dashboard_view.get_status_amounts(orders),
+        "today_order_count": dashboard_view.get_today_order_count(orders),
+        "new_orders_count": dashboard_view.new_orders_count(orders),
+        "total_orders": orders.count(),
+        "new_order_request_count": dashboard_view.new_order_request_count(),
+    }
 
         if request.htmx:
             return render(request, "db_order/partial/partial_order_detail.html", context)
@@ -2514,6 +2552,7 @@ class AddOrderRequestView(LoginRequiredMixin, View):
             "variants_by_product_json": pyjson.dumps(build_variants_by_product(products)),
             "assignable_users": assignable_users,
             "existing_items_json": pyjson.dumps(existing_items_data),
+            "source_choices": ORDER_SOURCE.choices,
         }
         return render(request, self.template_name, context)
 
@@ -2534,7 +2573,10 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                 email = data.get("email", "").strip()
                 phone = data.get("phone", "").strip()
                 second_phone = data.get("second_phone", "").strip()
-                source = data.get("source", "Others").strip()
+                valid_sources = [c[0] for c in ORDER_SOURCE.choices]
+                source = data.get("source", ORDER_SOURCE.OTHERS).strip()
+                if source not in valid_sources:
+                    source = ORDER_SOURCE.OTHERS
 
                 if not name:
                     messages.error(request, "Customer name is required.")
@@ -2549,17 +2591,26 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                     customer.phone = phone
                     customer.second_phone = second_phone or None
                     customer.email = email or None
-                    customer.source = source or "Others"
+                    customer.source = source
                     customer.save()
                 else:
-                    customer = Customer.objects.create(
-                        company=company or None,
-                        name=name,
+                    customer, created = Customer.objects.get_or_create(
                         phone=phone,
-                        second_phone=second_phone or None,
-                        email=email or None,
-                        source=source or "Others",
+                        defaults={
+                            "company": company or None,
+                            "name": name,
+                            "second_phone": second_phone or None,
+                            "email": email or None,
+                            "source": source,
+                        }
                     )
+                    if not created:
+                        customer.company = company or customer.company
+                        customer.name = name or customer.name
+                        customer.second_phone = second_phone or customer.second_phone
+                        customer.email = email or customer.email
+                        customer.source = source
+                        customer.save()
 
                 shipping_address = data.get("shipping_address", "").strip()
                 note = data.get("note", "").strip()
@@ -4099,17 +4150,18 @@ class StockAlertListView(LoginRequiredMixin, View):
         max_stock = request.GET.get("max_stock", "").strip()
         per_page = parse_int(request.GET.get("per_page"), 15)
 
+        base_qs = Product.objects.exclude(inventory_type=INVENTORY_TYPE.UNLIMITED)
+
         if view_mode == "all":
-            products = Product.objects.order_by("inventory_quantity", "name")
+            products = base_qs.order_by("inventory_quantity", "name")
         else:
-            products = Product.objects.filter(
-                inventory_quantity__lte=STOCK_ALERT_THRESHOLD
+            products = base_qs.filter(
+                Q(inventory_type=INVENTORY_TYPE.OUT_OF_STOCK)
+                | Q(inventory_type=INVENTORY_TYPE.IN_STOCK, inventory_quantity__lte=STOCK_ALERT_THRESHOLD)
             ).order_by("inventory_quantity", "name")
 
         if search:
-            products = products.filter(
-                Q(name__icontains=search) | Q(sku__icontains=search)
-            )
+            products = products.filter(Q(name__icontains=search) | Q(sku__icontains=search))
 
         if min_stock != "":
             products = products.filter(inventory_quantity__gte=parse_int(min_stock, 0))

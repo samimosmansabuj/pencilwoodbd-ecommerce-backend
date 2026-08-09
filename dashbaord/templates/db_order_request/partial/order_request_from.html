@@ -63,12 +63,11 @@
                         <div class="col-md-6">
                             <label class="form-label">Source</label>
                             <select class="form-select" name="source">
-                                <option value="Others" {% if order_request and order_request.customer.source == "Others" or not order_request %}selected{% endif %}>Others</option>
-                                <option value="Facebook" {% if order_request and order_request.customer.source == "Facebook" %}selected{% endif %}>Facebook</option>
-                                <option value="Instagram" {% if order_request and order_request.customer.source == "Instagram" %}selected{% endif %}>Instagram</option>
-                                <option value="WhatsApp" {% if order_request and order_request.customer.source == "WhatsApp" %}selected{% endif %}>WhatsApp</option>
-                                <option value="Website" {% if order_request and order_request.customer.source == "Website" %}selected{% endif %}>Website</option>
-                                <option value="Referral" {% if order_request and order_request.customer.source == "Referral" %}selected{% endif %}>Referral</option>
+                                {% with current_source=order_request.customer.source|default:"Others" %}
+                                {% for value, label in source_choices %}
+                                <option value="{{ value }}" {% if value == current_source %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                                {% endwith %}
                             </select>
                         </div>
 

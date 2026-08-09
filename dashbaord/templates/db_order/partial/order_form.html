@@ -93,12 +93,9 @@
                         <div class="col-md-6">
                             <label class="form-label">Source</label>
                             <select class="form-select" name="source">
-                                <option value="Others" selected>Others</option>
-                                <option value="Facebook">Facebook</option>
-                                <option value="Instagram">Instagram</option>
-                                <option value="WhatsApp">WhatsApp</option>
-                                <option value="Website">Website</option>
-                                <option value="Referral">Referral</option>
+                                {% for value, label in source_choices %}
+                                <option value="{{ value }}" {% if value == "Others" %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
                             </select>
                         </div>
 
