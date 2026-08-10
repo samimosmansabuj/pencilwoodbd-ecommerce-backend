@@ -45,6 +45,10 @@ from order.utils import PathaoParcelAPI, SteadFastParcelAPI
 # Choices
 from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, PAYMENT_TYPE, PAYMENT_STATUS, ATTRIBUTE_TYPE, PRODUCT_TYPE, ORDER_REQUEST_WORK_STATUS, REVIEW_STATUS, MarketingIntegrationProviderChoices, MarketingIntegrationStatusChoices, INVENTORY_TYPE, ORDER_SOURCE
 
+
+from order.telegram_notify import notify_telegram_for_order
+
+
 # ------------------Dashboard--------
 STOCK_ALERT_THRESHOLD = 10
 
@@ -227,7 +231,6 @@ class UserManagementView(LoginRequiredMixin, View):
 
     def _customer_response(self, request):
         search = request.GET.get("q", "").strip()
-        source = request.GET.get("source", "").strip()
 
         customers = Customer.objects.select_related("user").order_by("-created_at")
 
@@ -240,29 +243,16 @@ class UserManagementView(LoginRequiredMixin, View):
                 | Q(company__icontains=search)
             ).distinct()
 
-        if source:
-            customers = customers.filter(source__iexact=source)
-
         per_page = parse_int(request.GET.get("per_page"), 10)
         paginator = Paginator(customers, per_page)
         page_obj = paginator.get_page(request.GET.get("page", 1))
-
-        sources = (
-            Customer.objects.exclude(source__isnull=True)
-            .exclude(source__exact="")
-            .values_list("source", flat=True)
-            .distinct()
-            .order_by("source")
-        )
 
         context = {
             "active_tab": "customers",
             "customers": page_obj,
             "paginator": paginator,
             "current_search": search,
-            "current_source": source,
             "current_per_page": str(per_page),
-            "sources": sources,
         }
 
         if request.htmx:
@@ -564,7 +554,6 @@ def delete_slider(request, id):
 
 @login_required(login_url="admin_login")
 def toggle_slider_active(request, id):
-    """Handles Active/Inactive toggle with the max-5 enforcement."""
     if request.method != "POST":
         return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
 
@@ -678,7 +667,6 @@ class ProductListView(LoginRequiredMixin, View):
     
 
 def parse_decimal(value, default=Decimal("0")):
-    """Safely parse a POST value into Decimal, falling back on blank/invalid input."""
     if value is None or str(value).strip() == "":
         return default
     try:
@@ -705,18 +693,6 @@ def parse_bool(value, default=False):
 
 
 def parse_delivery_charge_payload(request):
-    """
-    Expects the form to submit a hidden JSON field: delivery_charge_json
-    Shape sent from frontend JS:
-        {"mode": "all", "all": "150"}
-        or
-        {"mode": "per_district", "Dhaka": "80", "Chattogram": "120", "all": "150"}
-        or
-        {"mode": "none"}   -> means "don't set any product-level charge, use global/system default"
- 
-    Returns (area_and_charge_dict_or_None, has_any_charge_bool)
-    `None` means: delete/skip ProductDeliveryCharge entirely for this product.
-    """
     raw = request.POST.get("delivery_charge_json", "").strip()
     if not raw:
         return None, False
@@ -1551,7 +1527,6 @@ class SoldCountSettingsView(LoginRequiredMixin, View):
 
 @login_required(login_url="admin_login")
 def get_product_sold_count(request, id):
-    """AJAX endpoint: fetch current sold-count info for a single product (used when admin picks a product in the dropdown)"""
     try:
         product = get_object_or_404(Product, id=id)
         return JsonResponse({
@@ -1949,6 +1924,7 @@ class AddOrderView(LoginRequiredMixin, View):
                 email = data.get("email", "").strip()
                 phone = data.get("phone", "").strip()
                 second_phone = data.get("second_phone", "").strip()
+
                 valid_sources = [c[0] for c in ORDER_SOURCE.choices]
                 source = data.get("source", ORDER_SOURCE.OTHERS).strip()
                 if source not in valid_sources:
@@ -1973,7 +1949,6 @@ class AddOrderView(LoginRequiredMixin, View):
                         "name": name,
                         "second_phone": second_phone or None,
                         "email": email or None,
-                        "source": source,
                     }
                 )
                 if not created:
@@ -1981,7 +1956,6 @@ class AddOrderView(LoginRequiredMixin, View):
                     customer.name = name or customer.name
                     customer.second_phone = second_phone or customer.second_phone
                     customer.email = email or customer.email
-                    customer.source = source  # dashboard manual selection always wins here
                     customer.save()
 
                 shipping_address = data.get("shipping_address", "").strip()
@@ -2036,6 +2010,7 @@ class AddOrderView(LoginRequiredMixin, View):
                     order_created_date=order_created_date,
                     delivery_date=delivery_date,
                     design_file=design_file,
+                    source=source,
                 )
 
                 grand_total = shipping_total
@@ -2076,6 +2051,8 @@ class AddOrderView(LoginRequiredMixin, View):
                 order.total_cost = grand_total
                 order.save(update_fields=["total_cost"])
 
+                notify_telegram_for_order(order)
+
                 if is_ajax:
                     return JsonResponse({
                         "status": True,
@@ -2090,8 +2067,6 @@ class AddOrderView(LoginRequiredMixin, View):
                 return JsonResponse({"status": False, "message": str(e)}, status=400)
             messages.error(request, str(e))
             return redirect("add_order")
-        
-
 class OrderView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
@@ -2263,31 +2238,30 @@ class OrderDetailView(LoginRequiredMixin, View):
         dashboard_view = DashboardView()
 
         context = {
-        "order": order,
-        "is_update": True,
-        "products": products,
-        "categories": Category.objects.order_by("name"),
-        "payment_types": PAYMENT_TYPE.choices,
-        "delivery_types": DELIVERY_TYPE.choices,
-        "status_choices": STATUS.choices,
-        "variants_by_product_json": pyjson.dumps(build_variants_by_product(products)),
-        "assignable_users": assignable_users,
-        "existing_items_json": pyjson.dumps(existing_items_data),
-        "source_choices": ORDER_SOURCE.choices,   # <-- ADD THIS LINE
-        "staff_list": CustomUser.objects.filter(
-            user_type__in=[USER_TYPE.STAFF, USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN]
-        ),
-        "status_amounts": dashboard_view.get_status_amounts(orders),
-        "today_order_count": dashboard_view.get_today_order_count(orders),
-        "new_orders_count": dashboard_view.new_orders_count(orders),
-        "total_orders": orders.count(),
-        "new_order_request_count": dashboard_view.new_order_request_count(),
-    }
+            "order": order,
+            "is_update": True,
+            "products": products,
+            "categories": Category.objects.order_by("name"),
+            "payment_types": PAYMENT_TYPE.choices,
+            "delivery_types": DELIVERY_TYPE.choices,
+            "status_choices": STATUS.choices,
+            "variants_by_product_json": pyjson.dumps(build_variants_by_product(products)),
+            "assignable_users": assignable_users,
+            "existing_items_json": pyjson.dumps(existing_items_data),
+            "source_choices": ORDER_SOURCE.choices,
+            "staff_list": CustomUser.objects.filter(
+                user_type__in=[USER_TYPE.STAFF, USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN]
+            ),
+            "status_amounts": dashboard_view.get_status_amounts(orders),
+            "today_order_count": dashboard_view.get_today_order_count(orders),
+            "new_orders_count": dashboard_view.new_orders_count(orders),
+            "total_orders": orders.count(),
+            "new_order_request_count": dashboard_view.new_order_request_count(),
+        }
 
         if request.htmx:
             return render(request, "db_order/partial/partial_order_detail.html", context)
         return render(request, "db_order/order_detail.html", context)
-
 
 
 class OrderUpdateView(LoginRequiredMixin, View):
@@ -2307,8 +2281,12 @@ class OrderUpdateView(LoginRequiredMixin, View):
                     customer.email = data.get("email") or customer.email
                     customer.phone = data.get("phone", customer.phone).strip() or customer.phone
                     customer.second_phone = data.get("second_phone") or customer.second_phone
-                    customer.source = data.get("source", customer.source)
                     customer.save()
+
+                valid_sources = [c[0] for c in ORDER_SOURCE.choices]
+                new_source = data.get("source", order.source)
+                if new_source in valid_sources:
+                    order.source = new_source
 
                 work_assign_id = data.get("work_assign") or None
                 assigned_user = None
@@ -2384,6 +2362,7 @@ class OrderUpdateView(LoginRequiredMixin, View):
         except Exception as e:
             messages.error(request, str(e))
             return redirect("order_detail", id=pk)
+        
 
 class OrderInvoiceView(View):
     def get_order(self, id):
@@ -2486,6 +2465,7 @@ def create_order_from_request(order_request):
             is_urgent=order_request.is_urgent,
             order_created_date=order_request.order_created_date,
             design_file=order_request.design_file,
+            source=order_request.source,
         )
 
         for item in order_request.request_items.all():
@@ -2506,6 +2486,8 @@ def create_order_from_request(order_request):
         order_request.converted_order = order
         order_request.converted_at = timezone.now()
         order_request.save(update_fields=["status", "work_status", "converted_order", "converted_at"])
+
+    notify_telegram_for_order(order)
 
     return order
 
@@ -2573,6 +2555,7 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                 email = data.get("email", "").strip()
                 phone = data.get("phone", "").strip()
                 second_phone = data.get("second_phone", "").strip()
+
                 valid_sources = [c[0] for c in ORDER_SOURCE.choices]
                 source = data.get("source", ORDER_SOURCE.OTHERS).strip()
                 if source not in valid_sources:
@@ -2591,7 +2574,6 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                     customer.phone = phone
                     customer.second_phone = second_phone or None
                     customer.email = email or None
-                    customer.source = source
                     customer.save()
                 else:
                     customer, created = Customer.objects.get_or_create(
@@ -2601,7 +2583,6 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                             "name": name,
                             "second_phone": second_phone or None,
                             "email": email or None,
-                            "source": source,
                         }
                     )
                     if not created:
@@ -2609,7 +2590,6 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                         customer.name = name or customer.name
                         customer.second_phone = second_phone or customer.second_phone
                         customer.email = email or customer.email
-                        customer.source = source
                         customer.save()
 
                 shipping_address = data.get("shipping_address", "").strip()
@@ -2655,6 +2635,7 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                     order_request.is_urgent = is_urgent
                     order_request.order_created_date = order_created_date
                     order_request.delivery_date = delivery_date
+                    order_request.source = source
 
                     delete_design_file = data.get("delete_design_file")
                     if delete_design_file:
@@ -2681,6 +2662,7 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                         order_created_date=order_created_date,
                         design_file=design_file,
                         delivery_date=delivery_date,
+                        source=source,
                     )
 
                 grand_total = shipping_total
@@ -2718,7 +2700,7 @@ class AddOrderRequestView(LoginRequiredMixin, View):
         except Exception as e:
             messages.error(request, str(e))
             return redirect("add_order_request") if not pk else redirect("edit_order_request", pk=pk)
-               
+                      
 
 class OrderRequestListView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -3017,6 +2999,10 @@ class TelegramBotSettingsView(LoginRequiredMixin, View):
 
     def get(self, request):
         configs = TelegramBotConfig.objects.all().order_by("-created_at")
+
+        for config in configs:
+            config.notify_sources_json = pyjson.dumps(config.notify_sources or [])
+
         context = {
             "configs": configs,
             "order_source_choices": ORDER_SOURCE.choices,
@@ -3055,7 +3041,6 @@ class TelegramBotSettingsView(LoginRequiredMixin, View):
             return JsonResponse({"status": True, "message": "Telegram bot settings saved successfully."}, status=HTTPStatus.OK)
         except Exception as e:
             return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
-
 
 @login_required(login_url="admin_login")
 def delete_telegram_bot_config(request, id):

@@ -1,4 +1,4 @@
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.views import APIView
 from django.http import JsonResponse
 from rest_framework.response import Response
@@ -66,6 +66,7 @@ class TrackingSettingsView(APIView):
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def log_marketing_event(request):
     try:
         event_name = request.data.get("event_name")

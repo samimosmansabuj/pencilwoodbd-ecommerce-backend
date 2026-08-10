@@ -22,6 +22,9 @@ from authentication.models import Customer
 from site_app.models import OTPVerification
 from order.utils import OrderConfirmatinoEmailSend
 from authentication.utils import normalize_bd_phone
+from order.telegram_notify import notify_telegram_for_order
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
 # =========================
 # HOME PAGE
@@ -105,8 +108,7 @@ class LandingPageProductViews(APIView):
 # =========================
 # LANDING ORDER (SAFE FINAL VERSION)
 # =========================
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
+
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LandingPageOrderAPI(APIView):
@@ -120,12 +122,8 @@ class LandingPageOrderAPI(APIView):
             raise ValueError("Name and phone are required")
         customer, created = Customer.objects.get_or_create(
             phone=phone,
-            defaults={"name": name, "whatsapp": whatsapp, "source": ORDER_SOURCE.LANDING_PAGE}
+            defaults={"name": name, "whatsapp": whatsapp}
         )
-        if not created and not customer.source:
-            customer.source = ORDER_SOURCE.LANDING_PAGE
-            customer.whatsapp = whatsapp or customer.whatsapp
-            customer.save()
         return customer
 
     def get_address(self, data):
@@ -194,10 +192,9 @@ class LandingPageOrderAPI(APIView):
                 if payment_status not in [ps.value for ps in PAYMENT_STATUS]:
                     raise ValueError("Invalid payment status")
 
-
                 # Product Section---
                 items = data.get("items")
-                
+
                 variant_id = data.get("variant_id")
                 product_id = data.get("product_id")
 
@@ -208,24 +205,24 @@ class LandingPageOrderAPI(APIView):
                     product = get_object_or_404(Product, id=product_id)
                     variant = product.variants.filter(is_active=True).first() if product.has_variants else None
                     if product.has_variants and not variant:
-                        raise ValueError("No active variant available for this product")  
-                
-                total_cost, quantity, subtotal, delivery = self.check_order_amount(variant, product, data)
+                        raise ValueError("No active variant available for this product")
 
+                total_cost, quantity, subtotal, delivery = self.check_order_amount(variant, product, data)
 
                 # Customer Section---
                 customer = self.get_customer_data(data)
                 address = self.get_address(data)
-                
+
                 order = Order.objects.create(
                     customer=customer,
                     shipping_address=address,
                     note=data.get("note", ""),
                     shipping_total=delivery,
                     total_cost=total_cost,
-                    payment_type=payment_type,        
-                    payment_status=payment_status,    
-                    status=STATUS.NEW  
+                    payment_type=payment_type,
+                    payment_status=payment_status,
+                    status=STATUS.NEW,
+                    source=ORDER_SOURCE.LANDING_PAGE,
                 )
 
                 # Create OrderItem
@@ -253,6 +250,8 @@ class LandingPageOrderAPI(APIView):
                     product.inventory_quantity -= quantity
                 product.save()
 
+                notify_telegram_for_order(order)
+
                 return Response(
                     {"status": True, "message": "Order received successfully"},
                     status=status.HTTP_201_CREATED
@@ -260,8 +259,6 @@ class LandingPageOrderAPI(APIView):
         except Exception as e:
             print("Error in LandingPageOrderAPI: ", str(e))
             return Response({"status": False, "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-from decimal import Decimal
 
 class OrderCreateAPIView(APIView):
     permission_classes = [AllowAny]
@@ -376,11 +373,8 @@ class OrderCreateAPIView(APIView):
     def get_customer(self, data):
         phone = normalize_bd_phone(data.get("phone"))
         customer, created = Customer.objects.get_or_create(
-            phone=phone, defaults={"name": data.get("name"), "source": ORDER_SOURCE.LANDING_PAGE}
+            phone=phone, defaults={"name": data.get("name")}
         )
-        if not created and not customer.source:
-            customer.source = ORDER_SOURCE.LANDING_PAGE
-            customer.save()
         return customer
 
     def post(self, request, *args, **kwargs):
@@ -402,14 +396,6 @@ class OrderCreateAPIView(APIView):
                         phone=phone, is_verified=True
                     ).last()
 
-                    # if otp_required:
-                    #     customer_data = data.get("customer", {})
-                    #     phone = normalize_bd_phone(customer_data.get("phone", ""))
-
-                    #     otp_verified = OTPVerification.objects.filter(
-                    #         phone=phone, is_verified=True
-                    #     ).last()
-
                     if not otp_verified:
                         raise Exception("OTP not verified")
                     if otp_verified.is_expired():
@@ -420,7 +406,6 @@ class OrderCreateAPIView(APIView):
                 products = self.get_product_and_verify(data.get("products", {}))
                 amount = self.amount_check(data.get("amount", {}))
 
-                # ---- Build metadata so it actually persists ----
                 metadata_payload = {
                     "source": "landing_page",
                     "district": data.get("customer", {}).get("district"),
@@ -436,13 +421,17 @@ class OrderCreateAPIView(APIView):
                     shipping_total=Decimal(str(amount.get("deliveryCharge", 0))),
                     total_cost=Decimal(str(amount.get("totalAmount", 0))),
                     metadata=metadata_payload,
+                    source=ORDER_SOURCE.LANDING_PAGE,
                 )
+
                 order_item = self.create_order_item(
                     order, data.get("products", {}), amount
                 )
 
                 if otp_required and otp_verified:
                     otp_verified.delete()
+
+                notify_telegram_for_order(order)
 
                 return Response(
                     {"success": True, "message": "Order Created", "order_id": order.order_id},
@@ -454,7 +443,7 @@ class OrderCreateAPIView(APIView):
                 {"success": False, "message": str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
+        
     def verify_input_amount(self, data):
         if data:
             input_delivery_charge = data["deliveryCharge"]

@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from pencilwoodbd.choices import USER_TYPE, ORDER_SOURCE
+from pencilwoodbd.choices import USER_TYPE
 
 class CustomUser(AbstractUser):
     email = models.EmailField(unique=True, blank=True, null=True)
@@ -34,8 +34,9 @@ class Customer(models.Model):
     second_phone = models.CharField(max_length=20, blank=True, null=True)
     whatsapp = models.CharField(max_length=20, blank=True, null=True)
     email = models.EmailField(max_length=200, blank=True, null=True)
-    source = models.CharField(max_length=100, blank=True, null=True, choices=ORDER_SOURCE.choices, default=ORDER_SOURCE.OTHERS)
+    source = models.CharField(max_length=100, blank=True, null=True, default='Others')
     has_password = models.BooleanField(default=False)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

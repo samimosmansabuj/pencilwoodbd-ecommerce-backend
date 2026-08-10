@@ -53,7 +53,7 @@
                                         data-bot-token="{{ config.bot_token }}"
                                         data-group-chat-id="{{ config.group_chat_id }}"
                                         data-is-active="{{ config.is_active|yesno:'true,false' }}"
-                                        data-notify-sources='{{ config.notify_sources|default:"[]" }}'
+                                        data-notify-sources="{{ config.notify_sources_json }}"
                                         data-bs-toggle="modal" data-bs-target="#TelegramBotModal">
                                         <i class="bi bi-pencil"></i>
                                     </button>
@@ -210,7 +210,12 @@ document.addEventListener("click", function (e) {
         form.querySelector("#telegram_bot_is_active").checked = btn.dataset.isActive === "true";
 
         let sources = [];
-        try { sources = JSON.parse(btn.dataset.notifySources || "[]"); } catch (err) { sources = []; }
+        try {
+            sources = JSON.parse(btn.getAttribute("data-notify-sources") || "[]");
+        } catch (err) {
+            console.error("Failed to parse notify_sources:", btn.getAttribute("data-notify-sources"), err);
+            sources = [];
+        }
 
         form.querySelectorAll(".telegram-notify-source-checkbox").forEach(function (cb) {
             cb.checked = sources.includes(cb.value);
