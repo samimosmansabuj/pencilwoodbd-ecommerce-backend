@@ -108,10 +108,10 @@
                                 onclick="printInvoice({{ order.id }})">
                                 <i class="material-icons-outlined">print</i>
                             </button>
-                            <a href="{% url 'order_token_print' order.id %}" class="btn btn-sm btn-filter"
-                                title="Print Token">
+                            <button type="button" class="btn btn-sm btn-filter"
+                                onclick="printToken({{ order.id }})" title="Print Token">
                                 <i class="bi bi-ticket-perforated"></i>
-                            </a>
+                            </button>
 
                         </div>
                     </td>
@@ -199,16 +199,48 @@
 
         // Invoice Print Script--------
         window.printInvoice = function (orderId) {
-            const url = `/orders/${orderId}/invoice/`;
-            const printWindow = window.open(url, '_blank', 'width=900,height=1200');
+        const url = `/orders/${orderId}/invoice/`;
+        const width = Math.round(screen.width / 2);
+        const height = Math.round(screen.height * 0.85);
+        const left = screen.width - width;
+        const top = 40;
 
-            printWindow.onload = function () {
-                printWindow.focus();
-                printWindow.print();
-            };
-            window.onafterprint = function () {
-                window.close();
-            };
+        const printWindow = window.open(
+            url,
+            '_blank',
+            `width=${width},height=${height},left=${left},top=${top}`
+        );
+
+        printWindow.onload = function () {
+            printWindow.focus();
+            printWindow.print();
         };
+        printWindow.onafterprint = function () {
+            printWindow.close();
+        };
+    };
+
+        // Token Print Script--------
+        window.printToken = function (orderId) {
+        const url = `/orders/${orderId}/token-print/`;
+        const width = Math.round(screen.width / 2);
+        const height = Math.round(screen.height * 0.85);
+        const left = 0;
+        const top = 40;
+
+        const printWindow = window.open(
+            url,
+            'tokenPrintWindow',
+            `width=${width},height=${height},left=${left},top=${top},popup=yes`
+        );
+
+        printWindow.onload = function () {
+            printWindow.focus();
+            printWindow.print();
+        };
+        printWindow.onafterprint = function () {
+            printWindow.close();
+        };
+    };
     }
 </script>

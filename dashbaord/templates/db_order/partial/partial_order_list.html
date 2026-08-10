@@ -1,368 +1,928 @@
+```html
 <div class="main-content">
-    <!--breadcrumb-->
+
+    <!-- Breadcrumb -->
     <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
         <div class="breadcrumb-title pe-3">Dashboard</div>
+
         <div class="ps-3">
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0 p-0">
+
                     <li class="breadcrumb-item">
-                        <a href="{% url 'dashboard' %}"><i class="bx bx-home-alt"></i></a>
+                        <a href="{% url 'dashboard' %}">
+                            <i class="bx bx-home-alt"></i>
+                        </a>
                     </li>
 
-                    <li class="breadcrumb-item active" aria-current="page">Orders <span>({{ orders.paginator.count }})</span></li>
+                    <li class="breadcrumb-item active" aria-current="page">
+                        Orders
+                        <span>({{ orders.paginator.count }})</span>
+                    </li>
+
                 </ol>
             </nav>
         </div>
     </div>
-    <!--end breadcrumb-->
+    <!-- End Breadcrumb -->
 
+
+    <!-- =========================
+         ORDER STATUS TABS
+    ========================== -->
     <div class="product-count d-flex align-items-center gap-3 gap-lg-4 mb-4 fw-medium flex-wrap font-text1">
+
         <a href="{% url 'order_list' %}?status=all&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-            hx-get="{% url 'order_list' %}?status=all&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-            hx-target="#content-area" hx-push-url="true" class="{% if current_status == 'all' %}active{% endif %}">
+           hx-get="{% url 'order_list' %}?status=all&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-target="#content-area"
+           hx-push-url="true"
+           class="{% if current_status == 'all' %}active{% endif %}">
             <span class="me-1">All</span>
             <span class="text-secondary">({{ order_count.all }})</span>
         </a>
+
+
         <a href="{% url 'order_list' %}?status=new&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-            hx-get="{% url 'order_list' %}?status=new&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-            hx-target="#content-area" hx-push-url="true" class="{% if current_status == 'new' %}active{% endif %}">
+           hx-get="{% url 'order_list' %}?status=new&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-target="#content-area"
+           hx-push-url="true"
+           class="{% if current_status == 'new' %}active{% endif %}">
             <span class="me-1">NEW</span>
             <span class="text-secondary">({{ order_count.new }})</span>
         </a>
+
+
         <a href="{% url 'order_list' %}?status=follow_up&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-            hx-get="{% url 'order_list' %}?status=follow_up&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-            hx-target="#content-area" hx-push-url="true"
-            class="{% if current_status == 'follow_up' %}active{% endif %}">
+           hx-get="{% url 'order_list' %}?status=follow_up&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-target="#content-area"
+           hx-push-url="true"
+           class="{% if current_status == 'follow_up' %}active{% endif %}">
             <span class="me-1">FOLLOW UP</span>
             <span class="text-secondary">({{ order_count.follow_up }})</span>
         </a>
+
+
         <a href="{% url 'order_list' %}?status=confirmed&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-            hx-get="{% url 'order_list' %}?status=confirmed&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-            hx-target="#content-area" hx-push-url="true"
-            class="{% if current_status == 'confirmed' %}active{% endif %}">
+           hx-get="{% url 'order_list' %}?status=confirmed&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-target="#content-area"
+           hx-push-url="true"
+           class="{% if current_status == 'confirmed' %}active{% endif %}">
             <span class="me-1">CONFIRMED</span>
             <span class="text-secondary">({{ order_count.confirmed }})</span>
         </a>
+
+
         <a href="{% url 'order_list' %}?status=shipped&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-            hx-get="{% url 'order_list' %}?status=shipped&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-            hx-target="#content-area" hx-push-url="true" class="{% if current_status == 'shipped' %}active{% endif %}">
+           hx-get="{% url 'order_list' %}?status=shipped&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-target="#content-area"
+           hx-push-url="true"
+           class="{% if current_status == 'shipped' %}active{% endif %}">
             <span class="me-1">SHIPPED</span>
             <span class="text-secondary">({{ order_count.shipped }})</span>
         </a>
+
+
         <a href="{% url 'order_list' %}?status=delivered&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-            hx-get="{% url 'order_list' %}?status=delivered&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-            hx-target="#content-area" hx-push-url="true"
-            class="{% if current_status == 'delivered' %}active{% endif %}">
+           hx-get="{% url 'order_list' %}?status=delivered&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-target="#content-area"
+           hx-push-url="true"
+           class="{% if current_status == 'delivered' %}active{% endif %}">
             <span class="me-1">DELIVERED</span>
             <span class="text-secondary">({{ order_count.delivered }})</span>
         </a>
+
+
         <a href="{% url 'order_list' %}?status=cancelled&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-            hx-get="{% url 'order_list' %}?status=cancelled&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-            hx-target="#content-area" hx-push-url="true"
-            class="{% if current_status == 'cancelled' %}active{% endif %}">
+           hx-get="{% url 'order_list' %}?status=cancelled&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-target="#content-area"
+           hx-push-url="true"
+           class="{% if current_status == 'cancelled' %}active{% endif %}">
             <span class="me-1">CANCELLED</span>
             <span class="text-secondary">({{ order_count.cancelled }})</span>
         </a>
+
+
+        <a href="{% url 'order_list' %}?status=token_print&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-get="{% url 'order_list' %}?status=token_print&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-target="#content-area"
+           hx-push-url="true"
+           class="{% if current_status == 'token_print' %}active{% endif %}">
+            <span class="me-1">TOKEN PRINT</span>
+            <span class="text-secondary">({{ order_count.token_print }})</span>
+        </a>
+
+
+        <a href="{% url 'order_list' %}?status=returned&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-get="{% url 'order_list' %}?status=returned&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-target="#content-area"
+           hx-push-url="true"
+           class="{% if current_status == 'returned' %}active{% endif %}">
+            <span class="me-1">RETURNED</span>
+            <span class="text-secondary">({{ order_count.returned }})</span>
+        </a>
+
+
+        <a href="{% url 'order_list' %}?status=refunded&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-get="{% url 'order_list' %}?status=refunded&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-target="#content-area"
+           hx-push-url="true"
+           class="{% if current_status == 'refunded' %}active{% endif %}">
+            <span class="me-1">REFUNDED</span>
+            <span class="text-secondary">({{ order_count.refunded }})</span>
+        </a>
+
+
+        <!-- Urgent -->
         <a href="{% url 'order_list' %}?status=all&urgent=1&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-            hx-get="{% url 'order_list' %}?status=all&urgent=1&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-            hx-target="#content-area" hx-push-url="true"
-            class="{% if request.GET.urgent == '1' %}active{% endif %} text-danger">
+           hx-get="{% url 'order_list' %}?status=all&urgent=1&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-target="#content-area"
+           hx-push-url="true"
+           class="{% if request.GET.urgent == '1' %}active{% endif %} text-danger">
             <span class="me-1">URGENT</span>
             <span class="text-danger">({{ order_count.urgent }})</span>
         </a>
+
     </div>
+    <!-- End Status Tabs -->
+
+
+    <!-- =========================
+         FILTER ROW
+    ========================== -->
     <div class="row g-3 align-items-end mb-3">
+
         <!-- Search -->
         <div class="col-auto">
             <div class="position-relative">
-                <input class="form-control px-5" type="search" name="q" placeholder="Search Orders"
+
+                <input
+                    class="form-control px-5"
+                    type="search"
+                    name="q"
+                    placeholder="Search Orders"
                     value="{{ current_search }}"
                     hx-get="{% url 'order_list' %}?status={{ current_status }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-                    hx-trigger="keyup changed delay:400ms" hx-target="#content-area" hx-push-url="true">
+                    hx-trigger="keyup changed delay:400ms"
+                    hx-target="#content-area"
+                    hx-push-url="true">
+
                 <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">
                     search
                 </span>
+
             </div>
         </div>
+
 
         <!-- Product Filter -->
         <div class="col-auto">
             <div class="btn-group position-static">
-                <select class="form-control" name="product" id="product_slug"
+
+                <select
+                    class="form-control"
+                    name="product"
+                    id="product_slug"
                     hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-                    hx-target="#content-area" hx-push-url="true">
+                    hx-target="#content-area"
+                    hx-push-url="true">
 
                     <option value="">All Products</option>
 
                     {% for product in products %}
-                    <option value="{{ product.slug|urlencode }}" {% if product.slug == current_product_slug %}selected{% endif %}>
-                        {{ product.name }}
-                    </option>
+                        <option
+                            value="{{ product.slug|urlencode }}"
+                            {% if product.slug == current_product_slug %}selected{% endif %}>
+                            {{ product.name }}
+                        </option>
                     {% endfor %}
 
                 </select>
+
             </div>
         </div>
+
 
         <!-- Add Order / Export Buttons -->
         <div class="col-auto">
             <div class="d-flex align-items-center gap-2 justify-content-lg-end">
+
                 <button class="btn btn-filter px-4">
-                    <i class="bi bi-box-arrow-right me-2"></i>Export
+                    <i class="bi bi-box-arrow-right me-2"></i>
+                    Export
                 </button>
-                <!-- <button type="button" class="btn btn-primary px-4" data-bs-toggle="modal"
-                data-bs-target="#OrderFormModal">
-            <i class="bi bi-plus-lg me-2"></i>Add Order
-        </button> -->
+
                 {% include 'db_order/modal/order_form_modal.html' %}
+
             </div>
         </div>
 
-        <!-- Date Range Filter (Right side of row, before buttons) -->
+
+        <!-- Date Range Filter -->
         <div class="col-auto ms-auto d-flex gap-2 align-items-end">
 
             <!-- Start Date -->
             <div class="d-flex flex-column">
-                <label class="form-label mb-1">Start Date</label>
-                <input type="date" name="start_date" class="form-control" value="{{ request.GET.start_date }}"
+
+                <label class="form-label mb-1">
+                    Start Date
+                </label>
+
+                <input
+                    type="date"
+                    name="start_date"
+                    class="form-control"
+                    value="{{ request.GET.start_date }}"
                     hx-get="{% url 'order_list' %}?status={{ current_status }}&per_page={{ per_page }}"
-                    hx-trigger="change" hx-target="#content-area"
-                    hx-include="[name='end_date'],[name='q'],[name='product']" hx-push-url="true">
+                    hx-trigger="change"
+                    hx-target="#content-area"
+                    hx-include="[name='end_date'],[name='q'],[name='product']"
+                    hx-push-url="true">
+
             </div>
+
 
             <!-- End Date -->
             <div class="d-flex flex-column">
-                <label class="form-label mb-1">End Date</label>
-                <input type="date" name="end_date" class="form-control" value="{{ request.GET.end_date }}"
+
+                <label class="form-label mb-1">
+                    End Date
+                </label>
+
+                <input
+                    type="date"
+                    name="end_date"
+                    class="form-control"
+                    value="{{ request.GET.end_date }}"
                     hx-get="{% url 'order_list' %}?status={{ current_status }}&per_page={{ per_page }}"
-                    hx-trigger="change" hx-target="#content-area"
-                    hx-include="[name='start_date'],[name='q'],[name='product']" hx-push-url="true">
+                    hx-trigger="change"
+                    hx-target="#content-area"
+                    hx-include="[name='start_date'],[name='q'],[name='product']"
+                    hx-push-url="true">
+
             </div>
 
-            <!-- Clear Dates Button -->
+
+            <!-- Clear Dates -->
             <div class="d-flex flex-column">
-                <button type="button" class="btn btn-outline-secondary mt-4"
+
+                <button
+                    type="button"
+                    class="btn btn-outline-secondary mt-4"
                     hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}"
-                    hx-target="#content-area" hx-push-url="true"
+                    hx-target="#content-area"
+                    hx-push-url="true"
                     onclick="this.closest('div').querySelectorAll('input[type=date]').forEach(input => input.value='')">
                     Clear
                 </button>
+
             </div>
+
         </div>
 
-
     </div>
+    <!-- End Filter Row -->
 
-    <!--end row-->
 
-    <!-- Order List Table Div ============ -->
+    <!-- =========================
+         ORDER LIST TABLE
+    ========================== -->
     <div class="card mt-4">
+
         <div class="card-body">
 
-            <!-- Bulk Action Bar (shows only when at least one checkbox is checked) -->
-            <div class="d-flex gap-2 mb-2" id="bulkActionBar" style="display:none;">
+            <!-- Bulk Action Bar -->
+            <div
+                class="d-flex gap-2 mb-2"
+                id="bulkActionBar"
+                style="display:none;">
+
+                <!-- Bulk Status -->
                 <select id="bulkStatusSelect" class="form-select w-auto">
-                    {% for value, label in status_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+
+                    {% for value, label in status_choices %}
+                        <option value="{{ value }}">
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+
                 </select>
-                <button class="btn btn-sm btn-primary" onclick="submitBulkAction('status')">Update Status</button>
-                <button class="btn btn-sm btn-warning" onclick="openBulkParcelModal()">Create
-                    Parcels</button>
+
+                <button
+                    class="btn btn-sm btn-primary"
+                    onclick="submitBulkAction('status')">
+                    Update Status
+                </button>
+
+
+                <!-- Bulk Work Assignment -->
+                <select
+                    id="bulkWorkAssignSelect"
+                    class="form-select w-auto">
+
+                    <option value="">
+                        Assign to...
+                    </option>
+
+                    {% for staff in staff_list %}
+                        <option value="{{ staff.id }}">
+                            {{ staff.get_full_name|default:staff.username }}
+                        </option>
+                    {% endfor %}
+
+                </select>
+
+                <button
+                    class="btn btn-sm btn-secondary"
+                    onclick="submitBulkAction('work_assign')">
+                    Assign Work
+                </button>
+
+
+                <!-- Create Parcels -->
+                <button
+                    class="btn btn-sm btn-warning"
+                    onclick="openBulkParcelModal()">
+                    Create Parcels
+                </button>
+
+
+                <!-- Print Tokens -->
+                <button
+                    class="btn btn-sm btn-info"
+                    onclick="printBulkTokens()">
+                    <i class="bi bi-ticket-perforated"></i>
+                    Print Tokens
+                </button>
+
             </div>
+            <!-- End Bulk Action Bar -->
+
 
             {% include "db_order/partial/partial_order_table_rows.html" with orders=orders show_bulk_select=True show_see_more=False status_choices=status_choices source="order_list" %}
 
+
             <script>
-                // ----------------- Bulk Actions (delegated, bind ONCE globally) -----------------
+                // -------------------------------
+                // Bulk Actions
+                // -------------------------------
+
                 if (!window.__bulkActionsBound) {
                     window.__bulkActionsBound = true;
 
                     document.addEventListener('change', function (event) {
-                        if (event.target && event.target.id === 'selectAllOrders') {
-                            document.querySelectorAll('.order-checkbox').forEach(function (cb) {
-                                cb.checked = event.target.checked;
-                            });
+
+                        if (
+                            event.target &&
+                            event.target.id === 'selectAllOrders'
+                        ) {
+                            document
+                                .querySelectorAll('.order-checkbox')
+                                .forEach(function (cb) {
+                                    cb.checked = event.target.checked;
+                                });
+
                             toggleBulkBar();
-                        } else if (event.target && event.target.classList.contains('order-checkbox')) {
+
+                        } else if (
+                            event.target &&
+                            event.target.classList.contains('order-checkbox')
+                        ) {
                             toggleBulkBar();
                         }
+
                     });
                 }
 
+
                 function toggleBulkBar() {
-                    const checked = document.querySelectorAll('.order-checkbox:checked').length;
-                    const bar = document.getElementById('bulkActionBar');
-                    if (bar) bar.style.display = checked > 0 ? 'flex' : 'none';
+
+                    const checked =
+                        document.querySelectorAll(
+                            '.order-checkbox:checked'
+                        ).length;
+
+                    const bar =
+                        document.getElementById('bulkActionBar');
+
+                    if (bar) {
+                        bar.style.display =
+                            checked > 0 ? 'flex' : 'none';
+                    }
                 }
+
 
                 function getSelectedOrderIds() {
-                    return Array.from(document.querySelectorAll('.order-checkbox:checked')).map(cb => parseInt(cb.value));
+
+                    return Array.from(
+                        document.querySelectorAll(
+                            '.order-checkbox:checked'
+                        )
+                    ).map(function (cb) {
+                        return parseInt(cb.value);
+                    });
+
                 }
 
+
                 function submitBulkAction(action) {
-                    const payload = { order_ids: getSelectedOrderIds(), action: action };
-                    if (action === 'status') payload.status = document.getElementById('bulkStatusSelect').value;
+
+                    const payload = {
+                        order_ids: getSelectedOrderIds(),
+                        action: action
+                    };
+
+
+                    if (action === 'status') {
+                        payload.status =
+                            document.getElementById(
+                                'bulkStatusSelect'
+                            ).value;
+                    }
+
+
+                    if (action === 'work_assign') {
+
+                        const staffId =
+                            document.getElementById(
+                                'bulkWorkAssignSelect'
+                            ).value;
+
+                        if (!staffId) {
+                            errorNotificationCustom(
+                                "Please select a staff member to assign."
+                            );
+                            return;
+                        }
+
+                        payload.staff_id = staffId;
+                    }
+
 
                     if (!payload.order_ids.length) {
-                        errorNotificationCustom("Please select at least one order.");
+
+                        errorNotificationCustom(
+                            "Please select at least one order."
+                        );
+
                         return;
                     }
+
 
                     fetch("{% url 'order_bulk_action' %}", {
                         method: "POST",
-                        headers: { "Content-Type": "application/json", "X-CSRFToken": getCookie('csrftoken') },
+
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-CSRFToken": getCookie('csrftoken')
+                        },
+
                         body: JSON.stringify(payload)
+
                     })
-                        .then(r => r.json())
-                        .then(data => {
-                            if (data.success) {
-                                successNotificationCustom(data.message);
-                            } else {
-                                errorNotificationCustom(data.message || "Something went wrong!");
+
+                    .then(function (r) {
+                        return r.json();
+                    })
+
+                    .then(function (data) {
+
+                        if (data.success) {
+
+                            successNotificationCustom(
+                                data.message
+                            );
+
+                        } else {
+
+                            errorNotificationCustom(
+                                data.message ||
+                                "Something went wrong!"
+                            );
+                        }
+
+
+                        htmx.ajax(
+                            'GET',
+                            window.location.href,
+                            {
+                                target: '#content-area',
+                                swap: 'innerHTML'
                             }
-                            htmx.ajax('GET', window.location.href, { target: '#content-area', swap: 'innerHTML' });
-                        })
-                        .catch(error => {
-                            errorNotificationCustom("Something went wrong!");
-                        });
+                        );
+
+                    })
+
+                    .catch(function () {
+
+                        errorNotificationCustom(
+                            "Something went wrong!"
+                        );
+
+                    });
+
                 }
 
-                // ----------------- Bulk Parcel (via delivery modal) -----------------
-                function openBulkParcelModal() {
-                    const orderIds = getSelectedOrderIds();
+
+                // -------------------------------
+                // Print Bulk Tokens
+                // -------------------------------
+
+                function printBulkTokens() {
+
+                    const orderIds =
+                        getSelectedOrderIds();
+
                     if (!orderIds.length) {
-                        errorNotificationCustom("Please select at least one order.");
+
+                        errorNotificationCustom(
+                            "Please select at least one order."
+                        );
+
                         return;
                     }
 
-                    const logisticsContainer = document.getElementById("logistics-option");
-                    const resultContainer = document.getElementById("delivery-result");
+
+                    const url =
+                        `/orders/bulk-token-print/?ids=${orderIds.join(',')}`;
+
+                    const width =
+                        Math.round(screen.width / 2);
+
+                    const height =
+                        Math.round(screen.height * 0.85);
+
+
+                    const printWindow =
+                        window.open(
+                            url,
+                            'bulkTokenPrintWindow',
+                            `width=${width},height=${height},left=0,top=40,popup=yes`
+                        );
+
+
+                    if (!printWindow) {
+                        errorNotificationCustom(
+                            "Please allow pop-ups for this site."
+                        );
+                        return;
+                    }
+
+
+                    printWindow.onload = function () {
+                        printWindow.focus();
+                        printWindow.print();
+                    };
+
+
+                    printWindow.onafterprint = function () {
+                        printWindow.close();
+                    };
+
+                }
+
+
+                // -------------------------------
+                // Bulk Parcel
+                // -------------------------------
+
+                function openBulkParcelModal() {
+
+                    const orderIds =
+                        getSelectedOrderIds();
+
+                    if (!orderIds.length) {
+
+                        errorNotificationCustom(
+                            "Please select at least one order."
+                        );
+
+                        return;
+                    }
+
+
+                    const logisticsContainer =
+                        document.getElementById(
+                            "logistics-option"
+                        );
+
+                    const resultContainer =
+                        document.getElementById(
+                            "delivery-result"
+                        );
+
+
                     resultContainer.innerHTML = "";
+
+
                     logisticsContainer.innerHTML = `
                         <div class="text-center py-3 w-100">
                             <div class="spinner-border text-danger"></div>
                         </div>
                     `;
 
-                    const deliveryOptionForm = document.getElementById("deliveryOptionForm");
-                    deliveryOptionForm.dataset.bulkMode = "true";
-                    deliveryOptionForm.dataset.bulkIds = JSON.stringify(orderIds);
+
+                    const deliveryOptionForm =
+                        document.getElementById(
+                            "deliveryOptionForm"
+                        );
+
+
+                    deliveryOptionForm.dataset.bulkMode =
+                        "true";
+
+                    deliveryOptionForm.dataset.bulkIds =
+                        JSON.stringify(orderIds);
+
 
                     fetch("/api/v1/delivery-options/")
-                        .then(response => response.json())
-                        .then(data => {
-                            logisticsContainer.innerHTML = "";
-                            if (data.success && data.delivery_options.length > 0) {
-                                data.delivery_options.forEach(option => {
-                                    if (!option.is_active) return;
+
+                    .then(function (response) {
+                        return response.json();
+                    })
+
+                    .then(function (data) {
+
+                        logisticsContainer.innerHTML = "";
+
+
+                        if (
+                            data.success &&
+                            data.delivery_options.length > 0
+                        ) {
+
+                            data.delivery_options.forEach(
+                                function (option) {
+
+                                    if (!option.is_active) {
+                                        return;
+                                    }
+
+
                                     const card = `
                                         <div class="col-md-6">
                                             <label class="logistics-card w-100">
-                                                <input type="radio" name="logistics_partner" value="${option.id}" required>
+
+                                                <input
+                                                    type="radio"
+                                                    name="logistics_partner"
+                                                    value="${option.id}"
+                                                    required>
+
                                                 <div class="card-content">
-                                                    ${option.logo ? `<img src="${option.logo}" height="35">` : ''}
-                                                    <h6>${option.name}
-                                                        ${option.type ? `<small style="color: #007bff;">(${option.type})</small>` : ''}
+
+                                                    ${
+                                                        option.logo
+                                                            ? `<img src="${option.logo}" height="35">`
+                                                            : ''
+                                                    }
+
+                                                    <h6>
+                                                        ${option.name}
+
+                                                        ${
+                                                            option.type
+                                                                ? `<small style="color: #007bff;">(${option.type})</small>`
+                                                                : ''
+                                                        }
                                                     </h6>
-                                                    <p>${option.description || 'No description available'}</p>
+
+                                                    <p>
+                                                        ${
+                                                            option.description ||
+                                                            'No description available'
+                                                        }
+                                                    </p>
+
                                                 </div>
+
                                             </label>
                                         </div>
                                     `;
-                                    logisticsContainer.insertAdjacentHTML("beforeend", card);
-                                });
-                            } else {
-                                logisticsContainer.innerHTML = `
-                                    <div class="col-12 text-center text-danger">
-                                        No delivery options available.
-                                    </div>
-                                `;
-                            }
-                        })
-                        .catch(error => {
+
+
+                                    logisticsContainer.insertAdjacentHTML(
+                                        "beforeend",
+                                        card
+                                    );
+
+                                }
+                            );
+
+                        } else {
+
                             logisticsContainer.innerHTML = `
                                 <div class="col-12 text-center text-danger">
-                                    Failed to load delivery options.
+                                    No delivery options available.
                                 </div>
                             `;
-                            console.error("Delivery API Error:", error);
-                        });
 
-                    const modalEl = document.getElementById('deliveryOptionModal');
-                    const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+                        }
+
+                    })
+
+                    .catch(function (error) {
+
+                        logisticsContainer.innerHTML = `
+                            <div class="col-12 text-center text-danger">
+                                Failed to load delivery options.
+                            </div>
+                        `;
+
+                        console.error(
+                            "Delivery API Error:",
+                            error
+                        );
+
+                    });
+
+
+                    const modalEl =
+                        document.getElementById(
+                            'deliveryOptionModal'
+                        );
+
+
+                    const modalInstance =
+                        bootstrap.Modal.getOrCreateInstance(
+                            modalEl
+                        );
+
+
                     modalInstance.show();
+
                 }
+
             </script>
+
         </div>
     </div>
+    <!-- End Order List Table -->
+
 </div>
 
 
-<div class="btn btn-grd position-fixed bottom-0 end-0 m-3 d-flex align-items-center gap-2 shadow-lg"
+<!-- =========================
+     PAGINATION
+========================== -->
+
+<div
+    class="btn btn-grd position-fixed bottom-0 end-0 m-3 d-flex align-items-center gap-2 shadow-lg"
     style="z-index: 1050; margin: auto 22px 45px 0px !important; padding: 0px !important;">
-    <!-- Pagination Here -->
+
+    <!-- Pagination -->
     <div class="card-body" style="padding: 0px;">
+
         <nav aria-label="Page navigation example">
+
             <ul class="pagination" style="margin: auto;">
-                {# Previous #}
+
+                <!-- Previous -->
                 <li class="page-item {% if not orders.has_previous %}disabled{% endif %}">
-                    <a class="page-link"
-                        hx-get="{% url 'order_list' %}{% if orders.has_previous %}?page={{ orders.previous_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% endif %}"
-                        hx-target="#content-area" hx-push-url="true">
-                        «
-                    </a>
+
+                    {% if orders.has_previous %}
+
+                        <a
+                            class="page-link"
+                            href="{% url 'order_list' %}?page={{ orders.previous_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                            hx-get="{% url 'order_list' %}?page={{ orders.previous_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                            hx-target="#content-area"
+                            hx-push-url="true">
+                            «
+                        </a>
+
+                    {% else %}
+
+                        <span class="page-link">
+                            «
+                        </span>
+
+                    {% endif %}
+
                 </li>
 
-                {# ±2 pages around current #}
+
+                <!-- Page Numbers -->
                 {% for num in paginator.page_range %}
-                {% if num >= orders.number|add:-2 and num <= orders.number|add:2 %}
-                <li class="page-item {% if orders.number == num %}active{% endif %}">
-                    <a class="page-link"
-                        hx-get="{% url 'order_list' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-                        hx-target="#content-area" hx-push-url="true">
-                        {{ num }}
-                    </a>
-                </li>
-                {% endif %}
+
+                    {% if num >= orders.number|add:"-2" and num <= orders.number|add:"2" %}
+
+                        <li class="page-item {% if orders.number == num %}active{% endif %}">
+
+                            <a
+                                class="page-link"
+                                href="{% url 'order_list' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                                hx-get="{% url 'order_list' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                                hx-target="#content-area"
+                                hx-push-url="true">
+                                {{ num }}
+                            </a>
+
+                        </li>
+
+                    {% endif %}
+
                 {% endfor %}
 
-                {# Next #}
+
+                <!-- Next -->
                 <li class="page-item {% if not orders.has_next %}disabled{% endif %}">
-                    <a class="page-link"
-                        hx-get="{% url 'order_list' %}{% if orders.has_next %}?page={{ orders.next_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% endif %}"
-                        hx-target="#content-area" hx-push-url="true">
-                        »
-                    </a>
+
+                    {% if orders.has_next %}
+
+                        <a
+                            class="page-link"
+                            href="{% url 'order_list' %}?page={{ orders.next_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                            hx-get="{% url 'order_list' %}?page={{ orders.next_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                            hx-target="#content-area"
+                            hx-push-url="true">
+                            »
+                        </a>
+
+                    {% else %}
+
+                        <span class="page-link">
+                            »
+                        </span>
+
+                    {% endif %}
+
                 </li>
+
             </ul>
+
         </nav>
+
     </div>
 
-    <!-- Page Name: -->
+
+    <!-- Per Page -->
     <div class="col-auto">
-        <select class="form-select"
+
+        <select
+            class="form-select"
             hx-get="{% url 'order_list' %}?page={{ page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&per_page={{ per_page }}"
-            hx-trigger="change" hx-target="#content-area" hx-push-url="true" name="per_page">
-            <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
-            <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
-            <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+            hx-trigger="change"
+            hx-target="#content-area"
+            hx-push-url="true"
+            name="per_page">
+
+            <option value="10" {% if per_page == 10 %}selected{% endif %}>
+                10
+            </option>
+
+            <option value="20" {% if per_page == 20 %}selected{% endif %}>
+                20
+            </option>
+
+            <option value="50" {% if per_page == 50 %}selected{% endif %}>
+                50
+            </option>
+
         </select>
+
     </div>
+
 </div>
 
-<!-- Include Delete Order Modal -->
+
+<!-- =========================
+     MODALS
+========================== -->
+
 {% include 'db_order/modal/delete_order_modal.html' %}
 {% include 'db_order/modal/delivery_option_modal.html' %}
 
+
 <script>
+
     if (!window.__urgentToastBound) {
+
         window.__urgentToastBound = true;
-        document.body.addEventListener('showToast', function (evt) {
-            const detail = evt.detail;
-            if (detail.type === 'success') {
-                successNotificationCustom(detail.message);
-            } else {
-                errorNotificationCustom(detail.message);
+
+        document.body.addEventListener(
+            'showToast',
+            function (evt) {
+
+                const detail = evt.detail;
+
+                if (detail.type === 'success') {
+
+                    successNotificationCustom(
+                        detail.message
+                    );
+
+                } else {
+
+                    errorNotificationCustom(
+                        detail.message
+                    );
+
+                }
+
             }
-        });
+        );
+
     }
+
 </script>
+```

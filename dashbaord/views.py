@@ -1887,6 +1887,14 @@ def build_variants_by_product(products):
             ]
     return data
 
+def get_assignable_users():
+    return CustomUser.objects.filter(
+        user_type__in=[
+            USER_TYPE.STAFF,
+            USER_TYPE.ADMIN,
+            USER_TYPE.SUPER_ADMIN,
+        ]
+    ).order_by("username")
 
 class AddOrderView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -1894,9 +1902,7 @@ class AddOrderView(LoginRequiredMixin, View):
 
     def get(self, request):
         products = Product.objects.prefetch_related("variants").order_by("name")
-        assignable_users = CustomUser.objects.filter(
-            user_type__in=[USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN, USER_TYPE.STAFF]
-        ).order_by("username")
+        assignable_users = get_assignable_users()
         context = {
             "products": products,
             "categories": Category.objects.order_by("name"),
@@ -1963,8 +1969,11 @@ class AddOrderView(LoginRequiredMixin, View):
 
                 work_assign_id = data.get("work_assign") or None
                 assigned_user = None
+
                 if work_assign_id:
-                    assigned_user = CustomUser.objects.filter(id=work_assign_id).first()
+                    assigned_user = get_assignable_users().filter(
+                        id=work_assign_id
+                    ).first()
 
                 payment_type = data.get("payment_type", PAYMENT_TYPE.COD)
                 delivery_type = data.get("delivery_type", DELIVERY_TYPE.HOME_DELIVERY)
@@ -2065,6 +2074,7 @@ class AddOrderView(LoginRequiredMixin, View):
                 return JsonResponse({"status": False, "message": str(e)}, status=400)
             messages.error(request, str(e))
             return redirect("add_order")
+
 class OrderView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
@@ -2083,7 +2093,9 @@ class OrderView(LoginRequiredMixin, View):
         for row in qs:
             order_count[row["status"]] = row["total"]
 
-        order_count["all"] = sum(order_count.values())
+        order_count["all"] = sum(
+            v for k, v in order_count.items()
+        )
 
         order_count["urgent"] = Order.objects.filter(is_urgent=True).exclude(
             status__in=[STATUS.DELIVERED, STATUS.CANCELLED, STATUS.RETURNED, STATUS.REFUNDED]
@@ -2140,7 +2152,6 @@ class OrderView(LoginRequiredMixin, View):
                 | Q(delivery_type__iexact=search)
             ).distinct()
 
-        # move urgent filter here, BEFORE pagination
         if request.GET.get("urgent") == "1":
             orders = orders.filter(is_urgent=True)
 
@@ -2152,7 +2163,7 @@ class OrderView(LoginRequiredMixin, View):
         page_number = request.GET.get("page", 1)
 
         paginator = Paginator(orders, per_page)
-        orders = paginator.get_page(page_number)   # QuerySet -> Page happens last
+        orders = paginator.get_page(page_number)
 
         products = Product.objects.order_by("name")
 
@@ -2163,7 +2174,7 @@ class OrderView(LoginRequiredMixin, View):
             page_number,
             products,
         )
-    
+
     def get(self, request):
         (
             orders,
@@ -2172,10 +2183,6 @@ class OrderView(LoginRequiredMixin, View):
             page_number,
             products,
         ) = self.get_order_queryset(request)
-
-        urgent_count = Order.objects.filter(is_urgent=True).exclude(
-            status__in=[STATUS.DELIVERED, STATUS.CANCELLED, STATUS.RETURNED, STATUS.REFUNDED]
-        ).count()
 
         context = {
             "orders": orders,
@@ -2190,14 +2197,15 @@ class OrderView(LoginRequiredMixin, View):
             "end_date": request.GET.get("end_date", ""),
             "products": products,
             "status_choices": STATUS.choices,
-            "delivery_types": DELIVERY_TYPE.choices,   
-            "payment_types": PAYMENT_TYPE.choices,     
+            "delivery_types": DELIVERY_TYPE.choices,
+            "payment_types": PAYMENT_TYPE.choices,
+            "staff_list": get_assignable_users(),
         }
 
         if request.htmx:
             return render(request, "db_order/partial/partial_order_list.html", context)
 
-        return render(request, "db_order/order_list.html", context)
+        return render(request, "db_order/order_list.html", context)    
 
 class OrderDetailView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -2214,9 +2222,7 @@ class OrderDetailView(LoginRequiredMixin, View):
         order = self.get_order(id)
 
         products = Product.objects.prefetch_related("variants").order_by("name")
-        assignable_users = CustomUser.objects.filter(
-            user_type__in=[USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN, USER_TYPE.STAFF]
-        ).order_by("username")
+        assignable_users = get_assignable_users()
 
         existing_items_data = []
         for item in order.order_items.all():
@@ -2288,8 +2294,11 @@ class OrderUpdateView(LoginRequiredMixin, View):
 
                 work_assign_id = data.get("work_assign") or None
                 assigned_user = None
+
                 if work_assign_id:
-                    assigned_user = CustomUser.objects.filter(id=work_assign_id).first()
+                    assigned_user = get_assignable_users().filter(
+                        id=work_assign_id
+                    ).first()
 
                 order.shipping_address = data.get("shipping_address", order.shipping_address).strip()
                 order.note = data.get("note", order.note)
@@ -2462,6 +2471,7 @@ def create_order_from_request(order_request):
             status=STATUS.NEW,
             is_urgent=order_request.is_urgent,
             order_created_date=order_request.order_created_date,
+            delivery_date=order_request.delivery_date,  # ADD
             design_file=order_request.design_file,
             source=order_request.source,
         )
@@ -2517,9 +2527,7 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                 })
 
         products = Product.objects.prefetch_related("variants", "category").order_by("name")
-        assignable_users = CustomUser.objects.filter(
-            user_type__in=[USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN, USER_TYPE.STAFF]
-        ).order_by("username")
+        assignable_users = get_assignable_users()
         context = {
             "order_request": order_request,
             "is_update": bool(order_request),
@@ -4014,11 +4022,38 @@ class OrderTokenPrintView(LoginRequiredMixin, View):
         shipment = order.shipments.select_related("courier").order_by("-created_at").first()
         due_amount = (order.total_cost or 0) - (order.advance_amount or 0)
 
-        return render(request, "db_order/token.html", {
-            "order": order,
-            "shipment": shipment,
-            "due_amount": due_amount,
-        })
+        tokens = [{"order": order, "shipment": shipment, "due_amount": due_amount}]
+
+        return render(request, "db_order/token.html", {"tokens": tokens})
+
+
+class OrderBulkTokenPrintView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        ids_param = request.GET.get("ids", "")
+        order_ids = [int(i) for i in ids_param.split(",") if i.strip().isdigit()]
+
+        if not order_ids:
+            messages.error(request, "No orders selected for token print.")
+            return redirect("order_list")
+
+        orders = Order.objects.filter(id__in=order_ids).select_related("customer").prefetch_related(
+            "order_items", "shipments", "shipments__courier"
+        )
+
+        orders_by_id = {o.id: o for o in orders}
+        ordered_orders = [orders_by_id[i] for i in order_ids if i in orders_by_id]
+
+        Order.objects.filter(id__in=order_ids).update(status=STATUS.TOKEN_PRINT)
+
+        tokens = []
+        for order in ordered_orders:
+            shipment = order.shipments.order_by("-created_at").first()
+            due_amount = (order.total_cost or 0) - (order.advance_amount or 0)
+            tokens.append({"order": order, "shipment": shipment, "due_amount": due_amount})
+
+        return render(request, "db_order/token.html", {"tokens": tokens})
 
 class OrderPathaoParcelSubmitView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -4054,77 +4089,102 @@ class OrderBulkActionView(LoginRequiredMixin, View):
     def post(self, request):
         try:
             data = json.loads(request.body)
+
             order_ids = data.get("order_ids", [])
             action = data.get("action")
 
             if not order_ids:
-                return JsonResponse({"success": False, "message": "No orders selected."}, status=400)
+                return JsonResponse({
+                    "success": False,
+                    "message": "Please select at least one order."
+                }, status=400)
 
             orders = Order.objects.filter(id__in=order_ids)
 
+            if not orders.exists():
+                return JsonResponse({
+                    "success": False,
+                    "message": "No valid orders selected."
+                }, status=400)
+
+
             if action == "status":
+
                 new_status = data.get("status")
-                valid_statuses = [c[0] for c in STATUS.choices]
+
+                valid_statuses = [
+                    value for value, label in STATUS.choices
+                ]
+
                 if new_status not in valid_statuses:
-                    return JsonResponse({"success": False, "message": "Invalid status."}, status=400)
+                    return JsonResponse({
+                        "success": False,
+                        "message": "Invalid status selected."
+                    }, status=400)
 
-                if new_status == STATUS.DELIVERED:
-                    # Need per-row delivered_at, so can't use a single bulk .update()
-                    now = timezone.now()
-                    updated_count = 0
-                    for order in orders.filter(delivered_at__isnull=True):
-                        order.status = new_status
-                        order.delivered_at = now
-                        order.is_urgent = False
-                        order.save(update_fields=["status", "delivered_at", "is_urgent"])
-                        updated_count += 1
-                    # any already-delivered ones in the selection just get status re-confirmed
-                    orders.exclude(delivered_at__isnull=True).update(status=new_status, is_urgent=False)
-                    return JsonResponse({"success": True, "message": f"{orders.count()} order(s) updated to {new_status}."})
+                orders.update(status=new_status)
 
-                update_fields = {"status": new_status}
-                if new_status in [STATUS.CANCELLED, STATUS.RETURNED, STATUS.REFUNDED]:
-                    update_fields["is_urgent"] = False
-                orders.update(**update_fields)
-                return JsonResponse({"success": True, "message": f"{orders.count()} order(s) updated to {new_status}."})
-            elif action == "work_assign":
-                staff_id = data.get("staff_id")
-                orders.update(work_assign_id=staff_id)
-                return JsonResponse({"success": True, "message": f"{orders.count()} order(s) assigned."})
-
-            elif action == "create_parcel":
-                logistics_partner_id = data.get("logistics_partner")
-                logistics_partner = DeliveryOption.objects.get(id=logistics_partner_id)
-                success_count, fail_count, fail_messages = 0, 0, []
-                submit_view = OrderDeliveryOptionSubmitView()
-                for order in orders:
-                    try:
-                        order_data = submit_view.get_order_data(order)
-                        steadfast = SteadFastParcelAPI(logistics_partner.id)
-                        response = steadfast.create_order(order_data)
-                        if response.get("status") == 200:
-                            order.shipments.create(
-                                courier=logistics_partner,
-                                tracking_number=response["consignment"]["consignment_id"],
-                                status=response["consignment"]["status"],
-                            )
-                            success_count += 1
-                        else:
-                            fail_count += 1
-                            fail_messages.append(f"{order.order_id}: {response.get('message')}")
-                    except Exception as e:
-                        fail_count += 1
-                        fail_messages.append(f"{order.order_id}: {str(e)}")
                 return JsonResponse({
                     "success": True,
-                    "message": f"{success_count} parcel(s) created, {fail_count} failed.",
-                    "failures": fail_messages,
+                    "message": f"{orders.count()} order(s) status updated successfully."
                 })
 
-            return JsonResponse({"success": False, "message": "Unknown action."}, status=400)
+
+            elif action == "work_assign":
+
+                staff_id = data.get("staff_id")
+
+                if not staff_id:
+                    return JsonResponse({
+                        "success": False,
+                        "message": "Please select a staff member."
+                    }, status=400)
+
+                assigned_user = get_assignable_users().filter(
+                    id=staff_id
+                ).first()
+
+                if not assigned_user:
+                    return JsonResponse({
+                        "success": False,
+                        "message": "Selected user is not available for assignment."
+                    }, status=400)
+
+                
+                orders.update(
+                    work_assign=assigned_user.username
+                )
+
+                return JsonResponse({
+                    "success": True,
+                    "message": (
+                        f"{orders.count()} order(s) assigned to "
+                        f"{assigned_user.get_full_name() or assigned_user.username}."
+                    )
+                })
+
+            else:
+
+                return JsonResponse({
+                    "success": False,
+                    "message": "Invalid bulk action."
+                }, status=400)
+
+
+        except json.JSONDecodeError:
+
+            return JsonResponse({
+                "success": False,
+                "message": "Invalid request data."
+            }, status=400)
+
+
         except Exception as e:
-            return JsonResponse({"success": False, "message": str(e)}, status=400)
-        
+
+            return JsonResponse({
+                "success": False,
+                "message": str(e)
+            }, status=400)
 
 class OrderUrgentToggleView(LoginRequiredMixin, View):
     login_url = "admin_login"

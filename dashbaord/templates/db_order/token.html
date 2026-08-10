@@ -1,8 +1,9 @@
 <!DOCTYPE html>
+{% load static %}
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Token - {{ order.order_id }}</title>
+<title>Token</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+39&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
@@ -26,7 +27,24 @@
         box-sizing: border-box;
         position: relative;
         box-shadow: 0 0 4px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        page-break-after: always;
     }
+    .invoice:last-child { page-break-after: auto; }
+
+    .invoice::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url("{% static 'dashboard_assets/images/logo2.jpg' %}") no-repeat center center;
+        background-size: 55%;
+        opacity: 0.09;
+        z-index: 0;
+    }
+
     .invoice * { position: relative; z-index: 1; }
 
     .header {
@@ -40,7 +58,7 @@
     .header-left { display: flex; flex-direction: column; align-items: flex-start; }
     .header-left p { margin: 0; font-weight: bold; font-size: 16px; }
     .header-left a { font-size: 9px; color: #000; text-decoration: none; margin-left: 1px; line-height: 1.3; font-weight: 600; }
-    .header-right { text-align: right; font-size: 11px; line-height: 1.3; }
+    .header-right { text-align: right; font-size: 11px; line-height: 1.3; white-space: nowrap; }
 
     .customer { display: flex; justify-content: space-between; }
     .customer-left { width: 100%; font-size: 11px; }
@@ -71,22 +89,30 @@
 
     .summary { border-top: 1px dashed #000; margin-top: 3px; padding-top: 3px; font-size: 11px; }
     .summary p { margin: 1px 0; display: flex; justify-content: space-between; }
-    .summary p strong { font-weight: bold; }
+    .summary p strong { font-weight: bold; display: flex; justify-content: space-between; width: 100%; }
 
     .footer-note {
-        margin-top: 10px;
-        text-align: center;
+        margin-top: 8px;
+        text-align: left;
         font-size: 10px;
         padding-bottom: 5px;
     }
 
     @media print {
         body { margin: 0; }
-        .invoice { page-break-inside: avoid; margin: 0; box-shadow: none; }
+        .invoice { margin: 0; box-shadow: none; }
+        .invoice::before {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            opacity: 0.09 !important;
+        }
     }
 </style>
 </head>
 <body>
+
+    {% for t in tokens %}
+    {% with order=t.order shipment=t.shipment due_amount=t.due_amount %}
     <div class="invoice">
 
         <!-- Header -->
@@ -97,7 +123,7 @@
             </div>
             <div class="header-right">
                 <div>Date: {{ order.created_at|date:"m/d/Y" }}</div>
-                <div>Invoice ID.: {{ order.order_id }}</div>
+                <div>Invoice ID.: {{ order.id }}</div>
             </div>
         </div>
 
@@ -119,11 +145,9 @@
             {% if shipment %}
             <p>{{ shipment.courier.name }}</p>
             <h1>Parcel ID: {{ shipment.tracking_number }}</h1>
-            {% else %}
-            <p style="margin: 5px 0px; padding-bottom: 5px;">Order ID: {{ order.order_id }}</p>
             {% endif %}
             <div class="barcode-wrap">
-                <svg id="barcode"></svg>
+                <svg class="token-barcode" data-value="{% if shipment %}{{ shipment.tracking_number }}{% else %}{{ order.order_id }}{% endif %}"></svg>
             </div>
         </div>
 
@@ -144,7 +168,7 @@
                         <td>{{ item.product_name }}</td>
                         <td>{{ item.quantity }}</td>
                         <td>{{ item.discount_price|floatformat:2 }}</td>
-                        <td>{{ item.discount_price|floatformat:2 }}</td>
+                        <td>{{ item.discount_total_price|floatformat:2 }}</td>
                     </tr>
                 {% endfor %}
                 </tbody>
@@ -164,27 +188,19 @@
         {% endif %}
 
     </div>
+    {% endwith %}
+    {% endfor %}
 
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script>
-        {% if shipment %}
-        JsBarcode("#barcode", "{{ shipment.tracking_number }}", {
-            format: "CODE128",
-            displayValue: false,
-            height: 45,
-            margin: 0
+        document.querySelectorAll('.token-barcode').forEach(function (svg) {
+            JsBarcode(svg, svg.dataset.value, {
+                format: "CODE128",
+                displayValue: false,
+                height: 45,
+                margin: 0
+            });
         });
-        {% else %}
-        JsBarcode("#barcode", "{{ order.order_id }}", {
-            format: "CODE128",
-            displayValue: false,
-            height: 45,
-            margin: 0
-        });
-        {% endif %}
-        window.onload = function() {
-            setTimeout(function() { window.print(); }, 200);
-        };
     </script>
 </body>
 </html>
