@@ -46,7 +46,6 @@ from order.utils import PathaoParcelAPI, SteadFastParcelAPI
 from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, PAYMENT_TYPE, PAYMENT_STATUS, ATTRIBUTE_TYPE, PRODUCT_TYPE, ORDER_REQUEST_WORK_STATUS, REVIEW_STATUS, MarketingIntegrationProviderChoices, MarketingIntegrationStatusChoices, INVENTORY_TYPE, ORDER_SOURCE
 
 
-from order.telegram_notify import notify_telegram_for_order
 
 
 # ------------------Dashboard--------
@@ -2051,7 +2050,6 @@ class AddOrderView(LoginRequiredMixin, View):
                 order.total_cost = grand_total
                 order.save(update_fields=["total_cost"])
 
-                notify_telegram_for_order(order)
 
                 if is_ajax:
                     return JsonResponse({
@@ -2487,7 +2485,6 @@ def create_order_from_request(order_request):
         order_request.converted_at = timezone.now()
         order_request.save(update_fields=["status", "work_status", "converted_order", "converted_at"])
 
-    notify_telegram_for_order(order)
 
     return order
 

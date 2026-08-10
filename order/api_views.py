@@ -22,7 +22,6 @@ from authentication.utils import normalize_bd_phone
 from site_app.delivery_charge import DeliveryChargeResolver
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-from order.telegram_notify import notify_telegram_for_order
 
 class DeliveryOptionListAPIView(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -324,7 +323,6 @@ class PlaceOrderAPIView(APIView):
                 if should_delete_cart is not None:
                     should_delete_cart.delete()
 
-                notify_telegram_for_order(order)
 
                 return Response({
                     "status": True,
