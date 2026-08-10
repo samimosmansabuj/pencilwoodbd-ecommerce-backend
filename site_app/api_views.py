@@ -22,7 +22,6 @@ from authentication.models import Customer
 from site_app.models import OTPVerification
 from order.utils import OrderConfirmatinoEmailSend
 from authentication.utils import normalize_bd_phone
-from order.telegram_notify import notify_telegram_for_order
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 
@@ -250,8 +249,6 @@ class LandingPageOrderAPI(APIView):
                     product.inventory_quantity -= quantity
                 product.save()
 
-                notify_telegram_for_order(order)
-
                 return Response(
                     {"status": True, "message": "Order received successfully"},
                     status=status.HTTP_201_CREATED
@@ -430,8 +427,6 @@ class OrderCreateAPIView(APIView):
 
                 if otp_required and otp_verified:
                     otp_verified.delete()
-
-                notify_telegram_for_order(order)
 
                 return Response(
                     {"success": True, "message": "Order Created", "order_id": order.order_id},
