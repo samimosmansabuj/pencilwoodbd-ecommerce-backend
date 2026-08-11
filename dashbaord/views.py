@@ -33,8 +33,7 @@ from site_app.models import DeliveryOption, SiteDeliveryChargeConfig, HomeSlider
 from site_app.bd_districts import BD_DISTRICTS, ALL_DISTRICTS_KEY, SYSTEM_DEFAULT_DELIVERY_CHARGE
 from site_app.delivery_charge import DeliveryChargeResolver
 
-from marketing.models import MarketingIntegration
-
+from marketing.models import MarketingIntegration, UTMLink
 # Forms
 from product.forms import ProductForm, ProductImageForm, ProductVideoForm
 from django.forms import modelformset_factory
@@ -45,7 +44,8 @@ from order.utils import PathaoParcelAPI, SteadFastParcelAPI
 # Choices
 from pencilwoodbd.choices import USER_TYPE, STATUS, CATEGORY_PRODUCT_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, PAYMENT_TYPE, PAYMENT_STATUS, ATTRIBUTE_TYPE, PRODUCT_TYPE, ORDER_REQUEST_WORK_STATUS, REVIEW_STATUS, MarketingIntegrationProviderChoices, MarketingIntegrationStatusChoices, INVENTORY_TYPE, ORDER_SOURCE
 
-
+# Marketing
+from urllib.parse import urlencode, urlparse, parse_qs, urlunparse
 
 
 # ------------------Dashboard--------
@@ -116,6 +116,15 @@ class DashboardView(LoginRequiredMixin, View):
 
         return amounts
 
+    def get_status_counts(self, orders):
+        counts = {}
+        for status_key, _ in STATUS.choices:
+            counts[status_key] = orders.filter(status=status_key).count()
+
+        counts["returned_refund"] = orders.filter(status__in=["returned", "refund"]).count()
+
+        return counts
+
     def get_urgent_count(self, orders):
         return orders.filter(is_urgent=True).exclude(status__in=[STATUS.DELIVERED, STATUS.CANCELLED, STATUS.RETURNED, STATUS.REFUNDED]).count()
 
@@ -146,6 +155,7 @@ class DashboardView(LoginRequiredMixin, View):
             "today_order_count": self.get_today_order_count(orders),
             "new_orders_count": self.new_orders_count(orders),
             "status_amounts": self.get_status_amounts(orders),
+            "status_counts": self.get_status_counts(orders),
             "total_orders": orders.count(),
             "new_order_request_count": self.new_order_request_count(),
             "urgent_count": self.get_urgent_count(orders),
@@ -4297,6 +4307,108 @@ class StockAlertListView(LoginRequiredMixin, View):
         }
         return render(request, "db_home/partial/stock_alert_list.html", context)
     
+from urllib.parse import urlencode, urlparse, parse_qs, urlunparse
+from django.db.models import Sum, Count
+from django.db.models.functions import TruncDate
+from order.models import Order
+
+
+# ------------------ UTM Link Generator --------------
+class UTMLinkGeneratorView(LoginRequiredMixin, View):
+    login_url = '/dashboard/login/'
+    template_name = 'db_settings/utm_generator.html'
+
+    def get(self, request):
+        links = UTMLink.objects.all()[:100]
+        recent_urls = list(
+            UTMLink.objects.order_by('-created_at')
+            .values_list('destination_url', flat=True)
+            .distinct()[:15]
+        )
+        context = {"links": links, "recent_urls": recent_urls}
+        return render(request, self.template_name, context)
+
+    def post(self, request):
+        destination_url = request.POST.get("destination_url", "").strip()
+        platform = request.POST.get("platform", "").strip()
+        medium = request.POST.get("medium", "").strip()
+        campaign = request.POST.get("campaign", "").strip()
+
+        if not destination_url or not platform or not campaign:
+            messages.error(request, "Destination URL, Platform, and Campaign name are required.")
+            return redirect('utm_link_generator')
+
+        parsed = urlparse(destination_url)
+        query = parse_qs(parsed.query)
+        query["utm_source"] = [platform]
+        query["utm_medium"] = [medium or "paid_social"]
+        query["utm_campaign"] = [campaign]
+
+        new_query = urlencode({k: v[0] for k, v in query.items()})
+        generated_url = urlunparse(parsed._replace(query=new_query))
+
+        UTMLink.objects.create(
+            destination_url=destination_url,
+            platform=platform,
+            medium=medium,
+            campaign=campaign,
+            generated_url=generated_url,
+            created_by=request.user,
+        )
+
+        messages.success(request, "UTM link generated successfully.")
+        return redirect('utm_link_generator')
+
+
+# ------------------ Traffic Source Report --------------
+class TrafficSourceReportView(LoginRequiredMixin, View):
+    login_url = '/dashboard/login/'
+    template_name = 'db_settings/traffic_source_report.html'
+
+    def get(self, request):
+        orders = Order.objects.exclude(utm_source__isnull=True).exclude(utm_source="")
+
+        start_date = request.GET.get("start_date")
+        end_date = request.GET.get("end_date")
+        if start_date:
+            orders = orders.filter(created_at__date__gte=start_date)
+        if end_date:
+            orders = orders.filter(created_at__date__lte=end_date)
+
+        # 1. Channel share (pie chart)
+        channel_share = list(
+            orders.values("utm_source")
+            .annotate(order_count=Count("id"), revenue=Sum("total_cost"))
+            .order_by("-order_count")
+        )
+
+        # 2. Revenue by campaign (bar chart/table)
+        campaign_revenue = list(
+            orders.exclude(utm_campaign__isnull=True).exclude(utm_campaign="")
+            .values("utm_campaign", "utm_source")
+            .annotate(order_count=Count("id"), revenue=Sum("total_cost"))
+            .order_by("-revenue")
+        )
+
+        # 3. Trend over time (line chart) — daily order counts per channel
+        trend = list(
+            orders.annotate(day=TruncDate("created_at"))
+            .values("day", "utm_source")
+            .annotate(order_count=Count("id"))
+            .order_by("day")
+        )
+        trend_serialized = [
+            {"day": t["day"].isoformat(), "utm_source": t["utm_source"], "order_count": t["order_count"]}
+            for t in trend
+        ]
+
+        context = {
+            "channel_share": channel_share,
+            "campaign_revenue": campaign_revenue,
+            "trend_json": json.dumps(trend_serialized, default=str),
+            "channel_share_json": json.dumps(channel_share, default=str),
+        }
+        return render(request, self.template_name, context)
 
 # class RedirectView(View):
 #     permanent = False

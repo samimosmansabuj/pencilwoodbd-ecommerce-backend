@@ -1,3 +1,5 @@
+from datetime import timedelta
+from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -212,6 +214,18 @@ class LandingPageOrderAPI(APIView):
                 customer = self.get_customer_data(data)
                 address = self.get_address(data)
 
+                recent_duplicate = Order.objects.filter(
+                    customer=customer,
+                    total_cost=total_cost,
+                    created_at__gte=timezone.now() - timedelta(seconds=30),
+                ).first()
+
+                if recent_duplicate:
+                    return Response(
+                        {"status": True, "message": "Order received successfully"},
+                        status=status.HTTP_201_CREATED
+                    )
+                
                 order = Order.objects.create(
                     customer=customer,
                     shipping_address=address,
@@ -222,6 +236,12 @@ class LandingPageOrderAPI(APIView):
                     payment_status=payment_status,
                     status=STATUS.NEW,
                     source=ORDER_SOURCE.LANDING_PAGE,
+                    utm_source=data.get("utm_source"),
+                    utm_medium=data.get("utm_medium"),
+                    utm_campaign=data.get("utm_campaign"),
+                    click_id=data.get("click_id"),
+                    referrer=data.get("referrer"),
+                    landing_url=data.get("landing_url"),
                 )
 
                 # Create OrderItem
@@ -369,6 +389,8 @@ class OrderCreateAPIView(APIView):
 
     def get_customer(self, data):
         phone = normalize_bd_phone(data.get("phone"))
+        if not phone:
+            raise Exception("A valid Bangladeshi mobile number is required.")
         customer, created = Customer.objects.get_or_create(
             phone=phone, defaults={"name": data.get("name")}
         )
@@ -411,6 +433,17 @@ class OrderCreateAPIView(APIView):
                     "note": data.get("note", ""),
                 }
 
+                recent_duplicate = Order.objects.filter(
+                    customer=customer,
+                    total_cost=amount.get("totalAmount"),
+                    created_at__gte=timezone.now() - timedelta(seconds=30),
+                ).first()
+
+                if recent_duplicate:
+                    return Response(
+                        {"success": True, "message": "Order Created", "order_id": recent_duplicate.order_id},
+                        status=status.HTTP_201_CREATED,
+                    )
                 order = Order.objects.create(
                     customer=customer,
                     shipping_address=address,
@@ -419,6 +452,12 @@ class OrderCreateAPIView(APIView):
                     total_cost=Decimal(str(amount.get("totalAmount", 0))),
                     metadata=metadata_payload,
                     source=ORDER_SOURCE.LANDING_PAGE,
+                    utm_source=data.get("utm_source"),
+                    utm_medium=data.get("utm_medium"),
+                    utm_campaign=data.get("utm_campaign"),
+                    click_id=data.get("click_id"),
+                    referrer=data.get("referrer"),
+                    landing_url=data.get("landing_url"),
                 )
 
                 order_item = self.create_order_item(

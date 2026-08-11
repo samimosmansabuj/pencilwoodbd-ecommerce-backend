@@ -59,3 +59,18 @@ class EmailConfig(models.Model):
     def __str__(self):
         return f"{self.email} | {self.host} | LIMIT {self.daily_limit} | Active: {self.is_active}" if self.email else f"{self.server} | {self.api_key}"
 
+
+class UTMLink(models.Model):
+    destination_url = models.URLField(max_length=500)
+    platform = models.CharField(max_length=50)   
+    medium = models.CharField(max_length=50)     
+    campaign = models.CharField(max_length=255)
+    generated_url = models.URLField(max_length=1000)
+    created_by = models.ForeignKey('authentication.CustomUser', on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.campaign} ({self.platform})"

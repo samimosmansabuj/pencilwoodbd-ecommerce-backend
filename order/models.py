@@ -65,6 +65,15 @@ class Order(models.Model):
     source = models.CharField(max_length=100, blank=True, null=True, choices=ORDER_SOURCE.choices, default=ORDER_SOURCE.OTHERS)
 
     metadata = models.JSONField(default=dict, blank=True)
+    
+    # --- Traffic source attribution (marketing) ---
+    utm_source = models.CharField(max_length=100, blank=True, null=True)
+    utm_medium = models.CharField(max_length=100, blank=True, null=True)
+    utm_campaign = models.CharField(max_length=255, blank=True, null=True)
+    click_id = models.CharField(max_length=255, blank=True, null=True, help_text="fbclid / ttclid / gclid")
+    referrer = models.CharField(max_length=500, blank=True, null=True)
+    landing_url = models.CharField(max_length=500, blank=True, null=True)
+    
     note = models.TextField(blank=True, null=True)
     delivery_type = models.CharField(max_length=50, choices=DELIVERY_TYPE.choices, default=DELIVERY_TYPE.HOME_DELIVERY)
     delivery_date = models.DateField(null=True, blank=True)

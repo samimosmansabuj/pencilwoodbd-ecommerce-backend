@@ -274,6 +274,12 @@ class PlaceOrderAPIView(APIView):
                     customer=customer,
                     shipping_address=f"{address.street_01}, {address.district}",
                     source=ORDER_SOURCE.WEBSITE,
+                    utm_source=request.data.get("utm_source"),
+                    utm_medium=request.data.get("utm_medium"),
+                    utm_campaign=request.data.get("utm_campaign"),
+                    click_id=request.data.get("click_id"),
+                    referrer=request.data.get("referrer"),
+                    landing_url=request.data.get("landing_url"),
                 )
 
                 total = Decimal("0")
