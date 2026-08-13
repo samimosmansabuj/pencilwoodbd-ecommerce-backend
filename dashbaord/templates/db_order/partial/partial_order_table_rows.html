@@ -5,6 +5,7 @@
                 <tr>
                     {% if show_bulk_select %}<th><input class="form-check-input" type="checkbox" id="selectAllOrders"></th>{% endif %}
                     <th>Order Id</th>
+                    <th>Platform</th>
                     <th>Customer</th>
                     <th>Phone</th>
                     <th>Price</th>
@@ -30,6 +31,34 @@
                             hx-swap="innerHTML">
                             #{{ order.order_id }}
                         </a>
+                    </td>
+
+                    <td>
+                        {% with platform=order.utm_source|default:order.source %}
+                        {% if platform %}
+                            {% if platform|lower == "facebook" %}
+                                <span class="badge" style="background-color:#1877F2;">Facebook</span>
+                            {% elif platform|lower == "instagram" %}
+                                <span class="badge" style="background:linear-gradient(45deg,#FEDA75,#D62976,#962FBF,#4F5BD5);">Instagram</span>
+                            {% elif platform|lower == "whatsapp" %}
+                                <span class="badge" style="background-color:#25D366;">WhatsApp</span>
+                            {% elif platform|lower == "tiktok" %}
+                                <span class="badge" style="background-color:#010101;">TikTok</span>
+                            {% elif platform|lower == "google" %}
+                                <span class="badge" style="background-color:#4285F4;">Google</span>
+                            {% elif platform|lower == "website" %}
+                                <span class="badge bg-secondary">Website</span>
+                            {% elif platform|lower == "landing page" %}
+                                <span class="badge bg-info text-dark">Landing Page</span>
+                            {% elif platform|lower == "referral" %}
+                                <span class="badge" style="background-color:#F2A623;">Referral</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ platform }}</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                        {% endwith %}
                     </td>
 
                     <td>
