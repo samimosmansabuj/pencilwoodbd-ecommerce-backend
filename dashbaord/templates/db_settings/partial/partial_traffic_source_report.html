@@ -1,0 +1,153 @@
+<div class="main-content">
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Traffic Source Report</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <form method="get" action="{% url 'traffic_source_report' %}" class="row g-3 mb-4">
+        <div class="col-md-3">
+            <input type="date" name="start_date" class="form-control" value="{{ request.GET.start_date }}">
+        </div>
+        <div class="col-md-3">
+            <input type="date" name="end_date" class="form-control" value="{{ request.GET.end_date }}">
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-primary w-100">Filter</button>
+        </div>
+    </form>
+
+    <div class="row">
+        <div class="col-lg-5 col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Channel share</h5>
+                    <div class="chart-box" style="position: relative; height: 300px;">
+                        <canvas id="channelPieChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-7 col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Channel trend over time</h5>
+                    <div class="chart-box" style="position: relative; height: 300px;">
+                        <canvas id="trendLineChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">Revenue by campaign</h5>
+            <div class="table-responsive white-space-nowrap">
+                <table class="table align-middle">
+                    <thead class="table-light">
+                        <tr><th>Campaign</th><th>Platform</th><th>Orders</th><th>Revenue</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for row in campaign_revenue %}
+                        <tr>
+                            <td class="fw-semibold">{{ row.utm_campaign }}</td>
+                            <td>{{ row.utm_source }}</td>
+                            <td>{{ row.order_count }}</td>
+                            <td>৳{{ row.revenue }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center py-4">No campaign data yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const channelData = {{ channel_share_json|safe }};
+    const trendData = {{ trend_json|safe }};
+
+    const CHANNEL_COLORS = {
+        facebook: '#1877F2',
+        instagram: '#E1306C',
+        whatsapp: '#25D366',
+        tiktok: '#010101',
+        google: '#4285F4',
+        referral: '#F2A623',
+        others: '#7F7F7F',
+        direct: '#8A8A8A',
+    };
+
+    // Instagram's real look is a gradient, so give its chart segment a matching gradient fill
+    function getChannelColor(ctx, source) {
+        const key = (source || '').toLowerCase();
+        if (key === 'instagram') {
+            const gradient = ctx.createLinearGradient(0, 0, 300, 300);
+            gradient.addColorStop(0, '#FEDA75');
+            gradient.addColorStop(0.35, '#D62976');
+            gradient.addColorStop(0.65, '#962FBF');
+            gradient.addColorStop(1, '#4F5BD5');
+            return gradient;
+        }
+        return CHANNEL_COLORS[key] || '#2E75B6';
+    }
+
+    const pieCtx = document.getElementById('channelPieChart').getContext('2d');
+    new Chart(pieCtx, {
+        type: 'pie',
+        data: {
+            labels: channelData.map(c => c.utm_source),
+            datasets: [{
+                data: channelData.map(c => c.order_count),
+                backgroundColor: channelData.map(c => getChannelColor(pieCtx, c.utm_source))
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+
+    const grouped = {};
+    trendData.forEach(t => {
+        if (!grouped[t.utm_source]) grouped[t.utm_source] = {};
+        grouped[t.utm_source][t.day] = t.order_count;
+    });
+    const allDays = [...new Set(trendData.map(t => t.day))].sort();
+    const lineCtx = document.getElementById('trendLineChart').getContext('2d');
+    const datasets = Object.keys(grouped).map((source) => ({
+        label: source,
+        data: allDays.map(day => grouped[source][day] || 0),
+        borderColor: getChannelColor(lineCtx, source),
+        backgroundColor: getChannelColor(lineCtx, source),
+        fill: false
+    }));
+
+    new Chart(lineCtx, {
+        type: 'line',
+        data: { labels: allDays, datasets: datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            },
+            scales: {
+                y: { beginAtZero: true, ticks: { precision: 0 } }
+            }
+        }
+    });
+</script>

@@ -133,12 +133,16 @@ urlpatterns = [
 
     # ----------------- Token -----------------
     path('orders/<int:pk>/token-print/', OrderTokenPrintView.as_view(), name='order_token_print'),
+    path('orders/bulk-token-print/', OrderBulkTokenPrintView.as_view(), name='order_bulk_token_print'),
 
     path('orders/<int:pk>/pathao-submit/', OrderPathaoParcelSubmitView.as_view(), name='order_pathao_submit'),
 
     path('orders/<int:pk>/toggle-urgent/', OrderUrgentToggleView.as_view(), name='order_toggle_urgent'),
-
     path("stock-alert-list/", StockAlertListView.as_view(), name="stock_alert_list"),
+    
+    # ------------------ Marketing-----------
+    path('marketing/utm-link-generator/', UTMLinkGeneratorView.as_view(), name='utm_link_generator'),
+    path('marketing/traffic-source-report/', TrafficSourceReportView.as_view(), name='traffic_source_report'),
     
 ]
 

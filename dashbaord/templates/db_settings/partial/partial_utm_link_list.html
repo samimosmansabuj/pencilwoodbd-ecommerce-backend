@@ -1,0 +1,118 @@
+<div class="main-content">
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item active" aria-current="page">UTM Link Generator</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Generate a tagged campaign link</h5>
+            <form method="post" action="{% url 'utm_link_generator' %}">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label">Destination URL</label>
+                    <input type="text" name="destination_url" list="recent_urls" class="form-control"
+                           placeholder="https://pencilwoodbd.com/landing/pencil-set/" required>
+                    <datalist id="recent_urls">
+                        {% for url in recent_urls %}
+                        <option value="{{ url }}">
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Platform</label>
+                        <select name="platform" class="form-select" required>
+                            <option value="">Select platform</option>
+                            <option value="facebook">Facebook</option>
+                            <option value="instagram">Instagram</option>
+                            <option value="tiktok">TikTok</option>
+                            <option value="google">Google</option>
+                            <option value="whatsapp">WhatsApp</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Medium</label>
+                        <select name="medium" class="form-select">
+                            <option value="paid_social">Paid Ad</option>
+                            <option value="organic">Organic Post</option>
+                            <option value="referral">Referral</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Campaign name</label>
+                        <input type="text" name="campaign" class="form-control" placeholder="eid_sale_2026" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Generate Link</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">Recently generated links</h5>
+            <div class="table-responsive white-space-nowrap">
+                <table class="table align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Campaign</th>
+                            <th>Platform</th>
+                            <th>Medium</th>
+                            <th>Destination</th>
+                            <th>Generated link</th>
+                            <th>Date</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for link in links %}
+                        <tr>
+                            <td class="fw-semibold">{{ link.campaign }}</td>
+                            <td>{{ link.platform }}</td>
+                            <td>{{ link.medium }}</td>
+                            <td class="text-truncate" style="max-width:180px;">{{ link.destination_url }}</td>
+                            <td>
+                                <input type="text" class="form-control form-control-sm" value="{{ link.generated_url }}" id="link_{{ link.id }}" readonly>
+                            </td>
+                            <td>{{ link.created_at|date:"d M Y" }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-filter" onclick="copyUtmLink('link_{{ link.id }}')">
+                                    <i class="bi bi-clipboard"></i> Copy
+                                </button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4">No links generated yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyUtmLink(inputId) {
+    const el = document.getElementById(inputId);
+    el.select();
+    el.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(el.value);
+    alert("Link copied!");
+}
+</script>

@@ -1,4 +1,6 @@
 import json
+from datetime import timedelta
+from django.utils import timezone
 from django.views import View
 from rest_framework import permissions, status, views
 from rest_framework.response import Response
@@ -270,10 +272,28 @@ class PlaceOrderAPIView(APIView):
                     customer=customer, street_01=address_text, district=district, upazila=upazila
                 )
 
+                recent_duplicate = Order.objects.filter(
+                    customer=customer,
+                    shipping_address=f"{address.street_01}, {address.district}",
+                    created_at__gte=timezone.now() - timedelta(seconds=30),
+                ).first()
+
+                if recent_duplicate:
+                    return Response(
+                        {"status": True, "message": "Order received successfully", "order_id": recent_duplicate.order_id},
+                        status=201,
+                    )
+
                 order = Order.objects.create(
                     customer=customer,
                     shipping_address=f"{address.street_01}, {address.district}",
                     source=ORDER_SOURCE.WEBSITE,
+                    utm_source=request.data.get("utm_source"),
+                    utm_medium=request.data.get("utm_medium"),
+                    utm_campaign=request.data.get("utm_campaign"),
+                    click_id=request.data.get("click_id"),
+                    referrer=request.data.get("referrer"),
+                    landing_url=request.data.get("landing_url"),
                 )
 
                 total = Decimal("0")
