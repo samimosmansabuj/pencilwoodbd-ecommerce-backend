@@ -26,6 +26,7 @@ from order.utils import OrderConfirmatinoEmailSend
 from authentication.utils import normalize_bd_phone
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from marketing.models import Coupon, CouponUsage
 
 # =========================
 # HOME PAGE
@@ -127,13 +128,15 @@ class LandingPageOrderAPI(APIView):
         )
         return customer
 
+    INVALID_DISTRICT_VALUES = ["", "জেলা নির্বাচন করুন", "district select", "select district", "n/a", "none"]
+
     def get_address(self, data):
         address = data.get("address")
         district = data.get("district")
         if not address:
             raise ValueError("Address is required")
-        if not district:
-            raise ValueError("District is required")
+        if not district or district.strip().lower() in self.INVALID_DISTRICT_VALUES:
+            raise ValueError("Please select a valid district")
         return f"{address}, {district}"
     
     def get_product_object(self, id):
@@ -208,11 +211,11 @@ class LandingPageOrderAPI(APIView):
                     if product.has_variants and not variant:
                         raise ValueError("No active variant available for this product")
 
-                total_cost, quantity, subtotal, delivery = self.check_order_amount(variant, product, data)
-
                 # Customer Section---
                 customer = self.get_customer_data(data)
                 address = self.get_address(data)
+
+                total_cost, quantity, subtotal, delivery = self.check_order_amount(variant, product, data)
 
                 recent_duplicate = Order.objects.filter(
                     customer=customer,
@@ -425,6 +428,24 @@ class OrderCreateAPIView(APIView):
                 products = self.get_product_and_verify(data.get("products", {}))
                 amount = self.amount_check(data.get("amount", {}))
 
+                coupon_code = data.get("coupon_code")
+                discount_amount = Decimal("0")
+                applied_coupon = None
+
+                if coupon_code:
+                    applied_coupon = Coupon.objects.filter(code__iexact=coupon_code).first()
+                    if not applied_coupon:
+                        raise Exception("Invalid coupon code.")
+
+                    valid, reason = applied_coupon.is_currently_valid()
+                    if not valid:
+                        raise Exception(reason)
+
+                    if not applied_coupon.phone_can_use(customer.phone):
+                        raise Exception("You have already used this coupon.")
+
+                    discount_amount = applied_coupon.calculate_discount(self.productTotal)
+
                 metadata_payload = {
                     "source": "landing_page",
                     "district": data.get("customer", {}).get("district"),
@@ -449,7 +470,7 @@ class OrderCreateAPIView(APIView):
                     shipping_address=address,
                     note=data.get("note", ""),
                     shipping_total=Decimal(str(amount.get("deliveryCharge", 0))),
-                    total_cost=Decimal(str(amount.get("totalAmount", 0))),
+                    total_cost=Decimal(str(amount.get("totalAmount", 0))) - discount_amount,
                     metadata=metadata_payload,
                     source=ORDER_SOURCE.LANDING_PAGE,
                     utm_source=data.get("utm_source"),
@@ -459,6 +480,14 @@ class OrderCreateAPIView(APIView):
                     referrer=data.get("referrer"),
                     landing_url=data.get("landing_url"),
                 )
+
+                if applied_coupon:
+                    CouponUsage.objects.create(
+                        coupon=applied_coupon,
+                        phone=customer.phone,
+                        order=order,
+                        discount_applied=discount_amount,
+                    )
 
                 order_item = self.create_order_item(
                     order, data.get("products", {}), amount
@@ -491,10 +520,15 @@ class OrderCreateAPIView(APIView):
         else:
             raise Exception("Customer amount must be set.")
 
+    INVALID_DISTRICT_VALUES = ["", "জেলা নির্বাচন করুন", "district select", "select district", "n/a", "none"]
+
     def verify_input_customer(self, data):
         if data:
             required_fields = ["name", "phone", "address", "district"]
             missing_fields = [field for field in required_fields if not data.get(field)]
+            district = (data.get("district") or "").strip().lower()
+            if "district" not in missing_fields and district in self.INVALID_DISTRICT_VALUES:
+                missing_fields.append("district")
             return missing_fields
         else:
             raise Exception("Customer data must be set.")
@@ -511,3 +545,58 @@ class OrderCreateAPIView(APIView):
             raise Exception(
                 f"The following fields must be set: {', '.join(amount_missing_fields)}"
             )
+        
+class ApplyCouponAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        try:
+            code = (request.data.get("code") or "").strip()
+            phone = normalize_bd_phone(request.data.get("phone") or "")
+            subtotal = Decimal(str(request.data.get("subtotal", 0)))
+            landing_page_code = request.data.get("landing_page_code")
+            product_id = request.data.get("product_id")
+
+            if not code:
+                return Response({"status": False, "message": "Coupon code is required."}, status=400)
+            if not phone:
+                return Response({"status": False, "message": "Enter a valid phone number first."}, status=400)
+
+            coupon = Coupon.objects.filter(code__iexact=code).first()
+            if not coupon:
+                return Response({"status": False, "message": "Invalid coupon code."}, status=404)
+
+            valid, reason = coupon.is_currently_valid()
+            if not valid:
+                return Response({"status": False, "message": reason}, status=400)
+
+            landing_page = None
+            if landing_page_code:
+                landing_page = LandingPageProduct.objects.filter(code=landing_page_code).first()
+
+            product = None
+            if product_id:
+                product = Product.objects.filter(id=product_id).first()
+
+            scope_valid, scope_reason = coupon.is_valid_for_scope(landing_page=landing_page, product=product)
+            if not scope_valid:
+                return Response({"status": False, "message": scope_reason}, status=400)
+
+            if not coupon.phone_can_use(phone):
+                return Response({"status": False, "message": "You have already used this coupon."}, status=400)
+
+            discount = coupon.calculate_discount(subtotal)
+            if discount <= 0:
+                return Response({"status": False, "message": f"Minimum order ৳{coupon.min_order_amount} required for this coupon."}, status=400)
+
+            return Response({
+                "status": True,
+                "message": "Coupon applied successfully.",
+                "data": {
+                    "code": coupon.code,
+                    "discount_amount": float(discount),
+                    "new_total": float(subtotal - discount),
+                }
+            })
+        except Exception as e:
+            return Response({"status": False, "message": str(e)}, status=500)

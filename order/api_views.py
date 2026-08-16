@@ -215,9 +215,11 @@ class PlaceOrderAPIView(APIView):
                 district = request.data.get("district")
                 upazila = request.data.get("upazila") or "N/A"
 
-                if not phone or not name or not address_text or not district:
+                INVALID_DISTRICT_VALUES = ["", "জেলা নির্বাচন করুন", "district select", "select district", "n/a", "none"]
+
+                if not phone or not name or not address_text or not district or district.strip().lower() in INVALID_DISTRICT_VALUES:
                     return Response(
-                        {"status": False, "message": "Name, phone, address & district required"},
+                        {"status": False, "message": "Please select a valid district"},
                         status=400
                     )
 

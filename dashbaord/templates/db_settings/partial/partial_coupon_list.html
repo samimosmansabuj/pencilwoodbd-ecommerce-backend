@@ -1,0 +1,335 @@
+<div class="main-content">
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Coupon Settings</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-auto ms-auto">
+            <button class="btn btn-primary px-4" data-bs-toggle="modal" data-bs-target="#CouponModal">
+                <i class="bi bi-plus-lg me-2"></i>Add Coupon
+            </button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive white-space-nowrap">
+                <table class="table align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Code</th>
+                            <th>Discount</th>
+                            <th>Min Order</th>
+                            <th>Per-Number Limit</th>
+                            <th>Total Limit</th>
+                            <th>Scope</th>
+                            <th>Valid Until</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for coupon in coupons %}
+                        <tr>
+                            <td class="fw-semibold">{{ coupon.code }}</td>
+                            <td>
+                                {% if coupon.discount_type == "FIXED" %}৳{{ coupon.discount_value }}{% else %}{{ coupon.discount_value }}%{% endif %}
+                            </td>
+                            <td>৳{{ coupon.min_order_amount }}</td>
+                            <td>{{ coupon.max_uses_per_phone }}</td>
+                            <td>{{ coupon.total_usage_limit|default:"Unlimited" }}</td>
+                            <td>
+                                {% if coupon.applicable_landing_pages.exists or coupon.applicable_products.exists %}
+                                    <span class="badge bg-info text-dark">Restricted</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">All pages</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ coupon.end_date|date:"d M Y"|default:"No expiry" }}</td>
+                            <td>
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input toggle-coupon-active" type="checkbox"
+                                        role="switch" data-id="{{ coupon.id }}"
+                                        {% if coupon.is_active %}checked{% endif %}>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    <a class="btn btn-sm btn-filter" href="{% url 'coupon_usage_log' coupon.id %}" title="Usage log">
+                                        <i class="bi bi-clock-history"></i>
+                                    </a>
+                                    <button class="btn btn-sm btn-filter edit-coupon-btn"
+                                        data-id="{{ coupon.id }}"
+                                        data-code="{{ coupon.code }}"
+                                        data-discount-type="{{ coupon.discount_type }}"
+                                        data-discount-value="{{ coupon.discount_value }}"
+                                        data-max-discount-amount="{{ coupon.max_discount_amount|default:'' }}"
+                                        data-min-order-amount="{{ coupon.min_order_amount }}"
+                                        data-is-active="{{ coupon.is_active|yesno:'true,false' }}"
+                                        data-start-date="{{ coupon.start_date|date:'Y-m-d\TH:i'|default:'' }}"
+                                        data-end-date="{{ coupon.end_date|date:'Y-m-d\TH:i'|default:'' }}"
+                                        data-max-uses-per-phone="{{ coupon.max_uses_per_phone }}"
+                                        data-total-usage-limit="{{ coupon.total_usage_limit|default:'' }}"
+                                        data-landing-pages="{{ coupon.applicable_landing_pages.all|join:',' }}"
+                                        data-bs-toggle="modal" data-bs-target="#CouponModal">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-danger delete-coupon-btn"
+                                        data-id="{{ coupon.id }}" data-code="{{ coupon.code }}"
+                                        data-bs-toggle="modal" data-bs-target="#deleteCouponModal">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="9" class="text-center py-4">No coupons yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Coupon Modal -->
+<form method="post" id="add_coupon_form" action="{% url 'coupon_settings' %}" hx-ignore="true" autocomplete="off">
+    <input type="hidden" name="coupon_id" id="coupon_id">
+    <div class="modal fade" id="CouponModal">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+            <div class="modal-content">
+                <div class="modal-header border-bottom-0 bg-grd-primary py-2">
+                    <h5 class="modal-title" id="coupon_modal_title">Add Coupon</h5>
+                    <a href="javascript:;" class="primaery-menu-close" data-bs-dismiss="modal" id="close_add_coupon_modal">
+                        <i class="material-icons-outlined">close</i>
+                    </a>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Coupon Code <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="code" placeholder="e.g. PencilwoodKidz" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Discount Type</label>
+                            <select class="form-select" name="discount_type">
+                                <option value="FIXED">Fixed Amount (৳)</option>
+                                <option value="PERCENT">Percentage (%)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Discount Value <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" class="form-control" name="discount_value" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Max Discount Cap (for %)</label>
+                            <input type="number" step="0.01" class="form-control" name="max_discount_amount" placeholder="Leave blank for no cap">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Minimum Order Amount</label>
+                            <input type="number" step="0.01" class="form-control" name="min_order_amount" value="0">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Max Uses Per Phone Number</label>
+                            <input type="number" class="form-control" name="max_uses_per_phone" value="1" min="1">
+                            <div class="form-text">1 = each number can use it once.</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Total Usage Limit</label>
+                            <input type="number" class="form-control" name="total_usage_limit" placeholder="Leave blank for unlimited">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Start Date (optional)</label>
+                            <input type="datetime-local" class="form-control" name="start_date">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">End Date (optional)</label>
+                            <input type="datetime-local" class="form-control" name="end_date">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Restrict to Landing Pages</label>
+                            <select class="form-select" name="applicable_landing_pages" multiple id="coupon_landing_pages">
+                                {% for lp in landing_pages %}
+                                <option value="{{ lp.id }}">{{ lp.title }} ({{ lp.code }})</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Leave empty = works on all landing pages & website.</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Restrict to Products</label>
+                            <select class="form-select" name="applicable_products" multiple id="coupon_products">
+                                {% for p in products %}
+                                <option value="{{ p.id }}">{{ p.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Leave empty = works on all products.</div>
+                        </div>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="is_active" id="coupon_is_active" checked>
+                        <label class="form-check-label" for="coupon_is_active">Active</label>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0">
+                    <button type="button" class="btn btn-grd-danger" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-grd-info">Save changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Delete Coupon Modal -->
+<div class="modal fade" id="deleteCouponModal">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-bottom-0 py-2">
+                <h5 class="modal-title">Delete Coupon</h5>
+                <a href="javascript:;" class="primaery-menu-close" data-bs-dismiss="modal" id="close_delete_coupon_modal">
+                    <i class="material-icons-outlined">close</i>
+                </a>
+            </div>
+            <div class="modal-body delete-coupon-modal-body">Are you sure you want to delete this coupon?</div>
+            <div class="modal-footer border-top-0">
+                <button type="button" class="btn btn-grd-danger" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-grd-info" id="confirmDeleteCouponBtn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("submit", async function (e) {
+    if (e.target.id !== "add_coupon_form") return;
+    e.preventDefault();
+
+    const csrftoken = getCookieCoupon("csrftoken");
+    if (!csrftoken) { alert("Session expired. Please refresh."); return; }
+
+    const form = e.target;
+    if (!form.querySelector("input[name='code']").value.trim()) { alert("Coupon code is required"); return; }
+    if (!form.querySelector("input[name='discount_value']").value.trim()) { alert("Discount value is required"); return; }
+
+    try {
+        const formData = new FormData(form);
+        formData.set("csrfmiddlewaretoken", csrftoken);
+
+        const response = await fetch("{% url 'coupon_settings' %}", {
+            method: "POST",
+            body: formData,
+            headers: { "X-CSRFToken": csrftoken, "X-Requested-With": "XMLHttpRequest" },
+        });
+        const data = await response.json();
+
+        if (data.status) {
+            document.getElementById("close_add_coupon_modal").click();
+            alert(data.message);
+            setTimeout(function () { window.location.reload(); }, 600);
+        } else {
+            alert(data.message);
+        }
+    } catch (error) {
+        alert(error.message);
+    }
+});
+
+document.addEventListener("click", function (e) {
+    const btn = e.target.closest(".edit-coupon-btn");
+    if (!btn) return;
+
+    document.getElementById("coupon_modal_title").textContent = "Update Coupon";
+    document.getElementById("coupon_id").value = btn.dataset.id;
+
+    const form = document.getElementById("add_coupon_form");
+    form.querySelector("input[name='code']").value = btn.dataset.code;
+    form.querySelector("select[name='discount_type']").value = btn.dataset.discountType;
+    form.querySelector("input[name='discount_value']").value = btn.dataset.discountValue;
+    form.querySelector("input[name='max_discount_amount']").value = btn.dataset.maxDiscountAmount;
+    form.querySelector("input[name='min_order_amount']").value = btn.dataset.minOrderAmount;
+    form.querySelector("input[name='max_uses_per_phone']").value = btn.dataset.maxUsesPerPhone;
+    form.querySelector("input[name='total_usage_limit']").value = btn.dataset.totalUsageLimit;
+    form.querySelector("input[name='start_date']").value = btn.dataset.startDate;
+    form.querySelector("input[name='end_date']").value = btn.dataset.endDate;
+    form.querySelector("#coupon_is_active").checked = btn.dataset.isActive === "true";
+});
+
+document.getElementById("CouponModal")?.addEventListener("hidden.bs.modal", function () {
+    const form = document.getElementById("add_coupon_form");
+    form.reset();
+    document.getElementById("coupon_id").value = "";
+    document.getElementById("coupon_modal_title").textContent = "Add Coupon";
+});
+
+let deleteCouponId = null;
+document.addEventListener("click", function (e) {
+    const btn = e.target.closest(".delete-coupon-btn");
+    if (btn) {
+        deleteCouponId = btn.dataset.id;
+        document.querySelector(".delete-coupon-modal-body").textContent =
+            'Are you sure you want to delete "' + btn.dataset.code + '"?';
+    }
+});
+
+document.addEventListener("click", function (e) {
+    if (!e.target.closest("#confirmDeleteCouponBtn")) return;
+    if (!deleteCouponId) { alert("Coupon ID not found"); return; }
+    const csrftoken = getCookieCoupon("csrftoken");
+    fetch(`/settings/coupon/delete/${deleteCouponId}/`, {
+        method: "DELETE",
+        headers: { "X-CSRFToken": csrftoken, "X-Requested-With": "XMLHttpRequest" },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status) {
+            document.getElementById("close_delete_coupon_modal").click();
+            alert(data.message);
+            setTimeout(function () { window.location.reload(); }, 600);
+        } else {
+            alert(data.message);
+        }
+    })
+    .catch(error => alert(error.message));
+});
+
+document.addEventListener("change", function (e) {
+    const toggle = e.target.closest(".toggle-coupon-active");
+    if (!toggle) return;
+    const id = toggle.dataset.id;
+    const wantActive = toggle.checked;
+    const csrftoken = getCookieCoupon("csrftoken");
+
+    fetch(`/settings/coupon/toggle/${id}/`, {
+        method: "POST",
+        headers: { "X-CSRFToken": csrftoken, "X-Requested-With": "XMLHttpRequest", "Content-Type": "application/x-www-form-urlencoded" },
+        body: `is_active=${wantActive}`,
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.status) { toggle.checked = !wantActive; alert(data.message); }
+    })
+    .catch(error => { toggle.checked = !wantActive; alert(error.message); });
+});
+
+function getCookieCoupon(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>

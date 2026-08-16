@@ -1,0 +1,27 @@
+{% extends 'dashboard.html' %}
+{% block dashboard_body_content %}
+<div class="main-content">
+    <h5 class="mb-3">Usage Log — {{ coupon.code }}</h5>
+    <div class="card">
+        <div class="card-body">
+            <table class="table align-middle">
+                <thead class="table-light">
+                    <tr><th>Phone</th><th>Order</th><th>Discount</th><th>Date</th></tr>
+                </thead>
+                <tbody>
+                    {% for usage in usages %}
+                    <tr>
+                        <td>{{ usage.phone }}</td>
+                        <td>{{ usage.order.order_id|default:"—" }}</td>
+                        <td>৳{{ usage.discount_applied }}</td>
+                        <td>{{ usage.created_at|date:"d M Y, h:i A" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="text-center py-4">No usage yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
