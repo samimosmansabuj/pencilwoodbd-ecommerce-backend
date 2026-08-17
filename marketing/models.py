@@ -1,9 +1,9 @@
 from django.utils import timezone
 from django.db import models
-from pencilwoodbd.choices import EmailConfigServerType, EmailConfigMailType, MarketingIntegrationProviderChoices, MarketingIntegrationStatusChoices
+from pencilwoodbd.choices import EmailConfigServerType, EmailConfigMailType, MarketingIntegrationProviderChoices, MarketingIntegrationStatusChoices, CouponCustomerConditionChoices, CouponOrderHistoryScopeChoices
 from django.core.validators import MinValueValidator
 from decimal import Decimal
-
+from order.models import Order
 class MarketingIntegration(models.Model):
     provider = models.CharField(max_length=64, choices=MarketingIntegrationProviderChoices.choices)
     config = models.JSONField(default=dict, blank=True)
@@ -122,6 +122,32 @@ class Coupon(models.Model):
         help_text="Restrict this coupon to specific products. Leave empty = works on all products."
     )
 
+    customer_condition = models.CharField(
+        max_length=20,
+        choices=CouponCustomerConditionChoices.choices,
+        default=CouponCustomerConditionChoices.ANY,
+    )
+
+    min_previous_orders = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Used only when Customer Condition = 'At Least N Previous Orders'"
+    )
+
+    order_history_scope = models.CharField(
+        max_length=20,
+        choices=CouponOrderHistoryScopeChoices.choices,
+        default=CouponOrderHistoryScopeChoices.ALL_ORDERS,
+    )
+
+    count_orders_before_coupon_creation = models.BooleanField(
+        default=True,
+        help_text=(
+            "If unchecked, only orders placed AFTER this coupon was created "
+            "count toward eligibility."
+        ),
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -142,13 +168,92 @@ class Coupon(models.Model):
                 return False, "This coupon has reached its usage limit."
         return True, None
 
-    def is_valid_for_scope(self, landing_page=None, product=None):
-        if self.applicable_landing_pages.exists():
-            if not landing_page or not self.applicable_landing_pages.filter(id=landing_page.id).exists():
-                return False, "This coupon is not valid for this page."
-        if self.applicable_products.exists():
-            if not product or not self.applicable_products.filter(id=product.id).exists():
-                return False, "This coupon is not valid for this product."
+    def is_valid_for_scope(self, landing_page=None, product_ids=None):
+        has_landing_restriction = self.applicable_landing_pages.exists()
+        has_product_restriction = self.applicable_products.exists()
+
+        if not has_landing_restriction and not has_product_restriction:
+            return True, None  
+
+        if landing_page is not None:
+            if has_landing_restriction and self.applicable_landing_pages.filter(id=landing_page.id).exists():
+                return True, None
+            return False, "This coupon is not valid for this page."
+
+        if has_product_restriction:
+            product_ids = product_ids or []
+            if self.applicable_products.filter(id__in=product_ids).exists():
+                return True, None
+            return False, "This coupon is not valid for these products."
+
+        return False, "This coupon is not valid for website orders."
+    
+    def _scoped_product_ids(self):
+        product_ids = set(
+            self.applicable_products.values_list("id", flat=True)
+        )
+
+        for lp in self.applicable_landing_pages.all():
+            if lp.main_product_id:
+                product_ids.add(lp.main_product_id)
+
+            product_ids.update(
+                lp.product.values_list("id", flat=True)
+            )
+
+        return product_ids
+
+    def get_relevant_orders_queryset(self, phone):
+
+        qs = Order.objects.filter(customer__phone=phone)
+
+        if not self.count_orders_before_coupon_creation:
+            qs = qs.filter(created_at__gte=self.created_at)
+
+        if (
+            self.order_history_scope == "SAME_SCOPE"
+            and (
+                self.applicable_landing_pages.exists()
+                or self.applicable_products.exists()
+            )
+        ):
+            product_ids = self._scoped_product_ids()
+
+            qs = qs.filter(
+                order_items__product_id__in=product_ids
+            ).distinct()
+
+        return qs
+
+    def customer_meets_condition(self, phone):
+        if self.customer_condition == "ANY":
+            return True, None
+
+        order_count = self.get_relevant_orders_queryset(phone).count()
+
+        if self.customer_condition == "FIRST_ORDER":
+            if order_count == 0:
+                return True, None
+
+            return False, "This coupon is only for first-time customers."
+
+        if self.customer_condition == "EXISTING":
+            if order_count >= 1:
+                return True, None
+
+            return False, "This coupon is only for existing customers."
+
+        if self.customer_condition == "MIN_ORDERS":
+            required = self.min_previous_orders or 1
+
+            if order_count >= required:
+                return True, None
+
+            return False, (
+                f"This coupon requires at least "
+                f"{required} previous order(s)."
+            )
+
         return True, None
 
     def phone_can_use(self, phone):

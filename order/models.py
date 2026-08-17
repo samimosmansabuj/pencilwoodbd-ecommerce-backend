@@ -64,6 +64,9 @@ class Order(models.Model):
     order_created_date = models.DateField(null=True, blank=True)
     source = models.CharField(max_length=100, blank=True, null=True, choices=ORDER_SOURCE.choices, default=ORDER_SOURCE.OTHERS)
 
+    coupon = models.ForeignKey('marketing.Coupon', on_delete=models.SET_NULL, null=True, blank=True, related_name='orders')
+    coupon_discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
     metadata = models.JSONField(default=dict, blank=True)
     
     # --- Traffic source attribution (marketing) ---

@@ -429,6 +429,7 @@ class OrderCreateAPIView(APIView):
                 amount = self.amount_check(data.get("amount", {}))
 
                 coupon_code = data.get("coupon_code")
+                landing_page_code = data.get("landing_page_code")
                 discount_amount = Decimal("0")
                 applied_coupon = None
 
@@ -440,6 +441,21 @@ class OrderCreateAPIView(APIView):
                     valid, reason = applied_coupon.is_currently_valid()
                     if not valid:
                         raise Exception(reason)
+
+                    landing_page = None
+                    if landing_page_code:
+                        landing_page = LandingPageProduct.objects.filter(code=landing_page_code).first()
+
+                    product_ids_in_cart = [p["id"] for p in products] if not landing_page else None
+                    scope_valid, scope_reason = applied_coupon.is_valid_for_scope(
+                        landing_page=landing_page, product_ids=product_ids_in_cart
+                    )
+                    if not scope_valid:
+                        raise Exception(scope_reason)
+
+                    condition_valid, condition_reason = applied_coupon.customer_meets_condition(customer.phone)
+                    if not condition_valid:
+                        raise Exception(condition_reason)
 
                     if not applied_coupon.phone_can_use(customer.phone):
                         raise Exception("You have already used this coupon.")
@@ -465,12 +481,18 @@ class OrderCreateAPIView(APIView):
                         {"success": True, "message": "Order Created", "order_id": recent_duplicate.order_id},
                         status=status.HTTP_201_CREATED,
                     )
+                
+                delivery_charge = Decimal(str(amount.get("deliveryCharge", 0)))
+                final_total = self.productTotal + delivery_charge - discount_amount
+
                 order = Order.objects.create(
                     customer=customer,
                     shipping_address=address,
                     note=data.get("note", ""),
-                    shipping_total=Decimal(str(amount.get("deliveryCharge", 0))),
-                    total_cost=Decimal(str(amount.get("totalAmount", 0))) - discount_amount,
+                    shipping_total=delivery_charge,
+                    total_cost=final_total,
+                    coupon=applied_coupon,
+                    coupon_discount=discount_amount,
                     metadata=metadata_payload,
                     source=ORDER_SOURCE.LANDING_PAGE,
                     utm_source=data.get("utm_source"),
@@ -555,7 +577,7 @@ class ApplyCouponAPIView(APIView):
             phone = normalize_bd_phone(request.data.get("phone") or "")
             subtotal = Decimal(str(request.data.get("subtotal", 0)))
             landing_page_code = request.data.get("landing_page_code")
-            product_id = request.data.get("product_id")
+            product_ids = request.data.get("product_ids") or []
 
             if not code:
                 return Response({"status": False, "message": "Coupon code is required."}, status=400)
@@ -574,13 +596,16 @@ class ApplyCouponAPIView(APIView):
             if landing_page_code:
                 landing_page = LandingPageProduct.objects.filter(code=landing_page_code).first()
 
-            product = None
-            if product_id:
-                product = Product.objects.filter(id=product_id).first()
-
-            scope_valid, scope_reason = coupon.is_valid_for_scope(landing_page=landing_page, product=product)
+            scope_valid, scope_reason = coupon.is_valid_for_scope(
+                landing_page=landing_page,
+                product_ids=product_ids if not landing_page else None,
+            )
             if not scope_valid:
                 return Response({"status": False, "message": scope_reason}, status=400)
+
+            condition_valid, condition_reason = coupon.customer_meets_condition(phone)
+            if not condition_valid:
+                return Response({"status": False, "message": condition_reason}, status=400)
 
             if not coupon.phone_can_use(phone):
                 return Response({"status": False, "message": "You have already used this coupon."}, status=400)
@@ -600,3 +625,4 @@ class ApplyCouponAPIView(APIView):
             })
         except Exception as e:
             return Response({"status": False, "message": str(e)}, status=500)
+        
