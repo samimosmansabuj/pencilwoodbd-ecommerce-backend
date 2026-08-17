@@ -28,12 +28,12 @@ from pencilwoodbd.extra_module import resize_to_fixed
 from order.models import Order, OrderRequest, OrderItem, OrderRequestItem, Review, TelegramBotConfig
 from product.models import Product, Category, ProductImage, ProductVideo, Attribute, AttributeValue, ProductVariant, Tag, ProductDeliveryCharge, ProductFeature, ProductFAQ, ReviewSettings
 from authentication.models import CustomUser, Customer
-from site_app.models import DeliveryOption, SiteDeliveryChargeConfig, HomeSlider, FooterTagLink, SocialLink, NavMenuLink, NewsFeed, Todo, Reminder, MaintenanceCost, DailyProfit, InvoiceColorConfig
+from site_app.models import DeliveryOption, SiteDeliveryChargeConfig, HomeSlider, FooterTagLink, SocialLink, NavMenuLink, NewsFeed, Todo, Reminder, MaintenanceCost, DailyProfit, InvoiceColorConfig, LandingPageProduct
 
 from site_app.bd_districts import BD_DISTRICTS, ALL_DISTRICTS_KEY, SYSTEM_DEFAULT_DELIVERY_CHARGE
 from site_app.delivery_charge import DeliveryChargeResolver
 
-from marketing.models import MarketingIntegration, UTMLink
+from marketing.models import MarketingIntegration, UTMLink, CouponUsage, Coupon
 # Forms
 from product.forms import ProductForm, ProductImageForm, ProductVideoForm
 from django.forms import modelformset_factory
@@ -4409,6 +4409,102 @@ class TrafficSourceReportView(LoginRequiredMixin, View):
             "channel_share_json": json.dumps(channel_share, default=str),
         }
         return render(request, self.template_name, context)
+
+
+# ----------------- Coppon -----------------
+class CouponSettingsView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        coupons = Coupon.objects.all().order_by("-created_at")
+        landing_pages = LandingPageProduct.objects.filter(is_active=True)
+        products = Product.objects.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE)
+
+        context = {
+            "coupons": coupons,
+            "landing_pages": landing_pages,
+            "products": products,
+        }
+        return render(request, "db_settings/coupon_settings.html", context)
+
+    def post(self, request):
+        try:
+            data = request.POST
+            coupon_id = data.get("coupon_id")
+
+            code = data.get("code", "").strip()
+            discount_type = data.get("discount_type")
+            discount_value = data.get("discount_value")
+            max_discount_amount = data.get("max_discount_amount") or None
+            min_order_amount = data.get("min_order_amount") or 0
+            is_active = data.get("is_active") == "on"
+            start_date = data.get("start_date") or None
+            end_date = data.get("end_date") or None
+            max_uses_per_phone = data.get("max_uses_per_phone") or 1
+            total_usage_limit = data.get("total_usage_limit") or None
+            landing_page_ids = data.getlist("applicable_landing_pages")
+            product_ids = data.getlist("applicable_products")
+
+            if not code or not discount_value:
+                return JsonResponse({"status": False, "message": "Code and discount value are required."}, status=HTTPStatus.BAD_REQUEST)
+
+            if coupon_id:
+                coupon = get_object_or_404(Coupon, id=coupon_id)
+            else:
+                coupon = Coupon()
+
+            coupon.code = code
+            coupon.discount_type = discount_type
+            coupon.discount_value = discount_value
+            coupon.max_discount_amount = max_discount_amount
+            coupon.min_order_amount = min_order_amount
+            coupon.is_active = is_active
+            coupon.start_date = start_date
+            coupon.end_date = end_date
+            coupon.max_uses_per_phone = max_uses_per_phone
+            coupon.total_usage_limit = total_usage_limit
+            coupon.save()
+
+            coupon.applicable_landing_pages.set(landing_page_ids)
+            coupon.applicable_products.set(product_ids)
+
+            return JsonResponse({"status": True, "message": "Coupon saved successfully."}, status=HTTPStatus.OK)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def delete_coupon(request, id):
+    if request.method == "DELETE":
+        try:
+            coupon = get_object_or_404(Coupon, id=id)
+            coupon.delete()
+            return JsonResponse({"status": True, "message": "Coupon deleted successfully"}, status=HTTPStatus.OK)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+    return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def toggle_coupon_active(request, id):
+    if request.method != "POST":
+        return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+    try:
+        coupon = get_object_or_404(Coupon, id=id)
+        coupon.is_active = request.POST.get("is_active") == "true"
+        coupon.save(update_fields=["is_active"])
+        return JsonResponse({"status": True, "message": "Status updated", "is_active": coupon.is_active}, status=HTTPStatus.OK)
+    except Exception as e:
+        return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def coupon_usage_log(request, id):
+    coupon = get_object_or_404(Coupon, id=id)
+    usages = coupon.usages.select_related("order").order_by("-created_at")
+    context = {"coupon": coupon, "usages": usages}
+    return render(request, "db_settings/partial/partial_coupon_usage_log.html", context)
+
 
 # class RedirectView(View):
 #     permanent = False

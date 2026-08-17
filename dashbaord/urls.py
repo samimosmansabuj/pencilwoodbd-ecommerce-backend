@@ -143,6 +143,12 @@ urlpatterns = [
     # ------------------ Marketing-----------
     path('marketing/utm-link-generator/', UTMLinkGeneratorView.as_view(), name='utm_link_generator'),
     path('marketing/traffic-source-report/', TrafficSourceReportView.as_view(), name='traffic_source_report'),
+
+    #------------------ Coppon ---------
+    path('settings/coupon/', CouponSettingsView.as_view(), name='coupon_settings'),
+    path('settings/coupon/delete/<int:id>/', delete_coupon, name='delete_coupon'),
+    path('settings/coupon/toggle/<int:id>/', toggle_coupon_active, name='toggle_coupon_active'),
+    path('settings/coupon/<int:id>/usage/', coupon_usage_log, name='coupon_usage_log'),
     
 ]
 

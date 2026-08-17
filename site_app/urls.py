@@ -3,7 +3,8 @@ from .api_views import (
     HomePageAPIView,
     LandingPageProductViews,
     LandingPageOrderAPI,
-    OrderCreateAPIView
+    OrderCreateAPIView,
+    ApplyCouponAPIView
 )
 
 urlpatterns = [
@@ -12,4 +13,6 @@ urlpatterns = [
     path("api/landing/order/", LandingPageOrderAPI.as_view()),
     
     path('api/create-order/', OrderCreateAPIView.as_view(), name="create-order"),
+
+    path("api/apply-coupon/", ApplyCouponAPIView.as_view(), name="apply-coupon"),
 ]
