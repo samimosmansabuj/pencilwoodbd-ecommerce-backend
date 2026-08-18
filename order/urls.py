@@ -7,8 +7,10 @@ from .api_views import (
     OrderDetailAPIView,
     CheckoutSummaryAPIView, 
     PlaceOrderAPIView,
-    SteadfastWebhookView,
+    # SteadfastWebhookView,
 )
+
+from .webhook_views import SteadfastWebhookAPIView
 
 urlpatterns = [
     
@@ -21,5 +23,6 @@ urlpatterns = [
     
     path('api/v1/delivery-options/', DeliveryOptionListAPIView.as_view(), name="delivery-options"),
     path('api/v1/shipment-info/<int:order_id>/', ShipmentSerializerAPIView.as_view(), name="shipment-info"),
-    path('webhook/steadfast/', SteadfastWebhookView.as_view(), name='steadfast_webhook'),
+    
+    path('webhook/steadfast/', SteadfastWebhookAPIView.as_view(), name='steadfast_webhook'),
 ]

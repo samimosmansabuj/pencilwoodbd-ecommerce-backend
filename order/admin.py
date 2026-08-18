@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import PaymentMethod, Address, Order, OrderItem, OrderRequest, Shipment, Payment, Review, TelegramBotConfig
+from .models import PaymentMethod, Address, Order, OrderItem, OrderRequest, Shipment, Payment, Review, TelegramBotConfig, SteadFastWebhookLog
 from django_json_widget.widgets import JSONEditorWidget
 from django.db import models
 
@@ -22,3 +22,4 @@ admin.site.register(OrderItem)
 admin.site.register(Shipment)
 admin.site.register(Payment)
 admin.site.register(Review)
+admin.site.register(SteadFastWebhookLog)

@@ -76,41 +76,41 @@ class ShipmentSerializerAPIView(views.APIView):
                 }, status=status.HTTP_400_BAD_REQUEST
             )
 
-@method_decorator(csrf_exempt, name='dispatch')
-class SteadfastWebhookView(View):
-    def post(self, request):
-        try:
-            data = json.loads(request.body)
-        except Exception:
-            return JsonResponse({"success": False, "message": "Invalid payload."}, status=400)
+# @method_decorator(csrf_exempt, name='dispatch')
+# class SteadfastWebhookView(View):
+#     def post(self, request):
+#         try:
+#             data = json.loads(request.body)
+#         except Exception:
+#             return JsonResponse({"success": False, "message": "Invalid payload."}, status=400)
 
-        WebhookLog.objects.create(source='steadfast', payload=data)
+#         WebhookLog.objects.create(source='steadfast', payload=data)
 
-        consignment_id = data.get("consignment_id") or data.get("cid")
-        delivery_status = data.get("delivery_status") or data.get("status")
+#         consignment_id = data.get("consignment_id") or data.get("cid")
+#         delivery_status = data.get("delivery_status") or data.get("status")
 
-        if not consignment_id:
-            return JsonResponse({"success": False, "message": "Missing consignment_id."}, status=400)
+#         if not consignment_id:
+#             return JsonResponse({"success": False, "message": "Missing consignment_id."}, status=400)
 
-        shipment = Shipment.objects.filter(tracking_number=str(consignment_id)).first()
-        if not shipment:
-            return JsonResponse({"success": False, "message": "Shipment not found."}, status=404)
+#         shipment = Shipment.objects.filter(tracking_number=str(consignment_id)).first()
+#         if not shipment:
+#             return JsonResponse({"success": False, "message": "Shipment not found."}, status=404)
 
-        shipment.status = delivery_status or shipment.status
-        shipment.save(update_fields=["status"])
+#         shipment.status = delivery_status or shipment.status
+#         shipment.save(update_fields=["status"])
 
-        # Optional: map courier status to Order status if you want auto-sync
-        status_map = {
-            "delivered": STATUS.DELIVERED,
-            "cancelled": STATUS.CANCELLED,
-            "returned": STATUS.RETURNED,
-        }
-        mapped = status_map.get((delivery_status or "").lower())
-        if mapped:
-            shipment.order.status = mapped
-            shipment.order.save(update_fields=["status"])
+#         # Optional: map courier status to Order status if you want auto-sync
+#         status_map = {
+#             "delivered": STATUS.DELIVERED,
+#             "cancelled": STATUS.CANCELLED,
+#             "returned": STATUS.RETURNED,
+#         }
+#         mapped = status_map.get((delivery_status or "").lower())
+#         if mapped:
+#             shipment.order.status = mapped
+#             shipment.order.save(update_fields=["status"])
 
-        return JsonResponse({"success": True})
+#         return JsonResponse({"success": True})
 
 
 
