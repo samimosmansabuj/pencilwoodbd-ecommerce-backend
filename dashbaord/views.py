@@ -4442,11 +4442,34 @@ class CouponSettingsView(LoginRequiredMixin, View):
             end_date = data.get("end_date") or None
             max_uses_per_phone = data.get("max_uses_per_phone") or 1
             total_usage_limit = data.get("total_usage_limit") or None
+
             landing_page_ids = data.getlist("applicable_landing_pages")
             product_ids = data.getlist("applicable_products")
 
+            customer_condition = data.get("customer_condition", "ANY")
+            min_previous_orders = data.get("min_previous_orders") or None
+            order_history_scope = data.get("order_history_scope", "ALL_ORDERS")
+            count_orders_before_coupon_creation = (
+                data.get("count_orders_before_coupon_creation") == "on"
+            )
+
             if not code or not discount_value:
-                return JsonResponse({"status": False, "message": "Code and discount value are required."}, status=HTTPStatus.BAD_REQUEST)
+                return JsonResponse(
+                    {
+                        "status": False,
+                        "message": "Code and discount value are required.",
+                    },
+                    status=HTTPStatus.BAD_REQUEST,
+                )
+
+            if not landing_page_ids and not product_ids:
+                return JsonResponse(
+                    {
+                        "status": False,
+                        "message": "Please select at least one Landing Page or Product.",
+                    },
+                    status=HTTPStatus.BAD_REQUEST,
+                )
 
             if coupon_id:
                 coupon = get_object_or_404(Coupon, id=coupon_id)
@@ -4463,15 +4486,34 @@ class CouponSettingsView(LoginRequiredMixin, View):
             coupon.end_date = end_date
             coupon.max_uses_per_phone = max_uses_per_phone
             coupon.total_usage_limit = total_usage_limit
+            coupon.customer_condition = customer_condition
+            coupon.min_previous_orders = min_previous_orders
+            coupon.order_history_scope = order_history_scope
+            coupon.count_orders_before_coupon_creation = (
+                count_orders_before_coupon_creation
+            )
+
             coupon.save()
 
             coupon.applicable_landing_pages.set(landing_page_ids)
             coupon.applicable_products.set(product_ids)
 
-            return JsonResponse({"status": True, "message": "Coupon saved successfully."}, status=HTTPStatus.OK)
-        except Exception as e:
-            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+            return JsonResponse(
+                {
+                    "status": True,
+                    "message": "Coupon saved successfully.",
+                },
+                status=HTTPStatus.OK,
+            )
 
+        except Exception as e:
+            return JsonResponse(
+                {
+                    "status": False,
+                    "message": str(e),
+                },
+                status=HTTPStatus.BAD_REQUEST,
+            )
 
 @login_required(login_url="admin_login")
 def delete_coupon(request, id):

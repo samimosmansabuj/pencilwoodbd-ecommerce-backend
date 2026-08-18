@@ -78,7 +78,12 @@
                                         data-end-date="{{ coupon.end_date|date:'Y-m-d\TH:i'|default:'' }}"
                                         data-max-uses-per-phone="{{ coupon.max_uses_per_phone }}"
                                         data-total-usage-limit="{{ coupon.total_usage_limit|default:'' }}"
-                                        data-landing-pages="{{ coupon.applicable_landing_pages.all|join:',' }}"
+                                        data-customer-condition="{{ coupon.customer_condition }}"
+                                        data-min-previous-orders="{{ coupon.min_previous_orders|default:'' }}"
+                                        data-order-history-scope="{{ coupon.order_history_scope }}"
+                                        data-count-before="{{ coupon.count_orders_before_coupon_creation|yesno:'true,false' }}"
+                                        data-landing-page-ids="{% for lp in coupon.applicable_landing_pages.all %}{{ lp.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                                        data-product-ids="{% for p in coupon.applicable_products.all %}{{ p.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
                                         data-bs-toggle="modal" data-bs-target="#CouponModal">
                                         <i class="bi bi-pencil"></i>
                                     </button>
@@ -114,10 +119,21 @@
                 </div>
                 <div class="modal-body">
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Coupon Code <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="code" placeholder="e.g. PencilwoodKidz" required>
+
+                        <!-- 1. Coupon Code - FULL WIDTH -->
+                        <div class="col-12 mb-3">
+                            <label class="form-label">
+                                Coupon Code <span class="text-danger">*</span>
+                            </label>
+                            <input type="text"
+                                   class="form-control"
+                                   name="code"
+                                   placeholder="e.g. PencilwoodKidz"
+                                   required>
                         </div>
+                    
+                    
+                        <!-- 2. Discount Type -->
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Discount Type</label>
                             <select class="form-select" name="discount_type">
@@ -125,57 +141,180 @@
                                 <option value="PERCENT">Percentage (%)</option>
                             </select>
                         </div>
+                    
+                        <!-- 3. Discount Value -->
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Discount Value <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" class="form-control" name="discount_value" required>
+                            <label class="form-label">
+                                Discount Value <span class="text-danger">*</span>
+                            </label>
+                            <input type="number"
+                                   step="0.01"
+                                   class="form-control"
+                                   name="discount_value"
+                                   required>
                         </div>
+                    
+                    
+                        <!-- 4. Max Discount Cap -->
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Max Discount Cap (for %)</label>
-                            <input type="number" step="0.01" class="form-control" name="max_discount_amount" placeholder="Leave blank for no cap">
+                            <input type="number"
+                                   step="0.01"
+                                   class="form-control"
+                                   name="max_discount_amount"
+                                   placeholder="Leave blank for no cap">
                         </div>
+                    
+                        <!-- 5. Minimum Order Amount -->
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Minimum Order Amount</label>
-                            <input type="number" step="0.01" class="form-control" name="min_order_amount" value="0">
+                            <input type="number"
+                                   step="0.01"
+                                   class="form-control"
+                                   name="min_order_amount"
+                                   value="0">
                         </div>
+                    
+                    
+                        <!-- 6. Max Uses Per Phone Number -->
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Max Uses Per Phone Number</label>
-                            <input type="number" class="form-control" name="max_uses_per_phone" value="1" min="1">
-                            <div class="form-text">1 = each number can use it once.</div>
+                            <input type="number"
+                                   class="form-control"
+                                   name="max_uses_per_phone"
+                                   value="1"
+                                   min="1">
+                            <div class="form-text">
+                                1 = each number can use it once.
+                            </div>
                         </div>
+                    
+                        <!-- 7. Total Usage Limit -->
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Total Usage Limit</label>
-                            <input type="number" class="form-control" name="total_usage_limit" placeholder="Leave blank for unlimited">
+                            <input type="number"
+                                   class="form-control"
+                                   name="total_usage_limit"
+                                   placeholder="Leave blank for unlimited">
                         </div>
+                    
+                    
+                        <!-- 8. Start Date -->
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Start Date (optional)</label>
-                            <input type="datetime-local" class="form-control" name="start_date">
+                            <input type="datetime-local"
+                                   class="form-control"
+                                   name="start_date">
                         </div>
+                    
+                        <!-- 9. End Date -->
                         <div class="col-md-6 mb-3">
                             <label class="form-label">End Date (optional)</label>
-                            <input type="datetime-local" class="form-control" name="end_date">
+                            <input type="datetime-local"
+                                   class="form-control"
+                                   name="end_date">
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Restrict to Landing Pages</label>
-                            <select class="form-select" name="applicable_landing_pages" multiple id="coupon_landing_pages">
+                    
+                    
+                        <!-- 10. Landing Pages -->
+                        <div class="col-md-6 mb-3 d-flex flex-column">
+                            <label class="form-label">Landing Pages</label>
+                    
+                            <div class="mb-2">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        id="selectAllLandingPagesBtn">
+                                    Select All
+                                </button>
+                    
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        id="clearAllLandingPagesBtn">
+                                    Clear Selection
+                                </button>
+                            </div>
+                    
+                            <select class="form-select"
+                                    name="applicable_landing_pages"
+                                    multiple
+                                    id="coupon_landing_pages"
+                                    size="6">
                                 {% for lp in landing_pages %}
-                                <option value="{{ lp.id }}">{{ lp.title }} ({{ lp.code }})</option>
+                                    <option value="{{ lp.id }}">
+                                        {{ lp.title }} ({{ lp.code }})
+                                    </option>
                                 {% endfor %}
                             </select>
-                            <div class="form-text">Leave empty = works on all landing pages & website.</div>
+
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Restrict to Products</label>
-                            <select class="form-select" name="applicable_products" multiple id="coupon_products">
+                    
+                    
+                        <!-- 11. Website: Select Products -->
+                        <div class="col-md-6 mb-3 d-flex flex-column">
+                            <label class="form-label">Website: Select Products</label>
+                    
+                            <div class="mb-2">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        id="selectAllProductsBtn">
+                                    Select All
+                                </button>
+                    
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        id="clearAllProductsBtn">
+                                    Clear Selection
+                                </button>
+                            </div>
+                    
+                            <select class="form-select"
+                                    name="applicable_products"
+                                    multiple
+                                    id="coupon_products"
+                                    size="6">
                                 {% for p in products %}
-                                <option value="{{ p.id }}">{{ p.name }}</option>
+                                    <option value="{{ p.id }}">
+                                        {{ p.name }}
+                                    </option>
                                 {% endfor %}
                             </select>
-                            <div class="form-text">Leave empty = works on all products.</div>
+
                         </div>
+                    
                     </div>
                     <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" name="is_active" id="coupon_is_active" checked>
                         <label class="form-check-label" for="coupon_is_active">Active</label>
+                    </div>
+                    <hr>
+                    <h6 class="mb-3">Customer Eligibility</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Who can use this coupon?</label>
+                            <select class="form-select" name="customer_condition" id="coupon_customer_condition">
+                                <option value="ANY">Any Customer</option>
+                                <option value="FIRST_ORDER">First Order Only</option>
+                                <option value="EXISTING">Existing Customer (1+ previous order)</option>
+                                <option value="MIN_ORDERS">At Least N Previous Orders</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Minimum Previous Orders (N)</label>
+                            <input type="number" class="form-control" name="min_previous_orders" min="1" placeholder="Only used with 'At Least N Previous Orders'">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Which orders count?</label>
+                            <select class="form-select" name="order_history_scope">
+                                <option value="ALL_ORDERS">Any order across the whole store</option>
+                                <option value="SAME_SCOPE">Only orders within this coupon's Landing Page/Product</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3 d-flex align-items-end">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="count_orders_before_coupon_creation" id="coupon_count_before" checked>
+                                <label class="form-check-label" for="coupon_count_before">Count orders placed before this coupon was created</label>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer border-top-0">
@@ -231,14 +370,33 @@ document.addEventListener("submit", async function (e) {
 
         if (data.status) {
             document.getElementById("close_add_coupon_modal").click();
-            alert(data.message);
+            successNotificationCustom(data.message);
             setTimeout(function () { window.location.reload(); }, 600);
         } else {
-            alert(data.message);
+            errorNotificationCustom(data.message);
         }
     } catch (error) {
-        alert(error.message);
+        errorNotificationCustom(error.message);
     }
+});
+document.getElementById("selectAllProductsBtn")?.addEventListener("click", function () {
+    const select = document.getElementById("coupon_products");
+    Array.from(select.options).forEach(opt => opt.selected = true);
+});
+
+document.getElementById("clearAllProductsBtn")?.addEventListener("click", function () {
+    const select = document.getElementById("coupon_products");
+    Array.from(select.options).forEach(opt => opt.selected = false);
+});
+
+document.getElementById("selectAllLandingPagesBtn")?.addEventListener("click", function () {
+    const select = document.getElementById("coupon_landing_pages");
+    Array.from(select.options).forEach(opt => opt.selected = true);
+});
+
+document.getElementById("clearAllLandingPagesBtn")?.addEventListener("click", function () {
+    const select = document.getElementById("coupon_landing_pages");
+    Array.from(select.options).forEach(opt => opt.selected = false);
 });
 
 document.addEventListener("click", function (e) {
@@ -259,6 +417,25 @@ document.addEventListener("click", function (e) {
     form.querySelector("input[name='start_date']").value = btn.dataset.startDate;
     form.querySelector("input[name='end_date']").value = btn.dataset.endDate;
     form.querySelector("#coupon_is_active").checked = btn.dataset.isActive === "true";
+
+    form.querySelector("select[name='customer_condition']").value = btn.dataset.customerCondition;
+    form.querySelector("input[name='min_previous_orders']").value = btn.dataset.minPreviousOrders;
+    form.querySelector("select[name='order_history_scope']").value = btn.dataset.orderHistoryScope;
+    form.querySelector("#coupon_count_before").checked = btn.dataset.countBefore === "true";
+
+    // Pre-select Landing Pages
+    const landingIds = (btn.dataset.landingPageIds || "").split(",").filter(Boolean);
+    const landingSelect = document.getElementById("coupon_landing_pages");
+    Array.from(landingSelect.options).forEach(opt => {
+        opt.selected = landingIds.includes(opt.value);
+    });
+
+    // Pre-select Products
+    const productIds = (btn.dataset.productIds || "").split(",").filter(Boolean);
+    const productSelect = document.getElementById("coupon_products");
+    Array.from(productSelect.options).forEach(opt => {
+        opt.selected = productIds.includes(opt.value);
+    });
 });
 
 document.getElementById("CouponModal")?.addEventListener("hidden.bs.modal", function () {
@@ -266,6 +443,8 @@ document.getElementById("CouponModal")?.addEventListener("hidden.bs.modal", func
     form.reset();
     document.getElementById("coupon_id").value = "";
     document.getElementById("coupon_modal_title").textContent = "Add Coupon";
+    Array.from(document.getElementById("coupon_landing_pages").options).forEach(o => o.selected = false);
+    Array.from(document.getElementById("coupon_products").options).forEach(o => o.selected = false);
 });
 
 let deleteCouponId = null;
@@ -290,13 +469,13 @@ document.addEventListener("click", function (e) {
     .then(data => {
         if (data.status) {
             document.getElementById("close_delete_coupon_modal").click();
-            alert(data.message);
+            successNotificationCustom(data.message);
             setTimeout(function () { window.location.reload(); }, 600);
         } else {
-            alert(data.message);
+            errorNotificationCustom(data.message);
         }
     })
-    .catch(error => alert(error.message));
+    .catch(error => errorNotificationCustom(error.message));
 });
 
 document.addEventListener("change", function (e) {
@@ -313,10 +492,30 @@ document.addEventListener("change", function (e) {
     })
     .then(response => response.json())
     .then(data => {
-        if (!data.status) { toggle.checked = !wantActive; alert(data.message); }
+        if (data.status) {
+            successNotificationCustom(data.message || "Status updated.");
+        } else {
+            toggle.checked = !wantActive;
+            errorNotificationCustom(data.message);
+        }
     })
-    .catch(error => { toggle.checked = !wantActive; alert(error.message); });
+    .catch(error => { toggle.checked = !wantActive; errorNotificationCustom(error.message); });
 });
+
+function successNotificationCustom(message) {
+    Lobibox.notify('success', {
+        title: "Success", pauseDelayOnHover: true, size: 'mini', rounded: true,
+        icon: 'bi bi-check2-circle', delayIndicator: false,
+        continueDelayOnInactiveTab: false, position: 'top right', msg: message
+    });
+}
+function errorNotificationCustom(message) {
+    Lobibox.notify('error', {
+        title: "Error", pauseDelayOnHover: true, size: 'mini', rounded: true,
+        icon: 'bi bi-x-circle', delayIndicator: false,
+        continueDelayOnInactiveTab: false, position: 'top right', msg: message
+    });
+}
 
 function getCookieCoupon(name) {
     let cookieValue = null;

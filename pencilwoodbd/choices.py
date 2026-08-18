@@ -71,6 +71,20 @@ class EmailConfigServerType(models.TextChoices):
     SMTP = "smtp"
     API = "api"
 
+# ----- COUPON SECTION CHOICES -----
+
+class CouponCustomerConditionChoices(models.TextChoices):
+    ANY = "ANY", "Any Customer"
+    FIRST_ORDER = "FIRST_ORDER", "First Order Only"
+    EXISTING = "EXISTING", "Existing Customer (has 1+ previous order)"
+    MIN_ORDERS = "MIN_ORDERS", "At Least N Previous Orders"
+
+
+class CouponOrderHistoryScopeChoices(models.TextChoices):
+    ALL_ORDERS = "ALL_ORDERS", "Count orders across the whole store"
+    SAME_SCOPE = "SAME_SCOPE", "Count only orders within this coupon's Landing Page/Product"
+    
+    
 # ==============================================================
 
 
