@@ -1,6 +1,7 @@
+import hashlib
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from pencilwoodbd.choices import USER_TYPE
+from pencilwoodbd.choices import USER_TYPE, TrackSettingsModeChoices, BlockedIdentityReasonChoices
 
 class CustomUser(AbstractUser):
     email = models.EmailField(unique=True, blank=True, null=True)
@@ -59,3 +60,120 @@ class Role(models.Model):
     can_edit = models.BooleanField(default=False)
     can_delete = models.BooleanField(default=False)
 
+
+# ============ IP / DEVICE ORDER TRACKING & BLOCKING ============
+def make_device_hash(ip, user_agent):
+    raw = f"{ip}|{user_agent or ''}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+class TrackSettings(models.Model):
+    ModeChoices = TrackSettingsModeChoices  # alias, so TrackSettings.ModeChoices.X still works
+
+    mode = models.CharField(
+        max_length=20,
+        choices=TrackSettingsModeChoices.choices,
+        default=TrackSettingsModeChoices.LIFETIME,
+        help_text="Default: Lifetime. 'Consecutive' hole kono order delivered hole counter reset hobe."
+    )
+    cancel_threshold = models.PositiveIntegerField(
+        default=5,
+        help_text="Koto bar cancel hole auto-block hobe. Default: 5"
+    )
+    is_auto_block_enabled = models.BooleanField(
+        default=True,
+        help_text="Off korle auto-block hobe na, shudhu count track hobe."
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Track Setting"
+        verbose_name_plural = "Track Settings"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1  
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        pass  
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return f"Track Settings ({self.mode}, threshold={self.cancel_threshold})"
+
+
+class OrderTrackRecord(models.Model):
+    order = models.ForeignKey(
+        "order.Order", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="track_records"
+    )
+    ip_address = models.GenericIPAddressField(db_index=True)
+    device_hash = models.CharField(max_length=64, db_index=True)
+    user_agent = models.TextField(blank=True, null=True)
+
+    status_at_capture = models.CharField(max_length=50, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Order Track Record"
+        verbose_name_plural = "Order Track Records"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["ip_address"]),
+            models.Index(fields=["device_hash"]),
+        ]
+
+    def __str__(self):
+        return f"{self.ip_address} | {self.device_hash[:8]} | Order: {self.order_id}"
+
+
+class BlockedIdentity(models.Model):
+    ReasonChoices = BlockedIdentityReasonChoices  
+
+    ip_address = models.GenericIPAddressField(db_index=True)
+    device_hash = models.CharField(max_length=64, db_index=True, blank=True, null=True)
+
+    reason = models.CharField(max_length=30, choices=BlockedIdentityReasonChoices.choices, default=BlockedIdentityReasonChoices.AUTO_CANCEL_LIMIT)
+    note = models.TextField(blank=True, null=True)
+
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    blocked_at = models.DateTimeField(auto_now_add=True)
+    blocked_by = models.ForeignKey(
+        "authentication.CustomUser", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="blocks_made", help_text="Null hole system auto-block."
+    )
+
+    unblocked_at = models.DateTimeField(null=True, blank=True)
+    unblocked_by = models.ForeignKey(
+        "authentication.CustomUser", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="blocks_removed"
+    )
+
+    cancel_count_at_block_time = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Blocked IP/Device"
+        verbose_name_plural = "Blocked IPs/Devices"
+        ordering = ["-blocked_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ip_address", "device_hash"],
+                condition=models.Q(is_active=True),
+                name="unique_active_block_per_identity"
+            )
+        ]
+
+    def unblock(self, staff_user=None):
+        from django.utils import timezone
+        self.is_active = False
+        self.unblocked_at = timezone.now()
+        self.unblocked_by = staff_user
+        self.save(update_fields=["is_active", "unblocked_at", "unblocked_by"])
+
+    def __str__(self):
+        return f"{self.ip_address} ({self.device_hash[:8] if self.device_hash else '-'}) - {'Active' if self.is_active else 'Unblocked'}"

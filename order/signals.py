@@ -2,6 +2,8 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.db import transaction
 from .models import Order
+from django.db.models.signals import post_save, pre_save
+from pencilwoodbd.choices import STATUS
 
 
 @receiver(post_save, sender=Order)
@@ -28,3 +30,43 @@ def _send_notification(order_id):
         return
 
     TelegramBotService.send_order_notification(order, config)
+
+
+# ============ IP / DEVICE CANCEL DETECTION SIGNAL ==============
+
+@receiver(pre_save, sender=Order)
+def _capture_previous_status(sender, instance, **kwargs):
+    """Save hobar age purono status ta instance e temporarily rekhe dei, jate post_save e compare kora jay."""
+    if instance.pk:
+        try:
+            instance._previous_status = Order.objects.only("status").get(pk=instance.pk).status
+        except Order.DoesNotExist:
+            instance._previous_status = None
+    else:
+        instance._previous_status = None
+
+
+@receiver(post_save, sender=Order)
+def order_cancel_block_check(sender, instance, created, **kwargs):
+    if created:
+        return
+
+    previous_status = getattr(instance, "_previous_status", None)
+    if previous_status == instance.status:
+        return
+
+    if instance.status != STATUS.CANCELLED:
+        return
+
+    transaction.on_commit(lambda: _run_cancel_block_check(instance.pk))
+
+
+def _run_cancel_block_check(order_id):
+    from authentication.models import OrderTrackRecord
+    from authentication.utils import evaluate_cancel_block
+
+    record = OrderTrackRecord.objects.filter(order_id=order_id).order_by("-created_at").first()
+    if not record:
+        return
+
+    evaluate_cancel_block(record.ip_address, record.device_hash)
