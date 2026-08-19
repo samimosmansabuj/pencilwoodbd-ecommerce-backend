@@ -149,3 +149,12 @@ class ORDER_SOURCE(models.TextChoices):
     WHATSAPP = "WhatsApp", "WhatsApp"
     REFERRAL = "Referral", "Referral"
     OTHERS = "Others", "Others"
+
+# ----- IP / DEVICE TRACKING & BLOCKING SECTION -----
+class TrackSettingsModeChoices(models.TextChoices):
+    LIFETIME = "lifetime", "Lifetime (all-time cancel count)"
+    CONSECUTIVE = "consecutive", "Consecutive (back-to-back cancels, resets on delivery)"
+
+class BlockedIdentityReasonChoices(models.TextChoices):
+    AUTO_CANCEL_LIMIT = "auto_cancel_limit", "Auto: Cancel limit exceeded"
+    MANUAL = "manual", "Manually blocked by admin"

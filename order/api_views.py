@@ -20,7 +20,7 @@ from decimal import Decimal
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from pencilwoodbd.choices import USER_TYPE, ORDER_SOURCE
-from authentication.utils import normalize_bd_phone
+from authentication.utils import normalize_bd_phone, get_client_identity, check_is_blocked, record_order_track
 from site_app.delivery_charge import DeliveryChargeResolver
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
@@ -208,6 +208,17 @@ class PlaceOrderAPIView(APIView):
 
     def post(self, request):
         try:
+            ip, user_agent, device_hash = get_client_identity(request)
+            blocked = check_is_blocked(ip, device_hash)
+            if blocked:
+                return Response(
+                    {
+                        "status": False,
+                        "message": "Apnar order ekhon accept kora jacche na. Onugroho kore amader shathe jogajog korun.",
+                    },
+                    status=403,
+                )
+            
             with transaction.atomic():
                 phone = normalize_bd_phone(request.data.get("phone", ""))
                 name = request.data.get("name")
@@ -345,7 +356,7 @@ class PlaceOrderAPIView(APIView):
                 if should_delete_cart is not None:
                     should_delete_cart.delete()
 
-
+                record_order_track(order, request)
                 return Response({
                     "status": True,
                     "message": "Order placed successfully",
