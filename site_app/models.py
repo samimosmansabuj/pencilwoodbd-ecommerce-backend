@@ -248,6 +248,13 @@ class LandingPageProduct(models.Model):
     need_otp_verified = models.BooleanField(default=False)
     area_and_charge = models.JSONField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
+
+    # ---------------- Per landing page pixel ------------
+    enable_pixel_tracking = models.BooleanField(default=True, help_text="If unchecked, Facebook Pixel / GTM / GA4 events for THIS landing page will NOT fire, even if global tracking is ON.")
+    facebook_pixel_id = models.CharField(max_length=100, blank=True, null=True, help_text="Optional: override the global Facebook Pixel ID for this landing page only. Leave blank to use the global one.")    
+    gtm_container_id = models.CharField(max_length=100, blank=True, null=True)
+    ga4_measurement_id = models.CharField(max_length=100, blank=True, null=True)
+
     created_at = models.DateTimeField(auto_now_add=True, null=True)
 
     def __str__(self):

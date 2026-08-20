@@ -150,6 +150,12 @@ class Product(models.Model):
     is_bestseller = models.BooleanField(default=False)
     status = models.CharField(max_length=50, choices=CATEGORY_PRODUCT_STATUS.choices, default=CATEGORY_PRODUCT_STATUS.DRAFT)
     metadata = models.JSONField(default=dict, blank=True)
+    # ------------- Per product pixel -----------------
+    enable_pixel_tracking = models.BooleanField(default=True, help_text="If unchecked, Facebook Pixel / GTM / GA4 events for THIS product will NOT fire on the e-commerce site, even if global tracking is ON.")
+    facebook_pixel_id = models.CharField(max_length=100, blank=True, null=True)
+    gtm_container_id = models.CharField(max_length=100, blank=True, null=True)
+    ga4_measurement_id = models.CharField(max_length=100, blank=True, null=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -358,6 +364,7 @@ class ProductGifting(models.Model):
 class ProductDeliveryCharge(models.Model):
     product = models.OneToOneField(Product, on_delete=models.CASCADE, related_name="delivery_charge")
     area_and_charge = models.JSONField(blank=True, null=True)
+    delivery_charge_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0, blank=True, null=True)
 
     def __str__(self):
         return f"Custom Delivery Charge Set For {self.product}"

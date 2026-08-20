@@ -69,7 +69,7 @@ class ProductGiftingSerializer(serializers.ModelSerializer):
 class ProductDeliveryChargeSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductDeliveryCharge
-        fields = ["area_and_charge"]
+        fields = ["area_and_charge", "delivery_charge_cost"]
 
 
 class ProductVariantSerializer(serializers.ModelSerializer):

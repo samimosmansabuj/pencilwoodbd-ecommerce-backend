@@ -1,0 +1,117 @@
+{% load static %}
+<form method="POST" enctype="multipart/form-data"
+    action="{% if is_update %}{% url 'landing_page_edit' landing.pk %}{% else %}{% url 'landing_page_add' %}{% endif %}">
+    {% csrf_token %}
+    <div class="row">
+        <div class="col-12 col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="mb-3">Basic Info</h5>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-control" name="title" required
+                                value="{% if landing %}{{ landing.title }}{% endif %}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Code (used in landing page URL / ENV)</label>
+                            <input type="text" class="form-control" name="code" required
+                                value="{% if landing %}{{ landing.code }}{% endif %}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" name="description" rows="3">{% if landing %}{{ landing.description }}{% endif %}</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Image</label>
+                            <input type="file" class="form-control" name="image" accept="image/*">
+                            {% if landing and landing.image %}
+                            <img src="{{ landing.image.url }}" class="mt-2" style="max-height:80px;">
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Main Product</label>
+                            <select class="form-select" name="main_product" required>
+                                <option value="">-- Select Main Product --</option>
+                                {% for p in products %}
+                                <option value="{{ p.id }}"
+                                    {% if landing and landing.main_product_id == p.id %}selected{% endif %}>
+                                    {{ p.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Additional Products (shown on this landing page)</label>
+                            <select class="form-select" name="product" multiple size="6">
+                                {% for p in products %}
+                                <option value="{{ p.id }}"
+                                    {% if p.id in selected_product_ids %}selected{% endif %}>
+                                    {{ p.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="need_otp_verified" id="need_otp_verified"
+                                    {% if landing and landing.need_otp_verified %}checked{% endif %}>
+                                <label class="form-check-label" for="need_otp_verified">Require OTP verification</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="is_active" id="is_active"
+                                    {% if not landing or landing.is_active %}checked{% endif %}>
+                                <label class="form-check-label" for="is_active">Active</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-lg-4">
+            <div class="card">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="mb-3">Marketing / Pixel</h5>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" role="switch"
+                                name="enable_pixel_tracking" id="enable_pixel_tracking"
+                                {% if not landing or landing.enable_pixel_tracking %}checked{% endif %}>
+                            <label class="form-check-label" for="enable_pixel_tracking">
+                                Enable Pixel Tracking for this landing page
+                            </label>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Facebook Pixel ID <span class="text">(optional override)</span></label>
+                            <input type="text" class="form-control" name="facebook_pixel_id"
+                                placeholder="Leave blank to use global pixel"
+                                value="{% if landing %}{{ landing.facebook_pixel_id|default:'' }}{% endif %}">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">GTM Container ID <span class="text">(optional override)</span></label>
+                            <input type="text" class="form-control" name="gtm_container_id"
+                                placeholder="Leave blank to use global GTM"
+                                value="{% if landing %}{{ landing.gtm_container_id|default:'' }}{% endif %}">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">GA4 Measurement ID <span class="text">(optional override)</span></label>
+                            <input type="text" class="form-control" name="ga4_measurement_id"
+                                placeholder="Leave blank to use global GA4"
+                                value="{% if landing %}{{ landing.ga4_measurement_id|default:'' }}{% endif %}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body d-flex gap-2">
+                    <a href="{% url 'landing_page_list' %}" class="btn btn-outline-danger flex-fill">Discard</a>
+                    <button type="submit" class="btn btn-outline-primary flex-fill">
+                        {% if is_update %}Update{% else %}Save{% endif %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>

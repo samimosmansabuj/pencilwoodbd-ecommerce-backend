@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.contrib import admin as django_admin
+
 from .models import (
     HomeSlider, OTPVerification, SiteContent, SiteColorSection, NewsFeed, SocialLink, FooterTagLink, 
     AboutUs, About_WhyChooseUs, ContactInformation, RefundPolicy, TermsAndCondition, 
@@ -81,7 +83,15 @@ class FAQListAdmin(admin.ModelAdmin):
     list_display = ('question', 'pk')
     search_fields = ('question',)
 
-admin.site.register(LandingPageProduct)
 admin.site.register(DeliveryOption)
 admin.site.register(OTPVerification)
 
+@django_admin.register(LandingPageProduct)
+class LandingPageProductAdmin(django_admin.ModelAdmin):
+    list_display = ("title", "code", "main_product", "is_active", "enable_pixel_tracking")
+    list_filter = ("is_active", "enable_pixel_tracking")
+    fields = (
+        "title", "description", "image", "code", "main_product", "product",
+        "need_otp_verified", "area_and_charge", "is_active",
+        "enable_pixel_tracking", "facebook_pixel_id",
+    )

@@ -50,6 +50,7 @@ class Order(models.Model):
     tax_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_cost = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     advance_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    extra_discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     promotions_applied = models.JSONField(default=dict, blank=True, null=True)
 
     payment_type = models.CharField(max_length=50, choices=PAYMENT_TYPE.choices, default=PAYMENT_TYPE.COD)
