@@ -47,7 +47,6 @@ class TrackingSettingsView(APIView):
                         data["facebook_pixel"] = {"enabled": True, "pixel_id": pixel_id}
 
                 elif integration.provider == MarketingIntegrationProviderChoices.facebook_capi:
-                    # Server-side only — frontend just needs to know it's on
                     data["facebook_capi"] = {"enabled": True}
 
                 elif integration.provider == MarketingIntegrationProviderChoices.gtm:
@@ -60,10 +59,54 @@ class TrackingSettingsView(APIView):
                     if measurement_id:
                         data["ga4"] = {"enabled": True, "measurement_id": measurement_id}
 
+            # ---- Per-product (E-commerce site) ----
+            product_id = request.GET.get("product_id")
+            if product_id:
+                from product.models import Product
+                product = Product.objects.filter(id=product_id).only(
+                    "id", "enable_pixel_tracking", "facebook_pixel_id",
+                    "gtm_container_id", "ga4_measurement_id"
+                ).first()
+                if product:
+                    if not product.enable_pixel_tracking:
+                        data["facebook_pixel"]["enabled"] = False
+                        data["facebook_capi"]["enabled"] = False
+                        data["gtm"]["enabled"] = False
+                        data["ga4"]["enabled"] = False
+                    else:
+                        if product.facebook_pixel_id:
+                            data["facebook_pixel"] = {"enabled": True, "pixel_id": product.facebook_pixel_id}
+                        if product.gtm_container_id:
+                            data["gtm"] = {"enabled": True, "container_id": product.gtm_container_id}
+                        if product.ga4_measurement_id:
+                            data["ga4"] = {"enabled": True, "measurement_id": product.ga4_measurement_id}
+
+            # ---- Per-landing-page  ----
+            landing_code = request.GET.get("landing_code")
+            if landing_code:
+                from site_app.models import LandingPageProduct
+                landing = LandingPageProduct.objects.filter(code=landing_code).only(
+                    "id", "enable_pixel_tracking", "facebook_pixel_id",
+                    "gtm_container_id", "ga4_measurement_id"
+                ).first()
+                if landing:
+                    if not landing.enable_pixel_tracking:
+                        data["facebook_pixel"]["enabled"] = False
+                        data["facebook_capi"]["enabled"] = False
+                        data["gtm"]["enabled"] = False
+                        data["ga4"]["enabled"] = False
+                    else:
+                        if landing.facebook_pixel_id:
+                            data["facebook_pixel"] = {"enabled": True, "pixel_id": landing.facebook_pixel_id}
+                        if landing.gtm_container_id:
+                            data["gtm"] = {"enabled": True, "container_id": landing.gtm_container_id}
+                        if landing.ga4_measurement_id:
+                            data["ga4"] = {"enabled": True, "measurement_id": landing.ga4_measurement_id}
+
             return Response({"status": True, "data": data})
         except Exception as e:
             return Response({"status": False, "error": str(e)}, status=500)
-
+        
 
 @api_view(['POST'])
 @permission_classes([AllowAny])

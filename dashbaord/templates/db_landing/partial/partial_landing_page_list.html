@@ -1,0 +1,56 @@
+{% load static %}
+<div class="card">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Landing Pages</h5>
+            <a href="{% url 'landing_page_add' %}" class="btn btn-outline-primary">
+                <i class="bi bi-plus-lg me-2"></i>Add Landing Page
+            </a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Code</th>
+                        <th>Main Product</th>
+                        <th>Active</th>
+                        <th>Pixel Tracking</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lp in landing_pages %}
+                    <tr>
+                        <td>{{ lp.title }}</td>
+                        <td>{{ lp.code }}</td>
+                        <td>{{ lp.main_product.name|default:"-" }}</td>
+                        <td>
+                            {% if lp.is_active %}<span class="badge bg-success">Active</span>
+                            {% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if lp.enable_pixel_tracking %}<span class="badge bg-success">ON</span>
+                            {% else %}<span class="badge bg-danger">OFF</span>{% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'landing_page_edit' lp.pk %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <form method="post" action="{% url 'landing_page_delete' lp.pk %}" class="d-inline"
+                                onsubmit="return confirm('Delete this landing page?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="text-center text-muted">No landing pages yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

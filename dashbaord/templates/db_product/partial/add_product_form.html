@@ -278,7 +278,7 @@
             {% endif %}
 
             <!-- Delivery Charge -->
-            {% include "db_product/partial/delivery_charge_widget.html" with widget_id="product" bd_districts=bd_districts existing_json=existing_delivery_charge_json system_default=system_default_charge %}
+            {% include "db_product/partial/delivery_charge_widget.html" with widget_id="product" bd_districts=bd_districts existing_json=existing_delivery_charge_json existing_delivery_charge_cost=existing_delivery_charge_cost system_default=system_default_charge %}
 
         </div>
 
@@ -430,6 +430,42 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Pixel Tracking -->
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="mb-3">Marketing / Pixel</h5>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" role="switch"
+                            name="enable_pixel_tracking" id="pw_enable_pixel_tracking"
+                            {% if not product or product.enable_pixel_tracking %}checked{% endif %}>
+                        <label class="form-check-label" for="pw_enable_pixel_tracking">
+                            Enable Pixel Tracking for this product
+                        </label>
+                    </div>
+                    <small class="text-muted d-block mb-3">Turn off to stop ALL tracking events for THIS product. If ON, it uses the global settings below unless you override them.</small>
+
+                    <div class="mb-2">
+                        <label class="form-label">Facebook Pixel ID <span class="text">(optional override)</span></label>
+                        <input type="text" class="form-control" name="facebook_pixel_id"
+                            placeholder="Leave blank to use global pixel"
+                            value="{% if product %}{{ product.facebook_pixel_id|default:'' }}{% endif %}">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">GTM Container ID <span class="text">(optional override)</span></label>
+                        <input type="text" class="form-control" name="gtm_container_id"
+                            placeholder="Leave blank to use global GTM"
+                            value="{% if product %}{{ product.gtm_container_id|default:'' }}{% endif %}">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">GA4 Measurement ID <span class="text">(optional override)</span></label>
+                        <input type="text" class="form-control" name="ga4_measurement_id"
+                            placeholder="Leave blank to use global GA4"
+                            value="{% if product %}{{ product.ga4_measurement_id|default:'' }}{% endif %}">
+                    </div>
+                </div>
+            </div>
+                        
         </div>
     </div>
 

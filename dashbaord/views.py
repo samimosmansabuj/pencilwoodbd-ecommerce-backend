@@ -702,32 +702,33 @@ def parse_bool(value, default=False):
 
 
 def parse_delivery_charge_payload(request):
+    delivery_charge_cost = parse_decimal(request.POST.get("delivery_charge_cost"), default=None)
+
     raw = request.POST.get("delivery_charge_json", "").strip()
     if not raw:
-        return None, False
- 
+        return None, False, delivery_charge_cost
+
     try:
         payload = json.loads(raw)
     except (json.JSONDecodeError, TypeError):
-        return None, False
- 
+        return None, False, delivery_charge_cost
+
     mode = payload.get("mode", "none")
     if mode == "none":
-        return None, False
- 
+        return None, False, delivery_charge_cost
+
     area_and_charge = {}
     for key, value in payload.items():
         if key == "mode":
             continue
         parsed = parse_decimal(value, default=None)
         if parsed is not None:
-            # store as string for clean JSON (Decimal isn't JSON serializable)
             area_and_charge[key] = str(parsed)
- 
+
     if not area_and_charge:
-        return None, False
- 
-    return area_and_charge, True
+        return None, False, delivery_charge_cost
+
+    return area_and_charge, True, delivery_charge_cost
 
 @login_required(login_url="admin_login")
 def add_product(request):
@@ -838,6 +839,10 @@ def add_product(request):
                     inventory_type=inventory_type,
                     status=status_value,
                     product_type=product_type,
+                    enable_pixel_tracking=request.POST.get("enable_pixel_tracking") == "on",
+                    facebook_pixel_id=request.POST.get("facebook_pixel_id", "").strip() or None,
+                    gtm_container_id=request.POST.get("gtm_container_id", "").strip() or None,
+                    ga4_measurement_id=request.POST.get("ga4_measurement_id", "").strip() or None,
                 )
 
                 hero_slider_image = request.FILES.get("hero_slider_image")
@@ -852,11 +857,14 @@ def add_product(request):
                         }
                     )
                 # ---------------- Delivery Charge (per-product) ----------------
-                area_and_charge, has_charge = parse_delivery_charge_payload(request)
-                if has_charge:
+                area_and_charge, has_charge, delivery_charge_cost = parse_delivery_charge_payload(request)
+                if has_charge or delivery_charge_cost is not None:
                     ProductDeliveryCharge.objects.update_or_create(
                         product=product,
-                        defaults={"area_and_charge": area_and_charge},
+                        defaults={
+                            "area_and_charge": area_and_charge,
+                            "delivery_charge_cost": delivery_charge_cost or 0,
+                        },
                     )
 
                 if not product.name:
@@ -997,6 +1005,10 @@ def product_update(request, pk):
                     status_value = product.status
 
                 product.status = status_value
+                product.enable_pixel_tracking = request.POST.get("enable_pixel_tracking") == "on"
+                product.facebook_pixel_id = request.POST.get("facebook_pixel_id", "").strip() or None
+                product.gtm_container_id = request.POST.get("gtm_container_id", "").strip() or None
+                product.ga4_measurement_id = request.POST.get("ga4_measurement_id", "").strip() or None
 
                 product.save()
 
@@ -1020,13 +1032,16 @@ def product_update(request, pk):
                     HomeSlider.objects.filter(product=product).update(title=product.name)
 
                 # ---------------- Delivery Charge (per-product) ----------------
-                area_and_charge, has_charge = parse_delivery_charge_payload(request)
-                if has_charge:
+                area_and_charge, has_charge, delivery_charge_cost = parse_delivery_charge_payload(request)
+                if has_charge or delivery_charge_cost is not None:
                     ProductDeliveryCharge.objects.update_or_create(
                         product=product,
-                        defaults={"area_and_charge": area_and_charge},
+                        defaults={
+                            "area_and_charge": area_and_charge,
+                            "delivery_charge_cost": delivery_charge_cost or 0,
+                        },
                     )
-                else:
+                elif not has_charge:
                     ProductDeliveryCharge.objects.filter(product=product).delete()
 
                 try:
@@ -1202,6 +1217,11 @@ def product_update(request, pk):
             ),
             "bd_districts": BD_DISTRICTS,
             "existing_delivery_charge_json": pyjson.dumps(existing_delivery_charge),
+            "existing_delivery_charge_cost": (
+                product.delivery_charge.delivery_charge_cost
+                if hasattr(product, "delivery_charge") and product.delivery_charge
+                else None
+            ),
             "system_default_charge": SYSTEM_DEFAULT_DELIVERY_CHARGE,
         }
     )
@@ -1738,8 +1758,8 @@ class DeliveryChargeSettingsView(LoginRequiredMixin, View):
             messages.error(request, "You don't have permission to change global delivery charges.")
             return redirect("delivery_charge_settings")
  
-        area_and_charge, has_charge = parse_delivery_charge_payload(request)
- 
+        area_and_charge, has_charge, _delivery_charge_cost = parse_delivery_charge_payload(request)
+
         config = SiteDeliveryChargeConfig.get_solo()
         config.area_and_charge = area_and_charge or {}
         config.save()
@@ -1995,6 +2015,7 @@ class AddOrderView(LoginRequiredMixin, View):
 
                 shipping_total = parse_decimal(data.get("shipping_total"))
                 advance_amount = parse_decimal(data.get("advance_amount"))
+                extra_discount = parse_decimal(data.get("extra_discount"))
 
                 design_file = request.FILES.get("design_file")
 
@@ -2022,6 +2043,7 @@ class AddOrderView(LoginRequiredMixin, View):
                     delivery_type=delivery_type,
                     shipping_total=shipping_total,
                     advance_amount=advance_amount,
+                    extra_discount=extra_discount,
                     payment_status=PAYMENT_STATUS.Unpaid,
                     status=status,
                     is_urgent=is_urgent,
@@ -2044,15 +2066,25 @@ class AddOrderView(LoginRequiredMixin, View):
                     if variant:
                         if variant.inventory_quantity < quantity:
                             raise Exception(f"Insufficient stock for {product.name} ({variant}).")
-                        price = variant.price
-                        discount_price = variant.discount_price
+                        default_price = variant.price
+                        default_discount_price = variant.discount_price
                     else:
                         if product.inventory_quantity < quantity:
                             raise Exception(f"Insufficient stock for {product.name}.")
-                        price = product.price
-                        discount_price = product.discount_price
+                        default_price = product.price
+                        default_discount_price = product.discount_price
 
-                    final_price = discount_price if discount_price else price
+                    manually_edited = bool(item.get("price_manually_edited"))
+                    if manually_edited and item.get("unit_price") is not None:
+                        manual_unit_price = parse_decimal(item.get("unit_price"))
+                        price = manual_unit_price
+                        discount_price = manual_unit_price
+                        final_price = manual_unit_price
+                    else:
+                        price = default_price
+                        discount_price = default_discount_price
+                        final_price = discount_price if discount_price else price
+
                     line_total = final_price * quantity
 
                     OrderItem.objects.create(
@@ -2065,6 +2097,10 @@ class AddOrderView(LoginRequiredMixin, View):
                     )
 
                     grand_total += line_total
+
+                grand_total -= extra_discount
+                if grand_total < 0:
+                    grand_total = Decimal("0")
 
                 order.total_cost = grand_total
                 order.save(update_fields=["total_cost"])
@@ -2322,6 +2358,7 @@ class OrderUpdateView(LoginRequiredMixin, View):
                 order.delivery_date = data.get("delivery_date") or None
                 order.shipping_total = parse_decimal(data.get("shipping_total"))
                 order.advance_amount = parse_decimal(data.get("advance_amount"))
+                order.extra_discount = parse_decimal(data.get("extra_discount"))
 
                 delete_design_file = data.get("delete_design_file")
                 if delete_design_file:
@@ -2354,9 +2391,20 @@ class OrderUpdateView(LoginRequiredMixin, View):
                         variant = get_object_or_404(ProductVariant, id=item["variant_id"], product=product)
 
                     quantity = max(int(item.get("quantity", 1)), 1)
-                    price = variant.price if variant else product.price
-                    discount_price = variant.discount_price if variant else product.discount_price
-                    final_price = discount_price if discount_price else price
+                    default_price = variant.price if variant else product.price
+                    default_discount_price = variant.discount_price if variant else product.discount_price
+
+                    manually_edited = bool(item.get("price_manually_edited"))
+                    if manually_edited and item.get("unit_price") is not None:
+                        manual_unit_price = parse_decimal(item.get("unit_price"))
+                        price = manual_unit_price
+                        discount_price = manual_unit_price
+                        final_price = manual_unit_price
+                    else:
+                        price = default_price
+                        discount_price = default_discount_price
+                        final_price = discount_price if discount_price else price
+
                     line_total = final_price * quantity
 
                     OrderItem.objects.create(
@@ -2369,6 +2417,10 @@ class OrderUpdateView(LoginRequiredMixin, View):
                     )
 
                     grand_total += line_total
+
+                grand_total -= order.extra_discount
+                if grand_total < 0:
+                    grand_total = Decimal("0")
 
                 order.total_cost = grand_total
                 order.save()

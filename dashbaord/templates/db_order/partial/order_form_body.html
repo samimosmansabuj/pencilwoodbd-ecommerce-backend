@@ -263,6 +263,13 @@
                             value="{% if order %}{{ order.advance_amount }}{% else %}0{% endif %}">
                     </div>
 
+                    <div class="mb-3">
+                        <label class="form-label">Extra Discount <span class="text">(flat, optional)</span></label>
+                        <input type="number" step="0.01" min="0" class="form-control" name="extra_discount"
+                            id="extra_discount_input"
+                            value="{% if order %}{{ order.extra_discount }}{% else %}0{% endif %}">
+                    </div>
+
                     <div class="d-flex justify-content-between border-top pt-2">
                         <span>Items Total</span>
                         <span id="items_total_display">৳0.00</span>
@@ -277,6 +284,10 @@
                         <span>-৳{{ order.coupon_discount }}</span>
                     </div>
                     {% endif %}
+                    <div class="d-flex justify-content-between text-danger">
+                        <span>Extra Discount</span>
+                        <span id="extra_discount_display">-৳0.00</span>
+                    </div>
                     <div class="d-flex justify-content-between">
                         <span>Advance</span>
                         <span id="advance_amount_display">৳0.00</span>
@@ -360,6 +371,7 @@
         const itemsHiddenInput = document.getElementById("items_hidden_input");
         const shippingInput = document.getElementById("shipping_total_input");
         const advanceInput = document.getElementById("advance_amount_input");
+        const extraDiscountInput = document.getElementById("extra_discount_input");
         const orderForm = document.getElementById("order-form");
 
         const variantAttrsContainer = document.getElementById("variant_attrs_container");
@@ -487,9 +499,9 @@
                     tr.innerHTML =
                         "<td>" + item.product_name + "</td>" +
                         "<td>" + (item.variant_label || "-") + "</td>" +
-                        "<td>" + item.quantity + "</td>" +
-                        "<td>৳" + item.unit_price.toFixed(2) + "</td>" +
-                        "<td>৳" + lineTotal.toFixed(2) + "</td>" +
+                        '<td><input type="number" min="1" step="1" class="form-control form-control-sm item-qty-input" data-index="' + index + '" value="' + item.quantity + '" style="width:80px;"></td>' +
+                        '<td><input type="number" min="0" step="0.01" class="form-control form-control-sm item-price-input" data-index="' + index + '" value="' + item.unit_price.toFixed(2) + '" style="width:100px;"></td>' +
+                        '<td class="item-line-total" data-index="' + index + '">৳' + lineTotal.toFixed(2) + '</td>' +
                         '<td><button type="button" class="btn btn-sm btn-outline-danger remove-item-btn" data-index="' + index + '"><i class="bi bi-trash"></i></button></td>';
                     itemsTbody.appendChild(tr);
                 });
@@ -502,13 +514,15 @@
             const itemsTotal = items.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
             const shipping = parseFloat(shippingInput.value) || 0;
             const advance = parseFloat(advanceInput.value) || 0;
-            const grandTotal = itemsTotal + shipping - COUPON_DISCOUNT;
+            const extraDiscount = parseFloat(extraDiscountInput.value) || 0;
+            const grandTotal = itemsTotal + shipping - COUPON_DISCOUNT - extraDiscount;
             const totalDue = grandTotal - advance;
 
             document.getElementById("items_total_display").textContent = "৳" + itemsTotal.toFixed(2);
             document.getElementById("shipping_total_display").textContent = "৳" + shipping.toFixed(2);
+            document.getElementById("extra_discount_display").textContent = "-৳" + extraDiscount.toFixed(2);
             document.getElementById("advance_amount_display").textContent = "৳" + advance.toFixed(2);
-            document.getElementById("grand_total_display").textContent = "৳" + grandTotal.toFixed(2);
+            document.getElementById("grand_total_display").textContent = "৳" + Math.max(grandTotal, 0).toFixed(2);
             document.getElementById("total_due_display").textContent = "৳" + totalDue.toFixed(2);
         }
 
@@ -517,7 +531,9 @@
                 return {
                     product_id: i.product_id,
                     variant_id: i.variant_id || null,
-                    quantity: i.quantity
+                    quantity: i.quantity,
+                    unit_price: i.unit_price,
+                    price_manually_edited: !!i.price_manually_edited
                 };
             });
             itemsHiddenInput.value = JSON.stringify(payload);
@@ -563,8 +579,41 @@
             renderItems();
         });
 
+        itemsTbody.addEventListener("input", function (e) {
+            const qtyEl = e.target.closest(".item-qty-input");
+            const priceEl = e.target.closest(".item-price-input");
+
+            if (qtyEl) {
+                const index = parseInt(qtyEl.dataset.index);
+                const newQty = Math.max(parseInt(qtyEl.value) || 1, 1);
+                items[index].quantity = newQty;
+                updateLineTotalCell(index);
+                updateTotals();
+                syncHiddenInput();
+            }
+
+            if (priceEl) {
+                const index = parseInt(priceEl.dataset.index);
+                const newPrice = Math.max(parseFloat(priceEl.value) || 0, 0);
+                items[index].unit_price = newPrice;
+                items[index].price_manually_edited = true; // flag so we know admin overrode it
+                updateLineTotalCell(index);
+                updateTotals();
+                syncHiddenInput();
+            }
+        });
+
+        function updateLineTotalCell(index) {
+            const cell = itemsTbody.querySelector('.item-line-total[data-index="' + index + '"]');
+            if (cell) {
+                const lineTotal = items[index].unit_price * items[index].quantity;
+                cell.textContent = "৳" + lineTotal.toFixed(2);
+            }
+        }
+
         shippingInput.addEventListener("input", updateTotals);
         advanceInput.addEventListener("input", updateTotals);
+        extraDiscountInput.addEventListener("input", updateTotals);
 
         // ---------------- SUBMIT HANDLER (modal vs direct page) ----------------
         orderForm.addEventListener("submit", function (e) {

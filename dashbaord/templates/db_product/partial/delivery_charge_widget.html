@@ -65,8 +65,16 @@
             </div>
         </div>
 
-        <input type="hidden" name="delivery_charge_json" id="pw_dc_hidden_{{ widget_id }}" value='{"mode": "none"}'>
-    </div>
+        <div class="mb-3">
+            <label class="form-label">Delivery Charge Cost <span class="text">(internal, not shown to customer, optional)</span></label>
+            <input type="number" step="0.01" min="0" class="form-control" id="pw_dc_cost_{{ widget_id }}"
+                name="delivery_charge_cost" placeholder="e.g. 60"
+                value="{% if existing_delivery_charge_cost %}{{ existing_delivery_charge_cost }}{% endif %}"
+                style="max-width: 220px;">
+            <small class="text-muted">Actual courier cost you pay — used only for internal profit tracking, does not affect customer's price.</small>
+        </div>
+
+        <input type="hidden" name="delivery_charge_json" id="pw_dc_hidden_{{ widget_id }}" value='{"mode": "none"}'>    </div>
 </div>
 
 <script>
