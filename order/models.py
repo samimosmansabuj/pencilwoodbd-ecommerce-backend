@@ -242,7 +242,7 @@ class Payment(models.Model):
         return f"Payment {self.pk} ({self.provider})"
 
 class Review(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviews')
     order = models.OneToOneField(Order, on_delete=models.SET_NULL, related_name="order", blank=True, null=True)
     customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, null=True, blank=True)
     rating = models.PositiveSmallIntegerField(default=5)

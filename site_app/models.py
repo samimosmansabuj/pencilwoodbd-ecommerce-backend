@@ -243,7 +243,7 @@ class LandingPageProduct(models.Model):
     description = models.TextField(blank=True, null=True)
     image = models.ImageField(upload_to="landing/", blank=True, null=True)
     code = models.CharField(max_length=30, null=True, blank=True, unique=True)
-    main_product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="landing_page", null=True, blank=True)
+    main_product = models.ForeignKey(Product, on_delete=models.SET_NULL, related_name="landing_page", null=True, blank=True)
     product = models.ManyToManyField(Product, blank=True)
     need_otp_verified = models.BooleanField(default=False)
     area_and_charge = models.JSONField(blank=True, null=True)

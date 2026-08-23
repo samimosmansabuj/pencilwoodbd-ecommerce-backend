@@ -843,8 +843,12 @@ def add_product(request):
                     facebook_pixel_id=request.POST.get("facebook_pixel_id", "").strip() or None,
                     gtm_container_id=request.POST.get("gtm_container_id", "").strip() or None,
                     ga4_measurement_id=request.POST.get("ga4_measurement_id", "").strip() or None,
+                    seo={
+                        "title": request.POST.get("seo_title", "").strip(),
+                        "description": request.POST.get("seo_description", "").strip(),
+                        "keywords": request.POST.get("seo_keywords", "").strip(),
+                    },
                 )
-
                 hero_slider_image = request.FILES.get("hero_slider_image")
                 if hero_slider_image:
                     resized = resize_to_fixed(hero_slider_image, settings.HERO_SLIDER_SIZE)
@@ -926,6 +930,25 @@ def add_product(request):
                     )
                     product.save(update_fields=["inventory_quantity"])
 
+                try:
+                    features_raw = request.POST.get("features_json", "").strip()
+                    if features_raw:
+                        features_list = json.loads(features_raw)
+                        for f in features_list:
+                            title = (f.get("title") or "").strip()
+                            description = (f.get("description") or "").strip()
+                            if not title:
+                                continue
+                            ProductFeature.objects.create(
+                                product=product,
+                                icon=(f.get("icon") or "✔").strip(),
+                                title=title,
+                                description=description,
+                                sort_order=int(f.get("sort_order") or 0),
+                            )
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    pass
+
                 messages.success(request, "Product added successfully")
                 return redirect("product_list")
 
@@ -945,10 +968,10 @@ def add_product(request):
             "CATEGORY_PRODUCT_STATUS_CHOICES": CATEGORY_PRODUCT_STATUS.choices,
             "bd_districts": BD_DISTRICTS,
             "existing_delivery_charge_json": "{}",
+            "existing_delivery_charge_cost": None,
             "system_default_charge": SYSTEM_DEFAULT_DELIVERY_CHARGE,
         },
     )
-
 
 @login_required(login_url="admin_login")
 def product_update(request, pk):
@@ -1009,6 +1032,11 @@ def product_update(request, pk):
                 product.facebook_pixel_id = request.POST.get("facebook_pixel_id", "").strip() or None
                 product.gtm_container_id = request.POST.get("gtm_container_id", "").strip() or None
                 product.ga4_measurement_id = request.POST.get("ga4_measurement_id", "").strip() or None
+                product.seo = {
+                    "title": request.POST.get("seo_title", "").strip(),
+                    "description": request.POST.get("seo_description", "").strip(),
+                    "keywords": request.POST.get("seo_keywords", "").strip(),
+                }
 
                 product.save()
 
@@ -1235,11 +1263,23 @@ class ProductDeleteView(LoginRequiredMixin, View):
     def post(self, request, pk, *args, **kwargs):
         product = get_object_or_404(Product, pk=pk)
 
+        linked_landing_pages = list(product.landing_page.values_list("title", flat=True))
+        if linked_landing_pages:
+            messages.warning(
+                request,
+                f"Note: '{product.name}' was linked to landing page(s): {', '.join(linked_landing_pages)}. "
+                f"Those landing pages will now show no product — update or deactivate them separately."
+            )
+
         for slider in HomeSlider.objects.filter(product=product):
             slider.delete()
 
-        product.delete()
-        messages.success(request, "Product deleted successfully!")
+        try:
+            product.delete()
+            messages.success(request, "Product deleted successfully!")
+        except Exception as e:
+            messages.error(request, f"Failed to delete product: {e}")
+
         return redirect("product_list")
 
 # ------------------Product Features--------
@@ -1277,11 +1317,11 @@ class ProductFeatureView(LoginRequiredMixin, View):
                 feature.save()
                 return JsonResponse({"status": True, "message": "Feature updated successfully"}, status=HTTPStatus.OK)
 
-            ProductFeature.objects.create(
+            new_feature = ProductFeature.objects.create(
                 product=product, icon=icon, title=title,
                 description=description, sort_order=sort_order,
             )
-            return JsonResponse({"status": True, "message": "Feature added successfully"}, status=HTTPStatus.CREATED)
+            return JsonResponse({"status": True, "message": "Feature added successfully", "feature_id": new_feature.id}, status=HTTPStatus.CREATED)
 
         except Exception as e:
             return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
@@ -1291,12 +1331,14 @@ class ProductFeatureView(LoginRequiredMixin, View):
 def delete_product_feature(request, id):
     if request.method == "DELETE":
         try:
-            feature = get_object_or_404(ProductFeature, id=id)
+            feature = ProductFeature.objects.filter(id=id).first()
+            if not feature:
+                return JsonResponse({"status": False, "message": "Feature not found or already deleted."}, status=HTTPStatus.NOT_FOUND)
             feature.delete()
             return JsonResponse({"status": True, "message": "Feature deleted successfully"}, status=HTTPStatus.OK)
         except Exception as e:
-            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
-    return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+            return JsonResponse({"status": False, "message": f"Failed to delete feature: {str(e)}"}, status=HTTPStatus.BAD_REQUEST)
+    return JsonResponse({"status": False, "message": "Invalid request method."}, status=HTTPStatus.BAD_REQUEST)
 
 
 # ------------------Product FAQs (global + per-product)--------

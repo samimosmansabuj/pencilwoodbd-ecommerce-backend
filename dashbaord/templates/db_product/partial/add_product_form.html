@@ -110,8 +110,8 @@
                     </div>
 
                     <div class="mb-4">
-                        <h5 class="mb-3">Hero Slider Image <small class="text-muted">(optional)</small></h5>
-                        <p class="small text-muted mb-2">
+                        <h5 class="mb-3">Hero Slider Image <small class="text">(optional)</small></h5>
+                        <p class="small text mb-2">
                             If set, this product will appear as a slide in the homepage hero slider.
                             Image will be auto-cropped to {{ HERO_SLIDER_SIZE_LABEL|default:"1600×600" }}px.
                         </p>
@@ -165,7 +165,7 @@
                     </div>
 
                     <div class="mb-4">
-                        <p class="small text-muted mb-2">
+                        <p class="small text mb-2">
                             <i class="bi bi-star-fill text-warning"></i>
                             Mark one variant as <strong>Default</strong> — this is the variant/price/image shown
                             first on the storefront before the customer picks an option.
@@ -208,11 +208,10 @@
             </div>
 
             <!-- Product Features -->
-            {% if is_update and product %}
             <div class="card" id="featuresCard">
                 <div class="card-body">
                     <h5 class="mb-3">Product Features</h5>
-                    <p class="small text-muted mb-3">Key specs/highlights shown on the product page (e.g. Icon: ✔, Title: "Material", Description: "Solid Oak Wood").</p>
+                    <p class="small text mb-3">Key specs/highlights shown on the product page (e.g. Icon: ✔, Title: "Material", Description: "Solid Oak Wood").</p>
 
                     <div class="row g-2 align-items-end mb-3">
                         <div class="col-md-2">
@@ -248,34 +247,40 @@
                                 </tr>
                             </thead>
                             <tbody id="pw_feature_table_body">
-                                {% for f in product.features.all %}
-                                <tr data-feature-id="{{ f.id }}">
-                                    <td>{{ f.icon }}</td>
-                                    <td>{{ f.title }}</td>
-                                    <td>{{ f.description }}</td>
-                                    <td>{{ f.sort_order }}</td>
-                                    <td>
-                                        <button type="button" class="btn btn-sm btn-filter pw-edit-feature"
-                                            data-id="{{ f.id }}" data-icon="{{ f.icon }}" data-title="{{ f.title }}"
-                                            data-description="{{ f.description }}" data-sort-order="{{ f.sort_order }}">
-                                            <i class="bi bi-pencil"></i>
-                                        </button>
-                                        <button type="button" class="btn btn-sm btn-danger pw-delete-feature" data-id="{{ f.id }}">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                {% empty %}
+                                {% if is_update and product %}
+                                    {% for f in product.features.all %}
+                                    <tr data-feature-id="{{ f.id }}">
+                                        <td>{{ f.icon }}</td>
+                                        <td>{{ f.title }}</td>
+                                        <td>{{ f.description }}</td>
+                                        <td>{{ f.sort_order }}</td>
+                                        <td>
+                                            <button type="button" class="btn btn-sm btn-filter pw-edit-feature"
+                                                data-id="{{ f.id }}" data-icon="{{ f.icon }}" data-title="{{ f.title }}"
+                                                data-description="{{ f.description }}" data-sort-order="{{ f.sort_order }}">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-danger pw-delete-feature" data-id="{{ f.id }}">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr id="pw_feature_empty_row">
+                                        <td colspan="5" class="text-center text">No features yet — add one above.</td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
                                 <tr id="pw_feature_empty_row">
-                                    <td colspan="5" class="text-center text-muted">No features yet — add one above.</td>
+                                    <td colspan="5" class="text-center text">No features yet — add one above.</td>
                                 </tr>
-                                {% endfor %}
+                                {% endif %}
                             </tbody>
                         </table>
                     </div>
+                    <input type="hidden" name="features_json" id="pw_features_hidden">
                 </div>
             </div>
-            {% endif %}
 
             <!-- Delivery Charge -->
             {% include "db_product/partial/delivery_charge_widget.html" with widget_id="product" bd_districts=bd_districts existing_json=existing_delivery_charge_json existing_delivery_charge_cost=existing_delivery_charge_cost system_default=system_default_charge %}
@@ -326,9 +331,6 @@
                                 </option>
                                 {% endfor %}
                             </select>
-                            <small class="text-muted">This is the status that will be applied when you click
-                                <strong>Publish</strong>. Clicking <strong>Save Draft</strong> always saves as Draft
-                                regardless of this selection.</small>
                         </div>
                     </div>
                 </div>
@@ -443,7 +445,7 @@
                             Enable Pixel Tracking for this product
                         </label>
                     </div>
-                    <small class="text-muted d-block mb-3">Turn off to stop ALL tracking events for THIS product. If ON, it uses the global settings below unless you override them.</small>
+                    <small class="text d-block mb-3">Turn off to stop ALL tracking events for THIS product. If ON, it uses the global settings below unless you override them.</small>
 
                     <div class="mb-2">
                         <label class="form-label">Facebook Pixel ID <span class="text">(optional override)</span></label>
@@ -460,14 +462,40 @@
                     <div class="mb-2">
                         <label class="form-label">GA4 Measurement ID <span class="text">(optional override)</span></label>
                         <input type="text" class="form-control" name="ga4_measurement_id"
-                            placeholder="Leave blank to use global GA4"
-                            value="{% if product %}{{ product.ga4_measurement_id|default:'' }}{% endif %}">
-                    </div>
+                        placeholder="Leave blank to use global GA4"
+                        value="{% if product %}{{ product.ga4_measurement_id|default:'' }}{% endif %}">
                 </div>
             </div>
-                        
         </div>
+
+        <!-- SEO -->
+        <div class="card">
+            <div class="card-body">
+                <h5 class="mb-3">SEO</h5>
+                <div class="mb-2">
+                    <label class="form-label">SEO Title <span class="text">(meta title, optional)</span></label>
+                    <input type="text" class="form-control" name="seo_title" maxlength="70"
+                        placeholder="Leave blank to auto-use Product Name"
+                        value="{% if product %}{{ product.seo.title|default:'' }}{% endif %}">
+                    <small class="text">Recommended under 60 characters.</small>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">SEO Description <span class="text">(meta description, optional)</span></label>
+                    <textarea class="form-control" name="seo_description" rows="3" maxlength="160"
+                        placeholder="Leave blank to auto-use Short Description">{% if product %}{{ product.seo.description|default:'' }}{% endif %}</textarea>
+                    <small class="text">Recommended under 160 characters.</small>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">SEO Keywords <span class="text">(comma separated, optional)</span></label>
+                    <input type="text" class="form-control" name="seo_keywords"
+                        placeholder="e.g. wooden vase, handmade decor, home decor"
+                        value="{% if product %}{{ product.seo.keywords|default:'' }}{% endif %}">
+                </div>
+            </div>
+        </div>
+
     </div>
+</div>
 
     <!-- The real status field submitted; kept in sync with pw_status select -->
     <input type="hidden" name="status" id="pw_status_hidden"
@@ -1143,10 +1171,27 @@
                 addBtn.textContent = "Add";
             }
 
+            function syncFeaturesHiddenInput() {
+                var hidden = document.getElementById("pw_features_hidden");
+                if (!hidden) return;
+                var rows = tbody.querySelectorAll("tr[data-feature-id]");
+                var payload = [];
+                rows.forEach(function (row) {
+                    var editBtn = row.querySelector(".pw-edit-feature");
+                    if (!editBtn) return;
+                    payload.push({
+                        icon: editBtn.dataset.icon,
+                        title: editBtn.dataset.title,
+                        description: editBtn.dataset.description,
+                        sort_order: editBtn.dataset.sortOrder,
+                    });
+                });
+                hidden.value = JSON.stringify(payload);
+            }
+
             addBtn.addEventListener("click", function (e) {
                 e.preventDefault();
                 if (isSubmitting) return;
-                if (!featureUrl) return;
 
                 var title = titleInput.value.trim();
                 var description = descInput.value.trim();
@@ -1164,28 +1209,77 @@
                 formData.set("sort_order", sortInput.value || "0");
                 if (editingId) formData.set("feature_id", editingId);
 
+                if (!productId || !featureUrl) {
+                    var localId = editingId || ("local_" + Date.now());
+                    upsertFeatureRow({
+                        id: localId,
+                        icon: iconInput.value.trim() || "✔",
+                        title: title,
+                        description: description,
+                        sort_order: sortInput.value || "0",
+                    });
+                    syncFeaturesHiddenInput();
+                    resetForm();
+                    isSubmitting = false;
+                    addBtn.disabled = false;
+                    return;
+                }
+
                 fetch(featureUrl, {
                     method: "POST",
                     body: formData,
                     headers: { "X-CSRFToken": csrftoken, "X-Requested-With": "XMLHttpRequest" },
                 })
-                    .then(function (res) { return res.json(); })
-                    .then(function (data) {
-                        if (data.status) {
-                            alert(data.message);
-                            window.location.reload();
+                    .then(function (res) {
+                        return res.json().then(function (data) {
+                            return { ok: res.ok, data: data };
+                        });
+                    })
+                    .then(function (result) {
+                        if (result.data.status) {
+                            upsertFeatureRow({
+                                id: result.data.feature_id || editingId,
+                                icon: iconInput.value.trim() || "✔",
+                                title: title,
+                                description: description,
+                                sort_order: sortInput.value || "0",
+                            });
+                            resetForm();
                         } else {
-                            alert(data.message);
-                            isSubmitting = false;
-                            addBtn.disabled = false;
+                            alert(result.data.message || "Failed to save feature.");
                         }
+                        isSubmitting = false;
+                        addBtn.disabled = false;
                     })
                     .catch(function (err) {
-                        alert(err.message);
+                        alert("Something went wrong: " + err.message);
                         isSubmitting = false;
                         addBtn.disabled = false;
                     });
             });
+
+            function upsertFeatureRow(f) {
+                var emptyRow = document.getElementById("pw_feature_empty_row");
+                if (emptyRow) emptyRow.remove();
+
+                var existingRow = f.id ? tbody.querySelector('tr[data-feature-id="' + f.id + '"]') : null;
+                var row = existingRow || document.createElement("tr");
+                if (f.id) row.setAttribute("data-feature-id", f.id);
+
+                row.innerHTML =
+                    "<td>" + f.icon + "</td>" +
+                    "<td>" + f.title + "</td>" +
+                    "<td>" + f.description + "</td>" +
+                    "<td>" + f.sort_order + "</td>" +
+                    '<td><button type="button" class="btn btn-sm btn-filter pw-edit-feature" ' +
+                    'data-id="' + f.id + '" data-icon="' + f.icon + '" data-title="' + f.title + '" ' +
+                    'data-description="' + f.description + '" data-sort-order="' + f.sort_order + '">' +
+                    '<i class="bi bi-pencil"></i></button> ' +
+                    '<button type="button" class="btn btn-sm btn-danger pw-delete-feature" data-id="' + f.id + '">' +
+                    '<i class="bi bi-trash"></i></button></td>';
+
+                if (!existingRow) tbody.appendChild(row);
+            }
 
             tbody.addEventListener("click", function (e) {
                 var editBtn = e.target.closest(".pw-edit-feature");
@@ -1202,18 +1296,47 @@
                 var delBtn = e.target.closest(".pw-delete-feature");
                 if (delBtn) {
                     if (!confirm("Delete this feature?")) return;
-                    fetch("/dashboard/product-feature/delete/" + delBtn.dataset.id + "/", {
+                    var featureId = delBtn.dataset.id;
+
+                    if (!productId || !featureUrl || String(featureId).indexOf("local_") === 0) {
+                        var localRow = tbody.querySelector('tr[data-feature-id="' + featureId + '"]');
+                        if (localRow) localRow.remove();
+                        if (!tbody.querySelector("tr[data-feature-id]")) {
+                            tbody.innerHTML = '<tr id="pw_feature_empty_row"><td colspan="5" class="text-center text-muted">No features yet — add one above.</td></tr>';
+                        }
+                        syncFeaturesHiddenInput();
+                        return;
+                    }
+                    delBtn.disabled = true;
+
+                    fetch("/dashboard/product-feature/delete/" + featureId + "/", {
                         method: "DELETE",
                         headers: { "X-CSRFToken": csrftoken, "X-Requested-With": "XMLHttpRequest" },
                     })
-                        .then(function (res) { return res.json(); })
-                        .then(function (data) {
-                            alert(data.message);
-                            if (data.status) window.location.reload();
+                        .then(function (res) {
+                            return res.json().then(function (data) {
+                                return { ok: res.ok, data: data };
+                            });
                         })
-                        .catch(function (err) { alert(err.message); });
+                        .then(function (result) {
+                            if (result.data.status) {
+                                var row = tbody.querySelector('tr[data-feature-id="' + featureId + '"]');
+                                if (row) row.remove();
+                                if (!tbody.querySelector("tr")) {
+                                    tbody.innerHTML = '<tr id="pw_feature_empty_row"><td colspan="5" class="text-center text-muted">No features yet — add one above.</td></tr>';
+                                }
+                            } else {
+                                alert(result.data.message || "Failed to delete feature.");
+                                delBtn.disabled = false;
+                            }
+                        })
+                        .catch(function (err) {
+                            alert("Something went wrong: " + err.message);
+                            delBtn.disabled = false;
+                        });
                 }
             });
         })();
+
     })();
 </script>
