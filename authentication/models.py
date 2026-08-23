@@ -69,21 +69,10 @@ def make_device_hash(ip, user_agent):
 
 class TrackSettings(models.Model):
     ModeChoices = TrackSettingsModeChoices  # alias, so TrackSettings.ModeChoices.X still works
-
-    mode = models.CharField(
-        max_length=20,
-        choices=TrackSettingsModeChoices.choices,
-        default=TrackSettingsModeChoices.LIFETIME,
-        help_text="Default: Lifetime. 'Consecutive' hole kono order delivered hole counter reset hobe."
-    )
-    cancel_threshold = models.PositiveIntegerField(
-        default=5,
-        help_text="Koto bar cancel hole auto-block hobe. Default: 5"
-    )
-    is_auto_block_enabled = models.BooleanField(
-        default=True,
-        help_text="Off korle auto-block hobe na, shudhu count track hobe."
-    )
+    
+    mode = models.CharField(max_length=20, choices=TrackSettingsModeChoices.choices, default=TrackSettingsModeChoices.LIFETIME, help_text="Default: Lifetime. 'Consecutive' hole kono order delivered hole counter reset hobe.")
+    cancel_threshold = models.PositiveIntegerField(default=5, help_text="Koto bar cancel hole auto-block hobe. Default: 5")
+    is_auto_block_enabled = models.BooleanField(default=True, help_text="Off korle auto-block hobe na, shudhu count track hobe.")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

@@ -4,10 +4,17 @@ from django.contrib.sessions.models import Session
 from django.contrib.auth.admin import UserAdmin
 
 # admin.site.register(CustomUser, CustomUserAdmin)
-admin.site.register(CustomUser)
-admin.site.register(Customer)
 admin.site.register(Role)
 
+@admin.register(CustomUser)
+class CustomUserAdmin(admin.ModelAdmin):
+    list_display = ["id", "email", "phone", "user_type"]
+    search_fields = ["email", "phone", "user_type"]
+
+@admin.register(Customer)
+class CustomerAdmin(admin.ModelAdmin):
+    list_display = ["id", "name", "phone", "second_phone", "whatsapp", "email"]
+    search_fields = ["name", "phone", "second_phone", "whatsapp", "email"]
 
 @admin.register(Session)
 class SessionAdmin(admin.ModelAdmin):
