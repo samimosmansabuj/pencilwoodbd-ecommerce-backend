@@ -2,7 +2,7 @@
 <div class="card" id="pw_delivery_charge_card_{{ widget_id }}">
     <div class="card-body">
         <h5 class="mb-3">Delivery Charge</h5>
-        <p class="small text-muted mb-3">
+        <p class="small text mb-3">
             If you don't set anything here, the site's global delivery charge will be used —
             and if that's also not set, a system default of <strong>{{ system_default }} Tk</strong> applies.
         </p>
@@ -71,7 +71,6 @@
                 name="delivery_charge_cost" placeholder="e.g. 60"
                 value="{% if existing_delivery_charge_cost %}{{ existing_delivery_charge_cost }}{% endif %}"
                 style="max-width: 220px;">
-            <small class="text-muted">Actual courier cost you pay — used only for internal profit tracking, does not affect customer's price.</small>
         </div>
 
         <input type="hidden" name="delivery_charge_json" id="pw_dc_hidden_{{ widget_id }}" value='{"mode": "none"}'>    </div>
