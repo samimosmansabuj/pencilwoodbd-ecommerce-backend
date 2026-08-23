@@ -1,206 +1,218 @@
 {% load static %}
 <aside class="sidebar-wrapper" data-simplebar="true">
-    <div class="sidebar-header">
-        <div class="logo-icon">
-            <a href="{% url 'dashboard' %}">
-                <img src="{% static 'dashboard_assets/images/logo-icon.png' %}" class="logo-img" alt="">
-            </a>
-        </div>
-        <div class="logo-name flex-grow-1">
-            <a href="{% url 'dashboard' %}">
-                <h5 class="mb-0">Pencilwood</h5>
-                <!-- <h5 class="mb-0">PencilwoodBD</h5> -->
-            </a>
-        </div>
-        <div class="sidebar-close">
-            <span class="material-icons-outlined">close</span>
-        </div>
+  <div class="sidebar-header">
+    <div class="logo-icon">
+      <a href="{% url 'dashboard' %}">
+        <img
+          src="{% static 'dashboard_assets/images/logo-icon.png' %}"
+          class="logo-img"
+          alt=""
+        />
+      </a>
     </div>
-    <div class="sidebar-nav">
-        <!--navigation-->
-        <ul class="metismenu" id="sidenav">
-            <li>
-                <a href="{% url 'dashboard' %}">
-                    <div class="parent-icon"><i class="material-icons-outlined">home</i>
-                    </div>
-                    <div class="menu-title">Dashboard</div>
-                </a>
-            </li>
+    <div class="logo-name flex-grow-1">
+      <a href="{% url 'dashboard' %}">
+        <h5 class="mb-0">Pencilwood</h5>
+        <!-- <h5 class="mb-0">PencilwoodBD</h5> -->
+      </a>
+    </div>
+    <div class="sidebar-close">
+      <span class="material-icons-outlined">close</span>
+    </div>
+  </div>
+  <div class="sidebar-nav">
+    <!--navigation-->
+    <ul class="metismenu" id="sidenav">
+      <li>
+        <a href="{% url 'dashboard' %}">
+          <div class="parent-icon">
+            <i class="material-icons-outlined">home</i>
+          </div>
+          <div class="menu-title">Dashboard</div>
+        </a>
+      </li>
 
-            <li class="menu-label">Catalog</li>
+      <li class="menu-label">Catalog</li>
 
-            <!-- Product Section------- -->
-            <li>
-                <a href="javascript:;" class="has-arrow">
-                    <div class="parent-icon"><i class="material-icons-outlined">shopping_bag</i>
-                    </div>
-                    <div class="menu-title">Product</div>
-                </a>
-                <ul>
-                    <li>
-                        <a href="{% url 'product_list' %}">
-                            <i class="material-icons-outlined">arrow_right</i>Products
-                        </a>
-                    </li>
-                    <!-- <li>
+      <!-- Product Section------- -->
+      <li>
+        <a href="javascript:;" class="has-arrow">
+          <div class="parent-icon">
+            <i class="material-icons-outlined">shopping_bag</i>
+          </div>
+          <div class="menu-title">Product</div>
+        </a>
+        <ul>
+          <li>
+            <a href="{% url 'product_list' %}">
+              <i class="material-icons-outlined">arrow_right</i>Products
+            </a>
+          </li>
+          <!-- <li>
                         <a href="javascript:;" data-bs-toggle="modal" data-bs-target="#ProductAddUpdateModal">
                             <i class="material-icons-outlined">arrow_right</i>Add Product
                         </a>
                     </li> -->
 
-                    <li>
-                        <a href="{% url 'product_add' %}">
-                            <i class="material-icons-outlined">arrow_right</i>Add Product
-                        </a>
-                    </li>
+          <li>
+            <a href="{% url 'product_add' %}">
+              <i class="material-icons-outlined">arrow_right</i>Add Product
+            </a>
+          </li>
 
-                    <!-- <li>
+          <!-- <li>
                         <a href="{% url 'product_add' %}">
                             <i class="material-icons-outlined">arrow_right</i>Media Center
                         </a>
                     </li> -->
-                </ul>
-            </li>
+        </ul>
+      </li>
 
-            <!-- Category Section------- -->
-            <li>
-                <a href="javascript:;" class="has-arrow">
-                    <div class="parent-icon"><i class="material-icons-outlined">shopping_bag</i>
-                    </div>
-                    <div class="menu-title">Category</div>
-                </a>
-                <ul>
-                    <li>
-                        <a href="{% url 'category_list' %}"><i
-                                class="material-icons-outlined">arrow_right</i>Category</a>
-                    </li>
-                    <!-- <li>
+      <!-- Category Section------- -->
+      <li>
+        <a href="javascript:;" class="has-arrow">
+          <div class="parent-icon">
+            <i class="material-icons-outlined">shopping_bag</i>
+          </div>
+          <div class="menu-title">Category</div>
+        </a>
+        <ul>
+          <li>
+            <a href="{% url 'category_list' %}"
+              ><i class="material-icons-outlined">arrow_right</i>Category</a
+            >
+          </li>
+          <!-- <li>
                         <a href="#"><i class="material-icons-outlined">arrow_right</i>Add Category</a>
                     </li> -->
-                </ul>
-            </li>
+        </ul>
+      </li>
 
-            <!-- Slider Section------- -->
-            <li>
-                <a href="javascript:;" class="has-arrow">
-                    <div class="parent-icon"><i class="material-icons-outlined">view_carousel</i></div>
-                    <div class="menu-title">Slider</div>
-                </a>
-                <ul>
-                    <li>
-                        <a href="{% url 'slider_list' %}">
-                            <i class="material-icons-outlined">arrow_right</i>Slider
-                        </a>
-                    </li>
-                </ul>
-            </li>
-            
-            <!-- Variant Section------- -->
-            <li>
-                <a href="javascript:;" class="has-arrow">
-                    <div class="parent-icon"><i class="material-icons-outlined">tune</i>
-                    </div>
-                    <div class="menu-title">Variants</div>
-                </a>
-                <ul>
-                    <li>
-                        <a href="{% url 'attribute_list' %}">
-                            <i class="material-icons-outlined">arrow_right</i>Attribute List
-                        </a>
-                    </li>
-                </ul>
-            </li>
+      <!-- Slider Section------- -->
+      <li>
+        <a href="javascript:;" class="has-arrow">
+          <div class="parent-icon">
+            <i class="material-icons-outlined">view_carousel</i>
+          </div>
+          <div class="menu-title">Slider</div>
+        </a>
+        <ul>
+          <li>
+            <a href="{% url 'slider_list' %}">
+              <i class="material-icons-outlined">arrow_right</i>Slider
+            </a>
+          </li>
+        </ul>
+      </li>
 
-            <!-- FAQ Section------- -->
-            <li>
-                <a href="javascript:;" class="has-arrow">
-                    <div class="parent-icon"><i class="material-icons-outlined">quiz</i>
-                    </div>
-                    <div class="menu-title">FAQ</div>
-                </a>
-                <ul>
-                    <li>
-                        <a href="{% url 'faq_list' %}?scope=global">
-                            <i class="material-icons-outlined">arrow_right</i>Global FAQs
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{% url 'faq_list' %}?scope=product">
-                            <i class="material-icons-outlined">arrow_right</i>Per-Product FAQs
-                        </a>
-                    </li>
-                </ul>
-            </li>
- 
-            <!-- Review Section------- -->
-            <li>
-                <a href="javascript:;" class="has-arrow">
-                    <div class="parent-icon"><i class="material-icons-outlined">star_rate</i>
-                    </div>
-                    <div class="menu-title">Reviews</div>
-                </a>
-                <ul>
-                    <li>
-                        <a href="{% url 'review_list' %}">
-                            <i class="material-icons-outlined">arrow_right</i>Review List
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{% url 'review_settings' %}">
-                            <i class="material-icons-outlined">arrow_right</i>Global Settings
-                        </a>
-                    </li>
-                </ul>
-            </li>
-            
-            <!-- Order Section------- -->
-<li>
-    <a class="has-arrow" href="javascript:;">
-        <div class="parent-icon">
+      <!-- Variant Section------- -->
+      <li>
+        <a href="javascript:;" class="has-arrow">
+          <div class="parent-icon">
+            <i class="material-icons-outlined">tune</i>
+          </div>
+          <div class="menu-title">Variants</div>
+        </a>
+        <ul>
+          <li>
+            <a href="{% url 'attribute_list' %}">
+              <i class="material-icons-outlined">arrow_right</i>Attribute List
+            </a>
+          </li>
+        </ul>
+      </li>
+
+      <!-- FAQ Section------- -->
+      <li>
+        <a href="javascript:;" class="has-arrow">
+          <div class="parent-icon">
+            <i class="material-icons-outlined">quiz</i>
+          </div>
+          <div class="menu-title">FAQ</div>
+        </a>
+        <ul>
+          <li>
+            <a href="{% url 'faq_list' %}?scope=global">
+              <i class="material-icons-outlined">arrow_right</i>Global FAQs
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'faq_list' %}?scope=product">
+              <i class="material-icons-outlined">arrow_right</i>Per-Product FAQs
+            </a>
+          </li>
+        </ul>
+      </li>
+
+      <!-- Review Section------- -->
+      <li>
+        <a href="javascript:;" class="has-arrow">
+          <div class="parent-icon">
+            <i class="material-icons-outlined">star_rate</i>
+          </div>
+          <div class="menu-title">Reviews</div>
+        </a>
+        <ul>
+          <li>
+            <a href="{% url 'review_list' %}">
+              <i class="material-icons-outlined">arrow_right</i>Review List
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'review_settings' %}">
+              <i class="material-icons-outlined">arrow_right</i>Global Settings
+            </a>
+          </li>
+        </ul>
+      </li>
+
+      <!-- Order Section------- -->
+      <li>
+        <a class="has-arrow" href="javascript:;">
+          <div class="parent-icon">
             <i class="material-icons-outlined">card_giftcard</i>
-        </div>
-        <div class="menu-title">Order</div>
-    </a>
+          </div>
+          <div class="menu-title">Order</div>
+        </a>
 
-    <ul>
-
-        <!-- Order Request List -->
-        <li>
+        <ul>
+          <!-- Order Request List -->
+          <li>
             <a href="{% url 'order_request_list' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                Order Request List
+              <i class="material-icons-outlined">arrow_right</i>
+              Order Request List
             </a>
-        </li>
+          </li>
 
-        <!-- Add Order Request -->
-        <li>
+          <!-- Add Order Request -->
+          <li>
             <a href="{% url 'add_order_request' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                Add Order Request
+              <i class="material-icons-outlined">arrow_right</i>
+              Add Order Request
             </a>
-        </li>
+          </li>
 
-        <li>
-            <hr class="dropdown-divider">
-        </li>
+          <li>
+            <hr class="dropdown-divider" />
+          </li>
 
-        <!-- Order List -->
-        <li>
+          <!-- Order List -->
+          <li>
             <a href="{% url 'order_list' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                Order List
+              <i class="material-icons-outlined">arrow_right</i>
+              Order List
             </a>
-        </li>
+          </li>
 
-        <!-- Add Order -->
-        <li>
+          <!-- Add Order -->
+          <li>
             <a href="{% url 'add_order' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                Add Order
+              <i class="material-icons-outlined">arrow_right</i>
+              Add Order
             </a>
-        </li>
+          </li>
 
-        <!-- <li>
+          <!-- <li>
             <a href="#">
                 <i class="material-icons-outlined">arrow_right</i>
                 Return Order
@@ -213,179 +225,182 @@
                 Reviews
             </a>
         </li> -->
+        </ul>
+      </li>
 
-    </ul>
-</li>
-<li class="sidebar-item">
-    <a class="sidebar-link" href="{% url 'landing_page_list' %}">
-        <i class="bi bi-window"></i>
-        <span>Landing Pages</span>
-    </a>
-</li>
+      <li class="sidebar-item">
+        <a class="sidebar-link" href="{% url 'landing_page_list' %}">
+          <div class="parent-icon">
+            <i class="material-icons-outlined">window</i>
+          </div>
+          <div class="menu-title">Landing Pages</div>
+        </a>
+      </li>
 
-<!-- Work & Reminders Section------- -->
-<li class="menu-label">Work & Reminders</li>
-<li>
-    <a class="has-arrow" href="javascript:;">
-        <div class="parent-icon">
+      <!-- Work & Reminders Section------- -->
+      <li class="menu-label">Work & Reminders</li>
+      <li>
+        <a class="has-arrow" href="javascript:;">
+          <div class="parent-icon">
             <i class="material-icons-outlined">checklist</i>
-        </div>
-        <div class="menu-title">Todo</div>
-    </a>
-    <ul>
-        <li>
+          </div>
+          <div class="menu-title">Todo</div>
+        </a>
+        <ul>
+          <li>
             <a href="{% url 'todo_list' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                Todo List
+              <i class="material-icons-outlined">arrow_right</i>
+              Todo List
             </a>
-        </li>
-    </ul>
-</li>
-<li>
-    <a class="has-arrow" href="javascript:;">
-        <div class="parent-icon">
+          </li>
+        </ul>
+      </li>
+      <li>
+        <a class="has-arrow" href="javascript:;">
+          <div class="parent-icon">
             <i class="material-icons-outlined">alarm</i>
-        </div>
-        <div class="menu-title">Reminders</div>
-    </a>
-    <ul>
-        <li>
+          </div>
+          <div class="menu-title">Reminders</div>
+        </a>
+        <ul>
+          <li>
             <a href="{% url 'reminder_list' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                Reminder List
+              <i class="material-icons-outlined">arrow_right</i>
+              Reminder List
             </a>
-        </li>
-    </ul>
-</li>
+          </li>
+        </ul>
+      </li>
 
-<!-- Finance Section------- -->
-<li class="menu-label">Finance</li>
-<li>
-    <a class="has-arrow" href="javascript:;">
-        <div class="parent-icon">
+      <!-- Finance Section------- -->
+      <li class="menu-label">Finance</li>
+      <li>
+        <a class="has-arrow" href="javascript:;">
+          <div class="parent-icon">
             <i class="material-icons-outlined">payments</i>
-        </div>
-        <div class="menu-title">Finance</div>
-    </a>
-    <ul>
-        <li>
+          </div>
+          <div class="menu-title">Finance</div>
+        </a>
+        <ul>
+          <li>
             <a href="{% url 'maintenance_cost_list' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                Maintenance Cost
+              <i class="material-icons-outlined">arrow_right</i>
+              Maintenance Cost
             </a>
-        </li>
-        <li>
+          </li>
+          <li>
             <a href="{% url 'daily_profit_list' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                Daily Profit
+              <i class="material-icons-outlined">arrow_right</i>
+              Daily Profit
             </a>
-        </li>
-    </ul>
-</li>
+          </li>
+        </ul>
+      </li>
 
-<!-- Settings Section------- -->
-<li class="menu-label">Settings</li>
-<li>
-    <a class="has-arrow" href="javascript:;">
-        <div class="parent-icon">
+      <!-- Settings Section------- -->
+      <li class="menu-label">Settings</li>
+      <li>
+        <a class="has-arrow" href="javascript:;">
+          <div class="parent-icon">
             <i class="material-icons-outlined">settings</i>
-        </div>
-        <div class="menu-title">Settings</div>
-    </a>
-    <ul>
-        <!-- <li>
+          </div>
+          <div class="menu-title">Settings</div>
+        </a>
+        <ul>
+          <!-- <li>
             <a href="{% url 'delivery_charge_settings' %}">
                 <i class="material-icons-outlined">arrow_right</i>
                 Global Delivery Charge
             </a>
         </li> -->
-        <li>
+          <li>
             <a href="{% url 'coupon_settings' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                Coupon Settings
+              <i class="material-icons-outlined">arrow_right</i>
+              Coupon Settings
             </a>
-        </li>
-        <li>
+          </li>
+          <li>
             <a href="{% url 'pixel_settings' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                Marketing / Pixel Settings
+              <i class="material-icons-outlined">arrow_right</i>
+              Marketing / Pixel Settings
             </a>
-        </li>
-        <li>
+          </li>
+          <li>
             <a href="{% url 'utm_link_generator' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                UTM Link Generator
+              <i class="material-icons-outlined">arrow_right</i>
+              UTM Link Generator
             </a>
-        </li>
-        <li>
+          </li>
+          <li>
             <a href="{% url 'traffic_source_report' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                Traffic Source Report
+              <i class="material-icons-outlined">arrow_right</i>
+              Traffic Source Report
             </a>
-        </li>
-        <li>
+          </li>
+          <li>
             <a href="{% url 'nav_menu' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                Navbar Menu Links
+              <i class="material-icons-outlined">arrow_right</i>
+              Navbar Menu Links
             </a>
-        </li>
-        <li>
+          </li>
+          <li>
             <a href="{% url 'footer_links' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                Footer Links
+              <i class="material-icons-outlined">arrow_right</i>
+              Footer Links
             </a>
-        </li>
-        <li>
+          </li>
+          <li>
             <a href="{% url 'social_links' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                Social Links
+              <i class="material-icons-outlined">arrow_right</i>
+              Social Links
             </a>
-        </li>
-        <li>
+          </li>
+          <li>
             <a href="{% url 'news_feed' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                News Feed (Top Bar)
+              <i class="material-icons-outlined">arrow_right</i>
+              News Feed (Top Bar)
             </a>
-        </li>
-        <li>
+          </li>
+          <li>
             <a href="{% url 'invoice_color_settings' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                Invoice Color Settings
+              <i class="material-icons-outlined">arrow_right</i>
+              Invoice Color Settings
             </a>
-        </li>
-        <li>
+          </li>
+          <li>
             <a href="{% url 'telegram_bot_settings' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                Telegram Bot Settings
+              <i class="material-icons-outlined">arrow_right</i>
+              Telegram Bot Settings
             </a>
-        </li>
-    </ul>
-</li>
+          </li>
+        </ul>
+      </li>
 
-<!-- Users Section------- -->
-<li class="menu-label">User</li>
-<li>
-    <a class="has-arrow" href="javascript:;">
-        <div class="parent-icon">
+      <!-- Users Section------- -->
+      <li class="menu-label">User</li>
+      <li>
+        <a class="has-arrow" href="javascript:;">
+          <div class="parent-icon">
             <i class="material-icons-outlined">group</i>
-        </div>
-        <div class="menu-title">Users</div>
-    </a>
-    <ul>
-        <li>
+          </div>
+          <div class="menu-title">Users</div>
+        </a>
+        <ul>
+          <li>
             <a href="{% url 'user_management' %}?tab=customers">
-                <i class="material-icons-outlined">arrow_right</i>Customers
+              <i class="material-icons-outlined">arrow_right</i>Customers
             </a>
-        </li>
-        <li>
+          </li>
+          <li>
             <a href="{% url 'user_management' %}?tab=staff">
-                <i class="material-icons-outlined">arrow_right</i>Admin &amp; Staff
+              <i class="material-icons-outlined">arrow_right</i>Admin &amp;
+              Staff
             </a>
-        </li>
-    </ul>
-</li>
+          </li>
+        </ul>
+      </li>
 
-            <!-- <li class="menu-label">Store & Marketing</li>
+      <!-- <li class="menu-label">Store & Marketing</li>
             <li>
                 <a class="has-arrow" href="javascript:;">
                     <div class="parent-icon"><i class="material-icons-outlined">view_agenda</i>
@@ -531,7 +546,7 @@
                     </li>
                 </ul>
             </li> -->
-        </ul>
-        <!--end navigation-->
-    </div>
+    </ul>
+    <!--end navigation-->
+  </div>
 </aside>
