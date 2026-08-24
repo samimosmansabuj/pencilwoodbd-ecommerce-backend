@@ -1,7 +1,7 @@
 import hashlib
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from pencilwoodbd.choices import USER_TYPE, TrackSettingsModeChoices, BlockedIdentityReasonChoices
+from pencilwoodbd.choices import USER_TYPE, TrackSettingsModeChoices,TrackSettingsScopeChoices, BlockedIdentityReasonChoices
 
 class CustomUser(AbstractUser):
     email = models.EmailField(unique=True, blank=True, null=True)
@@ -68,9 +68,11 @@ def make_device_hash(ip, user_agent):
 
 
 class TrackSettings(models.Model):
-    ModeChoices = TrackSettingsModeChoices  # alias, so TrackSettings.ModeChoices.X still works
-    
+    ModeChoices = TrackSettingsModeChoices  
+    ScopeChoices = TrackSettingsScopeChoices  
+
     mode = models.CharField(max_length=20, choices=TrackSettingsModeChoices.choices, default=TrackSettingsModeChoices.LIFETIME, help_text="Default: Lifetime. 'Consecutive' hole kono order delivered hole counter reset hobe.")
+    scope = models.CharField(max_length=20, choices=TrackSettingsScopeChoices.choices, default=TrackSettingsScopeChoices.ORDER, help_text="Default: Order-wise. Order-wise hole ekta order e jotogula product e cancel thakuk na keno, seta 1 cancel hisebe count hobe. Product-wise hole prottek product er cancel count alada vabe track hobe.")
     cancel_threshold = models.PositiveIntegerField(default=5, help_text="Koto bar cancel hole auto-block hobe. Default: 5")
     is_auto_block_enabled = models.BooleanField(default=True, help_text="Off korle auto-block hobe na, shudhu count track hobe.")
     updated_at = models.DateTimeField(auto_now=True)

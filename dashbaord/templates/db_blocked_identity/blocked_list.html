@@ -1,0 +1,20 @@
+{% extends 'dashboard.html' %}
+{% load static %}
+{% block page_title %}<title>Blocked IPs / Devices | PencilWoodBD</title>{% endblock %}
+{% block dashboard_body_content %}
+<div class="main-content">
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Security</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item active">Blocked IPs / Devices <span>({{ paginator.count }})</span></li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    {% include "db_blocked_identity/partial/partial_blocked_identity_list.html" %}
+</div>
+{% endblock %}

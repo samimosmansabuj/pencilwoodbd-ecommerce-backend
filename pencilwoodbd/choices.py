@@ -155,6 +155,10 @@ class TrackSettingsModeChoices(models.TextChoices):
     LIFETIME = "lifetime", "Lifetime (all-time cancel count)"
     CONSECUTIVE = "consecutive", "Consecutive (back-to-back cancels, resets on delivery)"
 
+class TrackSettingsScopeChoices(models.TextChoices):
+    ORDER = "order", "Order-wise (count cancelled per orders) [Default]"
+    PRODUCT = "product", "Product-wise (count cancels per individual product)"
+
 class BlockedIdentityReasonChoices(models.TextChoices):
     AUTO_CANCEL_LIMIT = "auto_cancel_limit", "Auto: Cancel limit exceeded"
     MANUAL = "manual", "Manually blocked by admin"

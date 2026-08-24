@@ -20,4 +20,9 @@ urlpatterns = [
     path('landing-pages/add/', LandingPageAddView.as_view(), name='landing_page_add'),
     path('landing-pages/<int:pk>/edit/', LandingPageEditView.as_view(), name='landing_page_edit'),
     path('landing-pages/<int:pk>/delete/', LandingPageDeleteView.as_view(), name='landing_page_delete'),
+
+        #------------------ IP/Device Security -----------
+    path('security/blocked-list/', BlockedIdentityListView.as_view(), name='blocked_identity_list'),
+    path('security/blocked-list/<int:pk>/unblock/', UnblockIdentityView.as_view(), name='unblock_identity'),
+    path('order/<str:order_id>/block-identity/', BlockOrderIdentityView.as_view(), name='block_order_identity'),
 ]

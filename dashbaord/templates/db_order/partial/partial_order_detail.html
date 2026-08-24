@@ -24,10 +24,16 @@
 
     {% include "db_order/partial/order_form_body.html" %}
 
+    <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#trackIdentityModal">
+        <i class="bi bi-shield-lock me-1"></i> View IP/Device
+    </button>
+
     <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#reminderAddModal">
         <i class="bi bi-alarm me-1"></i> Add Reminder
     </button>
-    
+
+    {% include "db_order/modal/track_identity_modal.html" %}
+
     <div class="modal fade" id="reminderAddModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
             <form class="modal-content" hx-post="{% url 'reminder_add' %}" hx-target="#content-area">

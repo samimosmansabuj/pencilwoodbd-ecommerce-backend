@@ -79,6 +79,51 @@ def record_order_track(order, request):
         pass
 
 
+def _order_wise_cancel_count(orders, mode):
+    from .models import TrackSettings
+
+    if mode == TrackSettings.ModeChoices.CONSECUTIVE:
+        consecutive_cancels = 0
+        for o in orders:
+            if o.status == STATUS.CANCELLED:
+                consecutive_cancels += 1
+            elif o.status == STATUS.DELIVERED:
+                break
+        return consecutive_cancels
+    return orders.filter(status=STATUS.CANCELLED).count()
+
+
+def _product_wise_cancel_count(orders, mode):
+    from collections import defaultdict
+
+    counts = defaultdict(int)
+
+    if mode == "consecutive":
+        for o in orders:
+            product_ids = list(o.order_items.values_list("product_id", flat=True))
+            if o.status == STATUS.CANCELLED:
+                for pid in product_ids:
+                    if pid:
+                        counts[pid] += 1
+            elif o.status == STATUS.DELIVERED:
+                for pid in product_ids:
+                    if pid:
+                        counts[pid] = 0
+    else:
+        cancelled_orders = orders.filter(status=STATUS.CANCELLED)
+        for o in cancelled_orders:
+            product_ids = o.order_items.values_list("product_id", flat=True)
+            for pid in product_ids:
+                if pid:
+                    counts[pid] += 1
+
+    if not counts:
+        return 0, None
+
+    max_product_id = max(counts, key=counts.get)
+    return counts[max_product_id], max_product_id
+
+
 def evaluate_cancel_block(ip, device_hash, staff_user=None):
     from .models import OrderTrackRecord, BlockedIdentity, TrackSettings
     from order.models import Order
@@ -92,18 +137,15 @@ def evaluate_cancel_block(ip, device_hash, staff_user=None):
     ).select_related("order").order_by("-created_at")
 
     order_ids = list(records.values_list("order_id", flat=True).distinct())
-    orders = Order.objects.filter(id__in=order_ids).order_by("-created_at")
+    orders = Order.objects.filter(id__in=order_ids).prefetch_related("order_items").order_by("-created_at")
 
-    if settings_obj.mode == TrackSettings.ModeChoices.CONSECUTIVE:
-        consecutive_cancels = 0
-        for o in orders:
-            if o.status == STATUS.CANCELLED:
-                consecutive_cancels += 1
-            elif o.status == STATUS.DELIVERED:
-                break
-        cancel_count = consecutive_cancels
+    scope = getattr(settings_obj, "scope", TrackSettings.ScopeChoices.ORDER)
+
+    matched_product_id = None
+    if scope == TrackSettings.ScopeChoices.PRODUCT:
+        cancel_count, matched_product_id = _product_wise_cancel_count(orders, settings_obj.mode)
     else:
-        cancel_count = orders.filter(status=STATUS.CANCELLED).count()
+        cancel_count = _order_wise_cancel_count(orders, settings_obj.mode)
 
     if cancel_count >= settings_obj.cancel_threshold:
         already_blocked = BlockedIdentity.objects.filter(
@@ -112,11 +154,16 @@ def evaluate_cancel_block(ip, device_hash, staff_user=None):
         if already_blocked:
             return already_blocked
 
+        if scope == TrackSettings.ScopeChoices.PRODUCT and matched_product_id:
+            note = f"Auto-blocked: product #{matched_product_id} cancelled {cancel_count} times ({settings_obj.mode} mode, product-wise, threshold={settings_obj.cancel_threshold})"
+        else:
+            note = f"Auto-blocked: {cancel_count} cancels ({settings_obj.mode} mode, order-wise, threshold={settings_obj.cancel_threshold})"
+
         blocked = BlockedIdentity.objects.create(
             ip_address=ip,
             device_hash=device_hash,
             reason=BlockedIdentity.ReasonChoices.AUTO_CANCEL_LIMIT,
-            note=f"Auto-blocked: {cancel_count} cancels ({settings_obj.mode} mode, threshold={settings_obj.cancel_threshold})",
+            note=note,
             blocked_by=staff_user,
             cancel_count_at_block_time=cancel_count,
         )

@@ -1,0 +1,152 @@
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
+<div class="card mb-4">
+    <div class="card mb-4">
+
+        <form method="post" action="{% url 'blocked_identity_list' %}">
+            {% csrf_token %}
+    
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Auto-Block Settings</h5>
+    
+                <div class="d-flex align-items-center gap-3">
+                    <span class="fw-semibold">Auto-Block</span>
+    
+                    <div class="form-check form-switch mb-0">
+                        <input
+                            class="form-check-input"
+                            type="checkbox"
+                            role="switch"
+                            id="is_auto_block_enabled"
+                            name="is_auto_block_enabled"
+                            {% if settings_obj.is_auto_block_enabled %}checked{% endif %}
+                        >
+                    </div>
+                </div>
+            </div>
+    
+            <div class="card-body">
+                <div class="row g-3 align-items-end">
+    
+                    <div class="col-md-3">
+                        <label class="form-label">Count Mode</label>
+                        <select name="mode" class="form-select">
+                            {% for value, label in mode_choices %}
+                                <option value="{{ value }}" {% if settings_obj.mode == value %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">
+                            Default: <strong>Lifetime</strong>
+                        </small>
+                    </div>
+    
+                    <div class="col-md-3">
+                        <label class="form-label">Count Scope</label>
+                        <select name="scope" class="form-select">
+                            {% for value, label in scope_choices %}
+                                <option value="{{ value }}" {% if settings_obj.scope == value %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">
+                            Default: <strong>Order-wise</strong>
+                        </small>
+                    </div>
+    
+                    <div class="col-md-2">
+                        <label class="form-label">Cancel Threshold</label>
+                        <input
+                            type="number"
+                            min="1"
+                            name="cancel_threshold"
+                            class="form-control"
+                            value="{{ settings_obj.cancel_threshold }}"
+                        >
+                        <small class="text-muted">
+                            Default: <strong>5</strong>
+                        </small>
+                    </div>
+    
+                    <div class="col-md-2 ms-auto">
+                        <button type="submit" class="btn btn-primary w-100">
+                            Save Settings
+                        </button>
+                    </div>
+    
+                </div>
+            </div>
+    
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h5 class="mb-0">Blocked IPs / Devices</h5>
+        <form method="get" class="d-flex gap-2">
+            <input type="text" name="q" value="{{ current_search }}" class="form-control form-control-sm" placeholder="Search IP or device hash...">
+            <button type="submit" class="btn btn-sm btn-secondary">Search</button>
+        </form>
+    </div>
+    <div class="card-body table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>#</th><th>IP Address</th><th>Device Hash</th><th>Reason</th>
+                    <th>Cancel Count</th><th>Blocked At</th><th>Blocked By</th><th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in blocked_list %}
+                <tr>
+                    <td>{{ forloop.counter0|add:blocked_list.start_index }}</td>
+                    <td><code>{{ item.ip_address }}</code></td>
+                    <td><code>{{ item.device_hash|slice:":16" }}...</code></td>
+                    <td>
+                        {% if item.reason == "auto_cancel_limit" %}
+                            <span class="badge bg-danger">Auto: Cancel Limit</span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark">Manual</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ item.cancel_count_at_block_time }}</td>
+                    <td>{{ item.blocked_at|date:"d M Y, h:i A" }}</td>
+                    <td>{{ item.blocked_by|default:"System" }}</td>
+                    <td>
+                        <form method="post" action="{% url 'unblock_identity' item.pk %}" onsubmit="return confirm('Are you sure you want to unblock {{ item.ip_address }}?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-success"><i class="bx bx-lock-open-alt"></i> Unblock</button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" class="text-center text-muted py-4">No blocked IPs/devices right now.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if blocked_list.has_other_pages %}
+        <nav>
+            <ul class="pagination justify-content-center mt-3">
+                {% if blocked_list.has_previous %}
+                    <li class="page-item"><a class="page-link" href="?page={{ blocked_list.previous_page_number }}&q={{ current_search }}">Previous</a></li>
+                {% endif %}
+                <li class="page-item active"><span class="page-link">{{ blocked_list.number }} / {{ paginator.num_pages }}</span></li>
+                {% if blocked_list.has_next %}
+                    <li class="page-item"><a class="page-link" href="?page={{ blocked_list.next_page_number }}&q={{ current_search }}">Next</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
