@@ -6,6 +6,11 @@ from django.views import View
 from site_app.models import LandingPageProduct
 from product.models import Product
 
+from django.core.paginator import Paginator
+from django.db.models import Q
+from order.models import Order
+from .models import BlockedIdentity, TrackSettings, OrderTrackRecord
+
 
 class LandingPageListView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -102,3 +107,101 @@ class LandingPageDeleteView(LoginRequiredMixin, View):
         landing.delete()
         messages.success(request, "Landing page deleted.")
         return redirect("landing_page_list")
+    
+
+# --------------- IP / DEVICE BLOCKED LIST ---------------
+
+class BlockedIdentityListView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+    template_name = "db_blocked_identity/blocked_list.html"
+
+    def get(self, request):
+        blocked_qs = BlockedIdentity.objects.filter(is_active=True).order_by("-blocked_at")
+
+        search = request.GET.get("q", "").strip()
+        if search:
+            blocked_qs = blocked_qs.filter(
+                Q(ip_address__icontains=search) | Q(device_hash__icontains=search)
+            )
+
+        paginator = Paginator(blocked_qs, 25)
+        page_number = request.GET.get("page", 1)
+        blocked_page = paginator.get_page(page_number)
+
+        settings_obj = TrackSettings.get_solo()
+
+        context = {
+            "blocked_list": blocked_page,
+            "paginator": paginator,
+            "page_number": page_number,
+            "current_search": search,
+            "settings_obj": settings_obj,
+            "mode_choices": TrackSettings.ModeChoices.choices,
+            "scope_choices": TrackSettings.ScopeChoices.choices,
+        }
+        return render(request, self.template_name, context)
+
+    def post(self, request):
+        settings_obj = TrackSettings.get_solo()
+        mode = request.POST.get("mode")
+        scope = request.POST.get("scope")
+        threshold = request.POST.get("cancel_threshold")
+        is_enabled = request.POST.get("is_auto_block_enabled") == "on"
+
+        valid_modes = [c[0] for c in TrackSettings.ModeChoices.choices]
+        if mode in valid_modes:
+            settings_obj.mode = mode
+
+        valid_scopes = [c[0] for c in TrackSettings.ScopeChoices.choices]
+        if scope in valid_scopes:
+            settings_obj.scope = scope
+        try:
+            threshold_int = int(threshold)
+            if threshold_int > 0:
+                settings_obj.cancel_threshold = threshold_int
+        except (TypeError, ValueError):
+            pass
+        settings_obj.is_auto_block_enabled = is_enabled
+        settings_obj.save()
+
+        messages.success(request, "Track settings updated successfully.")
+        return redirect("blocked_identity_list")
+
+
+class UnblockIdentityView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk):
+        blocked = get_object_or_404(BlockedIdentity, pk=pk, is_active=True)
+        blocked.unblock(staff_user=request.user)
+        messages.success(request, f"{blocked.ip_address} has been unblocked.")
+        return redirect("blocked_identity_list")
+
+
+class BlockOrderIdentityView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, order_id):
+        order = get_object_or_404(Order, order_id=order_id)
+        track_record = OrderTrackRecord.objects.filter(order=order).order_by("-created_at").first()
+
+        if not track_record:
+            messages.error(request, "No tracking data found for this order.")
+            return redirect("order_detail", id=order.id)
+
+        already = BlockedIdentity.objects.filter(
+            Q(ip_address=track_record.ip_address) | Q(device_hash=track_record.device_hash),
+            is_active=True
+        ).first()
+        if already:
+            messages.info(request, "This IP/Device is already blocked.")
+        else:
+            BlockedIdentity.objects.create(
+                ip_address=track_record.ip_address,
+                device_hash=track_record.device_hash,
+                reason=BlockedIdentity.ReasonChoices.MANUAL,
+                blocked_by=request.user,
+                note=f"Manually blocked from Order {order.order_id}",
+            )
+            messages.success(request, "IP/Device blocked successfully.")
+        return redirect("order_detail", id=order.id)

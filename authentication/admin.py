@@ -61,7 +61,7 @@ class BlockedIdentityAdmin(admin.ModelAdmin):
 
 @admin.register(TrackSettings)
 class TrackSettingsAdmin(admin.ModelAdmin):
-    list_display = ["mode", "cancel_threshold", "is_auto_block_enabled", "updated_at"]
+    list_display = ["mode", "scope", "cancel_threshold", "is_auto_block_enabled", "updated_at"]
 
     def has_add_permission(self, request):
         return not TrackSettings.objects.exists()

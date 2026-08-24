@@ -27,7 +27,7 @@ from pencilwoodbd.extra_module import resize_to_fixed
 # Models
 from order.models import Order, OrderRequest, OrderItem, OrderRequestItem, Review, TelegramBotConfig
 from product.models import Product, Category, ProductImage, ProductVideo, Attribute, AttributeValue, ProductVariant, Tag, ProductDeliveryCharge, ProductFeature, ProductFAQ, ReviewSettings
-from authentication.models import CustomUser, Customer
+from authentication.models import CustomUser, Customer, OrderTrackRecord
 from site_app.models import DeliveryOption, SiteDeliveryChargeConfig, HomeSlider, FooterTagLink, SocialLink, NavMenuLink, NewsFeed, Todo, Reminder, MaintenanceCost, DailyProfit, InvoiceColorConfig, LandingPageProduct
 
 from site_app.bd_districts import BD_DISTRICTS, ALL_DISTRICTS_KEY, SYSTEM_DEFAULT_DELIVERY_CHARGE
@@ -2349,6 +2349,7 @@ class OrderDetailView(LoginRequiredMixin, View):
             "new_orders_count": dashboard_view.new_orders_count(orders),
             "total_orders": orders.count(),
             "new_order_request_count": dashboard_view.new_order_request_count(),
+            "track_record": OrderTrackRecord.objects.filter(order=order).order_by("-created_at").first(),
         }
 
         if request.htmx:

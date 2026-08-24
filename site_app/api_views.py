@@ -23,7 +23,7 @@ from order.models import Order, OrderItem
 from authentication.models import Customer
 from site_app.models import OTPVerification
 from order.utils import OrderConfirmatinoEmailSend
-from authentication.utils import normalize_bd_phone
+from authentication.utils import normalize_bd_phone, get_client_identity, check_is_blocked, record_order_track
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from marketing.models import Coupon, CouponUsage
@@ -184,6 +184,15 @@ class LandingPageOrderAPI(APIView):
     
     def post(self, request, *args, **kwargs):
         try:
+            # --- IP / Device block check ---
+            ip, user_agent, device_hash = get_client_identity(request)
+            blocked = check_is_blocked(ip, device_hash)
+            if blocked:
+                return Response(
+                    {"status": False, "message": "Apnar order ekhon accept kora jacche na. Onugroho kore amader shathe jogajog korun."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
             with transaction.atomic():
                 data = request.data
                 print("data: ", data)
@@ -271,6 +280,8 @@ class LandingPageOrderAPI(APIView):
                         raise ValueError(f"Not enough inventory for product {product.sku}")
                     product.inventory_quantity -= quantity
                 product.save()
+
+                record_order_track(order, request)
 
                 return Response(
                     {"status": True, "message": "Order received successfully"},
@@ -401,6 +412,16 @@ class OrderCreateAPIView(APIView):
 
     def post(self, request, *args, **kwargs):
         try:
+            # --- IP / Device block check ---
+
+            ip, user_agent, device_hash = get_client_identity(request)
+            blocked = check_is_blocked(ip, device_hash)
+            if blocked:
+                return Response(
+                    {"success": False, "message": "Apnar order ekhon accept kora jacche na. Onugroho kore amader shathe jogajog korun."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
             with transaction.atomic():
                 data = request.data
                 self.handle_missing_field(data)
@@ -517,6 +538,8 @@ class OrderCreateAPIView(APIView):
 
                 if otp_required and otp_verified:
                     otp_verified.delete()
+
+                record_order_track(order, request)
 
                 return Response(
                     {"success": True, "message": "Order Created", "order_id": order.order_id},
