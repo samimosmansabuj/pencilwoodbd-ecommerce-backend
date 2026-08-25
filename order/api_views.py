@@ -12,7 +12,7 @@ from pencilwoodbd.choices import PRODUCT_GIFT_TYPE, PAYMENT_STATUS, PAYMENT_TYPE
 from django.db import transaction
 from order.models import Order, OrderItem, Shipment, Address, Payment, PaymentMethod
 from .utils import OrderConfirmatinoEmailSend
-from site_app.models import DeliveryOption, OTPVerification, WebhookLog
+from site_app.models import DeliveryOption, OTPVerification, WebhookLog, LandingPageProduct
 from .serializers import DeliveryOptionSerializer, ShipmentSerializer
 from product.models import Product, ProductVariant
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -24,6 +24,7 @@ from authentication.utils import normalize_bd_phone, get_client_identity, check_
 from site_app.delivery_charge import DeliveryChargeResolver
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from marketing.models import Coupon, CouponUsage
 
 class DeliveryOptionListAPIView(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -297,9 +298,47 @@ class PlaceOrderAPIView(APIView):
                         status=201,
                     )
 
+                coupon_code = request.data.get("coupon_code")
+                discount_amount = Decimal("0")
+                applied_coupon = None
+
+                cart_subtotal = Decimal("0")
+                for line in line_items:
+                    _product = line["product"]
+                    _variant = line["variant"]
+                    _price = (_variant.discount_price or _variant.price) if _variant else (_product.discount_price or _product.price)
+                    cart_subtotal += Decimal(str(_price)) * line["quantity"]
+
+                if coupon_code:
+                    applied_coupon = Coupon.objects.filter(code__iexact=coupon_code).first()
+                    if not applied_coupon:
+                        return Response({"status": False, "message": "Invalid coupon code."}, status=400)
+
+                    valid, reason = applied_coupon.is_currently_valid()
+                    if not valid:
+                        return Response({"status": False, "message": reason}, status=400)
+
+                    product_ids_in_cart = [line["product"].id for line in line_items]
+                    scope_valid, scope_reason = applied_coupon.is_valid_for_scope(
+                        landing_page=None, product_ids=product_ids_in_cart
+                    )
+                    if not scope_valid:
+                        return Response({"status": False, "message": scope_reason}, status=400)
+
+                    condition_valid, condition_reason = applied_coupon.customer_meets_condition(customer.phone)
+                    if not condition_valid:
+                        return Response({"status": False, "message": condition_reason}, status=400)
+
+                    if not applied_coupon.phone_can_use(customer.phone):
+                        return Response({"status": False, "message": "You have already used this coupon."}, status=400)
+
+                    discount_amount = applied_coupon.calculate_discount(cart_subtotal)
+
                 order = Order.objects.create(
                     customer=customer,
                     shipping_address=f"{address.street_01}, {address.district}",
+                    coupon=applied_coupon,
+                    coupon_discount=discount_amount,
                     source=ORDER_SOURCE.WEBSITE,
                     utm_source=request.data.get("utm_source"),
                     utm_medium=request.data.get("utm_medium"),
@@ -308,6 +347,14 @@ class PlaceOrderAPIView(APIView):
                     referrer=request.data.get("referrer"),
                     landing_url=request.data.get("landing_url"),
                 )
+
+                if applied_coupon:
+                    CouponUsage.objects.create(
+                        coupon=applied_coupon,
+                        phone=customer.phone,
+                        order=order,
+                        discount_applied=discount_amount,
+                    )
 
                 total = Decimal("0")
                 total_delivery_charge = Decimal("0")
@@ -349,7 +396,7 @@ class PlaceOrderAPIView(APIView):
                     )
                     total += discount_price * quantity
 
-                order.total_cost = total + total_delivery_charge
+                order.total_cost = total + total_delivery_charge - discount_amount
                 order.shipping_total = total_delivery_charge
                 order.save()
 
