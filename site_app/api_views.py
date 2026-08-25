@@ -226,9 +226,45 @@ class LandingPageOrderAPI(APIView):
 
                 total_cost, quantity, subtotal, delivery = self.check_order_amount(variant, product, data)
 
+                coupon_code = data.get("coupon_code")
+                landing_page_code = data.get("landing_page_code")
+                discount_amount = Decimal("0")
+                applied_coupon = None
+
+                if coupon_code:
+                    applied_coupon = Coupon.objects.filter(code__iexact=coupon_code).first()
+                    if not applied_coupon:
+                        raise ValueError("Invalid coupon code.")
+
+                    valid, reason = applied_coupon.is_currently_valid()
+                    if not valid:
+                        raise ValueError(reason)
+
+                    landing_page = None
+                    if landing_page_code:
+                        landing_page = LandingPageProduct.objects.filter(code=landing_page_code).first()
+
+                    scope_valid, scope_reason = applied_coupon.is_valid_for_scope(
+                        landing_page=landing_page,
+                        product_ids=[product.id] if not landing_page else None,
+                    )
+                    if not scope_valid:
+                        raise ValueError(scope_reason)
+
+                    condition_valid, condition_reason = applied_coupon.customer_meets_condition(customer.phone)
+                    if not condition_valid:
+                        raise ValueError(condition_reason)
+
+                    if not applied_coupon.phone_can_use(customer.phone):
+                        raise ValueError("You have already used this coupon.")
+
+                    discount_amount = applied_coupon.calculate_discount(subtotal)
+
+                final_total = total_cost - discount_amount
+
                 recent_duplicate = Order.objects.filter(
                     customer=customer,
-                    total_cost=total_cost,
+                    total_cost=final_total,
                     created_at__gte=timezone.now() - timedelta(seconds=30),
                 ).first()
 
@@ -243,7 +279,9 @@ class LandingPageOrderAPI(APIView):
                     shipping_address=address,
                     note=data.get("note", ""),
                     shipping_total=delivery,
-                    total_cost=total_cost,
+                    total_cost=final_total,
+                    coupon=applied_coupon,
+                    coupon_discount=discount_amount,
                     payment_type=payment_type,
                     payment_status=payment_status,
                     status=STATUS.NEW,
@@ -255,6 +293,14 @@ class LandingPageOrderAPI(APIView):
                     referrer=data.get("referrer"),
                     landing_url=data.get("landing_url"),
                 )
+
+                if applied_coupon:
+                    CouponUsage.objects.create(
+                        coupon=applied_coupon,
+                        phone=customer.phone,
+                        order=order,
+                        discount_applied=discount_amount,
+                    )
 
                 # Create OrderItem
                 unit_price = variant.discount_price or variant.price if variant else product.discount_price or product.price
@@ -290,7 +336,7 @@ class LandingPageOrderAPI(APIView):
         except Exception as e:
             print("Error in LandingPageOrderAPI: ", str(e))
             return Response({"status": False, "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        
 class OrderCreateAPIView(APIView):
     permission_classes = [AllowAny]
 
