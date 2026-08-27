@@ -20,7 +20,7 @@ from decimal import Decimal
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from pencilwoodbd.choices import USER_TYPE, ORDER_SOURCE
-from authentication.utils import normalize_bd_phone, get_client_identity, check_is_blocked, record_order_track
+from authentication.utils import normalize_bd_phone, get_client_identity, check_is_blocked, record_order_track, get_or_verify_otp_override
 from site_app.delivery_charge import DeliveryChargeResolver
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
@@ -209,19 +209,28 @@ class PlaceOrderAPIView(APIView):
 
     def post(self, request):
         try:
+            phone = normalize_bd_phone(request.data.get("phone", ""))
             ip, user_agent, device_hash = get_client_identity(request)
-            blocked = check_is_blocked(ip, device_hash)
+            blocked = check_is_blocked(ip, device_hash, phone=phone)
+
+            otp_override_verified = False
             if blocked:
-                return Response(
-                    {
-                        "status": False,
-                        "message": "Apnar order ekhon accept kora jacche na. Onugroho kore amader shathe jogajog korun.",
-                    },
-                    status=403,
-                )
-            
+                otp_code = request.data.get("otp_code")
+                if otp_code:
+                    otp_override_verified = get_or_verify_otp_override(phone, otp_code)
+
+                if not otp_override_verified:
+                    return Response(
+                        {
+                            "status": False,
+                            "otp_required": True,
+                            "phone": phone,
+                            "message": "Apnar account block kora ase. Age OTP verify korun.",
+                        },
+                        status=403,
+                    )
+
             with transaction.atomic():
-                phone = normalize_bd_phone(request.data.get("phone", ""))
                 name = request.data.get("name")
                 address_text = request.data.get("address")
                 district = request.data.get("district")
@@ -337,8 +346,6 @@ class PlaceOrderAPIView(APIView):
                 order = Order.objects.create(
                     customer=customer,
                     shipping_address=f"{address.street_01}, {address.district}",
-                    coupon=applied_coupon,
-                    coupon_discount=discount_amount,
                     source=ORDER_SOURCE.WEBSITE,
                     utm_source=request.data.get("utm_source"),
                     utm_medium=request.data.get("utm_medium"),
@@ -346,6 +353,7 @@ class PlaceOrderAPIView(APIView):
                     click_id=request.data.get("click_id"),
                     referrer=request.data.get("referrer"),
                     landing_url=request.data.get("landing_url"),
+                    placed_while_blocked=otp_override_verified,
                 )
 
                 if applied_coupon:

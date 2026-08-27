@@ -6,23 +6,125 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                {% if identity_blocked %}
+                    <div class="alert alert-danger py-2 mb-2">
+                        <strong>⚠ Currently Blocked</strong> — Reason: {{ identity_blocked.get_reason_display }}
+                        <div class="mt-2 small">
+                            <strong>Blocked on:</strong>
+                            <ul class="mb-0 ps-3">
+                                {% if identity_blocked.ip_address %}<li>IP Address ({{ identity_blocked.ip_address }})</li>{% endif %}
+                                {% if identity_blocked.device_hash %}<li>Device ({{ identity_blocked.device_hash|slice:":12" }}...)</li>{% endif %}
+                                {% if identity_blocked.phone %}<li>Phone Number ({{ identity_blocked.phone }})</li>{% endif %}
+                            </ul>
+                        </div>
+                    </div>
+                {% endif %}
+                {% if order.placed_while_blocked %}
+                    <div class="alert alert-warning py-2 mb-2">
+                        This order was placed via OTP override while the customer was blocked.
+                    </div>
+                {% endif %}
                 {% if track_record %}
                     <p class="mb-1"><strong>IP Address:</strong> {{ track_record.ip_address }}</p>
                     <p class="mb-1"><strong>Device Hash:</strong> <code>{{ track_record.device_hash|slice:":16" }}...</code></p>
-                    <p class="mb-0 textarea"><small>Captured at: {{ track_record.created_at|date:"d M Y, h:i A" }}</small></p>
+                    <p class="mb-0 text-muted"><small>Captured at: {{ track_record.created_at|date:"d M Y, h:i A" }}</small></p>
                 {% else %}
-                    <p class="mb-0 textarea">No tracking data found for this order.</p>
+                    <p class="mb-0 text-muted">No tracking data found for this order.</p>
                 {% endif %}
             </div>
-            {% if track_record %}
             <div class="modal-footer">
-                <form method="post" action="{% url 'block_order_identity' order.order_id %}" onsubmit="return confirm('Block this IP/Device? Future orders from it will be rejected.');">
+                {% if identity_blocked %}
+                <form method="post" action="{% url 'unblock_order_identity' order.order_id %}" class="d-inline">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-danger">Block this IP/Device</button>
+                    <button type="submit" class="btn btn-success">Unblock this Customer</button>
                 </form>
+                {% else %}
+                <div class="w-100 mb-2">
+                    <label class="form-label mb-2 small text-muted">Block Scope</label>
+                    <div class="scope-option-group" id="scopeOptionGroup">
+                        <label class="scope-option">
+                            <input type="radio" name="block_scope" value="all" checked form="blockScopeForm">
+                            <span class="scope-radio-circle"></span>
+                            <span class="scope-option-label">IP + Device + Phone</span>
+                        </label>
+                        <label class="scope-option">
+                            <input type="radio" name="block_scope" value="phone_only" form="blockScopeForm">
+                            <span class="scope-radio-circle"></span>
+                            <span class="scope-option-label">Phone Only</span>
+                        </label>
+                        <label class="scope-option">
+                            <input type="radio" name="block_scope" value="ip_device_only" form="blockScopeForm">
+                            <span class="scope-radio-circle"></span>
+                            <span class="scope-option-label">IP + Device Only</span>
+                        </label>
+                    </div>
+                </div>
+                <form method="post" id="blockScopeForm" action="{% url 'block_order_identity' order.order_id %}" onsubmit="return confirm('Block this identity? Future orders matching it will be rejected.');" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">Block Selected Scope</button>
+                </form>
+                {% endif %}
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
-            {% endif %}
         </div>
     </div>
 </div>
+
+<style>
+.scope-option-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.scope-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.scope-option:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+.scope-option input[type="radio"] {
+    display: none;
+}
+.scope-radio-circle {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    flex-shrink: 0;
+    position: relative;
+    transition: border-color 0.15s ease;
+}
+.scope-radio-circle::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background-color: #e5e7eb;
+    transform: translate(-50%, -50%) scale(0);
+    transition: transform 0.15s ease;
+}
+.scope-option-label {
+    font-size: 0.9rem;
+}
+.scope-option input[type="radio"]:checked ~ .scope-radio-circle {
+    border-color: #e5e7eb;
+}
+.scope-option input[type="radio"]:checked ~ .scope-radio-circle::after {
+    transform: translate(-50%, -50%) scale(1);
+}
+.scope-option:has(input[type="radio"]:checked) {
+    background-color: rgba(229, 231, 235, 0.12);
+    border-color: rgba(229, 231, 235, 0.4);
+    box-shadow: 0 0 0 1px rgba(229, 231, 235, 0.15) inset;
+}
+</style>

@@ -24,8 +24,8 @@
 
     {% include "db_order/partial/order_form_body.html" %}
 
-    <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#trackIdentityModal">
-        <i class="bi bi-shield-lock me-1"></i> View IP/Device
+    <button class="btn btn-sm {% if identity_blocked %}btn-danger{% else %}btn-warning{% endif %}" data-bs-toggle="modal" data-bs-target="#trackIdentityModal">
+        <i class="bi bi-shield-lock me-1"></i> {% if identity_blocked %}Blocked — View{% else %}View IP/Device{% endif %}
     </button>
 
     <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#reminderAddModal">

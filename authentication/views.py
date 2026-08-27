@@ -182,26 +182,87 @@ class BlockOrderIdentityView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
     def post(self, request, order_id):
+        from pencilwoodbd.choices import ManualBlockScopeChoices
+
         order = get_object_or_404(Order, order_id=order_id)
         track_record = OrderTrackRecord.objects.filter(order=order).order_by("-created_at").first()
 
-        if not track_record:
-            messages.error(request, "No tracking data found for this order.")
+        phone = order.customer.phone if order.customer else None
+        ip = track_record.ip_address if track_record else None
+        device_hash = track_record.device_hash if track_record else None
+
+        scope = request.POST.get("block_scope", ManualBlockScopeChoices.ALL)
+        valid_scopes = [c[0] for c in ManualBlockScopeChoices.choices]
+        if scope not in valid_scopes:
+            scope = ManualBlockScopeChoices.ALL
+
+        block_ip = None
+        block_device = None
+        block_phone = None
+
+        if scope == ManualBlockScopeChoices.PHONE_ONLY:
+            block_phone = phone
+        elif scope == ManualBlockScopeChoices.IP_DEVICE_ONLY:
+            block_ip = ip
+            block_device = device_hash
+        else:  # ALL
+            block_ip = ip
+            block_device = device_hash
+            block_phone = phone
+
+        if not block_ip and not block_device and not block_phone:
+            messages.error(request, "No tracking data found for the selected block scope.")
             return redirect("order_detail", id=order.id)
 
-        already = BlockedIdentity.objects.filter(
-            Q(ip_address=track_record.ip_address) | Q(device_hash=track_record.device_hash),
-            is_active=True
-        ).first()
+        query = Q()
+        if block_ip:
+            query |= Q(ip_address=block_ip)
+        if block_device:
+            query |= Q(device_hash=block_device)
+        if block_phone:
+            query |= Q(phone=block_phone)
+
+        already = BlockedIdentity.objects.filter(query, is_active=True).first() if query else None
+
         if already:
-            messages.info(request, "This IP/Device is already blocked.")
+            messages.info(request, "This identity is already blocked.")
         else:
             BlockedIdentity.objects.create(
-                ip_address=track_record.ip_address,
-                device_hash=track_record.device_hash,
+                ip_address=block_ip,
+                device_hash=block_device,
+                phone=block_phone,
                 reason=BlockedIdentity.ReasonChoices.MANUAL,
                 blocked_by=request.user,
-                note=f"Manually blocked from Order {order.order_id}",
+                note=f"Manually blocked from Order {order.order_id} (scope: {scope})",
             )
-            messages.success(request, "IP/Device blocked successfully.")
+            messages.success(request, "Blocked successfully.")
+        return redirect("order_detail", id=order.id)
+
+class UnblockOrderIdentityView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, order_id):
+        order = get_object_or_404(Order, order_id=order_id)
+        track_record = OrderTrackRecord.objects.filter(order=order).order_by("-created_at").first()
+        phone = order.customer.phone if order.customer else None
+
+        ip = track_record.ip_address if track_record else None
+        device_hash = track_record.device_hash if track_record else None
+
+        query = Q()
+        if ip:
+            query |= Q(ip_address=ip)
+        if device_hash:
+            query |= Q(device_hash=device_hash)
+        if phone:
+            query |= Q(phone=phone)
+
+        blocks = BlockedIdentity.objects.filter(query, is_active=True) if query else BlockedIdentity.objects.none()
+
+        if not blocks.exists():
+            messages.info(request, "No active block found for this order's identity.")
+        else:
+            for b in blocks:
+                b.unblock(staff_user=request.user)
+            messages.success(request, "Unblocked successfully.")
         return redirect("order_detail", id=order.id)

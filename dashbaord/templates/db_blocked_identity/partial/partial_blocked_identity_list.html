@@ -102,7 +102,7 @@
         <table class="table table-hover align-middle">
             <thead>
                 <tr>
-                    <th>#</th><th>IP Address</th><th>Device Hash</th><th>Reason</th>
+                    <th>#</th><th>IP Address</th><th>Device Hash</th><th>Phone</th><th>Reason</th>                    
                     <th>Cancel Count</th><th>Blocked At</th><th>Blocked By</th><th>Action</th>
                 </tr>
             </thead>
@@ -110,8 +110,9 @@
                 {% for item in blocked_list %}
                 <tr>
                     <td>{{ forloop.counter0|add:blocked_list.start_index }}</td>
-                    <td><code>{{ item.ip_address }}</code></td>
-                    <td><code>{{ item.device_hash|slice:":16" }}...</code></td>
+                    <td><code>{{ item.ip_address|default:"-" }}</code></td>
+                    <td><code>{{ item.device_hash|default:""|slice:":16" }}{% if item.device_hash %}...{% else %}-{% endif %}</code></td>
+                    <td>{{ item.phone|default:"-" }}</td>
                     <td>
                         {% if item.reason == "auto_cancel_limit" %}
                             <span class="badge bg-danger">Auto: Cancel Limit</span>

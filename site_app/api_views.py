@@ -23,7 +23,7 @@ from order.models import Order, OrderItem
 from authentication.models import Customer
 from site_app.models import OTPVerification
 from order.utils import OrderConfirmatinoEmailSend
-from authentication.utils import normalize_bd_phone, get_client_identity, check_is_blocked, record_order_track
+from authentication.utils import normalize_bd_phone, get_client_identity, check_is_blocked, record_order_track, get_or_verify_otp_override
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from marketing.models import Coupon, CouponUsage
@@ -184,17 +184,24 @@ class LandingPageOrderAPI(APIView):
     
     def post(self, request, *args, **kwargs):
         try:
-            # --- IP / Device block check ---
+            data = request.data
+            phone = normalize_bd_phone(data.get("phone", ""))
             ip, user_agent, device_hash = get_client_identity(request)
-            blocked = check_is_blocked(ip, device_hash)
+            blocked = check_is_blocked(ip, device_hash, phone=phone)
+
+            otp_override_verified = False
             if blocked:
-                return Response(
-                    {"status": False, "message": "Apnar order ekhon accept kora jacche na. Onugroho kore amader shathe jogajog korun."},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
+                otp_code = data.get("otp_code")
+                if otp_code:
+                    otp_override_verified = get_or_verify_otp_override(phone, otp_code)
+
+                if not otp_override_verified:
+                    return Response(
+                        {"status": False, "otp_required": True, "phone": phone, "message": "Please Verify Your OTP First."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
 
             with transaction.atomic():
-                data = request.data
                 print("data: ", data)
                 # Payment validation ----
                 payment_type = data.get("payment_type", "COD")
@@ -292,6 +299,7 @@ class LandingPageOrderAPI(APIView):
                     click_id=data.get("click_id"),
                     referrer=data.get("referrer"),
                     landing_url=data.get("landing_url"),
+                    placed_while_blocked=otp_override_verified,
                 )
 
                 if applied_coupon:
@@ -458,19 +466,28 @@ class OrderCreateAPIView(APIView):
 
     def post(self, request, *args, **kwargs):
         try:
-            # --- IP / Device block check ---
+            data = request.data
+            self.handle_missing_field(data)
+
+            customer_data_preview = data.get("customer", {})
+            phone_preview = normalize_bd_phone(customer_data_preview.get("phone", ""))
 
             ip, user_agent, device_hash = get_client_identity(request)
-            blocked = check_is_blocked(ip, device_hash)
+            blocked = check_is_blocked(ip, device_hash, phone=phone_preview)
+
+            otp_override_verified = False
             if blocked:
-                return Response(
-                    {"success": False, "message": "Apnar order ekhon accept kora jacche na. Onugroho kore amader shathe jogajog korun."},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
+                otp_code = data.get("otp_code")
+                if otp_code:
+                    otp_override_verified = get_or_verify_otp_override(phone_preview, otp_code)
+
+                if not otp_override_verified:
+                    return Response(
+                        {"success": False, "otp_required": True, "phone": phone_preview, "message": "Please Verify Your OTP First."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
 
             with transaction.atomic():
-                data = request.data
-                self.handle_missing_field(data)
 
                 otp_verified = None
                 otp_required = bool(data.get("otp_required", False))
@@ -568,6 +585,7 @@ class OrderCreateAPIView(APIView):
                     click_id=data.get("click_id"),
                     referrer=data.get("referrer"),
                     landing_url=data.get("landing_url"),
+                    placed_while_blocked=otp_override_verified,
                 )
 
                 if applied_coupon:

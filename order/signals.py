@@ -55,18 +55,29 @@ def order_cancel_block_check(sender, instance, created, **kwargs):
     if previous_status == instance.status:
         return
 
+    transaction.on_commit(lambda: _sync_track_record_status(instance.pk, instance.status))
+
     if instance.status != STATUS.CANCELLED:
         return
 
     transaction.on_commit(lambda: _run_cancel_block_check(instance.pk))
 
 
+def _sync_track_record_status(order_id, new_status):
+    from authentication.models import OrderTrackRecord
+
+    OrderTrackRecord.objects.filter(order_id=order_id).update(status_at_capture=new_status)
+
 def _run_cancel_block_check(order_id):
     from authentication.models import OrderTrackRecord
     from authentication.utils import evaluate_cancel_block
+    from order.models import Order
 
     record = OrderTrackRecord.objects.filter(order_id=order_id).order_by("-created_at").first()
     if not record:
         return
 
-    evaluate_cancel_block(record.ip_address, record.device_hash)
+    order = Order.objects.select_related("customer").filter(pk=order_id).first()
+    phone = order.customer.phone if order and order.customer else None
+
+    evaluate_cancel_block(record.ip_address, record.device_hash, phone=phone)

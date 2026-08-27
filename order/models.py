@@ -57,6 +57,7 @@ class Order(models.Model):
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS.choices, default=PAYMENT_STATUS.Unpaid)
 
     status = models.CharField(max_length=50, choices=STATUS.choices, default=STATUS.NEW)
+    placed_while_blocked = models.BooleanField(default=False)
     shipping_address = models.CharField(max_length=100, blank=True, null=True)
 
     design_file = models.FileField(upload_to="order/design_files/", blank=True, null=True)

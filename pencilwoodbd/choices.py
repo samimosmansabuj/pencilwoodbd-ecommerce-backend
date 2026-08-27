@@ -162,3 +162,8 @@ class TrackSettingsScopeChoices(models.TextChoices):
 class BlockedIdentityReasonChoices(models.TextChoices):
     AUTO_CANCEL_LIMIT = "auto_cancel_limit", "Auto: Cancel limit exceeded"
     MANUAL = "manual", "Manually blocked by admin"
+
+class ManualBlockScopeChoices(models.TextChoices):
+    ALL = "all", "IP + Device + Phone"
+    PHONE_ONLY = "phone_only", "Phone Only"
+    IP_DEVICE_ONLY = "ip_device_only", "IP + Device Only"

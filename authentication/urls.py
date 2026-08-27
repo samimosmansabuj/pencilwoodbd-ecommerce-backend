@@ -25,4 +25,5 @@ urlpatterns = [
     path('security/blocked-list/', BlockedIdentityListView.as_view(), name='blocked_identity_list'),
     path('security/blocked-list/<int:pk>/unblock/', UnblockIdentityView.as_view(), name='unblock_identity'),
     path('order/<str:order_id>/block-identity/', BlockOrderIdentityView.as_view(), name='block_order_identity'),
+    path('order/<str:order_id>/unblock-identity/', UnblockOrderIdentityView.as_view(), name='unblock_order_identity'),
 ]

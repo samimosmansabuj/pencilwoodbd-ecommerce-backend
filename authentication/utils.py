@@ -38,11 +38,14 @@ def phone_lookup_variants(phone: str):
 # ============ IP / DEVICE ORDER TRACKING & BLOCKING ============
 
 def get_client_ip(request):
-    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-    if x_forwarded_for:
-        return x_forwarded_for.split(",")[0].strip()
-    return request.META.get("REMOTE_ADDR", "0.0.0.0")
+    from django.conf import settings
 
+    trust_xff = getattr(settings, "TRUST_X_FORWARDED_FOR", False)
+    if trust_xff:
+        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+        if x_forwarded_for:
+            return x_forwarded_for.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR", "0.0.0.0")
 
 def get_client_identity(request):
     from .models import make_device_hash
@@ -53,14 +56,15 @@ def get_client_identity(request):
     return ip, user_agent, device_hash
 
 
-def check_is_blocked(ip, device_hash):
+def check_is_blocked(ip, device_hash, phone=None):
     from .models import BlockedIdentity
     from django.db.models import Q
 
-    return BlockedIdentity.objects.filter(
-        Q(ip_address=ip) | Q(device_hash=device_hash),
-        is_active=True
-    ).first()
+    query = Q(ip_address=ip) | Q(device_hash=device_hash)
+    if phone:
+        query |= Q(phone=phone)
+
+    return BlockedIdentity.objects.filter(query, is_active=True).first()
 
 
 def record_order_track(order, request):
@@ -124,7 +128,7 @@ def _product_wise_cancel_count(orders, mode):
     return counts[max_product_id], max_product_id
 
 
-def evaluate_cancel_block(ip, device_hash, staff_user=None):
+def evaluate_cancel_block(ip, device_hash, phone=None, staff_user=None):
     from .models import OrderTrackRecord, BlockedIdentity, TrackSettings
     from order.models import Order
 
@@ -132,12 +136,21 @@ def evaluate_cancel_block(ip, device_hash, staff_user=None):
     if not settings_obj.is_auto_block_enabled:
         return None
 
+    identity_query = Q(ip_address=ip) | Q(device_hash=device_hash)
+    if phone:
+        identity_query |= Q(customer__phone=phone)
+
     records = OrderTrackRecord.objects.filter(
         Q(ip_address=ip) | Q(device_hash=device_hash)
     ).select_related("order").order_by("-created_at")
 
     order_ids = list(records.values_list("order_id", flat=True).distinct())
-    orders = Order.objects.filter(id__in=order_ids).prefetch_related("order_items").order_by("-created_at")
+
+    orders_qs = Order.objects.filter(id__in=order_ids)
+    if phone:
+        orders_qs = Order.objects.filter(Q(id__in=order_ids) | Q(customer__phone=phone))
+
+    orders = orders_qs.prefetch_related("order_items").order_by("-created_at").distinct()
 
     scope = getattr(settings_obj, "scope", TrackSettings.ScopeChoices.ORDER)
 
@@ -148,9 +161,11 @@ def evaluate_cancel_block(ip, device_hash, staff_user=None):
         cancel_count = _order_wise_cancel_count(orders, settings_obj.mode)
 
     if cancel_count >= settings_obj.cancel_threshold:
-        already_blocked = BlockedIdentity.objects.filter(
-            Q(ip_address=ip) | Q(device_hash=device_hash), is_active=True
-        ).first()
+        already_blocked_query = Q(ip_address=ip) | Q(device_hash=device_hash)
+        if phone:
+            already_blocked_query |= Q(phone=phone)
+
+        already_blocked = BlockedIdentity.objects.filter(already_blocked_query, is_active=True).first()
         if already_blocked:
             return already_blocked
 
@@ -162,11 +177,32 @@ def evaluate_cancel_block(ip, device_hash, staff_user=None):
         blocked = BlockedIdentity.objects.create(
             ip_address=ip,
             device_hash=device_hash,
+            phone=phone,
             reason=BlockedIdentity.ReasonChoices.AUTO_CANCEL_LIMIT,
             note=note,
             blocked_by=staff_user,
             cancel_count_at_block_time=cancel_count,
         )
+        OrderTrackRecord.objects.filter(Q(ip_address=ip) | Q(device_hash=device_hash)).update(is_identity_blocked=True)
         return blocked
 
     return None
+
+def get_or_verify_otp_override(phone, otp_code=None):
+    
+    from site_app.models import OTPVerification
+
+    if not phone or not otp_code:
+        return False
+
+    normalized_phone = normalize_bd_phone(phone) or phone
+
+    otp_obj = OTPVerification.objects.filter(phone=normalized_phone, otp=otp_code).last()
+    if not otp_obj:
+        return False
+    if otp_obj.is_expired():
+        return False
+
+    otp_obj.is_verified = True
+    otp_obj.save(update_fields=["is_verified"])
+    return True
