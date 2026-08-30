@@ -20,7 +20,8 @@
             </thead>
             <tbody>
                 {% for order in orders %}
-                <tr>
+                <tr class="{% if order.placed_while_blocked %}row-otp-override{% endif %}">
+
                     {% if show_bulk_select %}
                     <td><input class="form-check-input order-checkbox" type="checkbox" value="{{ order.id }}"></td>
                     {% endif %}
@@ -81,10 +82,6 @@
                     <td>৳{{ order.total_cost }}</td>
 
                     <td>
-                        {% if order.placed_while_blocked %}
-                        <span class="badge bg-danger" title="Placed via OTP override while blocked">⚠ OTP
-                            Override</span>
-                        {% endif %}
                         <select name="status" id="status_{{ order.id }}"
                             class="form-select form-select-sm status-select status-{{ order.status }}"
                             style="min-width:130px;" data-url="{% url 'order_status_update' order.id %}">
@@ -162,6 +159,15 @@
 </div>
 {% endif %}
 
+<style>
+    .row-otp-override {
+        box-shadow: inset 0 0 0 9999px rgba(220, 38, 38, 0.28), inset 3px 0 0 0 #dc2626;
+    }
+    .row-otp-override:hover {
+        box-shadow: inset 0 0 0 9999px rgba(220, 38, 38, 0.4), inset 3px 0 0 0 #dc2626;
+    }
+    </style>
+    
 <script>
     if (!window.__orderTableScriptsBound) {
         window.__orderTableScriptsBound = true;
