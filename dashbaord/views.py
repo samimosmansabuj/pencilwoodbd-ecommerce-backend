@@ -2295,6 +2295,25 @@ class OrderView(LoginRequiredMixin, View):
 
         return render(request, "db_order/order_list.html", context)    
 
+def _get_order_block_status(order):
+    from authentication.models import OrderTrackRecord, BlockedIdentity
+
+    track_record = OrderTrackRecord.objects.filter(order=order).order_by("-created_at").first()
+    phone = order.customer.phone if order.customer else None
+
+    query = Q()
+    if track_record and track_record.ip_address:
+        query |= Q(ip_address=track_record.ip_address)
+    if track_record and track_record.device_hash:
+        query |= Q(device_hash=track_record.device_hash)
+    if phone:
+        query |= Q(phone=phone)
+
+    if not query:
+        return None
+
+    return BlockedIdentity.objects.filter(query, is_active=True).first()
+
 class OrderDetailView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
@@ -2350,6 +2369,7 @@ class OrderDetailView(LoginRequiredMixin, View):
             "total_orders": orders.count(),
             "new_order_request_count": dashboard_view.new_order_request_count(),
             "track_record": OrderTrackRecord.objects.filter(order=order).order_by("-created_at").first(),
+            "identity_blocked": _get_order_block_status(order),
         }
 
         if request.htmx:

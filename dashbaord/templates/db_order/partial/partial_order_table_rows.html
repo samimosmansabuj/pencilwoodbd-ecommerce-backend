@@ -3,7 +3,8 @@
         <table class="table align-middle">
             <thead class="table-light">
                 <tr>
-                    {% if show_bulk_select %}<th><input class="form-check-input" type="checkbox" id="selectAllOrders"></th>{% endif %}
+                    {% if show_bulk_select %}<th><input class="form-check-input" type="checkbox" id="selectAllOrders">
+                    </th>{% endif %}
                     <th>Order Id</th>
                     <th>Platform</th>
                     <th>Customer</th>
@@ -19,16 +20,16 @@
             </thead>
             <tbody>
                 {% for order in orders %}
-                <tr>
+                <tr class="{% if order.placed_while_blocked %}row-otp-override{% endif %}">
+
                     {% if show_bulk_select %}
                     <td><input class="form-check-input order-checkbox" type="checkbox" value="{{ order.id }}"></td>
                     {% endif %}
 
                     <td>
-                        <a href="{% url 'order_detail' order.id %}"
-                            hx-get="{% url 'order_detail' order.id %}" hx-target="#content-area"
-                            hx-push-url="true" hx-trigger="click, refreshReturnOrderDetailView from:body"
-                            hx-swap="innerHTML">
+                        <a href="{% url 'order_detail' order.id %}" hx-get="{% url 'order_detail' order.id %}"
+                            hx-target="#content-area" hx-push-url="true"
+                            hx-trigger="click, refreshReturnOrderDetailView from:body" hx-swap="innerHTML">
                             #{{ order.order_id }}
                         </a>
                     </td>
@@ -36,27 +37,28 @@
                     <td>
                         {% with platform=order.utm_source|default:order.source %}
                         {% if platform %}
-                            {% if platform|lower == "facebook" %}
-                                <span class="badge" style="background-color:#1877F2;">Facebook</span>
-                            {% elif platform|lower == "instagram" %}
-                                <span class="badge" style="background:linear-gradient(45deg,#FEDA75,#D62976,#962FBF,#4F5BD5);">Instagram</span>
-                            {% elif platform|lower == "whatsapp" %}
-                                <span class="badge" style="background-color:#25D366;">WhatsApp</span>
-                            {% elif platform|lower == "tiktok" %}
-                                <span class="badge" style="background-color:#010101;">TikTok</span>
-                            {% elif platform|lower == "google" %}
-                                <span class="badge" style="background-color:#4285F4;">Google</span>
-                            {% elif platform|lower == "website" %}
-                                <span class="badge bg-secondary">Website</span>
-                            {% elif platform|lower == "landing page" %}
-                                <span class="badge bg-info text-dark">Landing Page</span>
-                            {% elif platform|lower == "referral" %}
-                                <span class="badge" style="background-color:#F2A623;">Referral</span>
-                            {% else %}
-                                <span class="badge bg-secondary">{{ platform }}</span>
-                            {% endif %}
+                        {% if platform|lower == "facebook" %}
+                        <span class="badge" style="background-color:#1877F2;">Facebook</span>
+                        {% elif platform|lower == "instagram" %}
+                        <span class="badge"
+                            style="background:linear-gradient(45deg,#FEDA75,#D62976,#962FBF,#4F5BD5);">Instagram</span>
+                        {% elif platform|lower == "whatsapp" %}
+                        <span class="badge" style="background-color:#25D366;">WhatsApp</span>
+                        {% elif platform|lower == "tiktok" %}
+                        <span class="badge" style="background-color:#010101;">TikTok</span>
+                        {% elif platform|lower == "google" %}
+                        <span class="badge" style="background-color:#4285F4;">Google</span>
+                        {% elif platform|lower == "website" %}
+                        <span class="badge bg-secondary">Website</span>
+                        {% elif platform|lower == "landing page" %}
+                        <span class="badge bg-info text-dark">Landing Page</span>
+                        {% elif platform|lower == "referral" %}
+                        <span class="badge" style="background-color:#F2A623;">Referral</span>
                         {% else %}
-                            <span class="text-muted">—</span>
+                        <span class="badge bg-secondary">{{ platform }}</span>
+                        {% endif %}
+                        {% else %}
+                        <span class="text-muted">—</span>
                         {% endif %}
                         {% endwith %}
                     </td>
@@ -64,8 +66,8 @@
                     <td>
                         <a class="d-flex align-items-center gap-3" href="javascript:;">
                             <div class="customer-pic">
-                                <img src="https://placehold.co/110x110/png" class="rounded-circle"
-                                    width="40" height="40">
+                                <img src="https://placehold.co/110x110/png" class="rounded-circle" width="40"
+                                    height="40">
                             </div>
                             <p class="mb-0 customer-name fw-bold">
                                 {{ order.customer.name }}
@@ -84,7 +86,8 @@
                             class="form-select form-select-sm status-select status-{{ order.status }}"
                             style="min-width:130px;" data-url="{% url 'order_status_update' order.id %}">
                             {% for value, label in status_choices %}
-                            <option value="{{ value }}" {% if order.status == value %}selected{% endif %}>{{ label }}</option>
+                            <option value="{{ value }}" {% if order.status == value %}selected{% endif %}>{{ label }}
+                            </option>
                             {% endfor %}
                         </select>
                     </td>
@@ -93,8 +96,8 @@
                         <button
                             class="btn btn-sm {% if order.is_urgent %}btn-danger{% else %}btn-outline-danger{% endif %}"
                             hx-post="{% url 'order_toggle_urgent' order.pk %}"
-                            hx-vals='{"source": "{{ source|default:"order_list" }}"}'
-                            hx-target="#content-area" hx-swap="innerHTML" title="Toggle urgent">
+                            hx-vals='{"source": "{{ source|default:"order_list" }}"}' hx-target="#content-area"
+                            hx-swap="innerHTML" title="Toggle urgent">
                             <i class="bi bi-exclamation-triangle-fill"></i>
                         </button>
                     </td>
@@ -115,17 +118,14 @@
 
                     <td>
                         <div class="dropdown">
-                            <a href="{% url 'order_detail' order.id %}"
-                                class="btn btn-sm btn-filter edit-order-btn"
-                                hx-get="{% url 'order_detail' order.id %}" hx-target="#content-area"
-                                hx-push-url="true"
+                            <a href="{% url 'order_detail' order.id %}" class="btn btn-sm btn-filter edit-order-btn"
+                                hx-get="{% url 'order_detail' order.id %}" hx-target="#content-area" hx-push-url="true"
                                 hx-trigger="click, refreshReturnOrderDetailView from:body">
                                 <i class="bi bi-pencil"></i>
                             </a>
 
-                            <button class="btn btn-sm btn-filter delivery-option-btn"
-                                data-id="{{ order.id }}" data-bs-toggle="modal"
-                                data-bs-target="#deliveryOptionModal">
+                            <button class="btn btn-sm btn-filter delivery-option-btn" data-id="{{ order.id }}"
+                                data-bs-toggle="modal" data-bs-target="#deliveryOptionModal">
                                 <i class="lni lni-delivery"></i>
                             </button>
 
@@ -133,12 +133,11 @@
                                 data-bs-toggle="modal" data-bs-target="#deleteOrderModal">
                                 <i class="bi bi-trash"></i>
                             </button>
-                            <button type="button" class="btn btn-sm btn-filter"
-                                onclick="printInvoice({{ order.id }})">
+                            <button type="button" class="btn btn-sm btn-filter" onclick="printInvoice({{ order.id }})">
                                 <i class="material-icons-outlined">print</i>
                             </button>
-                            <button type="button" class="btn btn-sm btn-filter"
-                                onclick="printToken({{ order.id }})" title="Print Token">
+                            <button type="button" class="btn btn-sm btn-filter" onclick="printToken({{ order.id }})"
+                                title="Print Token">
                                 <i class="bi bi-ticket-perforated"></i>
                             </button>
 
@@ -153,13 +152,22 @@
 
 {% if show_see_more %}
 <div class="text-center mt-3">
-    <a href="{% url 'order_list' %}" class="btn btn-outline-primary"
-        hx-get="{% url 'order_list' %}" hx-target="#content-area" hx-push-url="true">
+    <a href="{% url 'order_list' %}" class="btn btn-outline-primary" hx-get="{% url 'order_list' %}"
+        hx-target="#content-area" hx-push-url="true">
         See More Orders
     </a>
 </div>
 {% endif %}
 
+<style>
+    .row-otp-override {
+        box-shadow: inset 0 0 0 9999px rgba(220, 38, 38, 0.28), inset 3px 0 0 0 #dc2626;
+    }
+    .row-otp-override:hover {
+        box-shadow: inset 0 0 0 9999px rgba(220, 38, 38, 0.4), inset 3px 0 0 0 #dc2626;
+    }
+    </style>
+    
 <script>
     if (!window.__orderTableScriptsBound) {
         window.__orderTableScriptsBound = true;
@@ -228,48 +236,48 @@
 
         // Invoice Print Script--------
         window.printInvoice = function (orderId) {
-        const url = `/orders/${orderId}/invoice/`;
-        const width = Math.round(screen.width / 2);
-        const height = Math.round(screen.height * 0.85);
-        const left = screen.width - width;
-        const top = 40;
+            const url = `/orders/${orderId}/invoice/`;
+            const width = Math.round(screen.width / 2);
+            const height = Math.round(screen.height * 0.85);
+            const left = screen.width - width;
+            const top = 40;
 
-        const printWindow = window.open(
-            url,
-            '_blank',
-            `width=${width},height=${height},left=${left},top=${top}`
-        );
+            const printWindow = window.open(
+                url,
+                '_blank',
+                `width=${width},height=${height},left=${left},top=${top}`
+            );
 
-        printWindow.onload = function () {
-            printWindow.focus();
-            printWindow.print();
+            printWindow.onload = function () {
+                printWindow.focus();
+                printWindow.print();
+            };
+            printWindow.onafterprint = function () {
+                printWindow.close();
+            };
         };
-        printWindow.onafterprint = function () {
-            printWindow.close();
-        };
-    };
 
         // Token Print Script--------
         window.printToken = function (orderId) {
-        const url = `/orders/${orderId}/token-print/`;
-        const width = Math.round(screen.width / 2);
-        const height = Math.round(screen.height * 0.85);
-        const left = 0;
-        const top = 40;
+            const url = `/orders/${orderId}/token-print/`;
+            const width = Math.round(screen.width / 2);
+            const height = Math.round(screen.height * 0.85);
+            const left = 0;
+            const top = 40;
 
-        const printWindow = window.open(
-            url,
-            'tokenPrintWindow',
-            `width=${width},height=${height},left=${left},top=${top},popup=yes`
-        );
+            const printWindow = window.open(
+                url,
+                'tokenPrintWindow',
+                `width=${width},height=${height},left=${left},top=${top},popup=yes`
+            );
 
-        printWindow.onload = function () {
-            printWindow.focus();
-            printWindow.print();
+            printWindow.onload = function () {
+                printWindow.focus();
+                printWindow.print();
+            };
+            printWindow.onafterprint = function () {
+                printWindow.close();
+            };
         };
-        printWindow.onafterprint = function () {
-            printWindow.close();
-        };
-    };
     }
 </script>

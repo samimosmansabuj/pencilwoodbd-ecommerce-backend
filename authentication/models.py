@@ -2,7 +2,8 @@ import hashlib
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from pencilwoodbd.choices import USER_TYPE, TrackSettingsModeChoices,TrackSettingsScopeChoices, BlockedIdentityReasonChoices
-
+from django.utils import timezone
+from django.db.models import Q
 class CustomUser(AbstractUser):
     email = models.EmailField(unique=True, blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
@@ -107,6 +108,7 @@ class OrderTrackRecord(models.Model):
     user_agent = models.TextField(blank=True, null=True)
 
     status_at_capture = models.CharField(max_length=50, blank=True, null=True)
+    is_identity_blocked = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -125,8 +127,9 @@ class OrderTrackRecord(models.Model):
 class BlockedIdentity(models.Model):
     ReasonChoices = BlockedIdentityReasonChoices  
 
-    ip_address = models.GenericIPAddressField(db_index=True)
+    ip_address = models.GenericIPAddressField(db_index=True, blank=True, null=True)
     device_hash = models.CharField(max_length=64, db_index=True, blank=True, null=True)
+    phone = models.CharField(max_length=20, db_index=True, blank=True, null=True)
 
     reason = models.CharField(max_length=30, choices=BlockedIdentityReasonChoices.choices, default=BlockedIdentityReasonChoices.AUTO_CANCEL_LIMIT)
     note = models.TextField(blank=True, null=True)
@@ -148,23 +151,31 @@ class BlockedIdentity(models.Model):
     cancel_count_at_block_time = models.PositiveIntegerField(default=0)
 
     class Meta:
-        verbose_name = "Blocked IP/Device"
-        verbose_name_plural = "Blocked IPs/Devices"
+        verbose_name = "Blocked Identity"
+        verbose_name_plural = "Blocked Identities"
         ordering = ["-blocked_at"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["ip_address", "device_hash"],
-                condition=models.Q(is_active=True),
-                name="unique_active_block_per_identity"
-            )
-        ]
 
     def unblock(self, staff_user=None):
-        from django.utils import timezone
         self.is_active = False
         self.unblocked_at = timezone.now()
         self.unblocked_by = staff_user
         self.save(update_fields=["is_active", "unblocked_at", "unblocked_by"])
 
+        query = Q()
+        if self.ip_address:
+            query |= Q(ip_address=self.ip_address)
+        if self.device_hash:
+            query |= Q(device_hash=self.device_hash)
+        if query:
+            OrderTrackRecord.objects.filter(query).update(is_identity_blocked=False)
+
     def __str__(self):
-        return f"{self.ip_address} ({self.device_hash[:8] if self.device_hash else '-'}) - {'Active' if self.is_active else 'Unblocked'}"
+        parts = []
+        if self.ip_address:
+            parts.append(str(self.ip_address))
+        if self.device_hash:
+            parts.append(self.device_hash[:8])
+        if self.phone:
+            parts.append(self.phone)
+        label = " / ".join(parts) if parts else "Unknown"
+        return f"{label} - {'Active' if self.is_active else 'Unblocked'}"
