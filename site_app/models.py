@@ -17,7 +17,37 @@ class SiteContent(models.Model):
     fab_icon = models.ImageField(upload_to='icon/', blank=True, null=True)
     copyright = models.CharField(max_length=55, blank=True, null=True)
     copyright_year = models.CharField(max_length=4, blank=True, null=True)
-    
+
+    # --- Brand identity (used across Dashboard, Invoice, Delivery Token, OTP SMS, etc.) ---
+    brand_name = models.CharField(
+        max_length=100, blank=True, null=True, default="PencilWoodBD",
+        help_text="Main brand name. Shown in dashboard page titles, sidebar, invoice header, delivery token, OTP SMS text, etc."
+    )
+    brand_short_name = models.CharField(
+        max_length=50, blank=True, null=True, default="Pencilwood",
+        help_text="Short brand name used in tight spaces like the dashboard sidebar."
+    )
+    dashboard_title = models.CharField(
+        max_length=100, blank=True, null=True, default="PencilWoodBD | Online Shopping",
+        help_text="Browser tab title shown on the main dashboard page."
+    )
+    brand_website = models.CharField(
+        max_length=255, blank=True, null=True, default="www.pencilwoodbd.com",
+        help_text="Website shown on invoices (e.g. www.example.com)."
+    )
+    brand_email = models.EmailField(
+        max_length=255, blank=True, null=True, default="pencilwoodbd@gmail.com",
+        help_text="Support/contact email shown on invoices."
+    )
+    brand_phone = models.CharField(
+        max_length=20, blank=True, null=True,
+        help_text="Phone number shown on invoices and delivery tokens (e.g. +8801855942504)."
+    )
+    invoice_note = models.CharField(
+        max_length=255, blank=True, null=True, default="Make all cheques payable to {brand_name}",
+        help_text="Note shown on the invoice above the footer. Use {brand_name} as a placeholder if needed."
+    )
+
     def save(self, *args, **kwargs):
         if self.pk and SiteContent.objects.filter(pk=self.pk).exists():
             old_instance = SiteContent.objects.get(pk=self.pk)

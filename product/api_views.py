@@ -1,7 +1,7 @@
 from rest_framework import views, status, permissions, viewsets
 from rest_framework.response import Response
 from .serializers import ProductSerializer, CategorySerializer
-from site_app.models import LandingPageProduct, OTPVerification, HomeSlider, FooterTagLink, SocialLink, NavMenuLink, NewsFeed
+from site_app.models import LandingPageProduct, OTPVerification, HomeSlider, FooterTagLink, SocialLink, NavMenuLink, NewsFeed, SiteContent
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from authentication.models import Customer
@@ -135,11 +135,13 @@ class SendOTPAPIView(APIView):
     
     def send_message(self, phone, otp):
         url = "https://console.smsq.global/api/v3/SendSMS"
+        site = SiteContent.objects.first()
+        brand_name = (site.brand_name if site and site.brand_name else "PencilWoodBD")
         payload = {
             "senderId": os.getenv("sender_id"),
             "is_Unicode": True,
             "is_Flash": False,
-            "message": f"Number Verification OTP {otp} for PencilwoodBD. Do not share this OTP with anyone.",
+            "message": f"Number Verification OTP {otp} for {brand_name}. Do not share this OTP with anyone.",
             "mobileNumbers": phone,
             "apiKey": os.getenv("api_key"),
             "clientId": os.getenv("client_id")
@@ -153,6 +155,7 @@ class SendOTPAPIView(APIView):
         otp = str(random.randint(100000, 999999))
         try:
             with transaction.atomic():
+                # ===== REAL SMS SEND (temporarily disabled for local testing) =====
                 response = self.send_message(phone, otp)
                 if (
                     response.get("ErrorCode") == 0 and

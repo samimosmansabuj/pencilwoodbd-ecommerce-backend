@@ -118,8 +118,8 @@
         <!-- Header -->
         <div class="header">
             <div class="header-left">
-                <p>PENCILWOOD</p>
-                <a href="tel:8801810447799">+8801810447799</a>
+                <p>{{ brand_name|upper }}</p>
+                {% if brand_phone %}<a href="tel:{{ brand_phone }}">{{ brand_phone }}</a>{% endif %}
             </div>
             <div class="header-right">
                 <div>Date: {{ order.created_at|date:"m/d/Y" }}</div>

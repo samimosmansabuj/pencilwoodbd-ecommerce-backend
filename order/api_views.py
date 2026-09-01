@@ -252,9 +252,13 @@ class PlaceOrderAPIView(APIView):
                     customer.name = name
                     customer.save()
 
-                if request.user.is_authenticated and getattr(request.user, "customer_profile", None):
-                    customer = request.user.customer_profile
-                    cart_ids = request.data.get("cart_ids", [])
+                cart_ids_in_request = request.data.get("cart_ids", [])
+                items_in_request = request.data.get("items", [])
+
+                if cart_ids_in_request:
+                    if request.user.is_authenticated and getattr(request.user, "customer_profile", None):
+                        customer = request.user.customer_profile
+                    cart_ids = cart_ids_in_request
                     if not cart_ids:
                         return Response({"status": False, "message": "No cart items selected"}, status=400)
 
@@ -270,7 +274,7 @@ class PlaceOrderAPIView(APIView):
                     ]
                     should_delete_cart = cart_items
                 else:
-                    raw_items = request.data.get("items", [])
+                    raw_items = items_in_request
                     if not raw_items:
                         return Response({"status": False, "message": "No cart items"}, status=400)
 

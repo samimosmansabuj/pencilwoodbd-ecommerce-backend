@@ -15,8 +15,24 @@ class HomeSliderAdmin(admin.ModelAdmin):
 
 @admin.register(SiteContent)
 class SiteContentAdmin(admin.ModelAdmin):
-    list_display = ('title', 'copyright_year')
-    search_fields = ('title',)
+    list_display = ('title', 'brand_name', 'copyright_year')
+    search_fields = ('title', 'brand_name')
+    fieldsets = (
+        ('Frontend Site Content', {
+            'fields': ('title', 'site_slogan', 'logo', 'secondary_logo', 'fab_icon', 'copyright', 'copyright_year')
+        }),
+        ('Brand Identity (Dashboard, Invoice, Delivery Token, OTP SMS)', {
+            'fields': (
+                'brand_name', 'brand_short_name', 'dashboard_title',
+                'brand_website', 'brand_email', 'brand_phone', 'invoice_note',
+            ),
+            'description': (
+                'These values control the brand name/contact info shown across the '
+                'admin dashboard (page titles, sidebar), invoices, delivery tokens, '
+                'and OTP SMS messages. Edit here — no code changes needed.'
+            ),
+        }),
+    )
 
 @admin.register(SiteColorSection)
 class SiteColorSectionAdmin(admin.ModelAdmin):
