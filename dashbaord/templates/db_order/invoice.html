@@ -2,8 +2,7 @@
 {% load static %}
 
 {% block page_title %}
-<title>Order #{{ order.order_id }} | PencilwoodBD</title>
-{% endblock page_title %}
+<title>Order #{{ order.order_id }} | {{ brand_name }}</title>{% endblock page_title %}
 
 {% block for_invoice %}
 <style>
@@ -56,7 +55,7 @@
             <div class="card-header py-3">
                 <div class="row align-items-center g-3">
                     <div class="col-12 col-lg-6">
-                        <h5 class="mb-0" style="color: black;">PencilwoodBD</h5>
+                        <h5 class="mb-0" style="color: black;">{{ brand_name }}</h5>
                     </div>
                 </div>
             </div>
@@ -148,7 +147,7 @@
                 <hr>
                 <!-- begin invoice-note -->
                 <div class="my-3">
-                    * Make all cheques payable to PencilwoodBD<br>
+                    * {{ invoice_note }}<br>
                     * Payment is due within 30 days<br>
                     * If you have any questions concerning this invoice, contact us.
                 </div>
@@ -160,9 +159,9 @@
                     THANK YOU FOR YOUR BUSINESS
                 </p>
                 <p class="text-center d-flex align-items-center gap-3 justify-content-center mb-0">
-                    <span class=""><i class="bi bi-globe"></i> www.pencilwoodbd.com</span>
-                    <span class=""><i class="bi bi-telephone-fill"></i> T:+8801855942504</span>
-                    <span class=""><i class="bi bi-envelope-fill"></i> pencilwoodbd@gmail.com</span>
+                    <span class=""><i class="bi bi-globe"></i> {{ brand_website }}</span>
+                    {% if brand_phone %}<span class=""><i class="bi bi-telephone-fill"></i> T:{{ brand_phone }}</span>{% endif %}
+                    <span class=""><i class="bi bi-envelope-fill"></i> {{ brand_email }}</span>
                 </p>
             </div>
         </div>

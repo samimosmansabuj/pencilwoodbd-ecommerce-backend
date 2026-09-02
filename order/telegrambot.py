@@ -1,5 +1,6 @@
 import requests
 import logging
+from django.conf import settings
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -67,7 +68,7 @@ class TelegramBotService:
                         },
                         {
                             "text": "👁 View Order",
-                            "url": f"https://api.pencilwoodbd.org/order-list/?q={view_query}"
+                            "url": f"{settings.BACKEND_SITE_URL}/order-list/?q={view_query}"
                         }
                     ]
                 ]
