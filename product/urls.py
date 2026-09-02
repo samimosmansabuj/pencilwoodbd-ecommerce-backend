@@ -17,6 +17,7 @@ from .api_views import (
     WishlistAPIView,
     RemoveWishlistAPIView,
     home_slider_api,
+    showcase_media_api,
     site_content_api,
     GuestCartRefreshAPIView,
     MergeGuestCartWishlistAPIView,
@@ -39,6 +40,7 @@ urlpatterns = [
     # path("api/product-fetch/<int:code>/", LandingPageProductViews.as_view(), name="product_fetch_api"),
     # path("api/landing-page/order/create/", LandingPageOrderAPI.as_view(), name="order-create-api"),
     path('api/ecom/home-slider/', home_slider_api, name='home_slider_api'),
+    path('api/ecom/showcase-media/', showcase_media_api, name='showcase_media_api'),    
     path('api/ecom/site-content/', site_content_api, name='site_content_api'),    
     
     path("api/", include(global_api_router.urls)),

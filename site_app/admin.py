@@ -4,7 +4,7 @@ from django.contrib import admin as django_admin
 from .models import (
     HomeSlider, OTPVerification, SiteContent, SiteColorSection, NewsFeed, SocialLink, FooterTagLink, 
     AboutUs, About_WhyChooseUs, ContactInformation, RefundPolicy, TermsAndCondition, 
-    PrivacyPolicy, FAQ_List, LandingPageProduct, DeliveryOption, NavMenuLink
+    PrivacyPolicy, FAQ_List, LandingPageProduct, DeliveryOption, NavMenuLink, ShowcaseMedia
 )
 
 @admin.register(HomeSlider)
@@ -33,6 +33,13 @@ class SiteContentAdmin(admin.ModelAdmin):
             ),
         }),
     )
+
+@admin.register(ShowcaseMedia)
+class ShowcaseMediaAdmin(admin.ModelAdmin):
+    list_display = ('title', 'media_type', 'sort_order', 'is_active', 'pk')
+    list_filter = ('media_type', 'is_active')
+    search_fields = ('title', 'subtitle')
+    ordering = ('sort_order', '-id')
 
 @admin.register(SiteColorSection)
 class SiteColorSectionAdmin(admin.ModelAdmin):

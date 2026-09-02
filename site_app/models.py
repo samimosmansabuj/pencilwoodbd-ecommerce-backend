@@ -516,3 +516,66 @@ class InvoiceColorConfig(models.Model):
     def get_config(cls):
         obj, _created = cls.objects.get_or_create(pk=1)
         return obj
+    
+
+class ShowcaseMedia(models.Model):
+
+    class MediaType(models.TextChoices):
+        IMAGE = 'image', 'Image'
+        UPLOADED_VIDEO = 'uploaded_video', 'Uploaded Video'
+        EXTERNAL_LINK = 'external_link', 'External Video Link (YouTube/FB/Insta/TikTok)'
+        PRODUCT_VIDEO = 'product_video', 'Use Existing Product Video'
+
+    title = models.CharField(max_length=100)
+    subtitle = models.CharField(max_length=150, blank=True, null=True)
+
+    media_type = models.CharField(max_length=20, choices=MediaType.choices, default=MediaType.IMAGE)
+
+    image = models.ImageField(upload_to='showcase/images/', blank=True, null=True)
+    video_file = models.FileField(upload_to='showcase/videos/', blank=True, null=True)
+    video_url = models.CharField(max_length=500, blank=True, null=True,)
+    poster_image = models.ImageField(upload_to='showcase/posters/', blank=True, null=True,
+                                      help_text="Thumbnail shown before video plays (optional, recommended for video_url)")
+
+    product_video = models.ForeignKey('product.ProductVideo', on_delete=models.SET_NULL, null=True, blank=True, related_name='showcase_uses')
+
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['sort_order', '-id']
+        verbose_name = "Showcase Media (See It in Real Life)"
+        verbose_name_plural = "Showcase Media (See It in Real Life)"
+
+    @property
+    def resolved_video_type(self):
+        if not self.video_url:
+            return None
+        url = self.video_url.lower()
+        if 'youtube.com' in url or 'youtu.be' in url:
+            return 'youtube'
+        if 'facebook.com' in url or 'fb.watch' in url:
+            return 'facebook'
+        if 'instagram.com' in url:
+            return 'instagram'
+        if 'tiktok.com' in url:
+            return 'tiktok'
+        return 'other'
+
+    def save(self, *args, **kwargs):
+        if self.pk and ShowcaseMedia.objects.filter(pk=self.pk).exists():
+            old = ShowcaseMedia.objects.get(pk=self.pk)
+            previous_image_delete_os(old.image, self.image)
+            previous_image_delete_os(old.video_file, self.video_file)
+            previous_image_delete_os(old.poster_image, self.poster_image)
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        image_delete_os(self.image)
+        image_delete_os(self.video_file)
+        image_delete_os(self.poster_image)
+        return super().delete(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.title} ({self.get_media_type_display()}) | {self.pk}'

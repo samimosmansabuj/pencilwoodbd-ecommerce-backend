@@ -1,7 +1,7 @@
 from rest_framework import views, status, permissions, viewsets
 from rest_framework.response import Response
 from .serializers import ProductSerializer, CategorySerializer
-from site_app.models import LandingPageProduct, OTPVerification, HomeSlider, FooterTagLink, SocialLink, NavMenuLink, NewsFeed, SiteContent
+from site_app.models import LandingPageProduct, OTPVerification, HomeSlider, FooterTagLink, SocialLink, NavMenuLink, NewsFeed, SiteContent, ShowcaseMedia
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from authentication.models import Customer
@@ -97,6 +97,53 @@ def home_slider_api(request):
 
     return JsonResponse({"status": True, "data": data})
 
+def showcase_media_api(request):
+    """'See It in Real Life' section — mixed image/video/link cards."""
+    items = (
+        ShowcaseMedia.objects
+        .filter(is_active=True)
+        .select_related('product_video', 'product_video__product')
+        .order_by('sort_order', '-id')
+    )
+
+    data = []
+    for item in items:
+        entry = {
+            "id": item.id,
+            "title": item.title,
+            "subtitle": item.subtitle or "",
+            "media_type": item.media_type,
+        }
+
+        if item.media_type == ShowcaseMedia.MediaType.IMAGE:
+            entry["image"] = item.image.url if item.image else None
+            entry["video"] = None
+            entry["video_platform"] = None
+
+        elif item.media_type == ShowcaseMedia.MediaType.UPLOADED_VIDEO:
+            entry["image"] = item.poster_image.url if item.poster_image else None
+            entry["video"] = item.video_file.url if item.video_file else None
+            entry["video_platform"] = "file"
+
+        elif item.media_type == ShowcaseMedia.MediaType.EXTERNAL_LINK:
+            entry["image"] = item.poster_image.url if item.poster_image else None
+            entry["video"] = item.video_url
+            entry["video_platform"] = item.resolved_video_type
+
+        elif item.media_type == ShowcaseMedia.MediaType.PRODUCT_VIDEO and item.product_video:
+            entry["image"] = item.poster_image.url if item.poster_image else None
+            entry["video"] = item.product_video.video.url if item.product_video.video else None
+            entry["video_platform"] = "file"
+        else:
+            entry["image"] = None
+            entry["video"] = None
+            entry["video_platform"] = None
+
+        data.append(entry)
+
+    return JsonResponse({"status": True, "data": data})
+
+
 def site_content_api(request):
     nav_links = NavMenuLink.objects.filter(is_active=True).order_by("sort_order", "id")
     footer_links = FooterTagLink.objects.filter(is_active=True).order_by("sort_order", "id")
@@ -156,22 +203,22 @@ class SendOTPAPIView(APIView):
         try:
             with transaction.atomic():
                 # ===== REAL SMS SEND (temporarily disabled for local testing) =====
-                response = self.send_message(phone, otp)
-                if (
-                    response.get("ErrorCode") == 0 and
-                    response.get("Data") and
-                    response["Data"][0].get("MessageErrorCode") == 0 and
-                    response["Data"][0].get("MessageErrorDescription") == "Success"
-                ):
-                    OTPVerification.objects.create(phone=phone, otp=otp)
-                    return Response({"success": True, "message": "OTP Sent"})
-                else:
-                    return Response({"success": False, "message": "OTP Sending Failed", "response": response})
+                # response = self.send_message(phone, otp)
+                # if (
+                #     response.get("ErrorCode") == 0 and
+                #     response.get("Data") and
+                #     response["Data"][0].get("MessageErrorCode") == 0 and
+                #     response["Data"][0].get("MessageErrorDescription") == "Success"
+                # ):
+                #     OTPVerification.objects.create(phone=phone, otp=otp)
+                #     return Response({"success": True, "message": "OTP Sent"})
+                # else:
+                #     return Response({"success": False, "message": "OTP Sending Failed", "response": response})
 
                 # ===== CONSOLE-ONLY MODE (local testing) =====
-                # OTPVerification.objects.create(phone=phone, otp=otp)
-                # print(f"\n{'='*40}\n[TEST MODE] OTP for {phone}: {otp}\n{'='*40}\n")
-                # return Response({"success": True, "message": "OTP Sent (check console)"})
+                OTPVerification.objects.create(phone=phone, otp=otp)
+                print(f"\n{'='*40}\n[TEST MODE] OTP for {phone}: {otp}\n{'='*40}\n")
+                return Response({"success": True, "message": "OTP Sent (check console)"})
         except Exception as e:
             return Response({"success": False, "message": str(e)})
         

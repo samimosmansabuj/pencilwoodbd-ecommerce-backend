@@ -1,0 +1,102 @@
+<div class="main-content" id="showcaseListTable">
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item active" aria-current="page">See It in Real Life</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-auto ms-auto">
+            <button class="btn btn-primary px-4" data-bs-toggle="modal" data-bs-target="#ShowcaseModal">
+                <i class="bi bi-plus-lg me-2"></i>Add Item
+            </button>
+            {% include 'db_showcase/partial/add_showcase_modal.html' %}
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-body">
+            <div class="product-table">
+                <div class="table-responsive white-space-nowrap">
+                    <table class="table align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Preview</th>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>Order</th>
+                                <th>Active</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in items %}
+                            <tr>
+                                <td>
+                                    {% if item.media_type == 'image' and item.image %}
+                                    <img src="{{ item.image.url }}" style="height:55px; width:90px; object-fit:cover; border-radius:6px;">
+                                    {% elif item.poster_image %}
+                                    <img src="{{ item.poster_image.url }}" style="height:55px; width:90px; object-fit:cover; border-radius:6px;">
+                                    {% else %}
+                                    <span class="text-muted small">No preview</span>
+                                    {% endif %}
+                                </td>
+                                <td><span class="fw-semibold">{{ item.title }}</span><br><small class="text-muted">{{ item.subtitle }}</small></td>
+                                <td><span class="badge bg-info-subtle text-info">{{ item.get_media_type_display }}</span></td>
+                                <td>{{ item.sort_order }}</td>
+                                <td>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input showcase-active-toggle" type="checkbox"
+                                            data-id="{{ item.id }}" {% if item.is_active %}checked{% endif %}>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="dropdown d-flex gap-1">
+                                        <button class="btn btn-sm btn-filter edit-showcase-btn"
+                                            data-id="{{ item.id }}"
+                                            data-bs-toggle="modal" data-bs-target="#ShowcaseModal">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-danger delete-showcase-btn"
+                                            data-id="{{ item.id }}" data-name="{{ item.title }}"
+                                            data-bs-toggle="modal" data-bs-target="#deleteShowcaseModal">&times;</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="6" class="text-center py-4">No items yet. Click "Add Item" to create one.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("change", function (e) {
+    if (!e.target.classList.contains("showcase-active-toggle")) return;
+    const checkbox = e.target;
+    const id = checkbox.dataset.id;
+    const wantActive = checkbox.checked;
+    const csrftoken = getCookie("csrftoken");
+
+    fetch(`/toggle-showcase/${id}/`, {
+        method: "POST",
+        headers: { "X-CSRFToken": csrftoken, "Content-Type": "application/x-www-form-urlencoded" },
+        body: `is_active=${wantActive}`,
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (!data.status) { checkbox.checked = !wantActive; alert(data.message); }
+    })
+    .catch(err => { checkbox.checked = !wantActive; alert(err.message); });
+});
+</script>
