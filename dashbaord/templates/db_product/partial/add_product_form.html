@@ -197,7 +197,7 @@
                                 </thead>
                                 <tbody id="pw_variant_table_body">
                                     <tr id="pw_variant_empty_row">
-                                        <td colspan="7" class="text-center text-muted">No variants yet — select an
+                                        <td colspan="7" class="text-center">No variants yet — select an
                                             attribute and values above, then click Add.</td>
                                     </tr>
                                 </tbody>
@@ -385,7 +385,7 @@
                             <label class="form-label">Cost Price</label>
                             <input type="number" step="0.01" name="cost_price" id="pw_cost_price" class="form-control"
                                 placeholder="0.00" value="{% if product %}{{ product.cost_price|default_if_none:'' }}{% endif %}">
-                            <small class="text-muted">Your buying/production cost — used for profit calculations, not shown to customers.</small>
+                            <small class="form-text">Your buying/production cost — used for profit calculations, not shown to customers.</small>
                         </div>
                         <div class="col-12">
                             <label class="form-label">Regular Price</label>

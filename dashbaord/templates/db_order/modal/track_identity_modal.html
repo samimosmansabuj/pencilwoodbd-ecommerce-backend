@@ -27,9 +27,9 @@
                 {% if track_record %}
                     <p class="mb-1"><strong>IP Address:</strong> {{ track_record.ip_address }}</p>
                     <p class="mb-1"><strong>Device Hash:</strong> <code>{{ track_record.device_hash|slice:":16" }}...</code></p>
-                    <p class="mb-0 text-muted"><small>Captured at: {{ track_record.created_at|date:"d M Y, h:i A" }}</small></p>
+                    <p class="mb-0"><small>Captured at: {{ track_record.created_at|date:"d M Y, h:i A" }}</small></p>
                 {% else %}
-                    <p class="mb-0 text-muted">No tracking data found for this order.</p>
+                    <p class="mb-0">No tracking data found for this order.</p>
                 {% endif %}
             </div>
             <div class="modal-footer">
@@ -40,7 +40,7 @@
                 </form>
                 {% else %}
                 <div class="w-100 mb-2">
-                    <label class="form-label mb-2 small text-muted">Block Scope</label>
+                    <label class="form-label mb-2 small" style="display: block; color: #6c757d; font-size: 0.875em; margin-top: 0.25rem;">Block Scope</label>
                     <div class="scope-option-group" id="scopeOptionGroup">
                         <label class="scope-option">
                             <input type="radio" name="block_scope" value="all" checked form="blockScopeForm">

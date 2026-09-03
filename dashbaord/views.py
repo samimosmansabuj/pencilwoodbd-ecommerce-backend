@@ -1991,7 +1991,6 @@ class AddOrderView(LoginRequiredMixin, View):
 
     def post(self, request):
         is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
-
         try:
             with transaction.atomic():
                 data = request.POST
@@ -2156,7 +2155,6 @@ class AddOrderView(LoginRequiredMixin, View):
                 else:
                     messages.success(request, f"Order {order.order_id} created successfully.")
                     return redirect("order_detail", id=order.id)
-
         except Exception as e:
             if is_ajax:
                 return JsonResponse({"status": False, "message": str(e)}, status=400)
