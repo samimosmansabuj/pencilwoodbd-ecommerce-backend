@@ -232,22 +232,22 @@ class SendOTPAPIView(APIView):
         try:
             with transaction.atomic():
                 # ===== REAL SMS SEND (temporarily disabled for local testing) =====
-                # response = self.send_message(phone, otp)
-                # if (
-                #     response.get("ErrorCode") == 0 and
-                #     response.get("Data") and
-                #     response["Data"][0].get("MessageErrorCode") == 0 and
-                #     response["Data"][0].get("MessageErrorDescription") == "Success"
-                # ):
-                #     OTPVerification.objects.create(phone=phone, otp=otp)
-                #     return Response({"success": True, "message": "OTP Sent"})
-                # else:
-                #     return Response({"success": False, "message": "OTP Sending Failed", "response": response})
+                response = self.send_message(phone, otp)
+                if (
+                    response.get("ErrorCode") == 0 and
+                    response.get("Data") and
+                    response["Data"][0].get("MessageErrorCode") == 0 and
+                    response["Data"][0].get("MessageErrorDescription") == "Success"
+                ):
+                    OTPVerification.objects.create(phone=phone, otp=otp)
+                    return Response({"success": True, "message": "OTP Sent"})
+                else:
+                    return Response({"success": False, "message": "OTP Sending Failed", "response": response})
 
                 # ===== CONSOLE-ONLY MODE (local testing) =====
-                OTPVerification.objects.create(phone=phone, otp=otp)
-                print(f"\n{'='*40}\n[TEST MODE] OTP for {phone}: {otp}\n{'='*40}\n")
-                return Response({"success": True, "message": "OTP Sent (check console)"})
+                # OTPVerification.objects.create(phone=phone, otp=otp)
+                # print(f"\n{'='*40}\n[TEST MODE] OTP for {phone}: {otp}\n{'='*40}\n")
+                # return Response({"success": True, "message": "OTP Sent (check console)"})
         except Exception as e:
             return Response({"success": False, "message": str(e)})
         
