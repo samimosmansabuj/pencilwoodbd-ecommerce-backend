@@ -149,14 +149,63 @@ class About_WhyChooseUs(models.Model):
     title = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
     icon = models.CharField(max_length=10, blank=True, null=True)
+    sort_order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
-    
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+
     @property
     def display_name(self):
         return "Why Choose Us Card"
     
     def __str__(self):
         return f'{self.title} | {self.pk}'
+
+
+class HomeSection(models.Model):
+    
+    class SectionType(models.TextChoices):
+        BUILTIN = 'builtin', 'Built-in'
+        CUSTOM = 'custom', 'Custom'
+
+    section_key = models.SlugField(max_length=50, unique=True, help_text="Stable key used by the frontend, e.g. 'why_choose'. Cannot be changed after creation.")
+    admin_label = models.CharField(max_length=100)
+    section_type = models.CharField(max_length=10, choices=SectionType.choices, default=SectionType.CUSTOM)
+
+    # Only used by CUSTOM sections to render a brand-new block on the homepage.
+    heading = models.CharField(max_length=150, blank=True, null=True)
+    subheading = models.CharField(max_length=255, blank=True, null=True)
+    body_html = models.TextField(blank=True, null=True)
+    image = models.ImageField(upload_to='home_sections/', blank=True, null=True)
+    button_text = models.CharField(max_length=50, blank=True, null=True)
+    button_url = models.CharField(max_length=255, blank=True, null=True)
+
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+        verbose_name = "Homepage Section"
+        verbose_name_plural = "Homepage Sections"
+
+    def save(self, *args, **kwargs):
+        if self.pk and HomeSection.objects.filter(pk=self.pk).exists():
+            old_instance = HomeSection.objects.get(pk=self.pk)
+            previous_image_delete_os(old_instance.image, self.image)
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        image_delete_os(self.image)
+        return super().delete(*args, **kwargs)
+
+    @property
+    def display_name(self):
+        return self.admin_label
+
+    def __str__(self):
+        return f'{self.admin_label} ({self.section_key}) | {self.pk}'
 
 class HomeSlider(models.Model):
     image = models.ImageField(upload_to='slide_image/', null=True)
