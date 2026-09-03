@@ -1,8 +1,13 @@
 {% extends 'dashboard.html' %}
 {% load static %}
-{% block page_title %}<title>Blocked IPs / Devices | {{ brand_name }}</title>{% endblock %}
+
+{% block page_title %}
+<title>Blocked IPs / Devices | {{ brand_name }}</title>
+{% endblock %}
+
 {% block dashboard_body_content %}
 <div class="main-content">
+    <!--breadcrumb-->
     <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
         <div class="breadcrumb-title pe-3">Security</div>
         <div class="ps-3">
@@ -14,6 +19,7 @@
             </nav>
         </div>
     </div>
+    <!--end breadcrumb-->
 
     {% include "db_blocked_identity/partial/partial_blocked_identity_list.html" %}
 </div>

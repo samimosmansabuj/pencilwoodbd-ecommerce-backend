@@ -44,7 +44,7 @@
                                 </option>
                             {% endfor %}
                         </select>
-                        <small class="text-muted">
+                        <small style="display: block; color: #6c757d; font-size: 0.875em; margin-top: 0.25rem;">
                             Default: <strong>Lifetime</strong>
                         </small>
                     </div>
@@ -58,7 +58,7 @@
                                 </option>
                             {% endfor %}
                         </select>
-                        <small class="text-muted">
+                        <small style="display: block; color: #6c757d; font-size: 0.875em; margin-top: 0.25rem;">
                             Default: <strong>Order-wise</strong>
                         </small>
                     </div>
@@ -72,7 +72,7 @@
                             class="form-control"
                             value="{{ settings_obj.cancel_threshold }}"
                         >
-                        <small class="text-muted">
+                        <small style="display: block; color: #6c757d; font-size: 0.875em; margin-top: 0.25rem;">
                             Default: <strong>5</strong>
                         </small>
                     </div>
@@ -131,7 +131,7 @@
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="8" class="text-center text-muted py-4">No blocked IPs/devices right now.</td></tr>
+                <tr><td colspan="8" class="text-center py-4">No blocked IPs/devices right now.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

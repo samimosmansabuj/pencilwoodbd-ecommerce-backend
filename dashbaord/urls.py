@@ -28,7 +28,7 @@ urlpatterns = [
     path('get-category/<int:id>/', get_category, name='get_category'),
     path('delete-category/<int:id>/', delete_category, name='delete_category'),
 
-    path("orders/add/",AddOrderView.as_view(),name="add_order"),
+    path("orders/add/", AddOrderView.as_view(),name="add_order"),
     path('order-list/', OrderView.as_view(), name='order_list'),
     path('order-detail/<int:id>/', OrderDetailView.as_view(), name='order_detail'),
     path('order-detail/<int:pk>/update/', OrderUpdateView.as_view(), name='order_update_full'),
