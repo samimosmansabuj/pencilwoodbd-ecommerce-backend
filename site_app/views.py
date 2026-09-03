@@ -6,8 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from product.models import ProductVideo
-from site_app.models import ShowcaseMedia
-
+from site_app.models import ShowcaseMedia, HomeSection, About_WhyChooseUs
 
 class ShowcaseMediaView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -131,6 +130,214 @@ def toggle_showcase_active(request, id):
         return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
     try:
         item = get_object_or_404(ShowcaseMedia, id=id)
+        item.is_active = request.POST.get("is_active") == "true"
+        item.save(update_fields=["is_active"])
+        return JsonResponse({"status": True, "message": "Status updated", "is_active": item.is_active}, status=HTTPStatus.OK)
+    except Exception as e:
+        return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+    
+
+
+# HOME SECTION (Section-level ON/OFF switch for homepage blocks)
+class HomeSectionManagementView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        items = HomeSection.objects.all()
+        context = {"items": items}
+
+        if request.htmx:
+            return render(request, "db_home_sections/partial/partial_home_section_list.html", context)
+
+        return render(request, "db_home_sections/home_section_list.html", context)
+
+    def post(self, request):
+        try:
+            data = request.POST
+            item_id = data.get("item_id")
+
+            section_key = data.get("section_key", "").strip()
+            admin_label = data.get("admin_label", "").strip()
+            section_type = data.get("section_type", "custom").strip()
+            heading = data.get("heading", "").strip()
+            subheading = data.get("subheading", "").strip()
+            body_html = data.get("body_html", "").strip()
+            button_text = data.get("button_text", "").strip()
+            button_url = data.get("button_url", "").strip()
+            sort_order = data.get("sort_order") or 0
+            is_active = data.get("is_active") == "on"
+            image = request.FILES.get("image")
+
+            if not admin_label:
+                return JsonResponse({"status": False, "message": "Admin label is required"}, status=HTTPStatus.BAD_REQUEST)
+
+            if item_id:
+                item = get_object_or_404(HomeSection, id=item_id)
+            else:
+                if not section_key:
+                    return JsonResponse({"status": False, "message": "Section key is required"}, status=HTTPStatus.BAD_REQUEST)
+                if HomeSection.objects.filter(section_key=section_key).exists():
+                    return JsonResponse({"status": False, "message": "This section key already exists"}, status=HTTPStatus.BAD_REQUEST)
+                item = HomeSection()
+                item.section_key = section_key
+
+            item.admin_label = admin_label
+            item.section_type = section_type if section_type in ("builtin", "custom") else "custom"
+            item.heading = heading or None
+            item.subheading = subheading or None
+            item.body_html = body_html or None
+            item.button_text = button_text or None
+            item.button_url = button_url or None
+            item.sort_order = int(sort_order) if str(sort_order).isdigit() else 0
+            item.is_active = is_active
+
+            if image:
+                item.image = image
+
+            item.save()
+
+            msg = "Section updated successfully" if item_id else "Section added successfully"
+            return JsonResponse({"status": True, "message": msg}, status=HTTPStatus.OK if item_id else HTTPStatus.CREATED)
+
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def get_home_section(request, id):
+    try:
+        item = get_object_or_404(HomeSection, id=id)
+        return JsonResponse({
+            "status": True,
+            "item": {
+                "id": item.id,
+                "section_key": item.section_key,
+                "admin_label": item.admin_label,
+                "section_type": item.section_type,
+                "heading": item.heading or "",
+                "subheading": item.subheading or "",
+                "body_html": item.body_html or "",
+                "image": item.image.url if item.image else None,
+                "button_text": item.button_text or "",
+                "button_url": item.button_url or "",
+                "sort_order": item.sort_order,
+                "is_active": item.is_active,
+            },
+        }, status=HTTPStatus.OK)
+    except Exception as e:
+        return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def delete_home_section(request, id):
+    if request.method == "DELETE":
+        try:
+            item = get_object_or_404(HomeSection, id=id)
+            if item.section_type == "builtin":
+                return JsonResponse({"status": False, "message": "Built-in sections cannot be deleted, only turned off."}, status=HTTPStatus.BAD_REQUEST)
+            item.delete()
+            return JsonResponse({"status": True, "message": "Section deleted successfully"}, status=HTTPStatus.OK)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+    return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def toggle_home_section_active(request, id):
+    if request.method != "POST":
+        return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+    try:
+        item = get_object_or_404(HomeSection, id=id)
+        item.is_active = request.POST.get("is_active") == "true"
+        item.save(update_fields=["is_active"])
+        return JsonResponse({"status": True, "message": "Status updated", "is_active": item.is_active}, status=HTTPStatus.OK)
+    except Exception as e:
+        return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+# WHY CHOOSE US CARDS (content inside the "Why Choose Pencilwood" section)
+class WhyChooseUsManagementView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        items = About_WhyChooseUs.objects.all()
+        context = {"items": items}
+
+        if request.htmx:
+            return render(request, "db_home_sections/partial/partial_why_choose_list.html", context)
+
+        return render(request, "db_home_sections/why_choose_list.html", context)
+
+    def post(self, request):
+        try:
+            data = request.POST
+            item_id = data.get("item_id")
+
+            title = data.get("title", "").strip()
+            description = data.get("description", "").strip()
+            icon = data.get("icon", "").strip()
+            sort_order = data.get("sort_order") or 0
+            is_active = data.get("is_active") == "on"
+
+            if not title:
+                return JsonResponse({"status": False, "message": "Title is required"}, status=HTTPStatus.BAD_REQUEST)
+
+            if item_id:
+                item = get_object_or_404(About_WhyChooseUs, id=item_id)
+            else:
+                item = About_WhyChooseUs()
+
+            item.title = title
+            item.description = description or None
+            item.icon = icon or None
+            item.sort_order = int(sort_order) if str(sort_order).isdigit() else 0
+            item.is_active = is_active
+            item.save()
+
+            msg = "Card updated successfully" if item_id else "Card added successfully"
+            return JsonResponse({"status": True, "message": msg}, status=HTTPStatus.OK if item_id else HTTPStatus.CREATED)
+
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def get_why_choose_item(request, id):
+    try:
+        item = get_object_or_404(About_WhyChooseUs, id=id)
+        return JsonResponse({
+            "status": True,
+            "item": {
+                "id": item.id,
+                "title": item.title,
+                "description": item.description or "",
+                "icon": item.icon or "",
+                "sort_order": item.sort_order,
+                "is_active": item.is_active,
+            },
+        }, status=HTTPStatus.OK)
+    except Exception as e:
+        return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def delete_why_choose_item(request, id):
+    if request.method == "DELETE":
+        try:
+            item = get_object_or_404(About_WhyChooseUs, id=id)
+            item.delete()
+            return JsonResponse({"status": True, "message": "Card deleted successfully"}, status=HTTPStatus.OK)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+    return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def toggle_why_choose_active(request, id):
+    if request.method != "POST":
+        return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)
+    try:
+        item = get_object_or_404(About_WhyChooseUs, id=id)
         item.is_active = request.POST.get("is_active") == "true"
         item.save(update_fields=["is_active"])
         return JsonResponse({"status": True, "message": "Status updated", "is_active": item.is_active}, status=HTTPStatus.OK)

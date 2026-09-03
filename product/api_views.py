@@ -1,7 +1,7 @@
 from rest_framework import views, status, permissions, viewsets
 from rest_framework.response import Response
 from .serializers import ProductSerializer, CategorySerializer
-from site_app.models import LandingPageProduct, OTPVerification, HomeSlider, FooterTagLink, SocialLink, NavMenuLink, NewsFeed, SiteContent, ShowcaseMedia
+from site_app.models import LandingPageProduct, OTPVerification, HomeSlider, FooterTagLink, SocialLink, NavMenuLink, NewsFeed, SiteContent, ShowcaseMedia, HomeSection, About_WhyChooseUs
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from authentication.models import Customer
@@ -150,6 +150,16 @@ def site_content_api(request):
     social_links = SocialLink.objects.filter(is_active=True).order_by("sort_order", "id")
     news_items = NewsFeed.objects.filter(is_active=True).order_by("sort_order", "id")
 
+    sections = {s.section_key: s.is_active for s in HomeSection.objects.all()}
+
+    custom_sections = (
+        HomeSection.objects
+        .filter(section_type="custom", is_active=True)
+        .order_by("sort_order", "id")
+    )
+
+    why_choose_cards = About_WhyChooseUs.objects.filter(is_active=True).order_by("sort_order", "id")
+
     return JsonResponse({
         "status": True,
         "data": {
@@ -168,6 +178,25 @@ def site_content_api(request):
             "news_feed": [
                 {"id": nf.id, "text": nf.news, "url": nf.url or None}
                 for nf in news_items
+            ],
+            "sections": sections,
+            "custom_sections": [
+                {
+                    "id": c.id,
+                    "section_key": c.section_key,
+                    "heading": c.heading or "",
+                    "subheading": c.subheading or "",
+                    "body_html": c.body_html or "",
+                    "image": c.image.url if c.image else None,
+                    "button_text": c.button_text or "",
+                    "button_url": c.button_url or "",
+                    "sort_order": c.sort_order,
+                }
+                for c in custom_sections
+            ],
+            "why_choose_us": [
+                {"id": w.id, "title": w.title, "description": w.description or "", "icon": w.icon or ""}
+                for w in why_choose_cards
             ],
         },
     })

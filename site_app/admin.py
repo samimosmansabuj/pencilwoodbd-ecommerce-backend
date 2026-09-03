@@ -4,8 +4,15 @@ from django.contrib import admin as django_admin
 from .models import (
     HomeSlider, OTPVerification, SiteContent, SiteColorSection, NewsFeed, SocialLink, FooterTagLink, 
     AboutUs, About_WhyChooseUs, ContactInformation, RefundPolicy, TermsAndCondition, 
-    PrivacyPolicy, FAQ_List, LandingPageProduct, DeliveryOption, NavMenuLink, ShowcaseMedia
+    PrivacyPolicy, FAQ_List, LandingPageProduct, DeliveryOption, NavMenuLink, ShowcaseMedia, HomeSection
 )
+
+@admin.register(HomeSection)
+class HomeSectionAdmin(admin.ModelAdmin):
+    list_display = ('admin_label', 'section_key', 'section_type', 'sort_order', 'is_active')
+    list_filter = ('section_type', 'is_active')
+    search_fields = ('admin_label', 'section_key')
+    ordering = ('sort_order', 'id')
 
 @admin.register(HomeSlider)
 class HomeSliderAdmin(admin.ModelAdmin):
