@@ -190,6 +190,8 @@ def site_content_api(request):
                     "image": c.image.url if c.image else None,
                     "button_text": c.button_text or "",
                     "button_url": c.button_url or "",
+                    "size": c.size,
+                    "min_height_px": c.min_height_px,
                     "sort_order": c.sort_order,
                 }
                 for c in custom_sections

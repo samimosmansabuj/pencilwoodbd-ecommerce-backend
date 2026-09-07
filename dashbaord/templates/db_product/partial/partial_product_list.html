@@ -154,6 +154,12 @@
                                     <a href="{% url 'product_update' product.id %}" class="btn btn-sm btn-filter" title="Edit Product">
                                         <i class="bi bi-pencil"></i>
                                     </a>
+                                    <form method="post" action="{% url 'product_duplicate' product.id %}" onsubmit="return confirm('Duplicate this product? A new draft product will be created with the same data.');" style="display:inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-filter" title="Duplicate Product">
+                                            <i class="bi bi-files"></i>
+                                        </button>
+                                    </form>
                                     <form method="post" action="{% url 'product_delete' product.id %}" onsubmit="return confirm('Delete this product?');" style="display:inline;">
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-sm btn-filter" title="Delete Product">

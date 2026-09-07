@@ -22,7 +22,7 @@ import json as pyjson
 from django.contrib.auth.hashers import make_password
 from django.conf import settings
 from pencilwoodbd.extra_module import resize_to_fixed
-
+from django.core.files.base import ContentFile
 
 # Models
 from order.models import Order, OrderRequest, OrderItem, OrderRequestItem, Review, TelegramBotConfig
@@ -1282,6 +1282,109 @@ class ProductDeleteView(LoginRequiredMixin, View):
 
         return redirect("product_list")
 
+
+class ProductDuplicateView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request, pk):
+        return redirect("product_list")
+
+    def post(self, request, pk, *args, **kwargs):
+        original = get_object_or_404(Product, pk=pk)
+
+        try:
+            with transaction.atomic():
+                new_product = Product.objects.get(pk=original.pk)
+                new_product.pk = None
+                new_product.id = None
+                new_product._state.adding = True
+
+                new_product.name = f"{original.name} (Copy)"
+                new_product.slug = None                     # save() will auto-generate a fresh unique slug
+                new_product.sku = ""                         # save() will auto-generate a new sku
+                new_product.status = "draft"                 # safety: duplicated product starts as Draft
+                new_product.sold_count = 0
+                new_product.manual_sold_count = None
+                new_product.has_variants = False              # will be reset to True automatically if variants exist
+                new_product.description_json = list(original.description_json or [])
+                new_product.dimensions = dict(original.dimensions or {})
+                new_product.seo = dict(original.seo or {})
+                new_product.metadata = dict(original.metadata or {})
+                new_product.save()
+
+                new_product.tags.set(original.tags.all())
+
+                variant_map = {}
+                for variant in original.variants.all():
+                    old_variant_id = variant.pk
+                    variant.pk = None
+                    variant.id = None
+                    variant._state.adding = True
+                    variant.product = new_product
+                    variant.sku = ""  
+                    variant.attributes = dict(variant.attributes or {})
+                    variant.dimensions = dict(variant.dimensions or {})
+                    variant.save()
+                    variant_map[old_variant_id] = variant
+
+                for image in original.images.all():
+                    new_image = ProductImage(
+                        product=new_product,
+                        variant=variant_map.get(image.variant_id) if image.variant_id else None,
+                        role=image.role,
+                        metadata=dict(image.metadata or {}),
+                        position=image.position,
+                    )
+                    if image.image:
+                        image.image.open("rb")
+                        new_image.image.save(
+                            image.image.name.split("/")[-1],
+                            ContentFile(image.image.read()),
+                            save=False,
+                        )
+                        image.image.close()
+                    new_image.save()
+
+                for video in original.videos.all():
+                    new_video = ProductVideo(
+                        product=new_product,
+                        variant=variant_map.get(video.variant_id) if video.variant_id else None,
+                        metadata=dict(video.metadata or {}),
+                        position=video.position,
+                    )
+                    if video.video:
+                        video.video.open("rb")
+                        new_video.video.save(
+                            video.video.name.split("/")[-1],
+                            ContentFile(video.video.read()),
+                            save=False,
+                        )
+                        video.video.close()
+                    new_video.save()
+
+                for feature in original.features.all():
+                    ProductFeature.objects.create(
+                        product=new_product,
+                        icon=feature.icon,
+                        title=feature.title,
+                        description=feature.description,
+                        sort_order=feature.sort_order,
+                    )
+
+                if hasattr(original, "delivery_charge") and original.delivery_charge:
+                    ProductDeliveryCharge.objects.create(
+                        product=new_product,
+                        area_and_charge=dict(original.delivery_charge.area_and_charge or {})
+                            if original.delivery_charge.area_and_charge else original.delivery_charge.area_and_charge,
+                        delivery_charge_cost=original.delivery_charge.delivery_charge_cost,
+                    )
+
+            messages.success(request, f"Product '{original.name}' duplicated successfully as '{new_product.name}'!")
+
+        except Exception as e:
+            messages.error(request, f"Failed to duplicate product: {e}")
+
+        return redirect("product_list")
 # ------------------Product Features--------
 class ProductFeatureView(LoginRequiredMixin, View):
     login_url = "admin_login"
