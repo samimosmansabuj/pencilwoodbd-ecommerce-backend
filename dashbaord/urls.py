@@ -18,7 +18,8 @@ urlpatterns = [
     path('product-add/', add_product, name='product_add'),
     path("product/update/<int:pk>/", product_update, name="product_update"),
     path('products/delete/<int:pk>/', ProductDeleteView.as_view(), name='product_delete'),  
-
+    path('products/duplicate/<int:pk>/', ProductDuplicateView.as_view(), name='product_duplicate'),   
+    
     path('settings/delivery-charge/', DeliveryChargeSettingsView.as_view(), name='delivery_charge_settings'),
 
     # path('media-center/', product_list, name='media_center'),

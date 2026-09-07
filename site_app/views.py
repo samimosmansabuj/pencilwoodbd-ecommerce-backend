@@ -164,6 +164,8 @@ class HomeSectionManagementView(LoginRequiredMixin, View):
             body_html = data.get("body_html", "").strip()
             button_text = data.get("button_text", "").strip()
             button_url = data.get("button_url", "").strip()
+            size = data.get("size", "normal").strip()
+            min_height_px = data.get("min_height_px", "").strip()
             sort_order = data.get("sort_order") or 0
             is_active = data.get("is_active") == "on"
             image = request.FILES.get("image")
@@ -188,6 +190,8 @@ class HomeSectionManagementView(LoginRequiredMixin, View):
             item.body_html = body_html or None
             item.button_text = button_text or None
             item.button_url = button_url or None
+            item.size = size if size in ("compact", "normal", "spacious") else "normal"
+            item.min_height_px = int(min_height_px) if min_height_px.isdigit() else None
             item.sort_order = int(sort_order) if str(sort_order).isdigit() else 0
             item.is_active = is_active
 
@@ -220,6 +224,8 @@ def get_home_section(request, id):
                 "image": item.image.url if item.image else None,
                 "button_text": item.button_text or "",
                 "button_url": item.button_url or "",
+                "size": item.size,
+                "min_height_px": item.min_height_px or "",
                 "sort_order": item.sort_order,
                 "is_active": item.is_active,
             },

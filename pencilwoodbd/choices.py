@@ -167,3 +167,14 @@ class ManualBlockScopeChoices(models.TextChoices):
     ALL = "all", "IP + Device + Phone"
     PHONE_ONLY = "phone_only", "Phone Only"
     IP_DEVICE_ONLY = "ip_device_only", "IP + Device Only"
+
+
+# ----- HOME-PAGE SECTION -----
+class HomeSectionTypeChoices(models.TextChoices):
+    BUILTIN = "builtin", "Built-in"
+    CUSTOM = "custom", "Custom"
+
+class HomeSectionSizeChoices(models.TextChoices):
+    COMPACT = "compact", "Compact (small padding)"
+    NORMAL = "normal", "Normal"
+    SPACIOUS = "spacious", "Spacious (large padding)"

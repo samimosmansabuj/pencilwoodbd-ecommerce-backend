@@ -68,6 +68,8 @@
                                         data-body-html="{{ item.body_html|default:'' }}"
                                         data-button-text="{{ item.button_text|default:'' }}"
                                         data-button-url="{{ item.button_url|default:'' }}"
+                                        data-size="{{ item.size }}"
+                                        data-min-height="{{ item.min_height_px|default:'' }}"
                                         data-sort-order="{{ item.sort_order }}"
                                         data-is-active="{{ item.is_active|yesno:'true,false' }}"
                                         data-bs-toggle="modal" data-bs-target="#HomeSectionModal">
@@ -142,6 +144,19 @@
                     <div class="mb-3">
                         <label class="form-label">Button URL</label>
                         <input type="text" class="form-control" name="button_url" placeholder="e.g. /all_product.html">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Section Size</label>
+                        <select class="form-select" name="size" id="home_section_size">
+                            <option value="compact">Compact (small padding)</option>
+                            <option value="normal" selected>Normal</option>
+                            <option value="spacious">Spacious (large padding)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Force Exact Height (px)</label>
+                        <input type="number" class="form-control" name="min_height_px" id="home_section_min_height" placeholder="Leave blank for automatic">
+                        <small class="text-muted">Optional. Overrides "Section Size" if set.</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Sort Order</label>
@@ -246,6 +261,8 @@ document.addEventListener("click", function (e) {
         form.querySelector("textarea[name='body_html']").value = btn.dataset.bodyHtml;
         form.querySelector("input[name='button_text']").value = btn.dataset.buttonText;
         form.querySelector("input[name='button_url']").value = btn.dataset.buttonUrl;
+        form.querySelector("select[name='size']").value = btn.dataset.size || "normal";
+        form.querySelector("input[name='min_height_px']").value = btn.dataset.minHeight;
         form.querySelector("input[name='sort_order']").value = btn.dataset.sortOrder;
         form.querySelector("#home_section_is_active").checked = btn.dataset.isActive === "true";
     }

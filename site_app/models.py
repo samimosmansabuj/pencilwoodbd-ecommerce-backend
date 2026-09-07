@@ -1,6 +1,7 @@
 from typing import Iterable
 from django.db import models
 from django.conf import settings
+from pencilwoodbd.choices import HomeSectionTypeChoices, HomeSectionSizeChoices
 from pencilwoodbd.extra_module import image_delete_os, previous_image_delete_os
 from product.models import Product, ProductVariant
 from django.core.validators import FileExtensionValidator
@@ -164,14 +165,10 @@ class About_WhyChooseUs(models.Model):
 
 
 class HomeSection(models.Model):
-    
-    class SectionType(models.TextChoices):
-        BUILTIN = 'builtin', 'Built-in'
-        CUSTOM = 'custom', 'Custom'
 
     section_key = models.SlugField(max_length=50, unique=True, help_text="Stable key used by the frontend, e.g. 'why_choose'. Cannot be changed after creation.")
     admin_label = models.CharField(max_length=100)
-    section_type = models.CharField(max_length=10, choices=SectionType.choices, default=SectionType.CUSTOM)
+    section_type = models.CharField(max_length=10, choices=HomeSectionTypeChoices.choices, default=HomeSectionTypeChoices.CUSTOM)
 
     # Only used by CUSTOM sections to render a brand-new block on the homepage.
     heading = models.CharField(max_length=150, blank=True, null=True)
@@ -180,6 +177,10 @@ class HomeSection(models.Model):
     image = models.ImageField(upload_to='home_sections/', blank=True, null=True)
     button_text = models.CharField(max_length=50, blank=True, null=True)
     button_url = models.CharField(max_length=255, blank=True, null=True)
+
+    # Controls vertical spacing/height on the live site — only used by CUSTOM sections.
+    size = models.CharField(max_length=10, choices=HomeSectionSizeChoices.choices, default=HomeSectionSizeChoices.NORMAL)
+    min_height_px = models.PositiveIntegerField(blank=True, null=True)
 
     sort_order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
