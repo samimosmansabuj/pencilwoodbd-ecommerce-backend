@@ -21,7 +21,6 @@ from .api_views import (
     site_content_api,
     GuestCartRefreshAPIView,
     MergeGuestCartWishlistAPIView,
-    
 )
 from rest_framework.routers import DefaultRouter
 
@@ -70,6 +69,5 @@ urlpatterns = [
     path('wishlist/', WishlistAPIView.as_view()),
     path('wishlist/remove/<int:wishlist_id>/', RemoveWishlistAPIView.as_view()),
     path("cart-wishlist/merge/", MergeGuestCartWishlistAPIView.as_view()),
-
 
 ]

@@ -3,6 +3,8 @@ from PIL import Image
 from io import BytesIO
 from django.core.files.uploadedfile import InMemoryUploadedFile
 import sys
+import json
+from decimal import Decimal, InvalidOperation
 
 def image_delete_os(picture):
     if picture and default_storage.exists(picture.name):
@@ -47,3 +49,58 @@ def resize_to_fixed(image_file, size=(1600, 600)):
         f"{image_file.name.rsplit('.', 1)[0]}.jpg",
         "image/jpeg", sys.getsizeof(buffer), None
     )
+
+def parse_decimal(value, default=Decimal("0")):
+    if value is None or str(value).strip() == "":
+        return default
+    try:
+        return Decimal(str(value))
+    except InvalidOperation:
+        return default
+
+
+def parse_int(value, default=0):
+    if value is None or str(value).strip() == "":
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def parse_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ("true", "1", "on", "yes")
+
+
+def parse_delivery_charge_payload(request):
+    delivery_charge_cost = parse_decimal(request.POST.get("delivery_charge_cost"), default=None)
+
+    raw = request.POST.get("delivery_charge_json", "").strip()
+    if not raw:
+        return None, False, delivery_charge_cost
+
+    try:
+        payload = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return None, False, delivery_charge_cost
+
+    mode = payload.get("mode", "none")
+    if mode == "none":
+        return None, False, delivery_charge_cost
+
+    area_and_charge = {}
+    for key, value in payload.items():
+        if key == "mode":
+            continue
+        parsed = parse_decimal(value, default=None)
+        if parsed is not None:
+            area_and_charge[key] = str(parsed)
+
+    if not area_and_charge:
+        return None, False, delivery_charge_cost
+
+    return area_and_charge, True, delivery_charge_cost

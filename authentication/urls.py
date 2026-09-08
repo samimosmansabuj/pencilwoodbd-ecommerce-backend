@@ -26,4 +26,12 @@ urlpatterns = [
     path('security/blocked-list/<int:pk>/unblock/', UnblockIdentityView.as_view(), name='unblock_identity'),
     path('order/<str:order_id>/block-identity/', BlockOrderIdentityView.as_view(), name='block_order_identity'),
     path('order/<str:order_id>/unblock-identity/', UnblockOrderIdentityView.as_view(), name='unblock_order_identity'),
+
+    # ----------------- Dashboard: Auth / Staff Management -----------------
+    path('admin-login/', UserLoginView.as_view(), name='admin_login'),
+    path('admin-logout/', AdminLogoutView.as_view(), name='admin_logout'),
+
+    path('users/', UserManagementView.as_view(), name='user_management'),
+    path("users/staff/create/", StaffCreateView.as_view(), name="staff_create"),
+    path("users/staff/<int:pk>/edit/", StaffUpdateView.as_view(), name="staff_update"),
 ]

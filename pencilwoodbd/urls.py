@@ -13,6 +13,7 @@ urlpatterns = [
     path('', include('authentication.urls')),
     path('', include('live_chat.urls')),
     path('', include('product.urls')),
+    path('', include('product.dashboard_urls')),
     path('', include('order.urls')),
     path('site/', include('site_app.urls')),
     path('', include('marketing.urls')),
