@@ -32,9 +32,9 @@ from site_app.models import DeliveryOption
 # Utilities
 from .utils import PathaoParcelAPI, SteadFastParcelAPI
 
-# Reuses stat-calculation helpers from the main dashboard homepage view
 from dashbaord.views import DashboardView
 
+from site_app.bd_districts import BD_DISTRICTS
 
 def build_variants_by_product(products):
     data = {}
@@ -83,6 +83,7 @@ class AddOrderView(LoginRequiredMixin, View):
             "source_choices": ORDER_SOURCE.choices,
             "existing_items_json": "[]",
             "is_update": False,
+            "bd_districts": BD_DISTRICTS,
         }
         return render(request, self.template_name, context)
 
@@ -132,6 +133,10 @@ class AddOrderView(LoginRequiredMixin, View):
                     customer.save()
 
                 shipping_address = data.get("shipping_address", "").strip()
+                district = data.get("district", "").strip()
+                valid_districts = list(BD_DISTRICTS)
+                if district not in valid_districts:
+                    district = None
                 note = data.get("note", "").strip()
                 special_instructions = data.get("special_instructions", "").strip()
 
@@ -174,6 +179,7 @@ class AddOrderView(LoginRequiredMixin, View):
                 order = Order.objects.create(
                     customer=customer,
                     shipping_address=shipping_address,
+                    district=district,
                     note=note,
                     special_instructions=special_instructions or None,
                     work_assign=assigned_user.username if assigned_user else None,
@@ -449,6 +455,7 @@ class OrderDetailView(LoginRequiredMixin, View):
         context = {
             "order": order,
             "is_update": True,
+            "bd_districts": BD_DISTRICTS,
             "products": products,
             "categories": Category.objects.order_by("name"),
             "payment_types": PAYMENT_TYPE.choices,
@@ -508,6 +515,10 @@ class OrderUpdateView(LoginRequiredMixin, View):
                     ).first()
 
                 order.shipping_address = data.get("shipping_address", order.shipping_address).strip()
+                new_district = data.get("district", "").strip()
+                valid_districts = list(BD_DISTRICTS)
+                if new_district in valid_districts:
+                    order.district = new_district
                 order.note = data.get("note", order.note)
                 order.special_instructions = data.get("special_instructions") or None
                 order.work_assign = assigned_user.username if assigned_user else None
@@ -685,6 +696,7 @@ def create_order_from_request(order_request):
         order = Order.objects.create(
             customer=order_request.customer,
             shipping_address=order_request.shipping_address,
+            district=order_request.district,
             note=order_request.note,
             special_instructions=order_request.special_instructions,
             work_assign=order_request.work_assign.username if order_request.work_assign else None,
@@ -758,6 +770,7 @@ class AddOrderRequestView(LoginRequiredMixin, View):
         context = {
             "order_request": order_request,
             "is_update": bool(order_request),
+            "bd_districts": BD_DISTRICTS,
             "products": products,
             "categories": Category.objects.all().order_by("name"),
             "payment_types": PAYMENT_TYPE.choices,
@@ -825,6 +838,10 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                         customer.save()
 
                 shipping_address = data.get("shipping_address", "").strip()
+                district = data.get("district", "").strip()
+                valid_districts = list(BD_DISTRICTS)
+                if district not in valid_districts:
+                    district = None
                 note = data.get("note", "").strip()
                 special_instructions = data.get("special_instructions", "").strip()
 
@@ -857,6 +874,7 @@ class AddOrderRequestView(LoginRequiredMixin, View):
 
                 if order_request:
                     order_request.shipping_address = shipping_address
+                    order_request.district = district
                     order_request.note = note
                     order_request.special_instructions = special_instructions or None
                     order_request.work_assign = assigned_user
@@ -882,6 +900,7 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                     order_request = OrderRequest.objects.create(
                         customer=customer,
                         shipping_address=shipping_address,
+                        district=district,
                         note=note,
                         special_instructions=special_instructions or None,
                         work_assign=assigned_user,
@@ -1115,17 +1134,49 @@ class OrderRequestDetailView(LoginRequiredMixin, View):
 
 
 class ApproveOrderRequestView(LoginRequiredMixin, View):
+    
     login_url = "admin_login"
 
     def post(self, request, pk):
         order_request = get_object_or_404(OrderRequest, pk=pk)
 
+        if order_request.status != ORDER_REQUEST_STATUS.PENDING:
+            messages.error(request, "Only pending requests can be approved.")
+            return redirect("order_request_detail", id=pk)
+
+        order_request.status = ORDER_REQUEST_STATUS.APPROVED
+        order_request.save(update_fields=["status"])
+        messages.success(request, "Order Request approved. Set delivery date and charges to confirm the order.")
+        return redirect("order_request_detail", id=pk)
+
+
+class ConfirmOrderRequestView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk):
+        order_request = get_object_or_404(OrderRequest, pk=pk)
+
+        if order_request.status != ORDER_REQUEST_STATUS.APPROVED:
+            messages.error(request, "Only approved requests can be confirmed into an order.")
+            return redirect("order_request_detail", id=pk)
+
+        delivery_date = request.POST.get("delivery_date") or None
+        shipping_total = parse_decimal(request.POST.get("shipping_total"))
+        advance_amount = parse_decimal(request.POST.get("advance_amount"))
+
+        if not delivery_date:
+            messages.error(request, "Delivery date is required to confirm the order.")
+            return redirect("order_request_detail", id=pk)
+
+        order_request.delivery_date = delivery_date
+        order_request.shipping_total = shipping_total
+        order_request.advance_amount = advance_amount
+        order_request.total_cost = (order_request.total_cost or Decimal("0")) + shipping_total
+        order_request.save(update_fields=["delivery_date", "shipping_total", "advance_amount", "total_cost"])
+
         try:
             order = create_order_from_request(order_request)
-            messages.success(
-                request,
-                f"Order Request approved successfully. Order #{order.order_id} created."
-            )
+            messages.success(request, f"Order #{order.order_id} created successfully.")
         except Exception as e:
             messages.error(request, str(e))
 
@@ -1184,15 +1235,7 @@ class OrderRequestStatusUpdateView(LoginRequiredMixin, View):
             messages.error(request, "Converted requests cannot change status.")
 
         elif new_status == ORDER_REQUEST_STATUS.CONVERTED:
-            # Route through the existing conversion logic instead of a raw status set
-            try:
-                order = create_order_from_request(order_request)
-                messages.success(
-                    request,
-                    f"Order Request approved. Order #{order.order_id} created."
-                )
-            except Exception as e:
-                messages.error(request, str(e))
+            messages.error(request, "Use the Approve + Confirm flow (with delivery date/charges) to convert a request into an order.")
 
         else:
             order_request.status = new_status

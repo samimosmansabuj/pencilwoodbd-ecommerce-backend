@@ -14,13 +14,8 @@
         </div>
     </div>
 
-    {% if messages %}
-    <div class="mb-3">
-        {% for message in messages %}
-        <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %}">{{ message }}</div>
-        {% endfor %}
-    </div>
-    {% endif %}
+    {% include 'messages_block.html' %}
+
 
     {% include "db_order/partial/order_form_body.html" %}
 </div>

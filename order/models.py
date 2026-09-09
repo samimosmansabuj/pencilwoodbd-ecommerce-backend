@@ -59,6 +59,7 @@ class Order(models.Model):
     status = models.CharField(max_length=50, choices=STATUS.choices, default=STATUS.NEW)
     placed_while_blocked = models.BooleanField(default=False)
     shipping_address = models.CharField(max_length=100, blank=True, null=True)
+    district = models.CharField(max_length=100, blank=True, null=True)
 
     design_file = models.FileField(upload_to="order/design_files/", blank=True, null=True)
     is_urgent = models.BooleanField(default=False)
@@ -260,6 +261,7 @@ class OrderRequest(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, related_name="order_requests", null=True, blank=True)
 
     shipping_address = models.CharField(max_length=255)
+    district = models.CharField(max_length=100, blank=True, null=True)
     note = models.TextField(blank=True, null=True)
 
     design_file = models.FileField(upload_to="order_request/design_files/", blank=True, null=True)
