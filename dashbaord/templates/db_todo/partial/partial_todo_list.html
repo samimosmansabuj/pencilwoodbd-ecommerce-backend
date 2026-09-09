@@ -1,3 +1,5 @@
+{% include 'messages_block.html' %}
+
 <div class="d-flex justify-content-between mb-3">
     <input type="search" name="search" placeholder="Search todo..." class="form-control w-25"
            hx-get="{% url 'todo_list' %}" hx-trigger="keyup changed delay:400ms" hx-target="#todo-table-wrapper">

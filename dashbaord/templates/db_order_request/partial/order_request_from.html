@@ -74,9 +74,19 @@
                         <div class="col-md-8">
                             <label class="form-label">Delivery address</label>
                             <input type="text" class="form-control" name="shipping_address"
-                                placeholder="Enter Delivery Address" required
+                                placeholder="House/Road/Thana etc." required
                                 value="{% if order_request %}{{ order_request.shipping_address|default:'' }}{% endif %}">
                         </div>
+                        <div class="col-md-4">
+                            <label class="form-label">District</label>
+                            <select class="form-select" name="district">
+                                <option value="">-- Select District --</option>
+                                {% for d in bd_districts %}
+                                <option value="{{ d }}" {% if order and order.district == d %}selected{% endif %}>{{ d }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
                         <div class="col-md-4">
                             <label class="form-label">Order Created Date</label>
                             <input type="date" class="form-control" name="order_created_date"
@@ -187,7 +197,7 @@
         <!-- ================= SIDEBAR ================= -->
         <div class="col-12 col-lg-4">
 
-            <div class="card">
+            <!-- <div class="card">
                 <div class="card-body">
                     <h5 class="mb-3">Amount</h5>
 
@@ -226,7 +236,7 @@
                         <span id="total_due_display">৳0.00</span>
                     </div>
                 </div>
-            </div>
+            </div> -->
 
             <div class="card">
                 <div class="card-body">
@@ -444,17 +454,17 @@
         }
 
         function updateTotals() {
-            const itemsTotal = items.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
-            const shipping = parseFloat(shippingInput.value) || 0;
-            const advance = parseFloat(advanceInput.value) || 0;
-            const grandTotal = itemsTotal + shipping;
-            const totalDue = grandTotal - advance;
+            // const itemsTotal = items.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+            // const shipping = parseFloat(shippingInput.value) || 0;
+            // const advance = parseFloat(advanceInput.value) || 0;
+            // const grandTotal = itemsTotal + shipping;
+            // const totalDue = grandTotal - advance;
 
-            document.getElementById("items_total_display").textContent = "৳" + itemsTotal.toFixed(2);
-            document.getElementById("shipping_total_display").textContent = "৳" + shipping.toFixed(2);
-            document.getElementById("advance_amount_display").textContent = "৳" + advance.toFixed(2);
-            document.getElementById("grand_total_display").textContent = "৳" + grandTotal.toFixed(2);
-            document.getElementById("total_due_display").textContent = "৳" + totalDue.toFixed(2);
+            // document.getElementById("items_total_display").textContent = "৳" + itemsTotal.toFixed(2);
+            // document.getElementById("shipping_total_display").textContent = "৳" + shipping.toFixed(2);
+            // document.getElementById("advance_amount_display").textContent = "৳" + advance.toFixed(2);
+            // document.getElementById("grand_total_display").textContent = "৳" + grandTotal.toFixed(2);
+            // document.getElementById("total_due_display").textContent = "৳" + totalDue.toFixed(2);
         }
 
         function syncHiddenInput() {

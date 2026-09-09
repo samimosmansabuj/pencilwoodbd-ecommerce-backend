@@ -118,13 +118,22 @@
                                 {% endwith %}
                             </select>
                         </div>
-
                         <div class="col-md-8">
                             <label class="form-label">Delivery address</label>
                             <input type="text" class="form-control" name="shipping_address"
-                                placeholder="Enter Delivery Address" required
+                                placeholder="House/Road/Thana etc." required
                                 value="{% if order %}{{ order.shipping_address|default:'' }}{% endif %}">
                         </div>
+                        <div class="col-md-4">
+                            <label class="form-label">District</label>
+                            <select class="form-select" name="district">
+                                <option value="">-- Select District --</option>
+                                {% for d in bd_districts %}
+                                <option value="{{ d }}" {% if order and order.district == d %}selected{% endif %}>{{ d }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                
                         <div class="col-md-4">
                             <label class="form-label">Order Created Date</label>
                             <input type="date" class="form-control" name="order_created_date"
