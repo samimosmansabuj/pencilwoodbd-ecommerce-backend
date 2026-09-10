@@ -14,7 +14,7 @@
         </div>
     </div>
 
-    {% include 'messages_block.html' %}
+    {% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
 
 
     {% if order.placed_while_blocked %}

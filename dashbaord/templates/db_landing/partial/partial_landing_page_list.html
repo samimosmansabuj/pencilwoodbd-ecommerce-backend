@@ -1,5 +1,5 @@
 {% load static %}
-{% include 'messages_block.html' %}
+{% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
 
 <div class="card">
     <div class="card-body">

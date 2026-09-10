@@ -1,5 +1,5 @@
 {% load static %}
-{% include 'messages_block.html' %}
+{% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
 
 <div class="row g-3 mb-3">
     <div class="col-auto">

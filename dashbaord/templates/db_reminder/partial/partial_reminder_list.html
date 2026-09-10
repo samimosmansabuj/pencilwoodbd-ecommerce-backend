@@ -1,4 +1,4 @@
-{% include 'messages_block.html' %}
+{% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
 
 <table class="table">
     <thead><tr><th>Note</th><th>For</th><th>Date/Time</th><th>Assigned To</th><th>Status</th><th>Actions</th></tr></thead>

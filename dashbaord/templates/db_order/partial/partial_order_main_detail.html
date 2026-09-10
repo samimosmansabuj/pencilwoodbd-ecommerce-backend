@@ -14,7 +14,7 @@
         </div>
     </div>
 
-    {% include 'messages_block.html' %}
+    {% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
 
 
     {% include "db_order/partial/order_form_body.html" %}

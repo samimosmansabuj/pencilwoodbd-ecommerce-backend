@@ -1,4 +1,4 @@
-{% include 'messages_block.html' %}
+{% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
 
 <div class="main-content" id="socialLinkListTable">
     <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">

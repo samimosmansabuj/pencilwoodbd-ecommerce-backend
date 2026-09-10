@@ -1,4 +1,4 @@
-{% include 'messages_block.html' %}
+{% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
 
 <div class="d-flex justify-content-between mb-3">
     <input type="search" name="search" placeholder="Search todo..." class="form-control w-25"

@@ -945,7 +945,10 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                 order_request.total_cost = grand_total
                 order_request.save()
 
-                messages.success(request, "Order Request saved successfully.")
+                if pk:
+                    messages.success(request, f"Order Request #{order_request.id} updated successfully.")
+                else:
+                    messages.success(request, f"Order Request #{order_request.id} created successfully.")
                 return redirect("order_request_detail", id=order_request.pk)
 
         except Exception as e:

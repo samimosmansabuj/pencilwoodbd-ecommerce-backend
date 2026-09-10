@@ -167,6 +167,38 @@
 
   <script src="{% static 'dashboard_assets/js/custom.js' %}"></script>
 
+  
+  <script>
+    function successNotificationCustom(message) {
+      Lobibox.notify('success', {
+        title: "Success", pauseDelayOnHover: true, size: 'mini', rounded: true,
+        icon: 'bi bi-check2-circle', delayIndicator: false,
+        continueDelayOnInactiveTab: false, position: 'top right', msg: message
+      });
+    }
+    function errorNotificationCustom(message) {
+      Lobibox.notify('error', {
+        title: "Error", pauseDelayOnHover: true, size: 'mini', rounded: true,
+        icon: 'bi bi-x-circle', delayIndicator: false,
+        continueDelayOnInactiveTab: false, position: 'top right', msg: message
+      });
+    }
+    function warningNotificationCustom(message) {
+      Lobibox.notify('warning', {
+        title: "Warning", pauseDelayOnHover: true, size: 'mini', rounded: true,
+        icon: 'bi bi-exclamation-triangle', delayIndicator: false,
+        continueDelayOnInactiveTab: false, position: 'top right', msg: message
+      });
+    }
+    function infoNotificationCustom(message) {
+      Lobibox.notify('info', {
+        title: "Info", pauseDelayOnHover: true, size: 'mini', rounded: true,
+        icon: 'bi bi-info-circle', delayIndicator: false,
+        continueDelayOnInactiveTab: false, position: 'top right', msg: message
+      });
+    }
+  </script>
+
   <script>
     $(".data-attributes span").peity("donut")
 

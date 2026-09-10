@@ -1,4 +1,4 @@
-{% include 'messages_block.html' %}
+{% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
 
 <div class="row mb-3">
     <div class="col-3"><div class="card p-3"><h6>Urgent</h6><h3 class="text-danger">{{ urgent_count }}</h3></div></div>
