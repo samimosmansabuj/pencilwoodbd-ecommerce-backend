@@ -1,4 +1,4 @@
-{% include 'messages_block.html' %}
+{% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
 
 <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#costAddModal">+ Add Cost</button>
 <table class="table">

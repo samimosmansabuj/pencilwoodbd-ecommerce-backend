@@ -135,10 +135,13 @@ class CheckoutSummaryAPIView(APIView):
                 if not cart_items.exists():
                     return Response({"status": False, "message": "Cart empty"}, status=400)
 
+                charged_product_ids = set()
                 for item in cart_items:
                     product = item.product
                     product_delivery_charge = DeliveryChargeResolver.get_charge(product, selected_district)
-                    total_delivery_charge += product_delivery_charge
+                    if product.id not in charged_product_ids:
+                        total_delivery_charge += product_delivery_charge
+                        charged_product_ids.add(product.id)
                     items_data.append({
                         "cart_id": item.id,
                         "product_id": product.id,
@@ -159,6 +162,7 @@ class CheckoutSummaryAPIView(APIView):
                 if not guest_items:
                     return Response({"status": False, "message": "Cart empty"}, status=400)
 
+                charged_product_ids = set()
                 for row in guest_items:
                     product = Product.objects.filter(id=row.get("product_id")).first()
                     if not product:
@@ -173,7 +177,9 @@ class CheckoutSummaryAPIView(APIView):
                     line_total = discount_price * quantity
 
                     product_delivery_charge = DeliveryChargeResolver.get_charge(product, selected_district)
-                    total_delivery_charge += product_delivery_charge
+                    if product.id not in charged_product_ids:
+                        total_delivery_charge += product_delivery_charge
+                        charged_product_ids.add(product.id)
 
                     items_data.append({
                         "cart_id": None,
@@ -370,6 +376,7 @@ class PlaceOrderAPIView(APIView):
 
                 total = Decimal("0")
                 total_delivery_charge = Decimal("0")
+                charged_product_ids = set()
 
                 for line in line_items:
                     product = line["product"]
@@ -377,7 +384,9 @@ class PlaceOrderAPIView(APIView):
                     quantity = line["quantity"]
 
                     product_delivery_charge = DeliveryChargeResolver.get_charge(product, district)
-                    total_delivery_charge += product_delivery_charge
+                    if product.id not in charged_product_ids:
+                        total_delivery_charge += product_delivery_charge
+                        charged_product_ids.add(product.id)
 
                     if variant:
                         if variant.inventory_quantity < quantity:
@@ -410,6 +419,7 @@ class PlaceOrderAPIView(APIView):
 
                 order.total_cost = total + total_delivery_charge - discount_amount
                 order.shipping_total = total_delivery_charge
+                order.coupon_discount = discount_amount
                 order.save()
 
                 if should_delete_cart is not None:

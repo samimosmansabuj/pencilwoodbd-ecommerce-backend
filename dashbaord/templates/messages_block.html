@@ -1,8 +1,29 @@
 {% if messages %}
-        {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        {% endfor %}
-    {% endif %}
+<script>
+    (function () {
+        var __djangoMessages = [
+            {% for message in messages %}
+            { tags: "{{ message.tags|escapejs }}", text: "{{ message|escapejs }}" }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ];
+        function __fireDjangoMessages() {
+            __djangoMessages.forEach(function (m) {
+                if (m.tags.indexOf("error") !== -1 && typeof errorNotificationCustom === "function") {
+                    errorNotificationCustom(m.text);
+                } else if (m.tags.indexOf("warning") !== -1 && typeof warningNotificationCustom === "function") {
+                    warningNotificationCustom(m.text);
+                } else if (m.tags.indexOf("info") !== -1 && typeof infoNotificationCustom === "function") {
+                    infoNotificationCustom(m.text);
+                } else if (typeof successNotificationCustom === "function") {
+                    successNotificationCustom(m.text);
+                }
+            });
+        }
+        if (typeof successNotificationCustom === "function") {
+            __fireDjangoMessages();
+        } else {
+            document.addEventListener("DOMContentLoaded", __fireDjangoMessages);
+        }
+    })();
+</script>
+{% endif %}

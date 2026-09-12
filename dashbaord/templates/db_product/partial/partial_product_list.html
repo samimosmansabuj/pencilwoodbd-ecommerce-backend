@@ -1,5 +1,5 @@
 {% load static %}
-{% include 'messages_block.html' %}
+{% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
 
 <div class="product-count d-flex align-items-center gap-3 gap-lg-4 mb-4 fw-medium flex-wrap font-text1">
     <a href="javascript:;"

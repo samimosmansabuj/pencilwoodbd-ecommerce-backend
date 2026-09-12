@@ -1,4 +1,4 @@
-{% include 'messages_block.html' %}
+{% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
 
 <div class="main-content">
 
