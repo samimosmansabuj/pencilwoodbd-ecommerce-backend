@@ -75,8 +75,6 @@ class AddOrderView(LoginRequiredMixin, View):
         context = {
             "products": products,
             "categories": Category.objects.order_by("name"),
-            "payment_types": PAYMENT_TYPE.choices,
-            "delivery_types": DELIVERY_TYPE.choices,
             "status_choices": STATUS.choices,
             "variants_by_product_json": pyjson.dumps(build_variants_by_product(products)),
             "assignable_users": assignable_users,
@@ -860,8 +858,6 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                 if work_assign_id:
                     assigned_user = CustomUser.objects.filter(id=work_assign_id).first()
 
-                payment_type = data.get("payment_type", PAYMENT_TYPE.COD)
-                delivery_type = data.get("delivery_type", DELIVERY_TYPE.HOME_DELIVERY)
                 is_urgent = data.get("is_urgent") == "on"
 
                 order_created_date = data.get("order_created_date") or None
@@ -888,8 +884,6 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                     order_request.note = note
                     order_request.special_instructions = special_instructions or None
                     order_request.work_assign = assigned_user
-                    order_request.payment_type = payment_type
-                    order_request.delivery_type = delivery_type
                     order_request.shipping_total = shipping_total
                     order_request.advance_amount = advance_amount
                     order_request.is_urgent = is_urgent
@@ -914,8 +908,6 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                         note=note,
                         special_instructions=special_instructions or None,
                         work_assign=assigned_user,
-                        payment_type=payment_type,
-                        delivery_type=delivery_type,
                         shipping_total=shipping_total,
                         advance_amount=advance_amount,
                         status=ORDER_REQUEST_STATUS.PENDING,
@@ -1130,6 +1122,8 @@ class OrderRequestDetailView(LoginRequiredMixin, View):
                     USER_TYPE.ADMIN, 
                     USER_TYPE.SUPER_ADMIN
                     ]),
+            "delivery_types": DELIVERY_TYPE.choices,
+            "payment_types": PAYMENT_TYPE.choices,
         }
 
         if request.htmx:
@@ -1176,6 +1170,8 @@ class ConfirmOrderRequestView(LoginRequiredMixin, View):
         delivery_date = request.POST.get("delivery_date") or None
         shipping_total = parse_decimal(request.POST.get("shipping_total"))
         advance_amount = parse_decimal(request.POST.get("advance_amount"))
+        delivery_type = request.POST.get("delivery_type", DELIVERY_TYPE.HOME_DELIVERY)
+        payment_type = request.POST.get("payment_type", PAYMENT_TYPE.COD)
 
         if not delivery_date:
             messages.error(request, "Delivery date is required to confirm the order.")
@@ -1184,8 +1180,10 @@ class ConfirmOrderRequestView(LoginRequiredMixin, View):
         order_request.delivery_date = delivery_date
         order_request.shipping_total = shipping_total
         order_request.advance_amount = advance_amount
+        order_request.delivery_type = delivery_type
+        order_request.payment_type = payment_type
         order_request.total_cost = (order_request.total_cost or Decimal("0")) + shipping_total
-        order_request.save(update_fields=["delivery_date", "shipping_total", "advance_amount", "total_cost"])
+        order_request.save(update_fields=["delivery_date", "shipping_total", "advance_amount", "delivery_type", "payment_type", "total_cost"])
 
         try:
             order = create_order_from_request(order_request)

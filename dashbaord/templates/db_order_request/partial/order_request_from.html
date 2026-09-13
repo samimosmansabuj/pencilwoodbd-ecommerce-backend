@@ -100,26 +100,7 @@
                             </div>
                         </div>
                     </div>
-
-                    <div class="row g-3 mt-1">
-                        <div class="col-md-6">
-                            <label class="form-label">Delivery Type</label>
-                            <select class="form-select" name="delivery_type">
-                                {% for value, label in delivery_types %}
-                                <option value="{{ value }}" {% if order_request and order_request.delivery_type == value %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Payment Type</label>
-                            <select class="form-select" name="payment_type">
-                                {% for value, label in payment_types %}
-                                <option value="{{ value }}" {% if order_request and order_request.payment_type == value %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-
+                    
                     <div class="mb-3 mt-3">
                         <label class="form-label">Note <span class="text">(optional)</span></label>
                         <textarea class="form-control" name="note"

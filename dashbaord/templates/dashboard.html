@@ -63,8 +63,9 @@
 
 {% block for_invoice %}
 <body id="root" style="background-image: url({% static 'dashboard_assets/images/bg-themes/body-background-1.webp' %});"
-  hx-headers='{"x-csrftoken": "{{ csrf_token }}"}'>
+hx-headers='{"x-csrftoken": "{{ csrf_token }}"}'>
 
+<div id="zoom-scale-wrapper">
   <!--start header-->
   {% include 'header.html' %}
   <!--end top header-->
@@ -73,14 +74,12 @@
   {% include 'sidebar.html' %}
   <!--end sidebar-->
 
-<div id="zoom-scale-wrapper">
   <main class="main-wrapper" id="content-area">
     {% include 'messages_block.html' %}
     {% block dashboard_body_content %}
     {% include 'db_home/main_wrapper.html' %}
     {% endblock dashboard_body_content %}
   </main>
-</div>
 
   <!--start overlay-->
   <div class="overlay btn-toggle"></div>
@@ -227,9 +226,9 @@
 
 
 
-  <div class="lobibox-notify-wrapper bottom right"></div>
-  {% include 'db_product/modal/add_product_modal.html' %}
-  
+<div class="lobibox-notify-wrapper bottom right"></div>
+{% include 'db_product/modal/add_product_modal.html' %}
+</div>
 </body>
 {% endblock for_invoice %}
 

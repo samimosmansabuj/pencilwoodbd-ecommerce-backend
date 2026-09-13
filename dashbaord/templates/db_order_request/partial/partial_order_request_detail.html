@@ -130,6 +130,22 @@
             <label class="form-label">Advance Amount</label>
             <input type="number" step="0.01" min="0" name="advance_amount" class="form-control" value="0">
           </div>
+          <div class="mb-3">
+            <label class="form-label">Delivery Type</label>
+            <select name="delivery_type" class="form-select">
+                {% for value, label in delivery_types %}
+                <option value="{{ value }}" {% if value == "HOME_DELIVERY" %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Payment Type</label>
+            <select name="payment_type" class="form-select">
+                {% for value, label in payment_types %}
+                <option value="{{ value }}" {% if value == "COD" %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
