@@ -517,9 +517,6 @@ class DeliveryChargeSettingsView(LoginRequiredMixin, View):
             "system_default_charge": SYSTEM_DEFAULT_DELIVERY_CHARGE,
         }
  
-        if request.htmx:
-            return render(request, "db_settings/partial/partial_delivery_charge_settings.html", context)
- 
         return render(request, "db_settings/delivery_charge_settings.html", context)
  
     def post(self, request):

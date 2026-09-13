@@ -1,0 +1,9 @@
+{% extends 'dashboard.html' %}
+{% load static %}
+
+{% block page_title %}
+<title>Bill #{{ order.order_id }} - {{ brand_name }}</title>{% endblock page_title %}
+
+{% block for_invoice %}
+{% include './partial/partial_bill_a4.html' %}
+{% endblock for_invoice %}

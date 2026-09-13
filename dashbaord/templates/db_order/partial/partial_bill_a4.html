@@ -1,0 +1,226 @@
+
+{% load static %}
+<style>
+    .main-content {
+        width: 100%;
+    }
+
+    .table-bill {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .table-bill th,
+    .table-bill td {
+        border: 1px solid black;
+    }
+
+    @media print {
+        body {
+            margin: 0;
+            background: white;
+        }
+
+        .card {
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        button,
+        .btn,
+        .no-print {
+            display: none !important;
+        }
+    }
+
+    @page {
+        size: A4;
+        margin: 25mm 15mm 15mm 15mm;
+    }
+
+    .table>:not(caption)>*>* {
+        color: black !important;
+    }
+
+    .signature-row {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 60px;
+    }
+
+    .signature-box {
+        width: 200px;
+        border-top: 1px solid black;
+        text-align: center;
+        padding-top: 5px;
+    }
+
+    .bill-card {
+        overflow: hidden;
+    }
+
+    .bill-watermark {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-35deg);
+        font-size: 64px;
+        font-weight: 700;
+        color: rgba(0, 0, 0, 0.045);
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 0;
+        letter-spacing: 4px;
+    }
+
+    .bill-card > .card-header,
+    .bill-card > .card-body,
+    .bill-card > .card-footer {
+        position: relative;
+        z-index: 1;
+    }
+</style>
+
+<body id="invoice-body">
+    <div class="main-content">
+        <div class="card radius-10 bill-card" style="color: black; background: white; position: relative;">
+            <div class="bill-watermark">{{ brand_name }}</div>
+            <div class="card-header py-4 text-center border-bottom" style="border-color: #ddd !important;">
+                <img src="{% static 'dashboard_assets/images/logo2.jpg' %}" alt="{{ brand_name }}" style="height: 48px; margin-bottom: 10px;">
+                <h4 class="mb-0" style="color: black; letter-spacing: 1px;">{{ brand_name }}</h4>
+                <p class="mb-0 text-muted" style="color: #555 !important; font-size: 13px;">Official Bill / Cash Memo</p>
+            </div>
+            <div class="card-header py-2">
+                <div class="row row-cols-2 row-cols-lg-2">
+                    <div class="col">
+                        <div class="">
+                            <small>Bill To</small>
+                            <address class="m-t-5 m-b-5">
+                                <strong class="text-inverse">Name: {{ order.customer.name }}</strong><br>
+                                Address: {{ order.shipping_address }}, {{ order.district }}<br>
+                                Phone: {{ order.customer.phone }}<br>
+                            </address>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="">
+                            <small class="invoice-right-text">Bill No</small>
+                            <div class="invoice-right-text"><b>#{{ order.order_id }}</b></div>
+                            <div class="invoice-detail invoice-right-text">
+                                {{ order.created_at|date:"d M, Y" }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bill" style="border: 1px solid black;">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>PRODUCT DESCRIPTION</th>
+                                <th class="text-center" style="width: 15%;">UNIT PRICE</th>
+                                <th class="text-center" style="width: 10%;">QTY</th>
+                                <th class="text-right" style="width: 15%;">TOTAL</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in order.order_items.all %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>
+                                    <span class="text-inverse">{{ item.product.name }}</span>
+                                </td>
+                                <td class="text-center">৳{{ item.discount_price }}</td>
+                                <td class="text-center">{{ item.quantity }}</td>
+                                <td class="text-right">৳{{ item.discount_total_price }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="4">
+                                    <span class="text-inverse">Product Total</span>
+                                </td>
+                                <td class="text-right">৳{{ order.get_discount_total }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="row bg-light align-items-center m-0" style="background-color: #dae3eb !important">
+                    <div class="col col-auto p-4">
+                        <p class="mb-0">SHIPPING CHARGE</p>
+                        <h4 class="mb-0" style="color: black !important;">৳{{ order.shipping_total }}</h4>
+                    </div>
+                    <div class="col col-auto p-4">
+                        <i class="bi bi-plus-lg text-muted"></i>
+                    </div>
+                    <div class="col col-auto me-auto p-4">
+                        <p class="mb-0">DISCOUNT</p>
+                        <h4 class="mb-0" style="color: black !important;">৳{{ order.extra_discount|floatformat:2 }}</h4>
+                        {% if order.coupon_discount %}
+                        <small class="d-block text-muted">Coupon Discount: ৳{{ order.coupon_discount|floatformat:2 }}</small>
+                        {% endif %}
+                    </div>
+                    <div class="col bg-primary col-auto p-4">
+                        <p class="mb-0 text-white">GRAND TOTAL</p>
+                        {% with final_total=order.total_cost %}
+                            <h4 class="mb-0 text-white">
+                                ৳{{ final_total|floatformat:2 }}
+                            </h4>
+                        {% endwith %}
+                    </div>
+                </div>
+
+                <hr>
+                <div class="my-3">
+                    * {{ invoice_note }}<br>
+                    * Payment is due within 30 days<br>
+                    * If you have any questions concerning this bill, contact us.
+                </div>
+
+                <div class="signature-row">
+                    <div class="signature-box">Customer Signature</div>
+                    <div class="signature-box">Authorized Signature</div>
+                </div>
+            </div>
+
+            <div class="card-footer py-3 bg-transparent">
+                <p class="text-center mb-2">
+                    THANK YOU FOR YOUR BUSINESS
+                </p>
+                <p class="text-center d-flex align-items-center gap-3 justify-content-center mb-0">
+                    <span class=""><i class="bi bi-globe"></i> {{ brand_website }}</span>
+                    {% if brand_phone %}<span class=""><i class="bi bi-telephone-fill"></i> T:{{ brand_phone }}</span>{% endif %}
+                    <span class=""><i class="bi bi-envelope-fill"></i> {{ brand_email }}</span>
+                </p>
+            </div>
+        </div>
+    </div>
+    <section class="agency-bottom-content d-print-none" id="agency_bottom" style="background: #fec219;">
+        <div class="container">
+            <div class="invo-buttons-wrap">
+                <div class="invo-print-btn invo-btns">
+                    <a href="javascript:window.print()" class="print-btn">
+                        <i class="fa-solid fa-print fa-xl" style="color: #000000; margin: auto;"></i>
+                        <span class="inter-700 medium-font" style="color: #000000;">Print</span>
+                    </a>
+                </div>
+                <p class="d-print-none text-center mt-2" style="color: #000; font-size: 12px;">
+                    Print dialog খুললে "More settings" এ গিয়ে <strong>Headers and footers</strong> বন্ধ করে দাও — তাহলে browser এর নিজের date/title/URL লেখা bill এ আসবে না।
+                </p>
+            </div>
+        </div>
+    </section>
+</body>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const pace_inactive = document.querySelector('.pace, .pace-inactive')
+        if (pace_inactive) pace_inactive.remove();
+
+        const invoice_body = document.getElementById("invoice-body")
+        invoice_body.className = '';
+    });
+</script>
