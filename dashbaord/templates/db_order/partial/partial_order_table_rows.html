@@ -133,8 +133,13 @@
                                 data-bs-toggle="modal" data-bs-target="#deleteOrderModal">
                                 <i class="bi bi-trash"></i>
                             </button>
-                            <button type="button" class="btn btn-sm btn-filter" onclick="printInvoice({{ order.id }})">
+                            <button type="button" class="btn btn-sm btn-filter" onclick="printInvoice({{ order.id }})"
+                                title="Print Invoice">
                                 <i class="material-icons-outlined">print</i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-filter" onclick="printBill({{ order.id }})"
+                                title="Print A4 Bill">
+                                <i class="bi bi-file-earmark-text"></i>
                             </button>
                             <button type="button" class="btn btn-sm btn-filter" onclick="printToken({{ order.id }})"
                                 title="Print Token">
@@ -237,6 +242,29 @@
         // Invoice Print Script--------
         window.printInvoice = function (orderId) {
             const url = `/orders/${orderId}/invoice/`;
+            const width = Math.round(screen.width / 2);
+            const height = Math.round(screen.height * 0.85);
+            const left = screen.width - width;
+            const top = 40;
+
+            const printWindow = window.open(
+                url,
+                '_blank',
+                `width=${width},height=${height},left=${left},top=${top}`
+            );
+
+            printWindow.onload = function () {
+                printWindow.focus();
+                printWindow.print();
+            };
+            printWindow.onafterprint = function () {
+                printWindow.close();
+            };
+        };
+
+        // Bill Print Script--------
+        window.printBill = function (orderId) {
+            const url = `/orders/${orderId}/bill/`;
             const width = Math.round(screen.width / 2);
             const height = Math.round(screen.height * 0.85);
             const left = screen.width - width;

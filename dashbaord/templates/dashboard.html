@@ -73,13 +73,14 @@
   {% include 'sidebar.html' %}
   <!--end sidebar-->
 
-
+<div id="zoom-scale-wrapper">
   <main class="main-wrapper" id="content-area">
     {% include 'messages_block.html' %}
     {% block dashboard_body_content %}
     {% include 'db_home/main_wrapper.html' %}
     {% endblock dashboard_body_content %}
   </main>
+</div>
 
   <!--start overlay-->
   <div class="overlay btn-toggle"></div>
@@ -204,12 +205,15 @@
 
 
     // Cross-browser 90% zoom
-    document.body.style.zoom = "0.8";
-    if (navigator.userAgent.toLowerCase().includes("firefox")) {
-      const el = document.getElementById("root");
-      el.style.transform = "scale(0.8)";
-      el.style.transformOrigin = "0 0";
-      el.style.width = "111%";
+    const zoomWrapper = document.getElementById("zoom-scale-wrapper");
+    if (zoomWrapper) {
+      zoomWrapper.style.zoom = "0.8";
+      if (navigator.userAgent.toLowerCase().includes("firefox")) {
+        zoomWrapper.style.zoom = "";
+        zoomWrapper.style.transform = "scale(0.8)";
+        zoomWrapper.style.transformOrigin = "0 0";
+        zoomWrapper.style.width = "125%";
+      }
     }
 
     // Media File Update Frame 

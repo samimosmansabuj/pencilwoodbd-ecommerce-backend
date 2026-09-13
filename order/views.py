@@ -15,7 +15,7 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.text import slugify
-from django.urls import reverse_lazy
+from django.urls import reverse_lazy, reverse
 
 from pencilwoodbd.extra_module import parse_decimal
 from pencilwoodbd.choices import (
@@ -253,11 +253,12 @@ class AddOrderView(LoginRequiredMixin, View):
                 if is_ajax:
                     return JsonResponse({
                         "status": True,
-                        "message": f"Order {order.order_id} created successfully."
+                        "message": f"Order {order.order_id} created successfully.",
+                        "redirect_url": reverse("order_list"),
                     }, status=201)
                 else:
-                    messages.success(request, f"Order {order.order_id} created successfully.")
-                    return redirect("order_detail", id=order.id)
+                    messages.success(request, f"Order {order.order_id} created successfully. Redirecting…")
+                    return redirect("order_list")
         except Exception as e:
             if is_ajax:
                 return JsonResponse({"status": False, "message": str(e)}, status=400)
@@ -616,7 +617,16 @@ class OrderInvoiceView(View):
             return render(request, "db_order/invoice.html", {"order": order})
         return redirect(request.META.get("HTTP_REFERER"))
 
+class OrderBillView(View):
+    def get_order(self, id):
+        return get_object_or_404(Order, id=id)
 
+    def get(self, request, id):
+        order = self.get_order(id)
+        if order:
+            return render(request, "db_order/bill_a4.html", {"order": order})
+        return redirect(request.META.get("HTTP_REFERER"))
+    
 class OrderStatusUpdateView(LoginRequiredMixin, View):
     login_url = "admin_login"
 

@@ -660,7 +660,13 @@
                             const modalInstance = bootstrap.Modal.getInstance(modalEl);
                             if (modalInstance) modalInstance.hide();
                         }
-                        htmx.ajax('GET', window.location.href, { target: '#content-area', swap: 'innerHTML' });
+                        if (data.redirect_url) {
+                            setTimeout(function () {
+                                window.location.href = data.redirect_url;
+                            }, 5000);
+                        } else {
+                            htmx.ajax('GET', window.location.href, { target: '#content-area', swap: 'innerHTML' });
+                        }
                     } else {
                         errorNotificationCustom(data.message || "Failed to create order.");
                     }
