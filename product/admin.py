@@ -21,7 +21,7 @@ class ProductVariantInline(admin.TabularInline):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'product_type', 'sku', 'status')
+    list_display = ('id', 'name', 'product_type', 'sku', 'status', 'is_gift_only')
     search_fields = ('title', 'sku')
     inlines = [ProductVariantInline, ProductImageInline, ProductVideoInline]
 

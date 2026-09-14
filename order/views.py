@@ -18,6 +18,7 @@ from django.utils.text import slugify
 from django.urls import reverse_lazy, reverse
 
 from pencilwoodbd.extra_module import parse_decimal
+from authentication.utils import normalize_bd_phone
 from pencilwoodbd.choices import (
     USER_TYPE, STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, PAYMENT_TYPE,
     PAYMENT_STATUS, ORDER_REQUEST_WORK_STATUS, ORDER_SOURCE,
@@ -113,6 +114,8 @@ class AddOrderView(LoginRequiredMixin, View):
                         return JsonResponse({"status": False, "message": "Phone number is required."}, status=400)
                     messages.error(request, "Phone number is required.")
                     return redirect("add_order")
+
+                phone = normalize_bd_phone(phone) or phone
 
                 customer, created = Customer.objects.get_or_create(
                     phone=phone,
@@ -821,6 +824,8 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                     messages.error(request, "Phone number is required.")
                     return redirect("add_order_request") if not pk else redirect("edit_order_request", pk=pk)
 
+                phone = normalize_bd_phone(phone) or phone
+
                 if customer:
                     customer.company = company or None
                     customer.name = name
@@ -838,6 +843,7 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                             "email": email or None,
                         }
                     )
+                    
                     if not created:
                         customer.company = company or customer.company
                         customer.name = name or customer.name

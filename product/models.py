@@ -148,6 +148,7 @@ class Product(models.Model):
     tags = models.ManyToManyField(Tag, blank=True, related_name="products")
     sold_count = models.PositiveIntegerField(default=0)
     is_bestseller = models.BooleanField(default=False)
+    is_gift_only = models.BooleanField(default=False)
     status = models.CharField(max_length=50, choices=CATEGORY_PRODUCT_STATUS.choices, default=CATEGORY_PRODUCT_STATUS.DRAFT)
     metadata = models.JSONField(default=dict, blank=True)
     # ------------- Per product pixel -----------------

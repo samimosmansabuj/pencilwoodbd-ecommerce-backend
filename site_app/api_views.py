@@ -38,7 +38,7 @@ class HomePageAPIView(APIView):
         sliders = HomeSlider.objects.filter(is_active=True)
         news = NewsFeed.objects.filter(is_active=True)
 
-        products = Product.objects.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE)[:10]
+        products = Product.objects.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE, is_gift_only=False)[:10]
 
         categories = Category.objects.filter(
             status=CATEGORY_PRODUCT_STATUS.ACTIVE, parent__isnull=True
