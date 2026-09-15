@@ -7,6 +7,8 @@ from .api_views import (
     OrderDetailAPIView,
     CheckoutSummaryAPIView, 
     PlaceOrderAPIView,
+    CustomerAddressListAPIView,
+    CustomerAddressDetailAPIView,
     # SteadfastWebhookView,
 )
 
@@ -26,6 +28,8 @@ from .views import (
 urlpatterns = [
     
     path('api/checkout/summary/', CheckoutSummaryAPIView.as_view(), name="checkout_summary"),
+    path('api/addresses/', CustomerAddressListAPIView.as_view(), name="customer_addresses"),
+    path('api/addresses/<int:address_id>/', CustomerAddressDetailAPIView.as_view(), name="customer_address_detail"),
     path('api/checkout/place-order/', PlaceOrderAPIView.as_view(), name="place_order"),
     # path('api/order/create/', EcomOrderCreateAPIView.as_view(), name='order_create'),
     path('api/order/my-orders/', OrderListAPIView.as_view(), name='my_orders'),

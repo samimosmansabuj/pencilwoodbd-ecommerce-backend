@@ -280,6 +280,8 @@ class VerifyOTPAPIView(APIView):
 
 class ProductPagination(PageNumberPagination):
     page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 500
 
 
 class CategoryListAPIView(APIView):
@@ -313,7 +315,8 @@ class ProductListAPIView(APIView):
 
     def get(self, request):
         qs = Product.objects.filter(
-            status=CATEGORY_PRODUCT_STATUS.ACTIVE
+            status=CATEGORY_PRODUCT_STATUS.ACTIVE,
+            is_gift_only=False,
         ).select_related("category").prefetch_related("images", "variants").order_by("-id")
 
         # FILTERS

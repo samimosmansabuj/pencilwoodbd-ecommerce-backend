@@ -77,6 +77,132 @@ class ShipmentSerializerAPIView(views.APIView):
                 }, status=status.HTTP_400_BAD_REQUEST
             )
 
+class CustomerAddressListAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        customer = getattr(request.user, "customer_profile", None)
+        if not customer:
+            return Response({"status": False, "message": "No customer profile found."}, status=400)
+
+        addresses = Address.objects.filter(customer=customer).order_by("-id")
+
+        return Response({
+            "status": True,
+            "data": [
+                {
+                    "id": a.id,
+                    "name": customer.name,
+                    "phone": customer.phone,
+                    "address": a.street_01,
+                    "district": a.district,
+                    "upazila": a.upazila,
+                }
+                for a in addresses
+            ]
+        })
+
+    def post(self, request):
+        customer = getattr(request.user, "customer_profile", None)
+        if not customer:
+            return Response({"status": False, "message": "No customer profile found."}, status=400)
+
+        street_01 = (request.data.get("address") or "").strip()
+        district = (request.data.get("district") or "").strip()
+        upazila = (request.data.get("upazila") or "N/A").strip() or "N/A"
+        name = (request.data.get("name") or "").strip()
+        phone = (request.data.get("phone") or "").strip()
+
+        if not street_01 or not district:
+            return Response({"status": False, "message": "Address and district are required."}, status=400)
+
+        if name and name != customer.name:
+            customer.name = name
+        norm_phone = normalize_bd_phone(phone) if phone else ""
+        if norm_phone and norm_phone != customer.phone:
+            customer.phone = norm_phone
+        customer.save()
+
+        addr = Address.objects.create(
+            customer=customer,
+            street_01=street_01,
+            district=district,
+            upazila=upazila,
+        )
+
+        return Response({
+            "status": True,
+            "message": "Address saved",
+            "data": {
+                "id": addr.id,
+                "name": customer.name,
+                "phone": customer.phone,
+                "address": addr.street_01,
+                "district": addr.district,
+                "upazila": addr.upazila,
+            }
+        }, status=201)
+
+
+class CustomerAddressDetailAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, address_id):
+        customer = getattr(request.user, "customer_profile", None)
+        if not customer:
+            return Response({"status": False, "message": "No customer profile found."}, status=400)
+
+        addr = Address.objects.filter(id=address_id, customer=customer).first()
+        if not addr:
+            return Response({"status": False, "message": "Address not found."}, status=404)
+
+        street_01 = (request.data.get("address") or "").strip()
+        district = (request.data.get("district") or "").strip()
+        upazila = (request.data.get("upazila") or addr.upazila or "N/A").strip() or "N/A"
+        name = (request.data.get("name") or "").strip()
+        phone = (request.data.get("phone") or "").strip()
+
+        if not street_01 or not district:
+            return Response({"status": False, "message": "Address and district are required."}, status=400)
+
+        if name and name != customer.name:
+            customer.name = name
+        norm_phone = normalize_bd_phone(phone) if phone else ""
+        if norm_phone and norm_phone != customer.phone:
+            customer.phone = norm_phone
+        customer.save()
+
+        addr.street_01 = street_01
+        addr.district = district
+        addr.upazila = upazila
+        addr.save()
+
+        return Response({
+            "status": True,
+            "message": "Address updated",
+            "data": {
+                "id": addr.id,
+                "name": customer.name,
+                "phone": customer.phone,
+                "address": addr.street_01,
+                "district": addr.district,
+                "upazila": addr.upazila,
+            }
+        })
+
+    def delete(self, request, address_id):
+        customer = getattr(request.user, "customer_profile", None)
+        if not customer:
+            return Response({"status": False, "message": "No customer profile found."}, status=400)
+
+        addr = Address.objects.filter(id=address_id, customer=customer).first()
+        if not addr:
+            return Response({"status": False, "message": "Address not found."}, status=404)
+
+        addr.delete()
+        return Response({"status": True, "message": "Address deleted"})
+    
+    
 # @method_decorator(csrf_exempt, name='dispatch')
 # class SteadfastWebhookView(View):
 #     def post(self, request):
@@ -113,7 +239,48 @@ class ShipmentSerializerAPIView(views.APIView):
 
 #         return JsonResponse({"success": True})
 
+def build_gift_line_items(product, quantity, district=None):
+    gift_lines = []
+    gift_rows = product.gift_product.select_related("gift_product").all()
 
+    for gift in gift_rows:
+        gift_product = gift.gift_product
+        if not gift_product:
+            continue
+
+        base_price = gift_product.discount_price or gift_product.price
+        base_price = Decimal(str(base_price or 0))
+
+        if gift.gift_type == PRODUCT_GIFT_TYPE.FREE:
+            unit_price = Decimal("0")
+        elif gift.gift_type == PRODUCT_GIFT_TYPE.FLAT:
+            unit_price = base_price - Decimal(str(gift.value))
+            if unit_price < 0:
+                unit_price = Decimal("0")
+        elif gift.gift_type == PRODUCT_GIFT_TYPE.DISCOUNT:
+            unit_price = base_price * (Decimal("1") - Decimal(str(gift.value)) / Decimal("100"))
+        else:
+            unit_price = base_price
+
+        line_total = unit_price * quantity
+
+        gift_lines.append({
+            "cart_id": None,
+            "product_id": gift_product.id,
+            "variant_id": None,
+            "product": gift_product.name,
+            "variant": None,
+            "quantity": quantity,
+            "price": unit_price,
+            "total": line_total,
+            "delivery_charge": 0,
+            "is_gift": True,
+            "gift_type": gift.gift_type,
+            "gift_value": gift.value,
+            "reference_product_id": product.id,
+        })
+
+    return gift_lines
 
 class CheckoutSummaryAPIView(APIView):
     permission_classes = [AllowAny]
@@ -151,9 +318,15 @@ class CheckoutSummaryAPIView(APIView):
                         "quantity": item.quantity,
                         "price": item.price,
                         "total": item.total_price,
-                        "delivery_charge": float(product_delivery_charge)
+                        "delivery_charge": float(product_delivery_charge),
+                        "is_gift": False,
                     })
                     subtotal += item.total_price
+
+                    gift_lines = build_gift_line_items(product, item.quantity, selected_district)
+                    for gift_line in gift_lines:
+                        items_data.append(gift_line)
+                        subtotal += gift_line["total"]
             else:
                 import json as pyjson
                 raw_items = request.query_params.get("items")
@@ -190,9 +363,15 @@ class CheckoutSummaryAPIView(APIView):
                         "quantity": quantity,
                         "price": discount_price,
                         "total": line_total,
-                        "delivery_charge": float(product_delivery_charge)
+                        "delivery_charge": float(product_delivery_charge),
+                        "is_gift": False,
                     })
                     subtotal += line_total
+
+                    gift_lines = build_gift_line_items(product, quantity, selected_district)
+                    for gift_line in gift_lines:
+                        items_data.append(gift_line)
+                        subtotal += gift_line["total"]
 
             grand_total = subtotal + total_delivery_charge
 
@@ -414,8 +593,60 @@ class PlaceOrderAPIView(APIView):
                     OrderItem.objects.create(
                         order=order, product=product, variant=variant, product_name=product.name,
                         quantity=quantity, price=price, discount_price=discount_price,
+                        snapshot={"is_gift": False},
                     )
                     total += discount_price * quantity
+
+                    gift_rows = product.gift_product.select_related("gift_product").all()
+                    for gift in gift_rows:
+                        gift_product = gift.gift_product
+                        if not gift_product:
+                            continue
+
+                        gift_base_price = gift_product.discount_price or gift_product.price
+                        gift_base_price = Decimal(str(gift_base_price or 0))
+
+                        if gift.gift_type == PRODUCT_GIFT_TYPE.FREE:
+                            gift_unit_price = Decimal("0")
+                        elif gift.gift_type == PRODUCT_GIFT_TYPE.FLAT:
+                            gift_unit_price = gift_base_price - Decimal(str(gift.value))
+                            if gift_unit_price < 0:
+                                gift_unit_price = Decimal("0")
+                        elif gift.gift_type == PRODUCT_GIFT_TYPE.DISCOUNT:
+                            gift_unit_price = gift_base_price * (Decimal("1") - Decimal(str(gift.value)) / Decimal("100"))
+                        else:
+                            gift_unit_price = gift_base_price
+
+                        if gift_product.has_variants:
+                            gift_variant = gift_product.variants.filter(is_active=True).first()
+                            if gift_variant and gift_variant.inventory_quantity >= quantity:
+                                gift_variant.inventory_quantity -= quantity
+                                gift_variant.save()
+                                gift_product.inventory_quantity = sum(
+                                    v.inventory_quantity for v in gift_product.variants.filter(is_active=True)
+                                )
+                                gift_product.save(update_fields=["inventory_quantity"])
+                        else:
+                            if gift_product.inventory_type == "in_stock" and gift_product.inventory_quantity >= quantity:
+                                gift_product.inventory_quantity -= quantity
+                                gift_product.save(update_fields=["inventory_quantity"])
+
+                        OrderItem.objects.create(
+                            order=order,
+                            product=gift_product,
+                            variant=None,
+                            product_name=gift_product.name,
+                            quantity=quantity,
+                            price=Decimal("0"),
+                            discount_price=gift_unit_price,
+                            snapshot={
+                                "is_gift": True,
+                                "gift_type": gift.gift_type,
+                                "gift_value": gift.value,
+                                "reference_product_id": product.id,
+                            },
+                        )
+                        total += gift_unit_price * quantity
 
                 order.total_cost = total + total_delivery_charge - discount_amount
                 order.shipping_total = total_delivery_charge
