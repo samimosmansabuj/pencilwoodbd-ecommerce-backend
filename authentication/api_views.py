@@ -9,10 +9,6 @@ from .models import CustomUser, Customer, Role
 from .utils import normalize_bd_phone, phone_lookup_variants
 
 class PhoneCheckAPIView(APIView):
-    """
-    Step 1 of login. Given a phone number, tells the frontend
-    whether to show 'set password' or 'enter password'.
-    """
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -164,13 +160,69 @@ class PhoneLoginAPIView(APIView):
             return Response({"status": False, "message": str(e)}, status=500)
 
 
+class ResetPasswordAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        from site_app.models import OTPVerification
+
+        phone = normalize_bd_phone(request.data.get("phone", ""))
+        otp_code = request.data.get("otp")
+        new_password = request.data.get("password")
+
+        if not phone or not otp_code or not new_password:
+            return Response(
+                {"status": False, "message": "Phone, OTP and new password are required"},
+                status=400
+            )
+
+        if len(new_password) < 6:
+            return Response(
+                {"status": False, "message": "Password must be at least 6 characters"},
+                status=400
+            )
+
+        try:
+            otp_obj = OTPVerification.objects.filter(phone=phone, otp=otp_code).last()
+            if not otp_obj:
+                return Response({"status": False, "message": "Invalid OTP"}, status=400)
+            if otp_obj.is_expired():
+                return Response({"status": False, "message": "OTP expired, please resend"}, status=400)
+
+            user = CustomUser.objects.filter(phone__in=phone_lookup_variants(phone)).first()
+            if not user:
+                return Response({"status": False, "message": "No account found with this number"}, status=404)
+
+            with transaction.atomic():
+                user.phone = phone
+                user.set_password(new_password)
+                user.save()
+
+                customer = getattr(user, "customer_profile", None)
+                if customer:
+                    customer.phone = phone
+                    customer.has_password = True
+                    customer.save(update_fields=["phone", "has_password"])
+                    _merge_guest_cart_and_wishlist(customer, request.data)
+
+                # OTP used up — don't allow replay
+                otp_obj.is_verified = True
+                otp_obj.save(update_fields=["is_verified"])
+
+                refresh = RefreshToken.for_user(user)
+
+            return Response({
+                "status": True,
+                "message": "Password reset successful",
+                "access": str(refresh.access_token),
+                "refresh": str(refresh)
+            })
+
+        except Exception as e:
+            traceback.print_exc()
+            return Response({"status": False, "message": str(e)}, status=500)
+
 def _merge_guest_cart_and_wishlist(customer, data):
-    """
-    Frontend sends guest cart/wishlist as JSON in the login/set-password payload:
-      guest_cart: [{product_id, variant_id, quantity}, ...]
-      guest_wishlist: [product_id, ...]
-    We upsert these into the customer's real cart/wishlist.
-    """
     from product.models import AddToCart, Wishlist, Product, ProductVariant
 
     guest_cart = data.get("guest_cart") or []

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import PaymentMethod, Address, Order, OrderItem, OrderRequest, Shipment, Payment, Review, TelegramBotConfig, SteadFastWebhookLog
+from .models import OrderAttempt, PaymentMethod, Address, Order, OrderItem, OrderRequest, Shipment, Payment, Review, TelegramBotConfig, SteadFastWebhookLog
 from django_json_widget.widgets import JSONEditorWidget
 from django.db import models
 
@@ -8,6 +8,11 @@ from django.db import models
 #         models.JSONField: {'widget': JSONEditorWidget},  # <-- JSONField er jonno widget
 #     }
 
+@admin.register(OrderAttempt)
+class OrderAttemptAdmin(admin.ModelAdmin):
+    list_display = ("phone", "name", "district", "created_at", "updated_at")
+    search_fields = ("phone", "name")
+    ordering = ("-updated_at",)
 
 @admin.register(TelegramBotConfig)
 class TelegramBotConfigAdmin(admin.ModelAdmin):

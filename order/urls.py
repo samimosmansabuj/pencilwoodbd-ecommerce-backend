@@ -22,7 +22,8 @@ from .views import (
     OrderRequestStatusUpdateView,
     TelegramBotSettingsView, delete_telegram_bot_config, toggle_telegram_bot_active,
     OrderTokenPrintView, OrderBulkTokenPrintView, OrderPathaoParcelSubmitView,
-    OrderUrgentToggleView, ConfirmOrderRequestView,
+    OrderUrgentToggleView, ConfirmOrderRequestView,OrderAttemptListView, 
+    OrderAttemptDetailView, OrderAttemptDeleteView,
 )
 
 urlpatterns = [
@@ -59,10 +60,15 @@ urlpatterns = [
     path("order-request/", OrderRequestListView.as_view(), name="order_request_list"),
     path("order-request/<int:id>/", OrderRequestDetailView.as_view(), name="order_request_detail"),
     path("order-request/<int:pk>/approve/", ApproveOrderRequestView.as_view(), name="approve_order_request"),
-        path("order-request/<int:pk>/confirm/", ConfirmOrderRequestView.as_view(), name="confirm_order_request"),
+    path("order-request/<int:pk>/confirm/", ConfirmOrderRequestView.as_view(), name="confirm_order_request"),
     path("order-request/<int:pk>/reject/", RejectOrderRequestView.as_view(), name="reject_order_request"),
     path("order-request/<int:pk>/work-status/", UpdateOrderRequestWorkStatusView.as_view(), name="update_order_request_work_status"),
     path('order-request/<int:pk>/update-status/', OrderRequestStatusUpdateView.as_view(), name='order_request_status_update'),
+
+    # ----------------- Dashboard: Order Attempts -----------------
+    path("order-attempts/", OrderAttemptListView.as_view(), name="order_attempt_list"),
+    path("order-attempts/<int:id>/", OrderAttemptDetailView.as_view(), name="order_attempt_detail"),
+    path("order-attempts/<int:pk>/delete/", OrderAttemptDeleteView.as_view(), name="order_attempt_delete"),
 
     # ----------------- Dashboard: Telegram Bot Settings -----------------
     path('settings/telegram-bot/', TelegramBotSettingsView.as_view(), name='telegram_bot_settings'),

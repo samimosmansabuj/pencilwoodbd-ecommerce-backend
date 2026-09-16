@@ -1,0 +1,87 @@
+{% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
+
+<div class="main-content">
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav>
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item">
+                        <a href="{% url 'order_attempt_list' %}" hx-get="{% url 'order_attempt_list' %}"
+                            hx-target="#content-area" hx-push-url="true">Order Attempts</a>
+                    </li>
+                    <li class="breadcrumb-item active">Attempt #{{ attempt.id }}</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                <div>
+                    <h3 class="fw-bold mb-1">Order Attempt #{{ attempt.id }}</h3>
+                    <div class="text">
+                        Created: {{ attempt.created_at|date:"d M Y, h:i A" }} &nbsp;|&nbsp;
+                        Last Updated: {{ attempt.updated_at|date:"d M Y, h:i A" }}
+                    </div>
+                </div>
+                <div class="text-end">
+                    <span class="badge bg-warning text-dark px-3 py-2">Not Purchased Yet</span>
+                </div>
+            </div>
+            <hr>
+            <div class="d-flex flex-wrap gap-2">
+                <form method="post" action="{% url 'order_attempt_delete' attempt.pk %}"
+                      onsubmit="return confirm('Delete this order attempt?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger"><i class="bi bi-trash me-2"></i> Delete Attempt</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="fw-bold mb-3">Customer Info</h5>
+                    <p class="mb-1"><strong>Name:</strong> {{ attempt.name|default:"—" }}</p>
+                    <p class="mb-1"><strong>Phone:</strong> {{ attempt.phone }}</p>
+                    <p class="mb-1"><strong>Address:</strong> {{ attempt.address|default:"—" }}</p>
+                    <p class="mb-1"><strong>District:</strong> {{ attempt.district|default:"—" }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="fw-bold mb-3">Attribution</h5>
+                    <p class="mb-1"><strong>Source:</strong> {{ attempt.source|default:"—" }}</p>
+                    <p class="mb-1"><strong>UTM Source:</strong> {{ attempt.utm_source|default:"—" }}</p>
+                    <p class="mb-1"><strong>UTM Medium:</strong> {{ attempt.utm_medium|default:"—" }}</p>
+                    <p class="mb-1"><strong>UTM Campaign:</strong> {{ attempt.utm_campaign|default:"—" }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h5 class="fw-bold mb-3">Products in Cart at the Time</h5>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead class="table-light"><tr><th>Product</th><th>Price</th><th>Quantity</th></tr></thead>
+                    <tbody>
+                    {% for p in display_products %}
+                        <tr><td>{{ p.name }}</td><td>৳{{ p.price }}</td><td>{{ p.quantity }}</td></tr>
+                    {% empty %}
+                        <tr><td colspan="3" class="text-center py-4">No products found</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

@@ -28,7 +28,8 @@ class Address(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, related_name='customer_address', null=True, blank=True)
     street_01 = models.CharField(max_length=255)
     street_02 = models.CharField(max_length=255, blank=True, null=True)
-    upazila = models.CharField(max_length=255)
+    upazila = models.CharField(max_length=100, blank=True, null=True)
+    is_deleted = models.BooleanField(default=False)
     post_office = models.CharField(max_length=255, blank=True, null=True)
     post_code = models.CharField(max_length=20, blank=True, null=True)
     district = models.CharField(max_length=255)
@@ -498,3 +499,59 @@ class SteadFastWebhookLog(models.Model):
         return f"SteadFast {self.type} Webhook Log For {self.account} at {self.received_at}"
 
 
+# Order Attempt (pre-purchase phone capture) Model
+class OrderAttempt(models.Model):
+    phone = models.CharField(max_length=20, db_index=True)
+    name = models.CharField(max_length=255, blank=True, null=True)
+    address = models.CharField(max_length=255, blank=True, null=True)
+    district = models.CharField(max_length=255, blank=True, null=True)
+
+    products = models.JSONField(default=list, blank=True)
+
+    source = models.CharField(max_length=100, blank=True, null=True)
+    utm_source = models.CharField(max_length=100, blank=True, null=True)
+    utm_medium = models.CharField(max_length=100, blank=True, null=True)
+    utm_campaign = models.CharField(max_length=255, blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def product_ids(self):
+        ids = set()
+        for p in (self.products or []):
+            try:
+                ids.add(int(p.get("id")))
+            except (TypeError, ValueError):
+                continue
+        return ids
+
+    def get_display_products(self):
+        qty_by_id = {}
+        for p in (self.products or []):
+            try:
+                qty_by_id[int(p.get("id"))] = int(p.get("quantity", 1))
+            except (TypeError, ValueError):
+                continue
+
+        result = []
+        for prod in Product.objects.filter(id__in=qty_by_id.keys()):
+            result.append({
+                "id": prod.id,
+                "name": prod.name,
+                "price": prod.discount_price if prod.discount_price else prod.price,
+                "quantity": qty_by_id.get(prod.id, 1),
+            })
+        return result
+
+    @property
+    def total_items(self):
+        return sum(p.get("quantity", 1) for p in (self.products or []))
+
+    def is_subset_of(self, other_product_ids: set) -> bool:
+        my_ids = self.product_ids()
+        if not my_ids:
+            return False
+        return my_ids.issubset(other_product_ids)
+
+    def __str__(self):
+        return f"Attempt - {self.phone} ({len(self.products or [])} items)"

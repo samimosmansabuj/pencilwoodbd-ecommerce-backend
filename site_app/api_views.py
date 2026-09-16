@@ -19,7 +19,7 @@ from pencilwoodbd.choices import (
     PAYMENT_STATUS,
     ORDER_SOURCE,
 )
-from order.models import Order, OrderItem
+from order.models import Order, OrderItem, OrderAttempt
 from authentication.models import Customer
 from site_app.models import OTPVerification
 from order.utils import OrderConfirmatinoEmailSend
@@ -603,6 +603,18 @@ class OrderCreateAPIView(APIView):
                 if otp_required and otp_verified:
                     otp_verified.delete()
 
+                # ----- Clean up matching order-attempt(s) for this phone -----
+                order_product_ids = set()
+                for p in data.get("products", []):
+                    try:
+                        order_product_ids.add(int(p.get("id")))
+                    except (TypeError, ValueError):
+                        continue
+
+                for attempt in OrderAttempt.objects.filter(phone=customer.phone):
+                    if attempt.is_subset_of(order_product_ids):
+                        attempt.delete()
+
                 record_order_track(order, request)
 
                 return Response(
@@ -654,7 +666,81 @@ class OrderCreateAPIView(APIView):
             raise Exception(
                 f"The following fields must be set: {', '.join(amount_missing_fields)}"
             )
-        
+
+
+# =========================
+# ORDER ATTEMPT (pre-purchase phone capture, no GTM hit)
+# =========================
+class OrderAttemptAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        try:
+            data = request.data
+            customer_data = data.get("customer", {}) or {}
+
+            phone = normalize_bd_phone(customer_data.get("phone", ""))
+            if not phone:
+                return Response(
+                    {"success": False, "message": "A valid Bangladeshi mobile number is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            raw_products = data.get("products", []) or []
+            products_snapshot = []
+            for p in raw_products:
+                try:
+                    pid = int(p.get("id"))
+                except (TypeError, ValueError):
+                    continue
+                products_snapshot.append({"id": pid, "quantity": int(p.get("quantity", 1))})
+
+            if not products_snapshot:
+                return Response(
+                    {"success": False, "message": "No products to save in attempt."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            incoming_ids = {p["id"] for p in products_snapshot}
+
+            with transaction.atomic():
+                existing_attempts = OrderAttempt.objects.filter(phone=phone).order_by("-updated_at")
+
+                attempt = None
+                for a in existing_attempts:
+                    if a.is_subset_of(incoming_ids):
+                        attempt = a
+                        break
+
+                if attempt:
+                    attempt.name = customer_data.get("name") or attempt.name
+                    attempt.address = customer_data.get("address") or attempt.address
+                    attempt.district = customer_data.get("district") or attempt.district
+                    attempt.products = products_snapshot
+                    attempt.utm_source = data.get("utm_source") or attempt.utm_source
+                    attempt.utm_medium = data.get("utm_medium") or attempt.utm_medium
+                    attempt.utm_campaign = data.get("utm_campaign") or attempt.utm_campaign
+                    attempt.save()
+                else:
+                    attempt = OrderAttempt.objects.create(
+                        phone=phone,
+                        name=customer_data.get("name"),
+                        address=customer_data.get("address"),
+                        district=customer_data.get("district"),
+                        products=products_snapshot,
+                        source=data.get("source", "checkout"),
+                        utm_source=data.get("utm_source"),
+                        utm_medium=data.get("utm_medium"),
+                        utm_campaign=data.get("utm_campaign"),
+                    )
+
+            return Response({"success": True, "attempt_id": attempt.id}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print("order attempt error: ", e)
+            return Response({"success": False, "message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
 class ApplyCouponAPIView(APIView):
     permission_classes = [AllowAny]
 
