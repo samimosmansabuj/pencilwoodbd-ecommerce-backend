@@ -1,0 +1,12 @@
+{% extends 'dashboard.html' %}
+
+{% block page_title %}
+<title>Order Attempts | {{ brand_name }}</title>
+{% endblock page_title %}
+
+{% block dashboard_body_content %}
+    {% include './partial/partial_order_attempt_list.html' %}
+{% endblock dashboard_body_content %}
+
+{% block display_bottom_button %}
+{% endblock %}

@@ -25,7 +25,7 @@ from pencilwoodbd.choices import (
 )
 
 # Models
-from .models import Order, OrderRequest, OrderItem, OrderRequestItem, TelegramBotConfig
+from .models import Order, OrderRequest, OrderItem, OrderRequestItem, TelegramBotConfig, OrderAttempt
 from product.models import Product, ProductVariant, Category
 from authentication.models import CustomUser, Customer, OrderTrackRecord
 from site_app.models import DeliveryOption
@@ -1795,3 +1795,76 @@ class OrderUrgentToggleView(LoginRequiredMixin, View):
         return redirect('order_list')
 
 
+class OrderAttemptListView(LoginRequiredMixin, View):
+
+    def get_attempt_queryset(self, request):
+        search = request.GET.get("q", "").strip()
+        attempts = OrderAttempt.objects.all().order_by("-updated_at")
+
+        if search:
+            attempts = attempts.filter(
+                Q(name__icontains=search)
+                | Q(phone__icontains=search)
+                | Q(address__icontains=search)
+                | Q(district__icontains=search)
+                | Q(id__icontains=search)
+            ).distinct()
+
+        start_date = request.GET.get("start_date")
+        end_date = request.GET.get("end_date")
+        if start_date and end_date:
+            attempts = attempts.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
+        elif start_date:
+            attempts = attempts.filter(created_at__date=start_date)
+        elif end_date:
+            attempts = attempts.filter(created_at__date__lte=end_date)
+
+        page_number = request.GET.get("page", 1)
+        per_page = int(request.GET.get("per_page", 10))
+        paginator = Paginator(attempts, per_page)
+        attempts = paginator.get_page(page_number)
+
+        return attempts, paginator, per_page, page_number
+
+    def get(self, request):
+        attempts, paginator, per_page, page_number = self.get_attempt_queryset(request)
+
+        context = {
+            "attempts": attempts,
+            "paginator": paginator,
+            "per_page": per_page,
+            "page_number": page_number,
+            "current_search": request.GET.get("q", ""),
+            "start_date": request.GET.get("start_date", ""),
+            "end_date": request.GET.get("end_date", ""),
+        }
+
+        if request.htmx:
+            return render(request, "db_order_attempt/partial/partial_order_attempt_list.html", context)
+        return render(request, "db_order_attempt/order_attempt_list.html", context)
+
+
+class OrderAttemptDetailView(LoginRequiredMixin, View):
+
+    def get(self, request, id):
+        attempt = get_object_or_404(OrderAttempt, id=id)
+        context = {"attempt": attempt, "display_products": attempt.get_display_products()}
+
+        if request.htmx:
+            return render(request, "db_order_attempt/partial/partial_order_attempt_detail.html", context)
+        return render(request, "db_order_attempt/order_attempt_detail.html", context)
+
+
+class OrderAttemptDeleteView(LoginRequiredMixin, DeleteView):
+    model = OrderAttempt
+    success_url = reverse_lazy("order_attempt_list")
+    login_url = "admin_login"
+
+    def post(self, request, *args, **kwargs):
+        try:
+            attempt = get_object_or_404(OrderAttempt, pk=kwargs.get("pk"))
+            attempt.delete()
+            messages.success(request, "Order attempt deleted successfully!")
+        except Exception:
+            messages.error(request, "Order attempt does not exist.")
+        return redirect(request.META["HTTP_REFERER"])

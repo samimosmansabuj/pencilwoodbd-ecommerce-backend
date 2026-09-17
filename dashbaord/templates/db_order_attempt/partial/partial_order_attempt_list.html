@@ -1,0 +1,126 @@
+{% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
+
+<div class="main-content">
+
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item">
+                        <a href="{% url 'dashboard' %}"><i class="bx bx-home-alt"></i></a>
+                    </li>
+                    <li class="breadcrumb-item active">
+                        Order Attempts <span>({{ attempts.paginator.count }})</span>
+                    </li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row g-3 align-items-end mb-3">
+        <div class="col-auto">
+            <div class="position-relative">
+                <input class="form-control px-5" type="search" name="q"
+                    placeholder="Search by name / phone" value="{{ current_search }}"
+                    hx-get="{% url 'order_attempt_list' %}?start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                    hx-trigger="keyup changed delay:400ms" hx-target="#content-area" hx-push-url="true">
+                <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">search</span>
+            </div>
+        </div>
+
+        <div class="col-auto ms-auto d-flex gap-2 align-items-end">
+            <div>
+                <label class="form-label mb-1">Start Date</label>
+                <input type="date" class="form-control" name="start_date" value="{{ start_date }}"
+                    hx-get="{% url 'order_attempt_list' %}?per_page={{ per_page }}" hx-trigger="change"
+                    hx-target="#content-area" hx-include="[name='end_date'],[name='q']" hx-push-url="true">
+            </div>
+            <div>
+                <label class="form-label mb-1">End Date</label>
+                <input type="date" class="form-control" name="end_date" value="{{ end_date }}"
+                    hx-get="{% url 'order_attempt_list' %}?per_page={{ per_page }}" hx-trigger="change"
+                    hx-target="#content-area" hx-include="[name='start_date'],[name='q']" hx-push-url="true">
+            </div>
+            <div>
+                <button class="btn btn-outline-secondary mt-4" hx-get="{% url 'order_attempt_list' %}"
+                    hx-target="#content-area" hx-push-url="true">Clear</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-body">
+            <div class="customer-table">
+                <div class="table-responsive white-space-nowrap">
+                    <table class="table align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th><th>Name</th><th>Phone</th><th>District</th>
+                                <th>Items</th><th>Last Updated</th><th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for attempt in attempts %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'order_attempt_detail' attempt.id %}"
+                                       hx-get="{% url 'order_attempt_detail' attempt.id %}"
+                                       hx-target="#content-area" hx-push-url="true">#{{ attempt.id }}</a>
+                                </td>
+                                <td>{{ attempt.name|default:"—" }}</td>
+                                <td>{{ attempt.phone }}</td>
+                                <td>{{ attempt.district|default:"—" }}</td>
+                                <td>{{ attempt.total_items }}</td>
+                                <td>{{ attempt.updated_at|date:"d M Y, h:i A" }}</td>
+                                <td>
+                                    <a href="{% url 'order_attempt_detail' attempt.id %}" class="btn btn-filter btn-sm"
+                                       hx-get="{% url 'order_attempt_detail' attempt.id %}"
+                                       hx-target="#content-area" hx-push-url="true"><i class="bi bi-eye"></i></a>
+                                    <form method="post" action="{% url 'order_attempt_delete' attempt.pk %}"
+                                          style="display:inline;" onsubmit="return confirm('Delete this order attempt?');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="7" class="text-center py-5">No Order Attempts Found</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="btn btn-grd position-fixed bottom-0 end-0 m-3 d-flex align-items-center gap-2 shadow-lg"
+style="z-index:1050;margin:auto 22px 45px 0!important;padding:0!important;">
+<div class="card-body p-0">
+<nav><ul class="pagination mb-0">
+<li class="page-item {% if not attempts.has_previous %}disabled{% endif %}">
+<a class="page-link" hx-get="{% if attempts.has_previous %}{% url 'order_attempt_list' %}?page={{ attempts.previous_page_number }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% endif %}"
+hx-target="#content-area" hx-push-url="true">«</a></li>
+{% for num in paginator.page_range %}
+{% if num >= attempts.number|add:-2 and num <= attempts.number|add:2 %}
+<li class="page-item {% if attempts.number == num %}active{% endif %}">
+<a class="page-link" hx-get="{% url 'order_attempt_list' %}?page={{ num }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+hx-target="#content-area" hx-push-url="true">{{ num }}</a></li>
+{% endif %}
+{% endfor %}
+<li class="page-item {% if not attempts.has_next %}disabled{% endif %}">
+<a class="page-link" hx-get="{% if attempts.has_next %}{% url 'order_attempt_list' %}?page={{ attempts.next_page_number }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% endif %}"
+hx-target="#content-area" hx-push-url="true">»</a></li>
+</ul></nav>
+</div>
+<div class="col-auto">
+<select class="form-select" name="per_page"
+hx-get="{% url 'order_attempt_list' %}?q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}"
+hx-trigger="change" hx-target="#content-area" hx-push-url="true">
+<option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+<option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+<option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+</select>
+</div>
+</div>

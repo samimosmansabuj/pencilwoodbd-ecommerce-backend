@@ -85,7 +85,7 @@ class CustomerAddressListAPIView(APIView):
         if not customer:
             return Response({"status": False, "message": "No customer profile found."}, status=400)
 
-        addresses = Address.objects.filter(customer=customer).order_by("-id")
+        addresses = Address.objects.filter(customer=customer, is_deleted=False).order_by("-id")
 
         return Response({
             "status": True,
@@ -195,11 +195,12 @@ class CustomerAddressDetailAPIView(APIView):
         if not customer:
             return Response({"status": False, "message": "No customer profile found."}, status=400)
 
-        addr = Address.objects.filter(id=address_id, customer=customer).first()
+        addr = Address.objects.filter(id=address_id, customer=customer, is_deleted=False).first()
         if not addr:
             return Response({"status": False, "message": "Address not found."}, status=404)
 
-        addr.delete()
+        addr.is_deleted = True
+        addr.save(update_fields=["is_deleted"])
         return Response({"status": True, "message": "Address deleted"})
     
     

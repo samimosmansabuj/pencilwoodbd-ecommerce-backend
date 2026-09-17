@@ -3,16 +3,12 @@
   <div class="sidebar-header">
     <div class="logo-icon">
       <a href="{% url 'dashboard' %}">
-        <img
-          src="{% static 'dashboard_assets/images/logo-icon.png' %}"
-          class="logo-img"
-          alt=""
-        />
+        <img src="{% static 'dashboard_assets/images/logo-icon.png' %}" class="logo-img" alt="" />
       </a>
     </div>
     <div class="logo-name flex-grow-1">
       <a href="{% url 'dashboard' %}">
-        <h5 class="mb-0">{{ brand_short_name }}</h5>        <!-- <h5 class="mb-0">PencilwoodBD</h5> -->
+        <h5 class="mb-0">{{ brand_short_name }}</h5> <!-- <h5 class="mb-0">PencilwoodBD</h5> -->
       </a>
     </div>
     <div class="sidebar-close">
@@ -77,9 +73,7 @@
         </a>
         <ul>
           <li>
-            <a href="{% url 'category_list' %}"
-              ><i class="material-icons-outlined">arrow_right</i>Category</a
-            >
+            <a href="{% url 'category_list' %}"><i class="material-icons-outlined">arrow_right</i>Category</a>
           </li>
           <!-- <li>
                         <a href="#"><i class="material-icons-outlined">arrow_right</i>Add Category</a>
@@ -87,49 +81,49 @@
         </ul>
       </li>
 
-            <!-- Slider Section------- -->
-            <li>
-              <a href="javascript:;" class="has-arrow">
-                <div class="parent-icon">
-                  <i class="material-icons-outlined">view_carousel</i>
-                </div>
-                <div class="menu-title">Slider/Video</div>
-              </a>
-              <ul>
-                <li>
-                  <a href="{% url 'slider_list' %}">
-                    <i class="material-icons-outlined">arrow_right</i>Slider
-                  </a>
-                </li>
-                <li>
-                  <a href="{% url 'showcase_list' %}">
-                    <i class="material-icons-outlined">arrow_right</i>Video/Blog
-                  </a>
-                </li>
-              </ul>
-            </li>
+      <!-- Slider Section------- -->
+      <li>
+        <a href="javascript:;" class="has-arrow">
+          <div class="parent-icon">
+            <i class="material-icons-outlined">view_carousel</i>
+          </div>
+          <div class="menu-title">Slider/Video</div>
+        </a>
+        <ul>
+          <li>
+            <a href="{% url 'slider_list' %}">
+              <i class="material-icons-outlined">arrow_right</i>Slider
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'showcase_list' %}">
+              <i class="material-icons-outlined">arrow_right</i>Video/Blog
+            </a>
+          </li>
+        </ul>
+      </li>
 
-            <!-- Homepage Sections------- -->
-            <li>
-              <a href="javascript:;" class="has-arrow">
-                <div class="parent-icon">
-                  <i class="material-icons-outlined">dashboard_customize</i>
-                </div>
-                <div class="menu-title">Homepage Sections</div>
-              </a>
-              <ul>
-                <li>
-                  <a href="{% url 'home_section_list' %}">
-                    <i class="material-icons-outlined">arrow_right</i>Section On/Off
-                  </a>
-                </li>
-                <li>
-                  <a href="{% url 'why_choose_list' %}">
-                    <i class="material-icons-outlined">arrow_right</i>Why Choose Us Cards
-                  </a>
-                </li>
-              </ul>
-            </li>
+      <!-- Homepage Sections------- -->
+      <li>
+        <a href="javascript:;" class="has-arrow">
+          <div class="parent-icon">
+            <i class="material-icons-outlined">dashboard_customize</i>
+          </div>
+          <div class="menu-title">Homepage Sections</div>
+        </a>
+        <ul>
+          <li>
+            <a href="{% url 'home_section_list' %}">
+              <i class="material-icons-outlined">arrow_right</i>Section On/Off
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'why_choose_list' %}">
+              <i class="material-icons-outlined">arrow_right</i>Why Choose Us Cards
+            </a>
+          </li>
+        </ul>
+      </li>
 
       <!-- Variant Section------- -->
       <li>
@@ -202,6 +196,16 @@
         </a>
 
         <ul>
+          <!-- Order Attempts (pre-purchase phone captures) -->
+          <li>
+            <a href="{% url 'order_attempt_list' %}">
+              <i class="material-icons-outlined">arrow_right</i>
+              Order Attempts
+            </a>
+          </li>
+        </ul>
+        
+        <ul>
           <!-- Order Request List -->
           <li>
             <a href="{% url 'order_request_list' %}">
@@ -241,8 +245,8 @@
           <!-- Blocked IPs/Devices -->
           <li>
             <a href="{% url 'blocked_identity_list' %}">
-                <i class="material-icons-outlined">arrow_right</i>
-                Blocked IPs / Devices
+              <i class="material-icons-outlined">arrow_right</i>
+              Blocked IPs / Devices
             </a>
           </li>
 
