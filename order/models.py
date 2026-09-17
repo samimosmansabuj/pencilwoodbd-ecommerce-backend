@@ -165,6 +165,17 @@ class OrderItem(models.Model):
     def discount_total_price(self):
         return self.discount_price * self.quantity
     
+    @property
+    def get_size_attribute(self):
+        if self.variant and self.variant.attributes:
+            return self.variant.attributes.get("size")
+        return None
+    
+    @property
+    def get_color_attribute(self):
+        if self.variant and self.variant.attributes:
+            return self.variant.attributes.get("color")
+        return None
 
     def save(self, *args, **kwargs):
         if self.variant:
