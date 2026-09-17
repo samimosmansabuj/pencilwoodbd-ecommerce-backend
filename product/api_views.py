@@ -351,6 +351,8 @@ class ProductListAPIView(APIView):
             qs = qs.order_by("-price")
         elif sort == "newest":
             qs = qs.order_by("-created_at")
+        elif sort == "last_update":
+            qs = qs.order_by("-updated_at")
         else:
             qs = qs.order_by("-id")
 
@@ -372,7 +374,8 @@ class ProductListAPIView(APIView):
                 "category": {
                     "id": p.category.id if p.category else None,
                     "name": p.category.name if p.category else ""
-                }
+                },
+                "last_update_at": p.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
             }
                 for p in page
             ]
