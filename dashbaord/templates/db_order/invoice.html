@@ -97,7 +97,12 @@
                             {% for item in order.order_items.all %}
                             <tr>
                                 <td>
-                                    <span class="text-inverse">{{ item.product.name }}</span>
+                                    <span class="text-inverse">{{ item.product.name }}</span> 
+                                    <span class="text-muted">
+                                        ({% if item.get_size_attribute %}{{ item.get_size_attribute }}{% endif %}
+                                        {% if item.get_size_attribute and item.get_color_attribute %} | {% endif %}
+                                        {% if item.get_color_attribute %}{{ item.get_color_attribute }}{% endif %})
+                                    </span>
                                 </td>
                                 <td class="text-center">৳{{ item.discount_price }}</td>
                                 <td class="text-center">{{ item.quantity }}</td>
