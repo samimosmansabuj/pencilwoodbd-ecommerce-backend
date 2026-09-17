@@ -317,7 +317,7 @@ class ProductListAPIView(APIView):
         qs = Product.objects.filter(
             status=CATEGORY_PRODUCT_STATUS.ACTIVE,
             is_gift_only=False,
-        ).select_related("category").prefetch_related("images", "variants").order_by("-id")
+        ).select_related("category").prefetch_related("images", "variants").order_by("-updated_at")
 
         # FILTERS
         category = request.query_params.get("category")
@@ -352,7 +352,7 @@ class ProductListAPIView(APIView):
         elif sort == "newest":
             qs = qs.order_by("-created_at")
         else:
-            qs = qs.order_by("-id")
+            qs = qs.order_by("-updated_at")
 
         # PAGINATION
         paginator = ProductPagination()
@@ -372,7 +372,8 @@ class ProductListAPIView(APIView):
                 "category": {
                     "id": p.category.id if p.category else None,
                     "name": p.category.name if p.category else ""
-                }
+                },
+                "last_update_at": p.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
             }
                 for p in page
             ]
