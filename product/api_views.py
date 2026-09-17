@@ -26,6 +26,8 @@ from rest_framework.permissions import IsAuthenticated
 from .models import Wishlist, ProductFeature, ProductFAQ, ReviewSettings
 
 from django.http import JsonResponse
+from pencilwoodbd.extra_module import safe_error_message
+from pencilwoodbd.throttles import OTPSendRateThrottle, OTPVerifyRateThrottle
 
 
 class CategoryAPIViews(views.APIView):
@@ -61,7 +63,7 @@ class CategoryAPIViews(views.APIView):
             return Response(
                 {
                     "status": False,
-                    "message": str(e)
+                    "message": safe_error_message(e)
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -207,6 +209,7 @@ def site_content_api(request):
 import os
 class SendOTPAPIView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [OTPSendRateThrottle]
     
     def get_phone_number(self, request):
         return normalize_bd_phone(request.data.get("phone", ""))
@@ -234,27 +237,28 @@ class SendOTPAPIView(APIView):
         try:
             with transaction.atomic():
                 # ===== REAL SMS SEND (temporarily disabled for local testing) =====
-                response = self.send_message(phone, otp)
-                if (
-                    response.get("ErrorCode") == 0 and
-                    response.get("Data") and
-                    response["Data"][0].get("MessageErrorCode") == 0 and
-                    response["Data"][0].get("MessageErrorDescription") == "Success"
-                ):
-                    OTPVerification.objects.create(phone=phone, otp=otp)
-                    return Response({"success": True, "message": "OTP Sent"})
-                else:
-                    return Response({"success": False, "message": "OTP Sending Failed", "response": response})
+                # response = self.send_message(phone, otp)
+                # if (
+                #     response.get("ErrorCode") == 0 and
+                #     response.get("Data") and
+                #     response["Data"][0].get("MessageErrorCode") == 0 and
+                #     response["Data"][0].get("MessageErrorDescription") == "Success"
+                # ):
+                #     OTPVerification.objects.create(phone=phone, otp=otp)
+                #     return Response({"success": True, "message": "OTP Sent"})
+                # else:
+                #     return Response({"success": False, "message": "OTP Sending Failed", "response": response})
 
                 # ===== CONSOLE-ONLY MODE (local testing) =====
-                # OTPVerification.objects.create(phone=phone, otp=otp)
-                # print(f"\n{'='*40}\n[TEST MODE] OTP for {phone}: {otp}\n{'='*40}\n")
-                # return Response({"success": True, "message": "OTP Sent (check console)"})
+                OTPVerification.objects.create(phone=phone, otp=otp)
+                print(f"\n{'='*40}\n[TEST MODE] OTP for {phone}: {otp}\n{'='*40}\n")
+                return Response({"success": True, "message": "OTP Sent (check console)"})
         except Exception as e:
-            return Response({"success": False, "message": str(e)})
+            return Response({"success": False, "message": safe_error_message(e)})
         
 class VerifyOTPAPIView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [OTPVerifyRateThrottle]
     
     def get_phone_number(self, request):
         return normalize_bd_phone(request.data.get("phone", ""))
@@ -268,13 +272,24 @@ class VerifyOTPAPIView(APIView):
                 return Response({"verified": False, "message": "No OTP found"})
             if otp_obj.is_expired():
                 return Response({"verified": False, "message": "OTP expired"})
+            if otp_obj.is_locked:
+                return Response(
+                    {"verified": False, "message": "Too many attempts. Please request a new OTP."},
+                    status=429,
+                )
             if otp_obj.otp != otp:
+                otp_obj.register_failed_attempt()
+                if otp_obj.is_locked:
+                    return Response(
+                        {"verified": False, "message": "Too many attempts. Please request a new OTP."},
+                        status=429,
+                    )
                 return Response({"verified": False, "message": "Invalid OTP"})
             otp_obj.is_verified = True
-            otp_obj.save()
+            otp_obj.save(update_fields=["is_verified"])
             return Response({"verified": True})
         except Exception as e:
-            return Response({"verified": False, "message": str(e)})
+            return Response({"verified": False, "message": safe_error_message(e)})
 
 
 
@@ -391,7 +406,7 @@ class ProductDetailAPIView(APIView):
                 "variants",
                 "variants__images",
                 "features",
-            ).filter(slug=slug).first()
+            ).filter(slug=slug, status=CATEGORY_PRODUCT_STATUS.ACTIVE).first()
 
             if not p:
                 return Response({"status": False}, status=404)
@@ -450,7 +465,7 @@ class ProductDetailAPIView(APIView):
                                 if v.images.exists() else None
                             ),
                         }
-                        for v in p.variants.all()
+                        for v in p.variants.filter(is_active=True)
                     ],
                     "features": [
                         {
@@ -483,7 +498,7 @@ class ProductDetailAPIView(APIView):
 
         except Exception as e:
             return Response(
-                {"status": False, "message": str(e)},
+                {"status": False, "message": safe_error_message(e)},
                 status=500
             )
    
@@ -501,13 +516,17 @@ class AddToCartAPIView(APIView):
                 variant_id = request.data.get("variant_id")
                 quantity = int(request.data.get("quantity", 1))
 
-                product = Product.objects.get(id=product_id)
+                product = Product.objects.filter(
+                    id=product_id, status=CATEGORY_PRODUCT_STATUS.ACTIVE
+                ).first()
+                if not product:
+                    return Response({"status": False, "message": "Product not available"}, status=404)
                 variant = None
 
                 if product.has_variants:
                     if not variant_id:
                         return Response({"status": False, "message": "Variant required"}, status=400)
-                    variant = ProductVariant.objects.get(id=variant_id, product=product)
+                    variant = ProductVariant.objects.get(id=variant_id, product=product, is_active=True)
                     if variant.inventory_quantity < quantity:
                         return Response({"status": False, "message": "Selected variant out of stock"}, status=400)
                 else:
@@ -527,12 +546,10 @@ class AddToCartAPIView(APIView):
                         cart_item.save()
                     return Response({"status": True, "message": "Added to cart"})
                 else:
-                    # Guest: nothing to persist server-side, frontend handles localStorage.
-                    # We just validate stock/variant above and confirm OK.
                     return Response({"status": True, "message": "Added to cart", "guest": True})
 
         except Exception as e:
-            return Response({"status": False, "message": str(e)}, status=400)
+            return Response({"status": False, "message": safe_error_message(e)}, status=400)
 
 
 class CartListAPIView(APIView):
@@ -578,7 +595,7 @@ class UpdateCartAPIView(APIView):
             cart_item.save()
             return Response({"status": True, "message": "Cart updated"})
         except Exception as e:
-            return Response({"status": False, "message": str(e)}, status=400)
+            return Response({"status": False, "message": safe_error_message(e)}, status=400)
 
 
 class RemoveCartAPIView(APIView):
@@ -593,7 +610,7 @@ class RemoveCartAPIView(APIView):
             cart_item.delete()
             return Response({"status": True, "message": "Removed from cart"})
         except Exception as e:
-            return Response({"status": False, "message": str(e)}, status=400)
+            return Response({"status": False, "message": safe_error_message(e)}, status=400)
 
 #----------Wishlist--------------
 
@@ -614,7 +631,7 @@ class AddToWishlistAPIView(APIView):
                 return Response({"status": False, "message": "Already in wishlist"}, status=400)
             return Response({"status": True, "message": "Added to wishlist"})
         except Exception as e:
-            return Response({"status": False, "message": str(e)}, status=500)
+            return Response({"status": False, "message": safe_error_message(e)}, status=500)
 
 
 class WishlistAPIView(APIView):
@@ -636,7 +653,7 @@ class WishlistAPIView(APIView):
             } for item in items]
             return Response({"status": True, "data": data})
         except Exception as e:
-            return Response({"status": False, "message": str(e)}, status=500)
+            return Response({"status": False, "message": safe_error_message(e)}, status=500)
 
 class RemoveWishlistAPIView(APIView):
     permission_classes = [AllowAny]
@@ -650,7 +667,7 @@ class RemoveWishlistAPIView(APIView):
             item.delete()
             return Response({"status": True, "message": "Removed from wishlist"})
         except Exception as e:
-            return Response({"status": False, "message": str(e)}, status=500)
+            return Response({"status": False, "message": safe_error_message(e)}, status=500)
 
 
 #----------Guest Cart Refresh (real-time price/stock)--------------

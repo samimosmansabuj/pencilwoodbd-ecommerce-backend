@@ -367,9 +367,13 @@ class WebhookLog(models.Model):
         return f"{self.source} webhook - {self.created_at}"
 
 class OTPVerification(models.Model):
+    MAX_ATTEMPTS = 5
+
     phone = models.CharField(max_length=15)
     otp = models.CharField(max_length=6)
     is_verified = models.BooleanField(default=False)
+    attempt_count = models.PositiveSmallIntegerField(default=0)
+    is_locked = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def is_expired(self):
@@ -377,27 +381,17 @@ class OTPVerification(models.Model):
         created_time = timezone.localtime(self.created_at)
         return current_time > created_time + timedelta(minutes=5)
 
+    def register_failed_attempt(self):
+        self.attempt_count += 1
+        if self.attempt_count >= self.MAX_ATTEMPTS:
+            self.is_locked = True
+        self.save(update_fields=["attempt_count", "is_locked"])
+
     def __str__(self):
         return f"{self.phone} - {self.otp}"
 
 
 class SiteDeliveryChargeConfig(models.Model):
-    """
-    Singleton-style global delivery charge config.
-    Used as the fallback when a specific Product has no
-    ProductDeliveryCharge (or its area_and_charge is empty/None).
-
-    area_and_charge shape (same convention as ProductDeliveryCharge.area_and_charge):
-        {
-            "all": 150,        # optional bulk/default value for this scope
-            "Dhaka": 80,       # optional per-district overrides
-            "Chattogram": 120
-        }
-    Resolution for a district within ONE scope (product OR global):
-        area_and_charge.get(district) if present
-        else area_and_charge.get("all") if present
-        else None (caller falls through to the next scope)
-    """
     area_and_charge = models.JSONField(default=dict, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -408,7 +402,6 @@ class SiteDeliveryChargeConfig(models.Model):
 
     @classmethod
     def get_solo(cls):
-        """Always returns the single global config row, creating it if missing."""
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
 
@@ -545,7 +538,6 @@ class DailyProfit(models.Model):
 
 
 def maintenance_cost_saved(sender, instance, **kwargs):
-    """Auto-link a MaintenanceCost to that day's DailyProfit record."""
     daily_profit, _created = DailyProfit.objects.get_or_create(date=instance.date)
     daily_profit.costs.add(instance)
 
