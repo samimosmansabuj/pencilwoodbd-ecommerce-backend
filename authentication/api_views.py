@@ -7,6 +7,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import CustomUser, Customer, Role
 from .utils import normalize_bd_phone, phone_lookup_variants
+from pencilwoodbd.extra_module import safe_error_message
+from pencilwoodbd.throttles import OTPVerifyRateThrottle
 
 class PhoneCheckAPIView(APIView):
     permission_classes = [AllowAny]
@@ -114,7 +116,7 @@ class SetPasswordAPIView(APIView):
 
         except Exception as e:
             traceback.print_exc()
-            return Response({"status": False, "message": str(e)}, status=500)
+            return Response({"status": False, "message": safe_error_message(e)}, status=500)
 
 class PhoneLoginAPIView(APIView):
     """Step 2b. Normal login when the customer already has a password set."""
@@ -157,11 +159,12 @@ class PhoneLoginAPIView(APIView):
 
         except Exception as e:
             traceback.print_exc()
-            return Response({"status": False, "message": str(e)}, status=500)
+            return Response({"status": False, "message": safe_error_message(e)}, status=500)
 
 
 class ResetPasswordAPIView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [OTPVerifyRateThrottle]
 
     def post(self, request):
         from site_app.models import OTPVerification
@@ -183,11 +186,24 @@ class ResetPasswordAPIView(APIView):
             )
 
         try:
-            otp_obj = OTPVerification.objects.filter(phone=phone, otp=otp_code).last()
+            otp_obj = OTPVerification.objects.filter(phone=phone).last()
             if not otp_obj:
                 return Response({"status": False, "message": "Invalid OTP"}, status=400)
             if otp_obj.is_expired():
                 return Response({"status": False, "message": "OTP expired, please resend"}, status=400)
+            if otp_obj.is_locked:
+                return Response(
+                    {"status": False, "message": "Too many attempts. Please request a new OTP."},
+                    status=429,
+                )
+            if otp_obj.otp != otp_code:
+                otp_obj.register_failed_attempt()
+                if otp_obj.is_locked:
+                    return Response(
+                        {"status": False, "message": "Too many attempts. Please request a new OTP."},
+                        status=429,
+                    )
+                return Response({"status": False, "message": "Invalid OTP"}, status=400)
 
             user = CustomUser.objects.filter(phone__in=phone_lookup_variants(phone)).first()
             if not user:
@@ -220,7 +236,7 @@ class ResetPasswordAPIView(APIView):
 
         except Exception as e:
             traceback.print_exc()
-            return Response({"status": False, "message": str(e)}, status=500)
+            return Response({"status": False, "message": safe_error_message(e)}, status=500)
 
 def _merge_guest_cart_and_wishlist(customer, data):
     from product.models import AddToCart, Wishlist, Product, ProductVariant
@@ -306,4 +322,4 @@ class LogoutAPIView(APIView):
             RefreshToken(refresh_token).blacklist()
             return Response({"status": True, "message": "Logged out successfully"})
         except Exception as e:
-            return Response({"status": False, "message": str(e)}, status=400)
+            return Response({"status": False, "message": safe_error_message(e)}, status=400)

@@ -101,7 +101,17 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = "__all__"
+        fields = [
+            "id", "name", "slug", "sku", "product_type",
+            "category", "short_description", "details", "description_json",
+            "has_variants", "price", "discount_price",
+            "inventory_quantity", "inventory_type",
+            "weight", "dimensions",
+            "tags", "sold_count", "is_bestseller", "is_gift_only", "status",
+            "images", "videos", "variants", "gift_product", "delivery_charge",
+            "primary_image", "effective_price", "category_path",
+            "created_at", "updated_at",
+        ]
         read_only_fields = ['id', 'slug', 'delivery_charge', 'gift_product', 'created_at', 'updated_at']
 
     def get_primary_image(self, obj):

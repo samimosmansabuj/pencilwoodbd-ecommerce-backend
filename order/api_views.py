@@ -8,7 +8,7 @@ from authentication.models import Customer
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
 from product.models import Product, AddToCart
-from pencilwoodbd.choices import PRODUCT_GIFT_TYPE, PAYMENT_STATUS, PAYMENT_TYPE, STATUS
+from pencilwoodbd.choices import PRODUCT_GIFT_TYPE, PAYMENT_STATUS, PAYMENT_TYPE, STATUS, CATEGORY_PRODUCT_STATUS
 from django.db import transaction
 from order.models import Order, OrderItem, Shipment, Address, Payment, PaymentMethod, OrderAttempt, OrderActivityLog
 from .utils import OrderConfirmatinoEmailSend
@@ -25,6 +25,7 @@ from site_app.delivery_charge import DeliveryChargeResolver
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from marketing.models import Coupon, CouponUsage
+from pencilwoodbd.extra_module import safe_error_message
 
 class DeliveryOptionListAPIView(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -43,7 +44,7 @@ class DeliveryOptionListAPIView(views.APIView):
             return Response(
                 {
                     "success": False,
-                    "message": str(e)
+                    "message": safe_error_message(e)
                 }, status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -73,7 +74,7 @@ class ShipmentSerializerAPIView(views.APIView):
             return Response(
                 {
                     "success": False,
-                    "message": str(e)
+                    "message": safe_error_message(e)
                 }, status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -387,7 +388,7 @@ class CheckoutSummaryAPIView(APIView):
             })
 
         except Exception as e:
-            return Response({"status": False, "message": str(e)}, status=500)
+            return Response({"status": False, "message": safe_error_message(e)}, status=500)
         
         
 class PlaceOrderAPIView(APIView):
@@ -442,8 +443,12 @@ class PlaceOrderAPIView(APIView):
                 items_in_request = request.data.get("items", [])
 
                 if cart_ids_in_request:
-                    if request.user.is_authenticated and getattr(request.user, "customer_profile", None):
-                        customer = request.user.customer_profile
+                    if not (request.user.is_authenticated and getattr(request.user, "customer_profile", None)):
+                        return Response(
+                            {"status": False, "message": "Please log in to check out with your saved cart."},
+                            status=401,
+                        )
+                    customer = request.user.customer_profile
                     cart_ids = cart_ids_in_request
                     if not cart_ids:
                         return Response({"status": False, "message": "No cart items selected"}, status=400)
@@ -454,9 +459,15 @@ class PlaceOrderAPIView(APIView):
                     if not cart_items.exists():
                         return Response({"status": False, "message": "Cart empty"}, status=400)
 
+                    active_cart_items = [
+                        ci for ci in cart_items if ci.product.status == CATEGORY_PRODUCT_STATUS.ACTIVE
+                    ]
+                    if not active_cart_items:
+                        return Response({"status": False, "message": "Cart items are no longer available"}, status=400)
+
                     line_items = [
                         {"product": ci.product, "variant": ci.variant, "quantity": ci.quantity}
-                        for ci in cart_items
+                        for ci in active_cart_items
                     ]
                     should_delete_cart = cart_items
                 else:
@@ -466,12 +477,16 @@ class PlaceOrderAPIView(APIView):
 
                     line_items = []
                     for row in raw_items:
-                        product = Product.objects.filter(id=row.get("product_id")).first()
+                        product = Product.objects.filter(
+                            id=row.get("product_id"), status=CATEGORY_PRODUCT_STATUS.ACTIVE
+                        ).first()
                         if not product:
                             continue
                         variant = None
                         if row.get("variant_id"):
-                            variant = ProductVariant.objects.filter(id=row["variant_id"], product=product).first()
+                            variant = ProductVariant.objects.filter(
+                                id=row["variant_id"], product=product, is_active=True
+                            ).first()
                         line_items.append({
                             "product": product, "variant": variant,
                             "quantity": int(row.get("quantity", 1))
@@ -485,17 +500,33 @@ class PlaceOrderAPIView(APIView):
                     customer=customer, street_01=address_text, district=district, upazila=upazila
                 )
 
-                recent_duplicate = Order.objects.filter(
+                requested_signature = sorted(
+                    (line["product"].id, line["variant"].id if line["variant"] else None, line["quantity"])
+                    for line in line_items
+                )
+
+                recent_candidates = Order.objects.filter(
                     customer=customer,
                     shipping_address=f"{address.street_01}, {address.district}",
                     created_at__gte=timezone.now() - timedelta(seconds=30),
-                ).first()
+                ).prefetch_related("order_items")
 
-                if recent_duplicate:
-                    return Response(
-                        {"status": True, "message": "Order received successfully", "order_id": recent_duplicate.order_id},
-                        status=201,
+                for candidate in recent_candidates:
+                    candidate_signature = sorted(
+                        (oi.product_id, oi.variant_id, oi.quantity)
+                        for oi in candidate.order_items.all()
+                        if not (oi.snapshot or {}).get("is_gift")
                     )
+                    if candidate_signature == requested_signature:
+                        return Response(
+                            {
+                                "status": True,
+                                "duplicate": True,
+                                "message": "We already received this order a moment ago.",
+                                "order_id": candidate.order_id,
+                            },
+                            status=201,
+                        )
 
                 coupon_code = request.data.get("coupon_code")
                 discount_amount = Decimal("0")
@@ -559,8 +590,11 @@ class PlaceOrderAPIView(APIView):
                 charged_product_ids = set()
 
                 for line in line_items:
-                    product = line["product"]
-                    variant = line["variant"]
+                    product = Product.objects.select_for_update().get(id=line["product"].id)
+                    variant = (
+                        ProductVariant.objects.select_for_update().get(id=line["variant"].id)
+                        if line["variant"] else None
+                    )
                     quantity = line["quantity"]
 
                     product_delivery_charge = DeliveryChargeResolver.get_charge(product, district)
@@ -619,7 +653,7 @@ class PlaceOrderAPIView(APIView):
                             gift_unit_price = gift_base_price
 
                         if gift_product.has_variants:
-                            gift_variant = gift_product.variants.filter(is_active=True).first()
+                            gift_variant = gift_product.variants.filter(is_active=True).select_for_update().first()
                             if gift_variant and gift_variant.inventory_quantity >= quantity:
                                 gift_variant.inventory_quantity -= quantity
                                 gift_variant.save()
@@ -628,6 +662,7 @@ class PlaceOrderAPIView(APIView):
                                 )
                                 gift_product.save(update_fields=["inventory_quantity"])
                         else:
+                            gift_product = Product.objects.select_for_update().get(id=gift_product.id)
                             if gift_product.inventory_type == "in_stock" and gift_product.inventory_quantity >= quantity:
                                 gift_product.inventory_quantity -= quantity
                                 gift_product.save(update_fields=["inventory_quantity"])
@@ -677,7 +712,7 @@ class PlaceOrderAPIView(APIView):
                 })
 
         except Exception as e:
-            return Response({"status": False, "message": str(e)}, status=500)
+            return Response({"status": False, "message": safe_error_message(e)}, status=500)
         
 
 class OrderListAPIView(APIView):
@@ -849,7 +884,7 @@ class OrderDetailAPIView(APIView):
             return Response(
                 {
                     "status": False,
-                    "message": str(e)
+                    "message": safe_error_message(e)
                 },
                 status=500
             )
@@ -933,7 +968,7 @@ class CreatePaymentAPIView(APIView):
 
         except Exception as e:
             return Response(
-                {"status": False, "message": str(e)},
+                {"status": False, "message": safe_error_message(e)},
                 status=500
             )
 
@@ -989,7 +1024,7 @@ class VerifyPaymentAPIView(APIView):
 
         except Exception as e:
             return Response(
-                {"status": False, "message": str(e)},
+                {"status": False, "message": safe_error_message(e)},
                 status=500
             )
 

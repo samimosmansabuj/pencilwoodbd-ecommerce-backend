@@ -10,7 +10,7 @@ from django.db.models import F
 from decimal import Decimal
 from product.serializers import ProductSerializer
 from .models import HomeSlider, NewsFeed, LandingPageProduct
-from product.models import Product, Category, ProductVariant
+from product.models import Product, Category, ProductVariant, AddToCart
 from pencilwoodbd.choices import (
     CATEGORY_PRODUCT_STATUS,
     STATUS,
@@ -27,6 +27,7 @@ from authentication.utils import normalize_bd_phone, get_client_identity, check_
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from marketing.models import Coupon, CouponUsage
+from pencilwoodbd.extra_module import safe_error_message
 
 # =========================
 # HOME PAGE
@@ -102,7 +103,7 @@ class LandingPageProductViews(APIView):
             )
         except Exception as e:
             return Response(
-                {"status": False, "message": str(e)},
+                {"status": False, "message": safe_error_message(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -342,8 +343,7 @@ class LandingPageOrderAPI(APIView):
                     status=status.HTTP_201_CREATED
                 )
         except Exception as e:
-            print("Error in LandingPageOrderAPI: ", str(e))
-            return Response({"status": False, "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"status": False, "message": safe_error_message(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 class OrderCreateAPIView(APIView):
     permission_classes = [AllowAny]
@@ -630,7 +630,7 @@ class OrderCreateAPIView(APIView):
         except Exception as e:
             print("error: ", e)
             return Response(
-                {"success": False, "message": str(e)},
+                {"success": False, "message": safe_error_message(e)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         
@@ -744,24 +744,65 @@ class OrderAttemptAPIView(APIView):
 
         except Exception as e:
             print("order attempt error: ", e)
-            return Response({"success": False, "message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"success": False, "message": safe_error_message(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ApplyCouponAPIView(APIView):
     permission_classes = [AllowAny]
 
+    def _server_subtotal(self, request, product_ids):
+        customer = None
+        if request.user.is_authenticated:
+            customer = getattr(request.user, "customer_profile", None)
+
+        if customer:
+            cart_items = AddToCart.objects.select_related("product", "variant").filter(customer=customer)
+            if not cart_items.exists():
+                return Decimal("0")
+            subtotal = Decimal("0")
+            for item in cart_items:
+                subtotal += item.total_price
+            return subtotal
+
+        items = request.data.get("items")
+        if items:
+            subtotal = Decimal("0")
+            for row in items:
+                product = Product.objects.filter(id=row.get("product_id")).first()
+                if not product:
+                    continue
+                variant = None
+                if row.get("variant_id"):
+                    variant = ProductVariant.objects.filter(id=row["variant_id"], product=product).first()
+                quantity = max(int(row.get("quantity", 1)), 1)
+                price = (variant.discount_price if variant else product.discount_price) or \
+                        (variant.price if variant else product.price)
+                subtotal += Decimal(str(price)) * quantity
+            return subtotal
+
+        if product_ids:
+            subtotal = Decimal("0")
+            for product in Product.objects.filter(id__in=product_ids):
+                subtotal += Decimal(str(product.discount_price or product.price))
+            return subtotal
+
+        return Decimal("0")
+
     def post(self, request):
         try:
             code = (request.data.get("code") or "").strip()
             phone = normalize_bd_phone(request.data.get("phone") or "")
-            subtotal = Decimal(str(request.data.get("subtotal", 0)))
             landing_page_code = request.data.get("landing_page_code")
             product_ids = request.data.get("product_ids") or []
+
+            subtotal = self._server_subtotal(request, product_ids)
 
             if not code:
                 return Response({"status": False, "message": "Coupon code is required."}, status=400)
             if not phone:
                 return Response({"status": False, "message": "Enter a valid phone number first."}, status=400)
+            if subtotal <= 0:
+                return Response({"status": False, "message": "Cart is empty."}, status=400)
 
             coupon = Coupon.objects.filter(code__iexact=code).first()
             if not coupon:
@@ -798,10 +839,11 @@ class ApplyCouponAPIView(APIView):
                 "message": "Coupon applied successfully.",
                 "data": {
                     "code": coupon.code,
+                    "subtotal": float(subtotal),
                     "discount_amount": float(discount),
                     "new_total": float(subtotal - discount),
                 }
             })
         except Exception as e:
-            return Response({"status": False, "message": str(e)}, status=500)
+            return Response({"status": False, "message": safe_error_message(e)}, status=500)
         

@@ -4,7 +4,16 @@ from io import BytesIO
 from django.core.files.uploadedfile import InMemoryUploadedFile
 import sys
 import json
+import logging
 from decimal import Decimal, InvalidOperation
+
+logger = logging.getLogger("pencilwoodbd")
+
+
+def safe_error_message(exc, default="Something went wrong. Please try again."):
+    
+    logger.exception(exc)
+    return default
 
 def image_delete_os(picture):
     if picture and default_storage.exists(picture.name):
