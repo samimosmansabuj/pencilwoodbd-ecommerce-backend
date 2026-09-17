@@ -86,6 +86,10 @@ class Order(models.Model):
     delivery_type = models.CharField(max_length=50, choices=DELIVERY_TYPE.choices, default=DELIVERY_TYPE.HOME_DELIVERY)
     delivery_date = models.DateField(null=True, blank=True)
     delivered_at = models.DateTimeField(null=True, blank=True, help_text="Auto-set the moment status changes to Delivered")
+
+    created_by = models.ForeignKey('authentication.CustomUser', on_delete=models.SET_NULL, null=True, blank=True, related_name='orders_created')
+    updated_by = models.ForeignKey('authentication.CustomUser', on_delete=models.SET_NULL, null=True, blank=True, related_name='orders_updated')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -287,6 +291,10 @@ class OrderRequest(models.Model):
     converted_at = models.DateTimeField(null=True, blank=True)
 
     metadata = models.JSONField(default=dict, blank=True)
+
+    created_by = models.ForeignKey('authentication.CustomUser', on_delete=models.SET_NULL, null=True, blank=True, related_name='order_requests_created')
+    updated_by = models.ForeignKey('authentication.CustomUser', on_delete=models.SET_NULL, null=True, blank=True, related_name='order_requests_updated')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -555,3 +563,28 @@ class OrderAttempt(models.Model):
 
     def __str__(self):
         return f"Attempt - {self.phone} ({len(self.products or [])} items)"
+    
+
+# Activity Log (who did what, and when) — for Order and OrderRequest
+class OrderActivityLog(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, null=True, blank=True, related_name='activity_logs')
+    order_request = models.ForeignKey(OrderRequest, on_delete=models.CASCADE, null=True, blank=True, related_name='activity_logs')
+    user = models.ForeignKey('authentication.CustomUser', on_delete=models.SET_NULL, null=True, blank=True)
+    action = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    @classmethod
+    def log(cls, action, order=None, order_request=None, user=None):
+        return cls.objects.create(
+            order=order,
+            order_request=order_request,
+            user=user if (user and getattr(user, "is_authenticated", True)) else None,
+            action=action,
+        )
+
+    def __str__(self):
+        who = self.user.get_full_name() or self.user.username if self.user else "Customer"
+        return f"{who}: {self.action}"

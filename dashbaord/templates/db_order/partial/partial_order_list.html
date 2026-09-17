@@ -210,6 +210,31 @@
         </div>
 
 
+        <!-- Updated By Filter -->
+        <div class="col-auto">
+            <div class="btn-group position-static">
+
+                <select
+                    class="form-control"
+                    name="updated_by"
+                    id="updated_by_filter"
+                    hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                    hx-target="#content-area"
+                    hx-push-url="true">
+
+                    <option value="">All Users</option>
+
+                    {% for staff in staff_list %}
+                        <option value="{{ staff.id }}" {% if current_updated_by == staff.id|stringformat:"s" %}selected{% endif %}>
+                            {{ staff.get_full_name|default:staff.username }}
+                        </option>
+                    {% endfor %}
+
+                </select>
+
+            </div>
+        </div>
+
         <!-- Add Order / Export Buttons -->
         <div class="col-auto">
             <div class="d-flex align-items-center gap-2 justify-content-lg-end">
@@ -362,6 +387,14 @@
                     Print Tokens
                 </button>
 
+                <!-- Bulk Delete -->
+                <button
+                    class="btn btn-sm btn-danger"
+                    onclick="submitBulkAction('delete')">
+                    <i class="bi bi-trash"></i>
+                    Delete Selected
+                </button>
+
             </div>
             <!-- End Bulk Action Bar -->
 
@@ -438,6 +471,19 @@
                         order_ids: getSelectedOrderIds(),
                         action: action
                     };
+
+
+                    if (action === 'delete') {
+                        if (!payload.order_ids.length) {
+                            errorNotificationCustom(
+                                "Please select at least one order."
+                            );
+                            return;
+                        }
+                        if (!confirm(`Delete ${payload.order_ids.length} selected order(s)? This cannot be undone.`)) {
+                            return;
+                        }
+                    }
 
 
                     if (action === 'status') {
