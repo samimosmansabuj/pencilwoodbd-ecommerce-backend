@@ -174,6 +174,7 @@ class Product(models.Model):
             return settings_row.default_sold_count
 
         return self.sold_count
+    
     @property
     def active_variants(self):  # New property
         return self.variants.filter(is_active=True) 
