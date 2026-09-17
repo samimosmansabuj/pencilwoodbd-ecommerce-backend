@@ -430,7 +430,8 @@ class ProductDetailAPIView(APIView):
                     "price": p.price,
                     "discount_price": p.discount_price,
                     "stock": stock,
-                    "description": p.short_description,
+                    "short_description": p.short_description,
+                    "description": p.details,
                     "images": [
                         i.image.url for i in p.images.all() if i.image
                     ],

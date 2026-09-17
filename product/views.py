@@ -89,7 +89,7 @@ class ProductListView(LoginRequiredMixin, View):
             "discount": base_qs.filter(discount_price__gt=0).exclude(discount_price=F("price")).count(),
         }
 
-        per_page = parse_int(request.GET.get("per_page"), 6)
+        per_page = parse_int(request.GET.get("per_page"), 10)
         paginator = Paginator(products, per_page)
         page_obj = paginator.get_page(request.GET.get("page", 1))
 
@@ -363,9 +363,7 @@ def add_product(request):
 
 @login_required(login_url="admin_login")
 def product_update(request, pk):
-
     product = get_object_or_404(Product, pk=pk)
-
     attributes = Attribute.objects.prefetch_related("values").all()
     attributes_data = [
         {"id": a.id, "name": a.name, "values": [{"id": v.id, "value": v.value} for v in a.values.all()]}
@@ -389,14 +387,10 @@ def product_update(request, pk):
     valid_statuses = [c[0] for c in CATEGORY_PRODUCT_STATUS.choices]
 
     if request.method == "POST":
-
         try:
-
             with transaction.atomic():
-
                 category = None
                 category_id = request.POST.get("category")
-
                 if category_id:
                     category = Category.objects.filter(id=category_id).first()
 
