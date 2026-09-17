@@ -19,7 +19,7 @@ from pencilwoodbd.choices import (
     PAYMENT_STATUS,
     ORDER_SOURCE,
 )
-from order.models import Order, OrderItem, OrderAttempt
+from order.models import Order, OrderItem, OrderAttempt, OrderActivityLog
 from authentication.models import Customer
 from site_app.models import OTPVerification
 from order.utils import OrderConfirmatinoEmailSend
@@ -614,6 +614,12 @@ class OrderCreateAPIView(APIView):
                 for attempt in OrderAttempt.objects.filter(phone=customer.phone):
                     if attempt.is_subset_of(order_product_ids):
                         attempt.delete()
+
+                OrderActivityLog.log(
+                    action="Order placed by customer (self-checkout)",
+                    order=order,
+                    user=None,
+                )
 
                 record_order_track(order, request)
 

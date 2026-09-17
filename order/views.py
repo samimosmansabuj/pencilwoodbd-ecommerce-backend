@@ -25,7 +25,7 @@ from pencilwoodbd.choices import (
 )
 
 # Models
-from .models import Order, OrderRequest, OrderItem, OrderRequestItem, TelegramBotConfig, OrderAttempt
+from .models import Order, OrderRequest, OrderItem, OrderRequestItem, TelegramBotConfig, OrderAttempt, OrderActivityLog
 from product.models import Product, ProductVariant, Category
 from authentication.models import CustomUser, Customer, OrderTrackRecord
 from site_app.models import DeliveryOption
@@ -196,6 +196,8 @@ class AddOrderView(LoginRequiredMixin, View):
                     delivery_date=delivery_date,
                     design_file=design_file,
                     source=source,
+                    created_by=request.user,
+                    updated_by=request.user,
                 )
 
                 grand_total = shipping_total
@@ -250,6 +252,11 @@ class AddOrderView(LoginRequiredMixin, View):
                 order.total_cost = grand_total
                 order.save(update_fields=["total_cost"])
 
+                OrderActivityLog.log(
+                    action="Order created",
+                    order=order,
+                    user=request.user,
+                )
 
                 if is_ajax:
                     return JsonResponse({
@@ -303,10 +310,11 @@ class OrderView(LoginRequiredMixin, View):
         product_slug = request.GET.get("product")
         start_date = request.GET.get("start_date")
         end_date = request.GET.get("end_date")
+        updated_by_id = request.GET.get("updated_by")
 
         orders = (
             Order.objects
-            .select_related("customer")
+            .select_related("customer", "created_by", "updated_by")
             .prefetch_related(
                 "order_items",
                 "order_items__product",
@@ -333,8 +341,10 @@ class OrderView(LoginRequiredMixin, View):
         elif end_date:
             orders = orders.filter(created_at__date__lte=end_date)
 
-        if search:
-            orders = orders.filter(
+        if updated_by_id:
+            orders = orders.filter(updated_by_id=updated_by_id)
+
+        if search:            orders = orders.filter(
                 Q(order_id__icontains=search)
                 | Q(customer__name__icontains=search)
                 | Q(customer__phone__icontains=search)
@@ -387,6 +397,7 @@ class OrderView(LoginRequiredMixin, View):
             "current_product_slug": request.GET.get("product", ""),
             "start_date": request.GET.get("start_date", ""),
             "end_date": request.GET.get("end_date", ""),
+            "current_updated_by": request.GET.get("updated_by", ""),
             "products": products,
             "status_choices": STATUS.choices,
             "delivery_types": DELIVERY_TYPE.choices,
@@ -597,7 +608,14 @@ class OrderUpdateView(LoginRequiredMixin, View):
                     grand_total = Decimal("0")
 
                 order.total_cost = grand_total
+                order.updated_by = request.user
                 order.save()
+
+                OrderActivityLog.log(
+                    action="Order details updated",
+                    order=order,
+                    user=request.user,
+                )
 
                 messages.success(request, f"Order {order.order_id} updated successfully.")
                 return redirect("order_detail", id=pk)
@@ -684,11 +702,18 @@ class OrderStatusUpdateView(LoginRequiredMixin, View):
                 return JsonResponse({"success": False, "message": "Invalid status selected"})
             else:
                 order.status = new_status
-                update_fields = ["status"]
+                update_fields = ["status", "updated_by"]
+                order.updated_by = request.user
                 if new_status == STATUS.DELIVERED and not order.delivered_at:
                     order.delivered_at = timezone.now()
                     update_fields.append("delivered_at")
                 order.save(update_fields=update_fields)
+
+                OrderActivityLog.log(
+                    action=f"Status changed to {order.get_status_display()}",
+                    order=order,
+                    user=request.user,
+                )
             return JsonResponse({"success": True, "message": f"Order #{order.order_id} status updated to {order.get_status_display()}."})
         except Exception as e:
             return JsonResponse({"success": False, "message": f"{e}"})
@@ -696,7 +721,7 @@ class OrderStatusUpdateView(LoginRequiredMixin, View):
 # Order Request section
 
 
-def create_order_from_request(order_request):
+def create_order_from_request(order_request, user=None):
     if order_request.status not in [ORDER_REQUEST_STATUS.PENDING, ORDER_REQUEST_STATUS.APPROVED]:
         raise Exception("Only pending or approved requests can be converted.")
 
@@ -723,6 +748,8 @@ def create_order_from_request(order_request):
             delivery_date=order_request.delivery_date,  # ADD
             design_file=order_request.design_file,
             source=order_request.source,
+            created_by=user,
+            updated_by=user,
         )
 
         for item in order_request.request_items.all():
@@ -742,8 +769,19 @@ def create_order_from_request(order_request):
         order_request.work_status = ORDER_REQUEST_WORK_STATUS.DONE
         order_request.converted_order = order
         order_request.converted_at = timezone.now()
-        order_request.save(update_fields=["status", "work_status", "converted_order", "converted_at"])
+        order_request.updated_by = user
+        order_request.save(update_fields=["status", "work_status", "converted_order", "converted_at", "updated_by"])
 
+        OrderActivityLog.log(
+            action=f"Converted to Order #{order.order_id}",
+            order_request=order_request,
+            user=user,
+        )
+        OrderActivityLog.log(
+            action=f"Order created from Order Request #{order_request.id}",
+            order=order,
+            user=user,
+        )
 
     return order
 
@@ -896,6 +934,7 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                     order_request.order_created_date = order_created_date
                     order_request.delivery_date = delivery_date
                     order_request.source = source
+                    order_request.updated_by = request.user
 
                     delete_design_file = data.get("delete_design_file")
                     if delete_design_file:
@@ -922,6 +961,8 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                         design_file=design_file,
                         delivery_date=delivery_date,
                         source=source,
+                        created_by=request.user,
+                        updated_by=request.user,
                     )
 
                 grand_total = shipping_total
@@ -952,6 +993,12 @@ class AddOrderRequestView(LoginRequiredMixin, View):
 
                 order_request.total_cost = grand_total
                 order_request.save()
+
+                OrderActivityLog.log(
+                    action="Order Request updated" if pk else "Order Request created",
+                    order_request=order_request,
+                    user=request.user,
+                )
 
                 if pk:
                     messages.success(request, f"Order Request #{order_request.id} updated successfully.")
@@ -995,6 +1042,7 @@ class OrderRequestListView(LoginRequiredMixin, View):
             .select_related(
                 "customer",
                 "converted_order",
+                "updated_by",
             )
             .prefetch_related(
                 "request_items",
@@ -1006,6 +1054,10 @@ class OrderRequestListView(LoginRequiredMixin, View):
             x[0] for x in ORDER_REQUEST_STATUS.choices
         ]:
             requests = requests.filter(status=status)
+
+        updated_by_id = request.GET.get("updated_by")
+        if updated_by_id:
+            requests = requests.filter(updated_by_id=updated_by_id)
 
         if search:
             requests = requests.filter(
@@ -1081,6 +1133,8 @@ class OrderRequestListView(LoginRequiredMixin, View):
                 "end_date",
                 "",
             ),
+            "current_updated_by": request.GET.get("updated_by", ""),
+            "staff_list": get_assignable_users(),
 
             "status_choices": ORDER_REQUEST_STATUS.choices,
         }
@@ -1158,7 +1212,9 @@ class ApproveOrderRequestView(LoginRequiredMixin, View):
             return redirect("order_request_detail", id=pk)
 
         order_request.status = ORDER_REQUEST_STATUS.APPROVED
-        order_request.save(update_fields=["status"])
+        order_request.updated_by = request.user
+        order_request.save(update_fields=["status", "updated_by"])
+        OrderActivityLog.log(action="Order Request approved", order_request=order_request, user=request.user)
         messages.success(request, "Order Request approved. Set delivery date and charges to confirm the order.")
         return redirect("order_request_detail", id=pk)
 
@@ -1192,7 +1248,7 @@ class ConfirmOrderRequestView(LoginRequiredMixin, View):
         order_request.save(update_fields=["delivery_date", "shipping_total", "advance_amount", "delivery_type", "payment_type", "total_cost"])
 
         try:
-            order = create_order_from_request(order_request)
+            order = create_order_from_request(order_request, user=request.user)
             messages.success(request, f"Order #{order.order_id} created successfully.")
         except Exception as e:
             messages.error(request, str(e))
@@ -1211,7 +1267,10 @@ class RejectOrderRequestView(LoginRequiredMixin, View):
             return redirect("order_request_detail", id=pk)
 
         order_request.status = ORDER_REQUEST_STATUS.CANCELLED
-        order_request.save(update_fields=["status"])
+        order_request.updated_by = request.user
+        order_request.save(update_fields=["status", "updated_by"])
+
+        OrderActivityLog.log(action="Order Request rejected", order_request=order_request, user=request.user)
 
         messages.success(request, "Order Request cancelled successfully.")
         return redirect("order_request_detail", id=pk)
@@ -1230,7 +1289,14 @@ class UpdateOrderRequestWorkStatusView(LoginRequiredMixin, View):
             return redirect("order_request_detail", id=pk)
 
         order_request.work_status = work_status
+        order_request.updated_by = request.user
         order_request.save()
+
+        OrderActivityLog.log(
+            action=f"Work status changed to {dict(ORDER_REQUEST_WORK_STATUS.choices).get(work_status, work_status)}",
+            order_request=order_request,
+            user=request.user,
+        )
 
         messages.success(request, "Work status updated.")
         return redirect("order_request_detail", id=pk)  
@@ -1256,7 +1322,15 @@ class OrderRequestStatusUpdateView(LoginRequiredMixin, View):
 
         else:
             order_request.status = new_status
-            order_request.save(update_fields=["status"])
+            order_request.updated_by = request.user
+            order_request.save(update_fields=["status", "updated_by"])
+
+            OrderActivityLog.log(
+                action=f"Status changed to {order_request.get_status_display()}",
+                order_request=order_request,
+                user=request.user,
+            )
+
             messages.success(
                 request,
                 f"Order Request #{order_request.id} status updated to {order_request.get_status_display()}."
@@ -1663,7 +1737,16 @@ class OrderBulkActionView(LoginRequiredMixin, View):
                         "message": "Invalid status selected."
                     }, status=400)
 
-                orders.update(status=new_status)
+                orders.update(status=new_status, updated_by=request.user)
+
+                OrderActivityLog.objects.bulk_create([
+                    OrderActivityLog(
+                        order=order,
+                        user=request.user,
+                        action=f"Status changed to {dict(STATUS.choices).get(new_status, new_status)} (bulk action)",
+                    )
+                    for order in orders
+                ])
 
                 return JsonResponse({
                     "success": True,
@@ -1693,8 +1776,18 @@ class OrderBulkActionView(LoginRequiredMixin, View):
 
                 
                 orders.update(
-                    work_assign=assigned_user.username
+                    work_assign=assigned_user.username,
+                    updated_by=request.user,
                 )
+
+                OrderActivityLog.objects.bulk_create([
+                    OrderActivityLog(
+                        order=order,
+                        user=request.user,
+                        action=f"Assigned to {assigned_user.get_full_name() or assigned_user.username} (bulk action)",
+                    )
+                    for order in orders
+                ])
 
                 return JsonResponse({
                     "success": True,
@@ -1702,6 +1795,17 @@ class OrderBulkActionView(LoginRequiredMixin, View):
                         f"{orders.count()} order(s) assigned to "
                         f"{assigned_user.get_full_name() or assigned_user.username}."
                     )
+                })
+
+
+            elif action == "delete":
+
+                deleted_count = orders.count()
+                orders.delete()
+
+                return JsonResponse({
+                    "success": True,
+                    "message": f"{deleted_count} order(s) deleted successfully."
                 })
 
             else:
@@ -1734,9 +1838,13 @@ class OrderUrgentToggleView(LoginRequiredMixin, View):
     def post(self, request, pk):
         order = get_object_or_404(Order, pk=pk)
         order.is_urgent = not order.is_urgent
-        order.save(update_fields=['is_urgent'])
+        order.updated_by = request.user
+        order.save(update_fields=['is_urgent', 'updated_by'])
 
         status_text = "marked as urgent" if order.is_urgent else "removed from urgent list"
+
+        OrderActivityLog.log(action=f"Order {status_text}", order=order, user=request.user,)
+
         message = f"Order #{order.order_id} {status_text}."
         source = request.POST.get("source", "order_list")
 

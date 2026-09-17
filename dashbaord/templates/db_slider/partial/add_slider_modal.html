@@ -175,7 +175,7 @@ document.addEventListener("click", function (e) {
         return;
     }
     const csrftoken = getCookie("csrftoken");
-    fetch(`/delete-slider/${deleteSliderId}/`, {
+    fetch(`/site/delete-slider/${deleteSliderId}/`, {
         method: "DELETE",
         headers: { "X-CSRFToken": csrftoken, "X-Requested-With": "XMLHttpRequest" },
     })

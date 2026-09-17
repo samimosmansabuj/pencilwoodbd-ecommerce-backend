@@ -154,7 +154,7 @@ document.addEventListener("change", function (e) {
 
     const csrftoken = getCookie("csrftoken");
 
-    fetch(`/toggle-slider/${id}/`, {
+    fetch(`/site/toggle-slider/${id}/`, {
         method: "POST",
         headers: {
             "X-CSRFToken": csrftoken,

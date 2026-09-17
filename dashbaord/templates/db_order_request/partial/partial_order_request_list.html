@@ -109,6 +109,26 @@
 
         </div>
 
+        <!-- Updated By Filter -->
+        <div class="col-auto">
+            <select
+                class="form-control"
+                name="updated_by"
+                hx-get="{% url 'order_request_list' %}?status={{ current_status }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                hx-target="#content-area"
+                hx-push-url="true">
+
+                <option value="">All Users</option>
+
+                {% for staff in staff_list %}
+                    <option value="{{ staff.id }}" {% if current_updated_by == staff.id|stringformat:"s" %}selected{% endif %}>
+                        {{ staff.get_full_name|default:staff.username }}
+                    </option>
+                {% endfor %}
+
+            </select>
+        </div>
+
         <!-- Date Filter -->
         <div class="col-auto ms-auto d-flex gap-2 align-items-end">
 
@@ -226,6 +246,8 @@
 
                                 <th>Date</th>
 
+                                <th>Updated By</th>
+
                                 <th>Action</th>
 
                             </tr>
@@ -333,6 +355,15 @@
                                 </td>
 
                                 <td>
+                                    {% if request.updated_by %}
+                                        {{ request.updated_by.get_full_name|default:request.updated_by.username }}
+                                    {% else %}
+                                        <span class="text">—</span>
+                                    {% endif %}
+                                    <div class="text small">{{ request.updated_at|date:"d M Y, h:i A" }}</div>
+                                </td>
+
+                                <td>
 
                                     <a
 
@@ -358,7 +389,7 @@
 
                             <tr>
 
-                                <td colspan="8" class="text-center py-5">
+                                <td colspan="9" class="text-center py-5">
 
                                     No Order Request Found
 

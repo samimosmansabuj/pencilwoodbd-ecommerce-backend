@@ -88,6 +88,46 @@
 
             <div class="d-flex flex-wrap gap-2">
 
+                <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#requestActivityLogModal">
+                    <i class="bi bi-clock-history me-2"></i> Activity Log
+                </button>
+            
+                <div class="modal fade" id="requestActivityLogModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Activity Log — Request #{{ order_request.id }}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <strong>Created by:</strong>
+                                    {% if order_request.created_by %}{{ order_request.created_by.get_full_name|default:order_request.created_by.username }}{% else %}—{% endif %}
+                                    ({{ order_request.created_at|date:"d M Y, h:i A" }})
+                                    <br>
+                                    <strong>Last updated by:</strong>
+                                    {% if order_request.updated_by %}{{ order_request.updated_by.get_full_name|default:order_request.updated_by.username }}{% else %}—{% endif %}
+                                    ({{ order_request.updated_at|date:"d M Y, h:i A" }})
+                                </div>
+                                <hr>
+                                <ul class="list-unstyled mb-0">
+                                    {% for log in order_request.activity_logs.all %}
+                                        <li class="mb-2 pb-2 border-bottom">
+                                            <div>{{ log.action }}</div>
+                                            <div class="text small">
+                                                {% if log.user %}{{ log.user.get_full_name|default:log.user.username }}{% else %}Customer{% endif %}
+                                                — {{ log.created_at|date:"d M Y, h:i A" }}
+                                            </div>
+                                        </li>
+                                    {% empty %}
+                                        <li class="text-center text py-3">No activity recorded yet.</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
     {% if order_request.status == "pending" or order_request.status == "approved" %}
     <a href="{% url 'edit_order_request' order_request.pk %}" class="btn btn-outline-primary"
         hx-get="{% url 'edit_order_request' order_request.pk %}" hx-target="#content-area" hx-push-url="true">

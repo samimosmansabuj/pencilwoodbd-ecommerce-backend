@@ -15,6 +15,7 @@
                     <th>Delivery Type</th>
                     <th>Delivery Date</th>
                     <th>Date</th>
+                    <th>Updated By</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -114,6 +115,17 @@
 
                     <td>
                         {{ order.created_at }}
+                    </td>
+
+                    <td>
+                        {% if order.updated_by %}
+                            {{ order.updated_by.get_full_name|default:order.updated_by.username }}
+                        {% elif order.created_by %}
+                            {{ order.created_by.get_full_name|default:order.created_by.username }}
+                        {% else %}
+                            <span class="text">Customer</span>
+                        {% endif %}
+                        <div class="text small">{{ order.updated_at|date:"d M Y, h:i A" }}</div>
                     </td>
 
                     <td>

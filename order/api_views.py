@@ -10,7 +10,7 @@ from django.http import JsonResponse
 from product.models import Product, AddToCart
 from pencilwoodbd.choices import PRODUCT_GIFT_TYPE, PAYMENT_STATUS, PAYMENT_TYPE, STATUS
 from django.db import transaction
-from order.models import Order, OrderItem, Shipment, Address, Payment, PaymentMethod
+from order.models import Order, OrderItem, Shipment, Address, Payment, PaymentMethod, OrderAttempt, OrderActivityLog
 from .utils import OrderConfirmatinoEmailSend
 from site_app.models import DeliveryOption, OTPVerification, WebhookLog, LandingPageProduct
 from .serializers import DeliveryOptionSerializer, ShipmentSerializer
@@ -656,6 +656,18 @@ class PlaceOrderAPIView(APIView):
 
                 if should_delete_cart is not None:
                     should_delete_cart.delete()
+
+                # ----- Clean up matching order-attempt(s) for this phone -----
+                order_product_ids = set(order.order_items.values_list("product_id", flat=True))
+                for attempt in OrderAttempt.objects.filter(phone=customer.phone):
+                    if attempt.is_subset_of(order_product_ids):
+                        attempt.delete()
+
+                OrderActivityLog.log(
+                    action="Order placed by customer (self-checkout)",
+                    order=order,
+                    user=None,
+                )
 
                 record_order_track(order, request)
                 return Response({
