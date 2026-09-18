@@ -27,6 +27,8 @@ class STATUS(models.TextChoices):
     FOLLOW_UP = "follow_up"
     CONFIRMED = "confirmed"
     TOKEN_PRINT = "token_print"
+    READY_TO_SHIP = "ready_to_ship"
+    PARCEL_CREATED = "parcel_created"
     SHIPPED = "shipped"
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
