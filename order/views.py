@@ -299,7 +299,6 @@ class OrderView(LoginRequiredMixin, View):
         order_count["urgent"] = Order.objects.filter(is_urgent=True).exclude(
             status__in=[STATUS.DELIVERED, STATUS.CANCELLED, STATUS.RETURNED, STATUS.REFUNDED]
         ).count()
-
         return order_count
 
     def get_order_queryset(self, request):

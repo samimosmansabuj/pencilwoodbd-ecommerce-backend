@@ -79,6 +79,24 @@
             <span class="text-secondary">({{ order_count.confirmed }})</span>
         </a>
 
+        <a href="{% url 'order_list' %}?status=ready_to_ship&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-get="{% url 'order_list' %}?status=ready_to_ship&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-target="#content-area"
+           hx-push-url="true"
+           class="{% if current_status == 'ready_to_ship' %}active{% endif %}">
+            <span class="me-1">READY TO SHIP</span>
+            <span class="text-secondary">({{ order_count.ready_to_ship }})</span>
+        </a>
+
+        <a href="{% url 'order_list' %}?status=parcel_created&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-get="{% url 'order_list' %}?status=parcel_created&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-target="#content-area"
+           hx-push-url="true"
+           class="{% if current_status == 'parcel_created' %}active{% endif %}">
+            <span class="me-1">PARCEL CREATED</span>
+            <span class="text-secondary">({{ order_count.parcel_created }})</span>
+        </a>
+
 
         <a href="{% url 'order_list' %}?status=shipped&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
            hx-get="{% url 'order_list' %}?status=shipped&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
