@@ -157,10 +157,88 @@ def site_content_api(request):
     custom_sections = (
         HomeSection.objects
         .filter(section_type="custom", is_active=True)
+        .select_related("category")
         .order_by("sort_order", "id")
     )
 
     why_choose_cards = About_WhyChooseUs.objects.filter(is_active=True).order_by("sort_order", "id")
+
+    def _serialize_custom_section(c, request):
+        base = {
+            "id": c.id,
+            "section_key": c.section_key,
+            "content_type": c.content_type,
+            "size": c.size,
+            "min_height_px": c.min_height_px,
+            "sort_order": c.sort_order,
+        }
+
+        if c.content_type == "product":
+            base.update({
+                "design_style": c.design_style,
+                "heading": c.heading or "",
+                "subheading": c.subheading or "",
+                "category": None,
+                "items": [],
+            })
+            if not c.category:
+                return base
+
+            base["category"] = {
+                "id": c.category.id,
+                "name": c.category.name,
+                "slug": c.category.slug,
+            }
+
+            if c.design_style == "category_tiles":
+                sub_categories = c.category.children.filter(
+                    status=CATEGORY_PRODUCT_STATUS.ACTIVE
+                ).order_by("sort_order", "name")[:c.item_limit]
+                base["items"] = [
+                    {
+                        "id": sc.id,
+                        "name": sc.name,
+                        "slug": sc.slug,
+                        "icon": sc.icon,
+                        "banner": request.build_absolute_uri(sc.banner_image.url) if sc.banner_image else None,
+                    }
+                    for sc in sub_categories
+                ]
+            else:
+                category_ids = _category_and_descendant_ids(c.category)
+                products = (
+                    Product.objects.filter(
+                        category_id__in=category_ids,
+                        status=CATEGORY_PRODUCT_STATUS.ACTIVE,
+                        is_gift_only=False,
+                    )
+                    .select_related("category")
+                    .order_by("-id")[:c.item_limit]
+                )
+                base["items"] = [
+                    {
+                        "id": p.id,
+                        "slug": p.slug,
+                        "name": p.name,
+                        "price": p.price,
+                        "discount_price": p.discount_price,
+                        "image": p.primary_image,
+                        "has_variants": p.has_variants,
+                        "category": {"id": p.category.id, "name": p.category.name} if p.category else None,
+                    }
+                    for p in products
+                ]
+        else:
+            base.update({
+                "heading": c.heading or "",
+                "subheading": c.subheading or "",
+                "body_html": c.body_html or "",
+                "image": c.image.url if c.image else None,
+                "button_text": c.button_text or "",
+                "button_url": c.button_url or "",
+            })
+
+        return base
 
     return JsonResponse({
         "status": True,
@@ -182,22 +260,7 @@ def site_content_api(request):
                 for nf in news_items
             ],
             "sections": sections,
-            "custom_sections": [
-                {
-                    "id": c.id,
-                    "section_key": c.section_key,
-                    "heading": c.heading or "",
-                    "subheading": c.subheading or "",
-                    "body_html": c.body_html or "",
-                    "image": c.image.url if c.image else None,
-                    "button_text": c.button_text or "",
-                    "button_url": c.button_url or "",
-                    "size": c.size,
-                    "min_height_px": c.min_height_px,
-                    "sort_order": c.sort_order,
-                }
-                for c in custom_sections
-            ],
+            "custom_sections": [_serialize_custom_section(c, request) for c in custom_sections],
             "why_choose_us": [
                 {"id": w.id, "title": w.title, "description": w.description or "", "icon": w.icon or ""}
                 for w in why_choose_cards
@@ -299,30 +362,45 @@ class ProductPagination(PageNumberPagination):
     max_page_size = 500
 
 
+def _category_and_descendant_ids(category):
+    ids = [category.id]
+    for child in category.children.all():
+        ids.extend(_category_and_descendant_ids(child))
+    return ids
+
+
+def _serialize_category_node(category, request):
+    return {
+        "id": category.id,
+        "name": category.name,
+        "slug": category.slug,
+        "icon": category.icon,
+        "banner": request.build_absolute_uri(category.banner_image.url) if category.banner_image else None,
+        "parent_id": category.parent_id,
+        "children": [
+            _serialize_category_node(child, request)
+            for child in category.children.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE).order_by("sort_order", "name")
+        ],
+    }
+
+
 class CategoryListAPIView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
         parent = request.query_params.get("parent")
 
-        qs = Category.objects.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE)
-
         if parent:
-            qs = qs.filter(parent_id=parent)
-        else:
-            qs = qs.filter(parent__isnull=True)
+            qs = Category.objects.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE, parent_id=parent).order_by("sort_order", "name")
+            return Response({
+                "status": True,
+                "data": [_serialize_category_node(c, request) for c in qs],
+            })
 
+        qs = Category.objects.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE, parent__isnull=True).order_by("sort_order", "name")
         return Response({
             "status": True,
-            "data": [
-                {
-                    "id": c.id,
-                    "name": c.name,
-                    "slug": c.slug,
-                    "icon": c.icon,
-                    "banner": c.banner_image.url if c.banner_image else None
-                } for c in qs
-            ]
+            "data": [_serialize_category_node(c, request) for c in qs],
         })
 
 class ProductListAPIView(APIView):
@@ -341,7 +419,11 @@ class ProductListAPIView(APIView):
         max_price = request.query_params.get("max_price")
 
         if category:
-            qs = qs.filter(category_id=category)
+            try:
+                cat_obj = Category.objects.get(id=category)
+                qs = qs.filter(category_id__in=_category_and_descendant_ids(cat_obj))
+            except Category.DoesNotExist:
+                qs = qs.filter(category_id=category)
 
         if search:
             qs = qs.filter(

@@ -33,6 +33,7 @@
                             <th>Section</th>
                             <th>Key</th>
                             <th>Type</th>
+                            <th>Content</th>
                             <th>Sort Order</th>
                             <th>Status</th>
                             <th>Action</th>
@@ -50,6 +51,17 @@
                                 <span class="badge bg-info">Custom</span>
                                 {% endif %}
                             </td>
+                            <td>
+                                {% if item.content_type == 'product' %}
+                                <span class="badge bg-primary">Product</span>
+                                <div class="small text-muted mt-1">
+                                    {{ item.get_design_style_display|default:"-" }}
+                                    {% if item.category %}<br>{{ item.category.name }}{% endif %}
+                                </div>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">Banner</span>
+                                {% endif %}
+                            </td>
                             <td>{{ item.sort_order }}</td>
                             <td>
                                 <div class="form-check form-switch mb-0">
@@ -65,6 +77,10 @@
                                         data-section-key="{{ item.section_key }}"
                                         data-admin-label="{{ item.admin_label }}"
                                         data-section-type="{{ item.section_type }}"
+                                        data-content-type="{{ item.content_type|default:'banner' }}"
+                                        data-design-style="{{ item.design_style|default:'' }}"
+                                        data-category-id="{{ item.category_id|default:'' }}"
+                                        data-item-limit="{{ item.item_limit|default:10 }}"
                                         data-heading="{{ item.heading|default:'' }}"
                                         data-subheading="{{ item.subheading|default:'' }}"
                                         data-body-html="{{ item.body_html|default:'' }}"
@@ -89,7 +105,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="6" class="text-center py-4">No sections found.</td>
+                            <td colspan="7" class="text-center py-4">No sections found.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -123,6 +139,17 @@
                         <label class="form-label">Admin Label <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" name="admin_label" placeholder="e.g. Summer Sale Banner" required>
                     </div>
+
+                    <!-- STEP 1: choose what this section is -->
+                    <div class="mb-3">
+                        <label class="form-label">Section Content Type <span class="text-danger">*</span></label>
+                        <select class="form-select" name="content_type" id="home_section_content_type">
+                            <option value="banner">Banner (image / heading block)</option>
+                            <option value="product">Product / Category Wise</option>
+                        </select>
+                        <small class="text-muted">Choose Banner for a plain image+text block, or Product/Category to pull products from a category automatically.</small>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label">Heading</label>
                         <input type="text" class="form-control" name="heading" placeholder="Optional heading shown on site">
@@ -131,22 +158,64 @@
                         <label class="form-label">Subheading</label>
                         <input type="text" class="form-control" name="subheading" placeholder="Optional subheading">
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Body / Description</label>
-                        <textarea class="form-control" name="body_html" rows="3" placeholder="Optional body text"></textarea>
+
+                    <!-- Fields for content_type = product -->
+                    <div id="home_section_product_fields" style="display:none;">
+                        <div class="mb-3">
+                            <label class="form-label">Design Style <span class="text-danger">*</span></label>
+                            <select class="form-select" name="design_style" id="home_section_design_style">
+                                <option value="product_grid">Product Grid (grid of products, like the main shop page)</option>
+                                <option value="product_slider">Product Slider (horizontal scroll, like "Kidz Product")</option>
+                                <option value="category_tiles">Category / Sub-category Tiles (shop-by-category banners)</option>
+                            </select>
+                            <small class="text-muted" id="home_section_design_help">Shows a scrollable row of product cards from the selected category.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Category <span class="text-danger">*</span></label>
+                            <select class="form-select" id="home_section_category" name="category">
+                                <option value="">Select Category</option>
+                                {% for cat in categories %}
+                                {% if not cat.parent_id %}
+                                <option value="{{ cat.id }}">{{ cat.name }}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Pick a top-level category, or drill into a sub-category below. For "Category Tiles", pick the parent whose sub-categories you want to show.</small>
+                        </div>
+                        <div class="mb-3" id="home_section_subcategory_wrap" style="display:none;">
+                            <label class="form-label">Sub Category</label>
+                            <select class="form-select" id="home_section_subcategory">
+                                <option value="">Select Sub Category</option>
+                            </select>
+                            <small class="text-muted">Optional — pick a specific sub-category instead of the whole parent category.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Item Limit</label>
+                            <input type="number" class="form-control" name="item_limit" id="home_section_item_limit" value="10" min="1" max="50">
+                            <small class="text-muted">Max number of products (or tiles) to show in this section.</small>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Image</label>
-                        <input type="file" class="form-control" name="image" accept="image/*">
+
+                    <!-- Fields for content_type = banner only -->
+                    <div id="home_section_banner_fields">
+                        <div class="mb-3">
+                            <label class="form-label">Body / Description</label>
+                            <textarea class="form-control" name="body_html" rows="3" placeholder="Optional body text"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Image</label>
+                            <input type="file" class="form-control" name="image" accept="image/*">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Button Text</label>
+                            <input type="text" class="form-control" name="button_text" placeholder="e.g. Shop Now">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Button URL</label>
+                            <input type="text" class="form-control" name="button_url" placeholder="e.g. /all_product.html">
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Button Text</label>
-                        <input type="text" class="form-control" name="button_text" placeholder="e.g. Shop Now">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Button URL</label>
-                        <input type="text" class="form-control" name="button_url" placeholder="e.g. /all_product.html">
-                    </div>
+
                     <div class="mb-3">
                         <label class="form-label">Section Size</label>
                         <select class="form-select" name="size" id="home_section_size">
@@ -198,28 +267,145 @@
 </div>
 
 <script>
-document.addEventListener("submit", async function (e) {
-    if (e.target.id !== "add_home_section_form") return;
-    e.preventDefault();
-
-    const csrftoken = getCookieHomeSection("csrftoken");
-    if (!csrftoken) {
-        alert("Session expired. Please refresh the page and try again.");
-        return;
-    }
-
-    const form = e.target;
-    if (!form.querySelector("input[name='admin_label']").value.trim()) {
-        alert("Admin label is required");
-        return;
-    }
-    const itemId = document.getElementById("home_section_id").value;
-    if (!itemId && !document.getElementById("home_section_key_input").value.trim()) {
-        alert("Section key is required");
-        return;
-    }
-
-    try {
+    var homeSectionCategoriesData = [
+        {% for cat in categories %}
+        { id: {{ cat.id }}, name: "{{ cat.name|escapejs }}", parent_id: {% if cat.parent_id %}{{ cat.parent_id }}{% else %}null{% endif %} }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+    
+    var homeSectionDesignHelp = {
+        product_grid: "Shows a grid of products from the selected category (with a heading only, no filters).",
+        product_slider: "Shows a horizontal, scrollable row of products — same look as the homepage 'Kidz Product' section.",
+        category_tiles: "Shows the sub-categories of the selected category as clickable image tiles (shop-by-category)."
+    };
+    
+    (function initHomeSectionContentType() {
+        var contentTypeSelect = document.getElementById("home_section_content_type");
+        var productFields = document.getElementById("home_section_product_fields");
+        var bannerFields = document.getElementById("home_section_banner_fields");
+        var designStyleSelect = document.getElementById("home_section_design_style");
+        var designHelp = document.getElementById("home_section_design_help");
+    
+        function applyContentType(value) {
+            if (value === "product") {
+                productFields.style.display = "block";
+                bannerFields.style.display = "none";
+            } else {
+                productFields.style.display = "none";
+                bannerFields.style.display = "block";
+            }
+        }
+    
+        contentTypeSelect.addEventListener("change", function () {
+            applyContentType(this.value);
+        });
+    
+        designStyleSelect.addEventListener("change", function () {
+            designHelp.textContent = homeSectionDesignHelp[this.value] || "";
+        });
+    
+        applyContentType(contentTypeSelect.value);
+    })();
+    
+    (function initHomeSectionCategory() {
+        var categorySelect = document.getElementById("home_section_category");
+        var subWrap = document.getElementById("home_section_subcategory_wrap");
+        var subSelect = document.getElementById("home_section_subcategory");
+    
+        function getChildren(parentId) {
+            return homeSectionCategoriesData.filter(function (c) { return c.parent_id === parentId; });
+        }
+    
+        function populateSubcategories(parentId, selectedId) {
+            var children = getChildren(parentId);
+            subSelect.innerHTML = '<option value="">Select Sub Category</option>';
+            if (!children.length) {
+                subWrap.style.display = "none";
+                return;
+            }
+            children.forEach(function (c) {
+                var opt = document.createElement("option");
+                opt.value = c.id;
+                opt.textContent = c.name;
+                if (selectedId && String(selectedId) === String(c.id)) opt.selected = true;
+                subSelect.appendChild(opt);
+            });
+            subWrap.style.display = "block";
+        }
+    
+        categorySelect.addEventListener("change", function () {
+            categorySelect.name = "category";
+            subSelect.name = "";
+            populateSubcategories(parseInt(categorySelect.value, 10) || null, null);
+        });
+    
+        subSelect.addEventListener("change", function () {
+            if (subSelect.value) {
+                subSelect.name = "category";
+                categorySelect.name = "";
+            } else {
+                subSelect.name = "";
+                categorySelect.name = "category";
+            }
+        });
+    
+        // Exposed so the "edit" click handler below can pre-select category/sub-category.
+        window.setHomeSectionCategory = function (categoryId) {
+            subWrap.style.display = "none";
+            subSelect.innerHTML = '<option value="">Select Sub Category</option>';
+            categorySelect.value = "";
+            categorySelect.name = "category";
+            subSelect.name = "";
+            if (!categoryId) return;
+    
+            var current = homeSectionCategoriesData.find(function (c) { return String(c.id) === String(categoryId); });
+            if (!current) return;
+    
+            if (current.parent_id) {
+                categorySelect.value = current.parent_id;
+                populateSubcategories(current.parent_id, current.id);
+                subSelect.name = "category";
+                categorySelect.name = "";
+            } else {
+                categorySelect.value = current.id;
+                populateSubcategories(current.id, null);
+            }
+        };
+    })();
+    
+    document.addEventListener("submit", async function (e) {
+        if (e.target.id !== "add_home_section_form") return;
+        e.preventDefault();
+    
+        const csrftoken = getCookieHomeSection("csrftoken");
+        if (!csrftoken) {
+            alert("Session expired. Please refresh the page and try again.");
+            return;
+        }
+    
+        const form = e.target;
+        if (!form.querySelector("input[name='admin_label']").value.trim()) {
+            alert("Admin label is required");
+            return;
+        }
+        const itemId = document.getElementById("home_section_id").value;
+        if (!itemId && !document.getElementById("home_section_key_input").value.trim()) {
+            alert("Section key is required");
+            return;
+        }
+        const contentType = document.getElementById("home_section_content_type").value;
+        if (contentType === "product") {
+            const categorySelect = document.getElementById("home_section_category");
+            const subSelect = document.getElementById("home_section_subcategory");
+            const hasCategory = (categorySelect.name === "category" && categorySelect.value) ||
+                                 (subSelect.name === "category" && subSelect.value);
+            if (!hasCategory) {
+                alert("Please select a category (or sub-category) for this Product/Category section");
+                return;
+            }
+        }
+    
+        try {
         const formData = new FormData(form);
         formData.set("csrfmiddlewaretoken", csrftoken);
 
@@ -267,6 +453,19 @@ document.addEventListener("click", function (e) {
         form.querySelector("input[name='min_height_px']").value = btn.dataset.minHeight;
         form.querySelector("input[name='sort_order']").value = btn.dataset.sortOrder;
         form.querySelector("#home_section_is_active").checked = btn.dataset.isActive === "true";
+
+        // Content type (Banner / Product) + product-only fields
+        const contentType = btn.dataset.contentType || "banner";
+        const contentTypeSelect = document.getElementById("home_section_content_type");
+        contentTypeSelect.value = contentType;
+        contentTypeSelect.dispatchEvent(new Event("change"));
+
+        if (contentType === "product") {
+            document.getElementById("home_section_design_style").value = btn.dataset.designStyle || "product_grid";
+            document.getElementById("home_section_design_style").dispatchEvent(new Event("change"));
+            document.getElementById("home_section_item_limit").value = btn.dataset.itemLimit || 10;
+            window.setHomeSectionCategory(btn.dataset.categoryId);
+        }
     }
 });
 
@@ -277,6 +476,9 @@ document.getElementById("HomeSectionModal")?.addEventListener("hidden.bs.modal",
     document.getElementById("home_section_modal_title").textContent = "Add Custom Section";
     document.getElementById("home_section_key_input").disabled = false;
     document.getElementById("home_section_key_group").style.opacity = "1";
+    document.getElementById("home_section_content_type").value = "banner";
+    document.getElementById("home_section_content_type").dispatchEvent(new Event("change"));
+    window.setHomeSectionCategory(null);
 });
 
 let deleteHomeSectionId = null;

@@ -9,8 +9,8 @@ from .models import (
 
 @admin.register(HomeSection)
 class HomeSectionAdmin(admin.ModelAdmin):
-    list_display = ('admin_label', 'section_key', 'section_type', 'sort_order', 'is_active')
-    list_filter = ('section_type', 'is_active')
+    list_display = ('admin_label', 'section_key', 'section_type', 'content_type', 'design_style', 'category', 'sort_order', 'is_active')
+    list_filter = ('section_type', 'content_type', 'design_style', 'is_active')
     search_fields = ('admin_label', 'section_key')
     ordering = ('sort_order', 'id')
 
