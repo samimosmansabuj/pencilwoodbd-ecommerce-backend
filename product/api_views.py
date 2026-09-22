@@ -191,6 +191,7 @@ def site_content_api(request):
             }
 
             if c.design_style == "category_tiles":
+                # Show this category's own sub-categories as clickable tiles.
                 sub_categories = c.category.children.filter(
                     status=CATEGORY_PRODUCT_STATUS.ACTIVE
                 ).order_by("sort_order", "name")[:c.item_limit]
@@ -204,30 +205,45 @@ def site_content_api(request):
                     }
                     for sc in sub_categories
                 ]
+
+            elif c.design_style == "tabbed_products":
+                # Each sub-category of the selected category becomes a tab, with its own products.
+                sub_categories = c.category.children.filter(
+                    status=CATEGORY_PRODUCT_STATUS.ACTIVE
+                ).order_by("sort_order", "name")
+                if sub_categories:
+                    base["tabs"] = [
+                        {
+                            "id": sc.id,
+                            "name": sc.name,
+                            "slug": sc.slug,
+                            "items": _products_for_category(sc, c.item_limit, request),
+                        }
+                        for sc in sub_categories
+                    ]
+                else:
+                    # No sub-categories under this category -> single tab using the category itself.
+                    base["tabs"] = [{
+                        "id": c.category.id,
+                        "name": c.category.name,
+                        "slug": c.category.slug,
+                        "items": _products_for_category(c.category, c.item_limit, request),
+                    }]
+                base["items"] = []
+
+            elif c.design_style == "bestseller_strip":
+                base["badge_text"] = c.badge_text or "Best Seller"
+                base["items"] = _products_for_category(c.category, c.item_limit, request)
+
+            elif c.design_style == "banner_product_combo":
+                base["image"] = request.build_absolute_uri(c.image.url) if c.image else None
+                base["body_html"] = c.body_html or ""
+                base["button_text"] = c.button_text or ""
+                base["button_url"] = c.button_url or ""
+                base["items"] = _products_for_category(c.category, c.item_limit, request)
+
             else:
-                category_ids = _category_and_descendant_ids(c.category)
-                products = (
-                    Product.objects.filter(
-                        category_id__in=category_ids,
-                        status=CATEGORY_PRODUCT_STATUS.ACTIVE,
-                        is_gift_only=False,
-                    )
-                    .select_related("category")
-                    .order_by("-id")[:c.item_limit]
-                )
-                base["items"] = [
-                    {
-                        "id": p.id,
-                        "slug": p.slug,
-                        "name": p.name,
-                        "price": p.price,
-                        "discount_price": p.discount_price,
-                        "image": p.primary_image,
-                        "has_variants": p.has_variants,
-                        "category": {"id": p.category.id, "name": p.category.name} if p.category else None,
-                    }
-                    for p in products
-                ]
+                base["items"] = _products_for_category(c.category, c.item_limit, request)
         else:
             base.update({
                 "heading": c.heading or "",
@@ -368,6 +384,30 @@ def _category_and_descendant_ids(category):
         ids.extend(_category_and_descendant_ids(child))
     return ids
 
+def _products_for_category(category, limit, request):
+    category_ids = _category_and_descendant_ids(category)
+    products = (
+        Product.objects.filter(
+            category_id__in=category_ids,
+            status=CATEGORY_PRODUCT_STATUS.ACTIVE,
+            is_gift_only=False,
+        )
+        .select_related("category")
+        .order_by("-id")[:limit]
+    )
+    return [
+        {
+            "id": p.id,
+            "slug": p.slug,
+            "name": p.name,
+            "price": p.price,
+            "discount_price": p.discount_price,
+            "image": p.primary_image,
+            "has_variants": p.has_variants,
+            "category": {"id": p.category.id, "name": p.category.name} if p.category else None,
+        }
+        for p in products
+    ]
 
 def _serialize_category_node(category, request):
     return {

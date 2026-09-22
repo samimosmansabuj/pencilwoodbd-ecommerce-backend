@@ -165,7 +165,11 @@ class HomeSectionManagementView(LoginRequiredMixin, View):
     def get(self, request):
         items = HomeSection.objects.select_related("category", "category__parent").all()
         categories = Category.objects.all().order_by("sort_order", "name")
-        context = {"items": items, "categories": categories}
+        categories_json = [
+            {"id": c.id, "name": c.name, "parent_id": c.parent_id}
+            for c in categories
+        ]
+        context = {"items": items, "categories": categories, "categories_json": categories_json}
 
         if request.htmx:
             return render(request, "db_home_sections/partial/partial_home_section_list.html", context)
