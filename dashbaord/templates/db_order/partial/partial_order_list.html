@@ -78,6 +78,15 @@
             <span class="me-1">CONFIRMED</span>
             <span class="text-secondary">({{ order_count.confirmed }})</span>
         </a>
+        
+        <a href="{% url 'order_list' %}?status=hold&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-get="{% url 'order_list' %}?status=hold&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-target="#content-area"
+           hx-push-url="true"
+           class="{% if current_status == 'hold' %}active{% endif %}">
+            <span class="me-1">HOLD</span>
+            <span class="text-secondary">({{ order_count.hold }})</span>
+        </a>
 
         <a href="{% url 'order_list' %}?status=ready_to_ship&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
            hx-get="{% url 'order_list' %}?status=ready_to_ship&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
@@ -135,6 +144,15 @@
            class="{% if current_status == 'token_print' %}active{% endif %}">
             <span class="me-1">TOKEN PRINT</span>
             <span class="text-secondary">({{ order_count.token_print }})</span>
+        </a>
+
+        <a href="{% url 'order_list' %}?status=return_processing&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-get="{% url 'order_list' %}?status=return_processing&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-target="#content-area"
+           hx-push-url="true"
+           class="{% if current_status == 'return_processing' %}active{% endif %}">
+            <span class="me-1">RETURN PROCESSING</span>
+            <span class="text-secondary">({{ order_count.return_processing }})</span>
         </a>
 
 
@@ -405,6 +423,15 @@
                     Print Tokens
                 </button>
 
+                <!-- Print Tokens -->
+                <button type="button"
+                    class="btn btn-sm btn-info"
+                    onclick="printSelectedInvoices()"
+                    title="Print Selected Invoices">
+                    <i class="material-icons-outlined">print</i>
+                    Invoice Print
+                </button>
+
                 <!-- Bulk Delete -->
                 <button
                     class="btn btn-sm btn-danger"
@@ -596,41 +623,27 @@
 
 
                 // -------------------------------
-                // Print Bulk Tokens
+                // Print Bulk Invoices
                 // -------------------------------
-
-                function printBulkTokens() {
-
-                    const orderIds =
-                        getSelectedOrderIds();
+                function printSelectedInvoices() {
+                    const orderIds = getSelectedOrderIds();
 
                     if (!orderIds.length) {
-
                         errorNotificationCustom(
                             "Please select at least one order."
                         );
-
                         return;
                     }
 
+                    const url = `/orders/bulk-invoice-print/?ids=${orderIds.join(',')}`;
+                    const width = Math.round(screen.width / 2);
+                    const height = Math.round(screen.height * 0.85);
 
-                    const url =
-                        `/orders/bulk-token-print/?ids=${orderIds.join(',')}`;
-
-                    const width =
-                        Math.round(screen.width / 2);
-
-                    const height =
-                        Math.round(screen.height * 0.85);
-
-
-                    const printWindow =
-                        window.open(
-                            url,
-                            'bulkTokenPrintWindow',
-                            `width=${width},height=${height},left=0,top=40,popup=yes`
-                        );
-
+                    const printWindow = window.open(
+                        url,
+                        'bulkInvoicePrintWindow',
+                        `width=${width},height=${height},left=0,top=40,popup=yes`
+                    );
 
                     if (!printWindow) {
                         errorNotificationCustom(
@@ -639,17 +652,55 @@
                         return;
                     }
 
-
                     printWindow.onload = function () {
                         printWindow.focus();
                         printWindow.print();
                     };
 
-
                     printWindow.onafterprint = function () {
                         printWindow.close();
                     };
+                }
 
+
+                // -------------------------------
+                // Print Bulk Tokens
+                // -------------------------------
+                function printBulkTokens() {
+                    const orderIds =
+                        getSelectedOrderIds();
+
+                    if (!orderIds.length) {
+                        errorNotificationCustom(
+                            "Please select at least one order."
+                        );
+                        return;
+                    }
+
+                    const url = `/orders/bulk-token-print/?ids=${orderIds.join(',')}`;
+                    const width = Math.round(screen.width / 2);
+                    const height = Math.round(screen.height * 0.85);
+
+                    const printWindow =
+                        window.open(
+                            url,
+                            'bulkTokenPrintWindow',
+                            `width=${width},height=${height},left=0,top=40,popup=yes`
+                        );
+
+                    if (!printWindow) {
+                        errorNotificationCustom(
+                            "Please allow pop-ups for this site."
+                        );
+                        return;
+                    }
+                    printWindow.onload = function () {
+                        printWindow.focus();
+                        printWindow.print();
+                    };
+                    printWindow.onafterprint = function () {
+                        printWindow.close();
+                    };
                 }
 
 

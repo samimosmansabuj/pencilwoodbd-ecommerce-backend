@@ -33,6 +33,26 @@
                             hx-trigger="click, refreshReturnOrderDetailView from:body" hx-swap="innerHTML">
                             #{{ order.order_id }}
                         </a>
+                        <button type="button" class="btn btn-sm btn-link p-0 ms-1"
+                                onclick="copyOrderId('{{ order.order_id }}', this)"
+                                title="Copy Order ID">
+                            <i class="bi bi-copy"></i>
+                        </button>
+                        <script>
+                        function copyOrderId(orderId, button) {
+                            navigator.clipboard.writeText(orderId).then(() => {
+                                const icon = button.querySelector('i');
+                                icon.classList.remove('bi-copy');
+                                icon.classList.add('bi-check');
+                                setTimeout(() => {
+                                    icon.classList.remove('bi-check');
+                                    icon.classList.add('bi-copy');
+                                }, 1200);
+                            }).catch(err => {
+                                console.error('Failed to copy Order ID:', err);
+                            });
+                        }
+                        </script>
                     </td>
 
                     <td>
@@ -65,7 +85,7 @@
                     </td>
 
                     <td>
-                        <a class="d-flex align-items-center gap-3" href="javascript:;">
+                        <a class="d-flex align-items-center gap-3" href="javascript:void(0);" onclick="copyCustomerName('{{ order.customer.name|escapejs }}', this)" title="Click to copy customer name">
                             <div class="customer-pic">
                                 <img src="https://placehold.co/110x110/png" class="rounded-circle" width="40"
                                     height="40">
@@ -74,13 +94,65 @@
                                 {{ order.customer.name }}
                             </p>
                         </a>
+                        <script>
+                            function copyCustomerName(name, element) {
+                                navigator.clipboard.writeText(name).then(() => {
+                                    const nameElement = element.querySelector('.customer-name');
+                                    const originalText = nameElement.innerText;
+                                    nameElement.innerText = 'Copied!';
+                                    setTimeout(() => {
+                                        nameElement.innerText = originalText;
+                                    }, 1000);
+                                });
+                            }
+                        </script>
                     </td>
 
                     <td>
-                        {{ order.customer.phone }}
+                        <span
+                            onclick="copyPhoneNumber('{{ order.customer.phone|escapejs }}', this)"
+                            style="cursor: pointer;"
+                            title="Click to copy">
+                            {{ order.customer.phone }}
+                        </span>
+                        <script>
+                            function copyPhoneNumber(phone, element) {
+                                let copyNumber = phone.startsWith('88')
+                                    ? phone.substring(2)
+                                    : phone;
+
+                                navigator.clipboard.writeText(copyNumber).then(() => {
+                                    const originalText = element.innerText;
+                                    element.innerText = 'Copied!';
+                                    setTimeout(() => {
+                                        element.innerText = originalText;
+                                    }, 1000);
+                                });
+                            }
+                        </script>
                     </td>
 
-                    <td>৳{{ order.total_cost }}</td>
+                    <td>
+                        <span
+                            onclick="copyTotalCost('{{ order.total_cost|escapejs }}', this)"
+                            style="cursor: pointer;"
+                            title="Click to copy">
+                            ৳{{ order.total_cost }}
+                        </span>
+                        <script>
+                            function copyTotalCost(amount, element) {
+                                navigator.clipboard.writeText(amount).then(() => {
+
+                                    const originalText = element.innerText;
+                                    element.innerText = 'Copied!';
+
+                                    setTimeout(() => {
+                                        element.innerText = originalText;
+                                    }, 1000);
+                                });
+                            }
+                        </script>
+                    </td>
 
                     <td>
                         <select name="status" id="status_{{ order.id }}"
