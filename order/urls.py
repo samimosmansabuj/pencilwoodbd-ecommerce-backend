@@ -21,7 +21,7 @@ from .views import (
     ApproveOrderRequestView, RejectOrderRequestView, UpdateOrderRequestWorkStatusView,
     OrderRequestStatusUpdateView,
     TelegramBotSettingsView, delete_telegram_bot_config, toggle_telegram_bot_active,
-    OrderTokenPrintView, OrderBulkTokenPrintView, OrderPathaoParcelSubmitView,
+    OrderTokenPrintView, OrderBulkInvoicePrintView, OrderBulkTokenPrintView, OrderPathaoParcelSubmitView,
     OrderUrgentToggleView, ConfirmOrderRequestView,OrderAttemptListView, 
     OrderAttemptDetailView, OrderAttemptDeleteView,
 )
@@ -77,6 +77,7 @@ urlpatterns = [
 
     # ----------------- Dashboard: Token / Courier -----------------
     path('orders/<int:pk>/token-print/', OrderTokenPrintView.as_view(), name='order_token_print'),
+    path('orders/bulk-invoice-print/', OrderBulkInvoicePrintView.as_view(), name='order_bulk_invoice_print'),
     path('orders/bulk-token-print/', OrderBulkTokenPrintView.as_view(), name='order_bulk_token_print'),
     path('orders/<int:pk>/pathao-submit/', OrderPathaoParcelSubmitView.as_view(), name='order_pathao_submit'),
     path('orders/<int:pk>/toggle-urgent/', OrderUrgentToggleView.as_view(), name='order_toggle_urgent'),

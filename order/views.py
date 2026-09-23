@@ -302,7 +302,6 @@ class OrderView(LoginRequiredMixin, View):
         return order_count
 
     def get_order_queryset(self, request):
-
         order_status = request.GET.get("status")
         search = request.GET.get("q", "").strip()
 
@@ -1639,6 +1638,36 @@ class OrderTokenPrintView(LoginRequiredMixin, View):
 
         return render(request, "db_order/token.html", {"tokens": tokens})
 
+class OrderBulkInvoicePrintView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        ids_param = request.GET.get("ids", "")
+        order_ids = [int(i) for i in ids_param.split(",") if i.strip().isdigit()]
+
+        if not order_ids:
+            messages.error(request, "No orders selected for invoice print.")
+            return redirect("order_list")
+        
+        orders = Order.objects.filter(
+        id__in=order_ids
+        ).prefetch_related(
+            'order_items'
+        )
+
+        context = {
+            'orders': orders,
+            # 'brand_name': 'Your Brand',
+            # 'brand_website': 'yourwebsite.com',
+            # 'brand_phone': '',
+            # 'brand_email': 'email@example.com',
+            'invoice_note': 'Thank you for your order.',
+        }
+        return render(
+            request,
+            'db_order/bulk_invoice.html',
+            context
+        )
 
 class OrderBulkTokenPrintView(LoginRequiredMixin, View):
     login_url = "admin_login"
