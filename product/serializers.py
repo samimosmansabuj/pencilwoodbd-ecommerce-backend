@@ -1,13 +1,19 @@
 from rest_framework import serializers
 from .models import *
+from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS
 
 
 class CategorySerializer(serializers.ModelSerializer):
     category_path = serializers.ReadOnlyField()
+    children = serializers.SerializerMethodField()
 
     class Meta:
         model = Category
         fields = '__all__'
+
+    def get_children(self, obj):
+        qs = obj.children.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE).order_by('sort_order', 'name')
+        return CategorySerializer(qs, many=True, context=self.context).data
 
 
 class ProductImageSerializer(serializers.ModelSerializer):

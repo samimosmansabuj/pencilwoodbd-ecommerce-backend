@@ -1,9 +1,9 @@
 from typing import Iterable
 from django.db import models
 from django.conf import settings
-from pencilwoodbd.choices import HomeSectionTypeChoices, HomeSectionSizeChoices
+from pencilwoodbd.choices import HomeSectionTypeChoices, HomeSectionSizeChoices, HomeSectionContentTypeChoices, HomeSectionDesignChoices
 from pencilwoodbd.extra_module import image_delete_os, previous_image_delete_os
-from product.models import Product, ProductVariant
+from product.models import Product, ProductVariant, Category
 from django.core.validators import FileExtensionValidator
 from django.utils import timezone
 from datetime import timedelta
@@ -170,7 +170,16 @@ class HomeSection(models.Model):
     admin_label = models.CharField(max_length=100)
     section_type = models.CharField(max_length=10, choices=HomeSectionTypeChoices.choices, default=HomeSectionTypeChoices.CUSTOM)
 
-    # Only used by CUSTOM sections to render a brand-new block on the homepage.
+    content_type = models.CharField(max_length=10, choices=HomeSectionContentTypeChoices.choices, default=HomeSectionContentTypeChoices.BANNER)
+
+    design_style = models.CharField(max_length=20, choices=HomeSectionDesignChoices.choices, blank=True, null=True)
+
+    category = models.ForeignKey(Category, null=True, blank=True, on_delete=models.SET_NULL, related_name='home_sections')
+
+    item_limit = models.PositiveIntegerField(default=10)
+
+    badge_text = models.CharField(max_length=30, blank=True, null=True)
+
     heading = models.CharField(max_length=150, blank=True, null=True)
     subheading = models.CharField(max_length=255, blank=True, null=True)
     body_html = models.TextField(blank=True, null=True)

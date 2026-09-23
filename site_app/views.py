@@ -5,7 +5,7 @@ from django.views import View
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
-from product.models import ProductVideo
+from product.models import ProductVideo, Category
 from site_app.models import ShowcaseMedia, HomeSection, About_WhyChooseUs
 
 import json as pyjson
@@ -163,8 +163,13 @@ class HomeSectionManagementView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
     def get(self, request):
-        items = HomeSection.objects.all()
-        context = {"items": items}
+        items = HomeSection.objects.select_related("category", "category__parent").all()
+        categories = Category.objects.all().order_by("sort_order", "name")
+        categories_json = [
+            {"id": c.id, "name": c.name, "parent_id": c.parent_id}
+            for c in categories
+        ]
+        context = {"items": items, "categories": categories, "categories_json": categories_json}
 
         if request.htmx:
             return render(request, "db_home_sections/partial/partial_home_section_list.html", context)
@@ -179,6 +184,10 @@ class HomeSectionManagementView(LoginRequiredMixin, View):
             section_key = data.get("section_key", "").strip()
             admin_label = data.get("admin_label", "").strip()
             section_type = data.get("section_type", "custom").strip()
+            content_type = data.get("content_type", "banner").strip()
+            design_style = data.get("design_style", "").strip()
+            category_id = data.get("category", "").strip()
+            item_limit = data.get("item_limit", "").strip()
             heading = data.get("heading", "").strip()
             subheading = data.get("subheading", "").strip()
             body_html = data.get("body_html", "").strip()
@@ -193,6 +202,14 @@ class HomeSectionManagementView(LoginRequiredMixin, View):
             if not admin_label:
                 return JsonResponse({"status": False, "message": "Admin label is required"}, status=HTTPStatus.BAD_REQUEST)
 
+            content_type = content_type if content_type in ("banner", "product") else "banner"
+
+            if content_type == "product":
+                if design_style not in ("product_grid", "product_slider", "category_tiles", "tabbed_products", "bestseller_strip", "banner_product_combo"):
+                    return JsonResponse({"status": False, "message": "Please select a design style"}, status=HTTPStatus.BAD_REQUEST)
+                if not category_id:
+                    return JsonResponse({"status": False, "message": "Please select a category or sub-category"}, status=HTTPStatus.BAD_REQUEST)
+
             if item_id:
                 item = get_object_or_404(HomeSection, id=item_id)
             else:
@@ -205,19 +222,42 @@ class HomeSectionManagementView(LoginRequiredMixin, View):
 
             item.admin_label = admin_label
             item.section_type = section_type if section_type in ("builtin", "custom") else "custom"
-            item.heading = heading or None
-            item.subheading = subheading or None
-            item.body_html = body_html or None
-            item.button_text = button_text or None
-            item.button_url = button_url or None
+            item.content_type = content_type
+
+            if content_type == "product":
+                item.design_style = design_style
+                item.category_id = int(category_id) if category_id.isdigit() else None
+                item.item_limit = int(item_limit) if item_limit.isdigit() and int(item_limit) > 0 else 10
+                item.badge_text = data.get("badge_text", "").strip() or None
+                item.heading = heading or None
+                item.subheading = subheading or None
+                if design_style == "banner_product_combo":
+                    item.body_html = body_html or None
+                    item.button_text = button_text or None
+                    item.button_url = button_url or None
+                    if image:
+                        item.image = image
+                else:
+                    item.body_html = None
+                    item.button_text = None
+                    item.button_url = None
+            else:
+                item.design_style = None
+                item.category = None
+                item.item_limit = 10
+                item.badge_text = None
+                item.heading = heading or None
+                item.subheading = subheading or None
+                item.body_html = body_html or None
+                item.button_text = button_text or None
+                item.button_url = button_url or None
+                if image:
+                    item.image = image
+
             item.size = size if size in ("compact", "normal", "spacious") else "normal"
             item.min_height_px = int(min_height_px) if min_height_px.isdigit() else None
             item.sort_order = int(sort_order) if str(sort_order).isdigit() else 0
             item.is_active = is_active
-
-            if image:
-                item.image = image
-
             item.save()
 
             msg = "Section updated successfully" if item_id else "Section added successfully"
@@ -238,6 +278,11 @@ def get_home_section(request, id):
                 "section_key": item.section_key,
                 "admin_label": item.admin_label,
                 "section_type": item.section_type,
+                "content_type": item.content_type,
+                "design_style": item.design_style or "",
+                "category_id": item.category_id or "",
+                "item_limit": item.item_limit,
+                "badge_text": item.badge_text or "",
                 "heading": item.heading or "",
                 "subheading": item.subheading or "",
                 "body_html": item.body_html or "",

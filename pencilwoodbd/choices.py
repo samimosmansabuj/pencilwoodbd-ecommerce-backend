@@ -180,3 +180,15 @@ class HomeSectionSizeChoices(models.TextChoices):
     COMPACT = "compact", "Compact (small padding)"
     NORMAL = "normal", "Normal"
     SPACIOUS = "spacious", "Spacious (large padding)"
+
+class HomeSectionContentTypeChoices(models.TextChoices):
+    BANNER = "banner", "Banner"
+    PRODUCT = "product", "Product / Category Wise"
+
+class HomeSectionDesignChoices(models.TextChoices):
+    PRODUCT_GRID = "product_grid", "Product Grid (like the main product listing)"
+    PRODUCT_SLIDER = "product_slider", "Product Slider (horizontal scroll, like 'Kidz Product')"
+    CATEGORY_TILES = "category_tiles", "Category / Sub-category Tiles (shop-by-category)"
+    TABBED_PRODUCTS = "tabbed_products", "Category Tabs + Products (tab-to-switch)"
+    BESTSELLER_STRIP = "bestseller_strip", "Best Seller / New Arrival Strip (badge grid)"
+    BANNER_PRODUCT_COMBO = "banner_product_combo", "Banner + Product Combo (banner beside products)"
