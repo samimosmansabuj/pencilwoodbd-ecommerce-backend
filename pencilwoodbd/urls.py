@@ -19,6 +19,7 @@ urlpatterns = [
     path('', include('marketing.urls')),
     
     path('', include('dashbaord.urls')),
+    path('', include('tracking.urls')),
 ]
 
 SERVE_MEDIA = os.getenv("SERVE_MEDIA", "False").strip().lower() in ("true","1","yes")
