@@ -194,3 +194,14 @@ class HomeSectionDesignChoices(models.TextChoices):
     TABBED_PRODUCTS = "tabbed_products", "Category Tabs + Products (tab-to-switch)"
     BESTSELLER_STRIP = "bestseller_strip", "Best Seller / New Arrival Strip (badge grid)"
     BANNER_PRODUCT_COMBO = "banner_product_combo", "Banner + Product Combo (banner beside products)"
+
+
+class HomeSectionFontChoices(models.TextChoices):
+    DEFAULT = "", "Default (site font)"
+    SORA = "'Sora', sans-serif", "Sora (site default)"
+    HIND_SILIGURI = "'Hind Siliguri', sans-serif", "Hind Siliguri (Bangla)"
+    POPPINS = "'Poppins', sans-serif", "Poppins"
+    PLAYFAIR = "'Playfair Display', serif", "Playfair Display (elegant serif)"
+    MONTSERRAT = "'Montserrat', sans-serif", "Montserrat"
+    OSWALD = "'Oswald', sans-serif", "Oswald (condensed/bold)"
+    NUNITO = "'Nunito', sans-serif", "Nunito (rounded)"

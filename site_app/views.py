@@ -258,6 +258,18 @@ class HomeSectionManagementView(LoginRequiredMixin, View):
             item.min_height_px = int(min_height_px) if min_height_px.isdigit() else None
             item.sort_order = int(sort_order) if str(sort_order).isdigit() else 0
             item.is_active = is_active
+
+            # ---- Text Styling ----
+            text_font_size = data.get("text_font_size", "").strip()
+            text_bg_opacity = data.get("text_bg_opacity", "").strip()
+            item.text_font_family = data.get("text_font_family", "").strip()
+            item.text_font_size = int(text_font_size) if text_font_size.isdigit() else None
+            item.text_font_weight = "bold" if data.get("text_font_weight") == "bold" else "normal"
+            item.text_font_style = "italic" if data.get("text_font_style") == "italic" else "normal"
+            item.text_color = data.get("text_color", "").strip()
+            item.text_bg_color = data.get("text_bg_color", "").strip()
+            item.text_bg_opacity = max(0, min(100, int(text_bg_opacity))) if text_bg_opacity.isdigit() else 0
+
             item.save()
 
             msg = "Section updated successfully" if item_id else "Section added successfully"
@@ -283,6 +295,13 @@ def get_home_section(request, id):
                 "category_id": item.category_id or "",
                 "item_limit": item.item_limit,
                 "badge_text": item.badge_text or "",
+                "text_font_family": item.text_font_family or "",
+                "text_font_size": item.text_font_size or "",
+                "text_font_weight": item.text_font_weight,
+                "text_font_style": item.text_font_style,
+                "text_color": item.text_color or "",
+                "text_bg_color": item.text_bg_color or "",
+                "text_bg_opacity": item.text_bg_opacity,
                 "heading": item.heading or "",
                 "subheading": item.subheading or "",
                 "body_html": item.body_html or "",

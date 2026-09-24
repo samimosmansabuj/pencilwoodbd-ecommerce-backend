@@ -1,0 +1,146 @@
+{% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
+
+<!-- Customer summary header -->
+<div class="card mb-3">
+    <div class="card-body d-flex flex-wrap align-items-center gap-3">
+        <div class="avatar-initial rounded-circle bg-light-primary text-primary d-flex align-items-center justify-content-center"
+             style="width:48px;height:48px;font-weight:600;font-size:18px;">
+            {{ customer.name|slice:":1"|upper }}
+        </div>
+        <div>
+            <h5 class="mb-0">{{ customer.name }}</h5>
+            <small class="text-secondary">{{ customer.phone }}{% if customer.email %} &middot; {{ customer.email }}{% endif %}</small>
+        </div>
+        <div class="ms-auto d-flex gap-4">
+            <div class="text-center">
+                <div class="fw-bold fs-5">{{ paginator.count }}</div>
+                <small class="text-secondary">Total Events</small>
+            </div>
+            <div class="text-center">
+                <div class="fw-bold fs-5">{{ sessions.count }}</div>
+                <small class="text-secondary">Devices / Sessions</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Known devices / sessions for this customer -->
+{% if sessions %}
+<div class="card mb-3">
+    <div class="card-body">
+        <h6 class="mb-3">Known Devices / Sessions</h6>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>IP</th>
+                        <th>User Agent</th>
+                        <th>Page Views</th>
+                        <th>Visits</th>
+                        <th>First Seen</th>
+                        <th>Last Seen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in sessions %}
+                    <tr>
+                        <td>{{ s.last_ip|default:"—" }}</td>
+                        <td class="text-truncate" style="max-width:280px;" title="{{ s.user_agent }}">{{ s.user_agent|default:"—"|truncatechars:60 }}</td>
+                        <td>{{ s.total_page_views }}</td>
+                        <td>{{ s.total_visits }}</td>
+                        <td>{{ s.first_seen|date:"M d, Y H:i" }}</td>
+                        <td>{{ s.last_seen|date:"M d, Y H:i" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Event type filter -->
+<div class="row g-3 mb-3">
+    <div class="col-auto">
+        <select
+            name="event_type"
+            class="form-select btn-filter"
+            hx-get="{% url 'customer_activity' customer.id %}"
+            hx-trigger="change"
+            hx-target="#activity-tab-content"
+            hx-swap="innerHTML"
+            hx-push-url="true">
+            <option value="">All Event Types</option>
+            {% for value, label in event_types %}
+                <option value="{{ value }}" {% if current_event_type == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<!-- Activity timeline -->
+<div class="card">
+    <div class="card-body">
+        <ul class="timeline-basic list-unstyled">
+            {% for event in events %}
+            <li class="d-flex gap-3 py-2 border-bottom">
+                <div>
+                    <span class="badge
+                        {% if event.event_type == 'product_view' %}bg-light-info text-info
+                        {% elif event.event_type == 'add_to_cart' %}bg-light-success text-success
+                        {% elif event.event_type == 'order_placed' %}bg-light-primary text-primary
+                        {% elif event.event_type == 'search' %}bg-light-warning text-warning
+                        {% else %}bg-light-secondary text-secondary{% endif %}">
+                        {{ event.get_event_type_display }}
+                    </span>
+                </div>
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            {% if event.product %}
+                                <strong>{{ event.product.title }}</strong>
+                            {% elif event.page_title %}
+                                <strong>{{ event.page_title }}</strong>
+                            {% endif %}
+                            <div class="text-secondary small">{{ event.page_url|default:"—" }}</div>
+                            {% if event.meta %}
+                                <div class="text-secondary small">{{ event.meta }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="text-secondary small text-nowrap ms-3">{{ event.created_at|date:"M d, Y H:i:s" }}</div>
+                    </div>
+                </div>
+            </li>
+            {% empty %}
+            <li class="text-center py-4 text-secondary">No activity recorded yet for this customer.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if events.paginator.num_pages > 1 %}
+<nav class="mt-3">
+    <ul class="pagination justify-content-center">
+        <li class="page-item {% if not events.has_previous %}disabled{% endif %}">
+            <a class="page-link"
+               hx-get="{% url 'customer_activity' customer.id %}?event_type={{ current_event_type }}{% if events.has_previous %}&page={{ events.previous_page_number }}{% endif %}"
+               hx-target="#activity-tab-content" hx-swap="innerHTML" hx-push-url="true">«</a>
+        </li>
+        {% for num in events.paginator.page_range %}
+            {% if num >= events.number|add:-2 and num <= events.number|add:2 %}
+            <li class="page-item {% if events.number == num %}active{% endif %}">
+                <a class="page-link"
+                   hx-get="{% url 'customer_activity' customer.id %}?event_type={{ current_event_type }}&page={{ num }}"
+                   hx-target="#activity-tab-content" hx-swap="innerHTML" hx-push-url="true">{{ num }}</a>
+            </li>
+            {% endif %}
+        {% endfor %}
+        <li class="page-item {% if not events.has_next %}disabled{% endif %}">
+            <a class="page-link"
+               hx-get="{% url 'customer_activity' customer.id %}?event_type={{ current_event_type }}{% if events.has_next %}&page={{ events.next_page_number }}{% endif %}"
+               hx-target="#activity-tab-content" hx-swap="innerHTML" hx-push-url="true">»</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}
