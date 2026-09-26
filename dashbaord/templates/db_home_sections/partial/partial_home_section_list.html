@@ -82,6 +82,13 @@
                                         data-category-id="{{ item.category_id|default:'' }}"
                                         data-item-limit="{{ item.item_limit|default:10 }}"
                                         data-badge-text="{{ item.badge_text|default:'' }}"
+                                        data-text-font-family="{{ item.text_font_family|default:'' }}"
+                                        data-text-font-size="{{ item.text_font_size|default:'' }}"
+                                        data-text-font-weight="{{ item.text_font_weight|default:'normal' }}"
+                                        data-text-font-style="{{ item.text_font_style|default:'normal' }}"
+                                        data-text-color="{{ item.text_color|default:'' }}"
+                                        data-text-bg-color="{{ item.text_bg_color|default:'' }}"
+                                        data-text-bg-opacity="{{ item.text_bg_opacity|default:0 }}"
                                         data-heading="{{ item.heading|default:'' }}"
                                         data-subheading="{{ item.subheading|default:'' }}"
                                         data-body-html="{{ item.body_html|default:'' }}"
@@ -272,6 +279,74 @@
                             <div class="mb-3">
                                 <label class="form-label">Button URL</label>
                                 <input type="text" class="form-control" name="button_url" placeholder="e.g. /all_product.html">
+                            </div>
+                        </div>
+
+                        <!-- Text Styling -->
+                        <div class="card bg-transparent border mb-3">
+                            <div class="card-body">
+                                <h6 class="mb-3"><i class="bi bi-fonts me-1"></i>Text Styling</h6>
+
+                                <div class="row g-2 mb-2">
+                                    <div class="col-7">
+                                        <label class="form-label">Font</label>
+                                        <select class="form-select" name="text_font_family" id="home_section_text_font_family">
+                                            <option value="">Default (site font)</option>
+                                            <option value="'Sora', sans-serif">Sora (site default)</option>
+                                            <option value="'Hind Siliguri', sans-serif">Hind Siliguri (Bangla)</option>
+                                            <option value="'Poppins', sans-serif">Poppins</option>
+                                            <option value="'Playfair Display', serif">Playfair Display (elegant serif)</option>
+                                            <option value="'Montserrat', sans-serif">Montserrat</option>
+                                            <option value="'Oswald', sans-serif">Oswald (condensed/bold)</option>
+                                            <option value="'Nunito', sans-serif">Nunito (rounded)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-5">
+                                        <label class="form-label">Font Size (px)</label>
+                                        <input type="number" class="form-control" name="text_font_size" id="home_section_text_font_size" placeholder="Auto" min="10" max="80">
+                                    </div>
+                                </div>
+
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <label class="form-label d-block">Weight</label>
+                                        <div class="btn-group w-100" role="group">
+                                            <input type="radio" class="btn-check" name="text_font_weight" id="home_section_weight_normal" value="normal" checked>
+                                            <label class="btn btn-outline-secondary btn-sm" for="home_section_weight_normal">Normal</label>
+                                            <input type="radio" class="btn-check" name="text_font_weight" id="home_section_weight_bold" value="bold">
+                                            <label class="btn btn-outline-secondary btn-sm" for="home_section_weight_bold">Bold</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label d-block">Style</label>
+                                        <div class="btn-group w-100" role="group">
+                                            <input type="radio" class="btn-check" name="text_font_style" id="home_section_style_normal" value="normal" checked>
+                                            <label class="btn btn-outline-secondary btn-sm" for="home_section_style_normal">Normal</label>
+                                            <input type="radio" class="btn-check" name="text_font_style" id="home_section_style_italic" value="italic">
+                                            <label class="btn btn-outline-secondary btn-sm" for="home_section_style_italic">Italic</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <label class="form-label">Text Color</label>
+                                        <input type="color" class="form-control form-control-color w-100" name="text_color" id="home_section_text_color" value="#222222">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label">Background Color</label>
+                                        <input type="color" class="form-control form-control-color w-100" name="text_bg_color" id="home_section_text_bg_color" value="#000000">
+                                    </div>
+                                </div>
+
+                                <div class="mb-1">
+                                    <label class="form-label d-flex justify-content-between">
+                                        <span>Background Opacity</span>
+                                        <span id="home_section_text_bg_opacity_value">0%</span>
+                                    </label>
+                                    <input type="range" class="form-range" name="text_bg_opacity" id="home_section_text_bg_opacity" min="0" max="100" value="0">
+                                    <small class="text-muted">0% = no background (plain text). 100% = fully solid color. In between = semi-transparent.</small>
+                                </div>
                             </div>
                         </div>
 
@@ -641,6 +716,16 @@ document.addEventListener("click", function (e) {
         form.querySelector("input[name='sort_order']").value = btn.dataset.sortOrder;
         form.querySelector("#home_section_is_active").checked = btn.dataset.isActive === "true";
 
+        // Text Styling
+        document.getElementById("home_section_text_font_family").value = btn.dataset.textFontFamily || "";
+        document.getElementById("home_section_text_font_size").value = btn.dataset.textFontSize || "";
+        document.getElementById(btn.dataset.textFontWeight === "bold" ? "home_section_weight_bold" : "home_section_weight_normal").checked = true;
+        document.getElementById(btn.dataset.textFontStyle === "italic" ? "home_section_style_italic" : "home_section_style_normal").checked = true;
+        document.getElementById("home_section_text_color").value = btn.dataset.textColor || "#222222";
+        document.getElementById("home_section_text_bg_color").value = btn.dataset.textBgColor || "#000000";
+        document.getElementById("home_section_text_bg_opacity").value = btn.dataset.textBgOpacity || 0;
+        document.getElementById("home_section_text_bg_opacity_value").textContent = (btn.dataset.textBgOpacity || 0) + "%";
+
         // Content type (Banner / Product) + product-only fields
         const contentType = btn.dataset.contentType || "banner";
         const designStyle = btn.dataset.designStyle || "";
@@ -661,8 +746,13 @@ document.getElementById("HomeSectionModal")?.addEventListener("hidden.bs.modal",
     document.getElementById("home_section_modal_title").textContent = "Add Custom Section";
     document.getElementById("home_section_key_input").disabled = false;
     document.getElementById("home_section_key_group").style.opacity = "1";
+    document.getElementById("home_section_text_bg_opacity_value").textContent = "0%";
     window.hsResetWizard();
     window.setHomeSectionCategory(null);
+});
+
+document.getElementById("home_section_text_bg_opacity")?.addEventListener("input", function () {
+    document.getElementById("home_section_text_bg_opacity_value").textContent = this.value + "%";
 });
 
 let deleteHomeSectionId = null;

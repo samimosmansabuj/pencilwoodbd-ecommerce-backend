@@ -78,9 +78,9 @@
                         <td>{{ customer.created_at|date:"M d, Y" }}</td>
                         <td>
                             <div class="btn-group">
-                                <button type="button" class="btn btn-sm btn-filter" title="View Customer">
-                                    <i class="bi bi-eye"></i>
-                                </button>
+                                <a href="{% url 'customer_activity' customer.id %}" class="btn btn-sm btn-filter" title="View Activity / Web History">
+                                    <i class="bi bi-clock-history"></i>
+                                </a>
                             </div>
                         </td>
                     </tr>

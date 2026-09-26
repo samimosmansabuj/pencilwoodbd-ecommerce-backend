@@ -1,0 +1,105 @@
+{% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
+
+<div class="row g-3 mb-3">
+    <div class="col-auto">
+        <input
+            class="form-control"
+            type="search"
+            name="q"
+            placeholder="Search customer name"
+            value="{{ current_search }}"
+            hx-get="{% url 'visitor_list' %}"
+            hx-trigger="keyup changed delay:400ms, search"
+            hx-target="#visitor-tab-content"
+            hx-swap="innerHTML"
+            hx-push-url="true">
+    </div>
+    <div class="col-auto form-check d-flex align-items-center">
+        <input class="form-check-input me-2" type="checkbox" id="guestOnly" name="guest_only" value="1"
+               {% if guest_only %}checked{% endif %}
+               hx-get="{% url 'visitor_list' %}"
+               hx-trigger="change"
+               hx-target="#visitor-tab-content"
+               hx-swap="innerHTML"
+               hx-include="[name='q']"
+               hx-push-url="true">
+        <label class="form-check-label" for="guestOnly">Guests only (not logged in)</label>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive white-space-nowrap">
+            <table class="table align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Visitor</th>
+                        <th>IP</th>
+                        <th>Page Views</th>
+                        <th>Visits</th>
+                        <th>Source</th>
+                        <th>First Seen</th>
+                        <th>Last Seen</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in visitors %}
+                    <tr>
+                        <td>
+                            {% if v.customer %}
+                                <span class="badge bg-light-success text-success me-1">Customer</span>{{ v.customer.name }}
+                            {% else %}
+                                <span class="badge bg-light-secondary text-secondary me-1">Guest</span>{{ v.visitor_id|stringformat:"s"|slice:":8" }}
+                            {% endif %}
+                        </td>
+                        <td>{{ v.last_ip|default:"—" }}</td>
+                        <td>{{ v.total_page_views }}</td>
+                        <td>{{ v.total_visits }}</td>
+                        <td>{{ v.utm_source|default:"direct" }}</td>
+                        <td>{{ v.first_seen|date:"M d, Y H:i" }}</td>
+                        <td>{{ v.last_seen|date:"M d, Y H:i" }}</td>
+                        <td>
+                            {% if v.customer %}
+                            <a class="btn btn-sm btn-filter" href="{% url 'customer_activity' v.customer.id %}" title="View Activity">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            {% else %}
+                            <span class="text-secondary small">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="8" class="text-center py-4 text-secondary">No visitors recorded yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% if visitors.paginator.num_pages > 1 %}
+<nav class="mt-3">
+    <ul class="pagination justify-content-center">
+        <li class="page-item {% if not visitors.has_previous %}disabled{% endif %}">
+            <a class="page-link"
+               hx-get="{% url 'visitor_list' %}?q={{ current_search }}{% if guest_only %}&guest_only=1{% endif %}{% if visitors.has_previous %}&page={{ visitors.previous_page_number }}{% endif %}"
+               hx-target="#visitor-tab-content" hx-swap="innerHTML" hx-push-url="true">«</a>
+        </li>
+        {% for num in visitors.paginator.page_range %}
+            {% if num >= visitors.number|add:-2 and num <= visitors.number|add:2 %}
+            <li class="page-item {% if visitors.number == num %}active{% endif %}">
+                <a class="page-link"
+                   hx-get="{% url 'visitor_list' %}?q={{ current_search }}{% if guest_only %}&guest_only=1{% endif %}&page={{ num }}"
+                   hx-target="#visitor-tab-content" hx-swap="innerHTML" hx-push-url="true">{{ num }}</a>
+            </li>
+            {% endif %}
+        {% endfor %}
+        <li class="page-item {% if not visitors.has_next %}disabled{% endif %}">
+            <a class="page-link"
+               hx-get="{% url 'visitor_list' %}?q={{ current_search }}{% if guest_only %}&guest_only=1{% endif %}{% if visitors.has_next %}&page={{ visitors.next_page_number }}{% endif %}"
+               hx-target="#visitor-tab-content" hx-swap="innerHTML" hx-push-url="true">»</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}

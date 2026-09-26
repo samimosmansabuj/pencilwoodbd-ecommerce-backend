@@ -1,7 +1,7 @@
 from typing import Iterable
 from django.db import models
 from django.conf import settings
-from pencilwoodbd.choices import HomeSectionTypeChoices, HomeSectionSizeChoices, HomeSectionContentTypeChoices, HomeSectionDesignChoices
+from pencilwoodbd.choices import HomeSectionTypeChoices, HomeSectionSizeChoices, HomeSectionContentTypeChoices, HomeSectionDesignChoices, HomeSectionFontChoices
 from pencilwoodbd.extra_module import image_delete_os, previous_image_delete_os
 from product.models import Product, ProductVariant, Category
 from django.core.validators import FileExtensionValidator
@@ -178,10 +178,19 @@ class HomeSection(models.Model):
 
     item_limit = models.PositiveIntegerField(default=10)
 
-    badge_text = models.CharField(max_length=30, blank=True, null=True)
+
+    # ---- Text Styling ----
+    text_font_family = models.CharField(max_length=60, choices=HomeSectionFontChoices.choices, blank=True, default="")
+    text_font_size = models.PositiveIntegerField(blank=True, null=True, help_text="Heading font size in px. Subheading is auto-scaled smaller. Leave blank for default.")
+    text_font_weight = models.CharField(max_length=10, choices=[("normal", "Normal"), ("bold", "Bold")], default="normal")
+    text_font_style = models.CharField(max_length=10, choices=[("normal", "Normal"), ("italic", "Italic")], default="normal")
+    text_color = models.CharField(max_length=9, blank=True, default="", help_text="Hex color, e.g. #ffffff. Leave blank for default.")
+    text_bg_color = models.CharField(max_length=9, blank=True, default="", help_text="Hex color for the text background box. Leave blank for no background.")
+    text_bg_opacity = models.PositiveIntegerField(default=0, help_text="0 = no background, 100 = fully solid. Used with Text Background Color.")
 
     heading = models.CharField(max_length=150, blank=True, null=True)
     subheading = models.CharField(max_length=255, blank=True, null=True)
+    badge_text = models.CharField(max_length=100, blank=True, null=True)
     body_html = models.TextField(blank=True, null=True)
     image = models.ImageField(upload_to='home_sections/', blank=True, null=True)
     button_text = models.CharField(max_length=50, blank=True, null=True)
