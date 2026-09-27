@@ -241,6 +241,7 @@ class AddOrderView(LoginRequiredMixin, View):
                         quantity=quantity,
                         price=price,
                         discount_price=discount_price,
+                        price_manually_edited=manually_edited,
                     )
 
                     grand_total += line_total
@@ -458,6 +459,7 @@ class OrderDetailView(LoginRequiredMixin, View):
                 ) or None,
                 "quantity": item.quantity,
                 "unit_price": str(item.discount_price or item.price or 0),
+                "price_manually_edited": item.price_manually_edited,
             })
 
         orders = Order.objects.all().order_by("-created_at")
@@ -597,6 +599,7 @@ class OrderUpdateView(LoginRequiredMixin, View):
                         quantity=quantity,
                         price=price,
                         discount_price=discount_price,
+                        price_manually_edited=manually_edited,
                     )
 
                     grand_total += line_total
