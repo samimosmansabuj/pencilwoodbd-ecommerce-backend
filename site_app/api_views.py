@@ -241,33 +241,30 @@ class LandingPageOrderAPI(APIView):
                 applied_coupon = None
 
                 if coupon_code:
-                    applied_coupon = Coupon.objects.filter(code__iexact=coupon_code).first()
+                    applied_coupon = Coupon.objects.select_for_update().filter(
+                        code__iexact=str(coupon_code).strip()
+                    ).first()
                     if not applied_coupon:
-                        raise ValueError("Invalid coupon code.")
-
-                    valid, reason = applied_coupon.is_currently_valid()
-                    if not valid:
-                        raise ValueError(reason)
+                        return Response(
+                            {"status": False, "message": "Invalid coupon code."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
 
                     landing_page = None
                     if landing_page_code:
                         landing_page = LandingPageProduct.objects.filter(code=landing_page_code).first()
 
-                    scope_valid, scope_reason = applied_coupon.is_valid_for_scope(
+                    discount_amount, coupon_error, _tier = applied_coupon.evaluate(
+                        phone=customer.phone,
+                        subtotal=subtotal,
                         landing_page=landing_page,
-                        product_ids=[product.id] if not landing_page else None,
+                        product_ids=[product.id],
                     )
-                    if not scope_valid:
-                        raise ValueError(scope_reason)
-
-                    condition_valid, condition_reason = applied_coupon.customer_meets_condition(customer.phone)
-                    if not condition_valid:
-                        raise ValueError(condition_reason)
-
-                    if not applied_coupon.phone_can_use(customer.phone):
-                        raise ValueError("You have already used this coupon.")
-
-                    discount_amount = applied_coupon.calculate_discount(subtotal)
+                    if coupon_error:
+                        return Response(
+                            {"status": False, "message": coupon_error},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
 
                 final_total = total_cost - discount_amount
 
@@ -520,33 +517,39 @@ class OrderCreateAPIView(APIView):
                 applied_coupon = None
 
                 if coupon_code:
-                    applied_coupon = Coupon.objects.filter(code__iexact=coupon_code).first()
+                    applied_coupon = Coupon.objects.select_for_update().filter(
+                        code__iexact=str(coupon_code).strip()
+                    ).first()
                     if not applied_coupon:
-                        raise Exception("Invalid coupon code.")
-
-                    valid, reason = applied_coupon.is_currently_valid()
-                    if not valid:
-                        raise Exception(reason)
+                        return Response(
+                            {"success": False, "message": "Invalid coupon code."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
 
                     landing_page = None
                     if landing_page_code:
                         landing_page = LandingPageProduct.objects.filter(code=landing_page_code).first()
 
-                    product_ids_in_cart = [p["id"] for p in products] if not landing_page else None
-                    scope_valid, scope_reason = applied_coupon.is_valid_for_scope(
-                        landing_page=landing_page, product_ids=product_ids_in_cart
+                    main_product_ids = []
+                    for p in data.get("products", []):
+                        if p.get("product_type") == "FREE":
+                            continue
+                        try:
+                            main_product_ids.append(int(p.get("id")))
+                        except (TypeError, ValueError):
+                            continue
+
+                    discount_amount, coupon_error, _tier = applied_coupon.evaluate(
+                        phone=customer.phone,
+                        subtotal=self.productTotal,
+                        landing_page=landing_page,
+                        product_ids=main_product_ids,
                     )
-                    if not scope_valid:
-                        raise Exception(scope_reason)
-
-                    condition_valid, condition_reason = applied_coupon.customer_meets_condition(customer.phone)
-                    if not condition_valid:
-                        raise Exception(condition_reason)
-
-                    if not applied_coupon.phone_can_use(customer.phone):
-                        raise Exception("You have already used this coupon.")
-
-                    discount_amount = applied_coupon.calculate_discount(self.productTotal)
+                    if coupon_error:
+                        return Response(
+                            {"success": False, "message": coupon_error},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
 
                 metadata_payload = {
                     "source": "landing_page",
@@ -606,7 +609,6 @@ class OrderCreateAPIView(APIView):
                 if otp_required and otp_verified:
                     otp_verified.delete()
 
-                # ----- Clean up matching order-attempt(s) for this phone -----
                 order_product_ids = set()
                 for p in data.get("products", []):
                     try:
@@ -753,23 +755,11 @@ class OrderAttemptAPIView(APIView):
 class ApplyCouponAPIView(APIView):
     permission_classes = [AllowAny]
 
-    def _server_subtotal(self, request, product_ids):
-        customer = None
-        if request.user.is_authenticated:
-            customer = getattr(request.user, "customer_profile", None)
-
-        if customer:
-            cart_items = AddToCart.objects.select_related("product", "variant").filter(customer=customer)
-            if not cart_items.exists():
-                return Decimal("0")
-            subtotal = Decimal("0")
-            for item in cart_items:
-                subtotal += item.total_price
-            return subtotal
-
+    def _cart_snapshot(self, request, landing_page_code):
         items = request.data.get("items")
         if items:
             subtotal = Decimal("0")
+            product_ids = []
             for row in items:
                 product = Product.objects.filter(id=row.get("product_id")).first()
                 if not product:
@@ -777,33 +767,50 @@ class ApplyCouponAPIView(APIView):
                 variant = None
                 if row.get("variant_id"):
                     variant = ProductVariant.objects.filter(id=row["variant_id"], product=product).first()
-                quantity = max(int(row.get("quantity", 1)), 1)
+                try:
+                    quantity = max(int(row.get("quantity", 1)), 1)
+                except (TypeError, ValueError):
+                    quantity = 1
                 price = (variant.discount_price if variant else product.discount_price) or \
                         (variant.price if variant else product.price)
                 subtotal += Decimal(str(price)) * quantity
-            return subtotal
+                if product.id not in product_ids:
+                    product_ids.append(product.id)
+            return subtotal, product_ids
 
+        product_ids = request.data.get("product_ids") or []
         if product_ids:
             subtotal = Decimal("0")
             for product in Product.objects.filter(id__in=product_ids):
                 subtotal += Decimal(str(product.discount_price or product.price))
-            return subtotal
+            return subtotal, [p for p in product_ids]
 
-        return Decimal("0")
+        if not landing_page_code and request.user.is_authenticated:
+            customer = getattr(request.user, "customer_profile", None)
+            if customer:
+                cart_items = AddToCart.objects.select_related("product", "variant").filter(customer=customer)
+                subtotal = Decimal("0")
+                product_ids = []
+                for item in cart_items:
+                    subtotal += item.total_price
+                    if item.product_id not in product_ids:
+                        product_ids.append(item.product_id)
+                return subtotal, product_ids
+
+        return Decimal("0"), []
 
     def post(self, request):
         try:
             code = (request.data.get("code") or "").strip()
             phone = normalize_bd_phone(request.data.get("phone") or "")
             landing_page_code = request.data.get("landing_page_code")
-            product_ids = request.data.get("product_ids") or []
-
-            subtotal = self._server_subtotal(request, product_ids)
 
             if not code:
                 return Response({"status": False, "message": "Coupon code is required."}, status=400)
             if not phone:
                 return Response({"status": False, "message": "Enter a valid phone number first."}, status=400)
+
+            subtotal, product_ids = self._cart_snapshot(request, landing_page_code)
             if subtotal <= 0:
                 return Response({"status": False, "message": "Cart is empty."}, status=400)
 
@@ -811,31 +818,18 @@ class ApplyCouponAPIView(APIView):
             if not coupon:
                 return Response({"status": False, "message": "Invalid coupon code."}, status=404)
 
-            valid, reason = coupon.is_currently_valid()
-            if not valid:
-                return Response({"status": False, "message": reason}, status=400)
-
             landing_page = None
             if landing_page_code:
                 landing_page = LandingPageProduct.objects.filter(code=landing_page_code).first()
 
-            scope_valid, scope_reason = coupon.is_valid_for_scope(
+            discount, error, tier = coupon.evaluate(
+                phone=phone,
+                subtotal=subtotal,
                 landing_page=landing_page,
-                product_ids=product_ids if not landing_page else None,
+                product_ids=product_ids,
             )
-            if not scope_valid:
-                return Response({"status": False, "message": scope_reason}, status=400)
-
-            condition_valid, condition_reason = coupon.customer_meets_condition(phone)
-            if not condition_valid:
-                return Response({"status": False, "message": condition_reason}, status=400)
-
-            if not coupon.phone_can_use(phone):
-                return Response({"status": False, "message": "You have already used this coupon."}, status=400)
-
-            discount = coupon.calculate_discount(subtotal)
-            if discount <= 0:
-                return Response({"status": False, "message": f"Minimum order ৳{coupon.min_order_amount} required for this coupon."}, status=400)
+            if error:
+                return Response({"status": False, "message": error}, status=400)
 
             return Response({
                 "status": True,
@@ -849,4 +843,3 @@ class ApplyCouponAPIView(APIView):
             })
         except Exception as e:
             return Response({"status": False, "message": safe_error_message(e)}, status=500)
-        
