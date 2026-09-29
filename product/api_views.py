@@ -172,13 +172,8 @@ def site_content_api(request):
             "min_height_px": c.min_height_px,
             "sort_order": c.sort_order,
             # Text Styling.
-            "text_font_family": c.text_font_family or "",
-            "text_font_size": c.text_font_size,
-            "text_font_weight": c.text_font_weight,
-            "text_font_style": c.text_font_style,
-            "text_color": c.text_color or "",
-            "text_bg_color": c.text_bg_color or "",
-            "text_bg_opacity": c.text_bg_opacity,
+            "heading_style": c.style_for("heading"),
+            "subheading_style": c.style_for("subheading"),
         }
 
         if c.content_type == "product":
@@ -337,10 +332,10 @@ class SendOTPAPIView(APIView):
                     return Response({"success": False, "message": "OTP Sending Failed", "response": response})
 
                 # ===== CONSOLE-ONLY MODE (local testing) =====
-        #         OTPVerification.objects.create(phone=phone, otp=otp)
-        #         print(f"\n{'='*40}\n[TEST MODE] OTP for {phone}: {otp}\n{'='*40}\n")
-        #         return Response({"success": True, "message": "OTP Sent (check console)"})
-        # except Exception as e:
+                # OTPVerification.objects.create(phone=phone, otp=otp)
+                # print(f"\n{'='*40}\n[TEST MODE] OTP for {phone}: {otp}\n{'='*40}\n")
+                # return Response({"success": True, "message": "OTP Sent (check console)"})
+        except Exception as e:
             return Response({"success": False, "message": safe_error_message(e)})
         
 class VerifyOTPAPIView(APIView):
