@@ -1,6 +1,6 @@
 from django.utils import timezone
 from django.db import models
-from pencilwoodbd.choices import EmailConfigServerType, EmailConfigMailType, MarketingIntegrationProviderChoices, MarketingIntegrationStatusChoices, CouponCustomerConditionChoices, CouponOrderHistoryScopeChoices
+from pencilwoodbd.choices import STATUS, EmailConfigServerType, EmailConfigMailType, MarketingIntegrationProviderChoices, MarketingIntegrationStatusChoices, CouponCustomerConditionChoices, CouponOrderHistoryScopeChoices
 from django.core.validators import MinValueValidator
 from decimal import Decimal
 from order.models import Order
@@ -148,11 +148,21 @@ class Coupon(models.Model):
         ),
     )
 
+    allow_on_landing = models.BooleanField( default=True,)
+    allow_on_website = models.BooleanField(default=True,)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.code
+
+    def _active_usages(self):
+        return self.usages.exclude(order__status=STATUS.CANCELLED)
+
+    @property
+    def active_usage_count(self):
+        return self._active_usages().count()
 
     def is_currently_valid(self):
         now = timezone.now()
@@ -163,17 +173,18 @@ class Coupon(models.Model):
         if self.end_date and now > self.end_date:
             return False, "This coupon has expired."
         if self.total_usage_limit is not None:
-            used = self.usages.count()
+            used = self._active_usages().count()
             if used >= self.total_usage_limit:
                 return False, "This coupon has reached its usage limit."
         return True, None
 
     def is_valid_for_scope(self, landing_page=None, product_ids=None):
+        has_rules = self.tiers.exists()
         has_landing_restriction = self.applicable_landing_pages.exists()
-        has_product_restriction = self.applicable_products.exists()
+        has_product_restriction = self.applicable_products.exists() and not has_rules
 
         if not has_landing_restriction and not has_product_restriction:
-            return True, None  
+            return True, None
 
         if landing_page is not None:
             if has_landing_restriction and self.applicable_landing_pages.filter(id=landing_page.id).exists():
@@ -185,6 +196,9 @@ class Coupon(models.Model):
             if self.applicable_products.filter(id__in=product_ids).exists():
                 return True, None
             return False, "This coupon is not valid for these products."
+
+        if has_rules:
+            return True, None
 
         return False, "This coupon is not valid for website orders."
     
@@ -257,7 +271,7 @@ class Coupon(models.Model):
         return True, None
 
     def phone_can_use(self, phone):
-        used_count = self.usages.filter(phone=phone).count()
+        used_count = self._active_usages().filter(phone=phone).count()
         return used_count < self.max_uses_per_phone
 
     def calculate_discount(self, subtotal):
@@ -271,6 +285,82 @@ class Coupon(models.Model):
             if self.max_discount_amount is not None:
                 discount = min(discount, self.max_discount_amount)
         return min(discount, subtotal)
+    
+    def get_matching_rules(self, product_ids):
+        cart_ids = set()
+        for pid in (product_ids or []):
+            try:
+                cart_ids.add(int(pid))
+            except (TypeError, ValueError):
+                continue
+
+        best_per_product = {}
+        for tier in self.tiers.prefetch_related("required_products"):
+            required = [p.id for p in tier.required_products.all()]
+            if len(required) != 1:
+                continue
+            pid = required[0]
+            if pid not in cart_ids:
+                continue
+            current = best_per_product.get(pid)
+            if current is None or tier.discount_amount > current.discount_amount:
+                best_per_product[pid] = tier
+        return list(best_per_product.values())
+
+    def evaluate(self, phone, subtotal, landing_page=None, product_ids=None):
+        zero = Decimal("0")
+
+        ok, reason = self.is_currently_valid()
+        if not ok:
+            return zero, reason, None
+
+        if landing_page is not None and not self.allow_on_landing:
+            return zero, "This coupon is not valid on landing pages.", None
+        if landing_page is None and not self.allow_on_website:
+            return zero, "This coupon is not valid on the website.", None
+
+        ok, reason = self.is_valid_for_scope(
+            landing_page=landing_page,
+            product_ids=None if landing_page else product_ids,
+        )
+        if not ok:
+            return zero, reason, None
+
+        ok, reason = self.customer_meets_condition(phone)
+        if not ok:
+            return zero, reason, None
+
+        if not self.phone_can_use(phone):
+            return zero, "You have already used this coupon.", None
+
+        subtotal = Decimal(str(subtotal))
+        if subtotal < self.min_order_amount:
+            return zero, f"Minimum order ৳{self.min_order_amount} required for this coupon.", None
+
+        matched = None
+        if self.tiers.exists():
+            matched = self.get_matching_rules(product_ids)
+            if not matched:
+                return zero, "This coupon is not valid for the selected products.", None
+            discount = sum((t.discount_amount for t in matched), zero)
+            discount = min(discount, subtotal)
+        else:
+            discount = self.calculate_discount(subtotal)
+
+        if discount <= 0:
+            return zero, "This coupon gives no discount for this order.", None
+
+        return discount, None, matched
+
+
+class CouponTier(models.Model):
+    coupon = models.ForeignKey(Coupon, on_delete=models.CASCADE, related_name="tiers")
+    required_products = models.ManyToManyField('product.Product', related_name="coupon_tiers")
+    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+
+    def __str__(self):
+        names = ", ".join(self.required_products.values_list("name", flat=True))
+        return f"{self.coupon.code}: [{names}] -> ৳{self.discount_amount}"
 
 
 class CouponUsage(models.Model):

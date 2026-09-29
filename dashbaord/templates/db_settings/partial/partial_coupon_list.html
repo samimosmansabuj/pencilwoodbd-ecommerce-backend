@@ -31,7 +31,7 @@
                             <th>Discount</th>
                             <th>Min Order</th>
                             <th>Per-Number Limit</th>
-                            <th>Total Limit</th>
+                            <th>Used / Total Limit</th>
                             <th>Scope</th>
                             <th>Valid Until</th>
                             <th>Status</th>
@@ -47,7 +47,7 @@
                             </td>
                             <td>৳{{ coupon.min_order_amount }}</td>
                             <td>{{ coupon.max_uses_per_phone }}</td>
-                            <td>{{ coupon.total_usage_limit|default:"Unlimited" }}</td>
+                            <td>{{ coupon.active_usage_count }} / {{ coupon.total_usage_limit|default:"Unlimited" }}</td>
                             <td>
                                 {% if coupon.applicable_landing_pages.exists or coupon.applicable_products.exists %}
                                     <span class="badge bg-info text-dark">Restricted</span>
@@ -86,6 +86,9 @@
                                         data-count-before="{{ coupon.count_orders_before_coupon_creation|yesno:'true,false' }}"
                                         data-landing-page-ids="{% for lp in coupon.applicable_landing_pages.all %}{{ lp.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
                                         data-product-ids="{% for p in coupon.applicable_products.all %}{{ p.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                                        data-allow-landing="{{ coupon.allow_on_landing|yesno:'true,false' }}"
+                                        data-allow-website="{{ coupon.allow_on_website|yesno:'true,false' }}"
+                                        data-tiers="{{ coupon.tiers_json }}"
                                         data-bs-toggle="modal" data-bs-target="#CouponModal">
                                         <i class="bi bi-pencil"></i>
                                     </button>
@@ -288,6 +291,57 @@
                         <input class="form-check-input" type="checkbox" name="is_active" id="coupon_is_active" checked>
                         <label class="form-check-label" for="coupon_is_active">Active</label>
                     </div>
+
+                    <hr>
+                    <h6 class="mb-2">Where can this coupon be used?</h6>
+                    <div class="d-flex gap-4 mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="allow_on_landing" id="coupon_allow_landing" checked>
+                            <label class="form-check-label" for="coupon_allow_landing">Landing Pages</label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="allow_on_website" id="coupon_allow_website" checked>
+                            <label class="form-check-label" for="coupon_allow_website">E-commerce Website</label>
+                        </div>
+                    </div>
+                    <div class="form-text mb-2">Only Cradle landing? Tick "Landing Pages", untick "E-commerce Website", and select that landing page above.</div>
+
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">Product based discount (optional)</h6>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="addTierBtn">+ Add Rule</button>
+                    </div>
+                    <div class="form-text mb-2">
+                        One rule = one product + its discount. Every product that is in the customer's cart gets its own discount,
+                        no matter how many pieces they buy, and the discounts are added together.
+                        Example: Rule 1 = Cradle &rarr; 200, Rule 2 = Cradle Chair &rarr; 200.
+                        Only Cradle = 200 &nbsp;|&nbsp; Only Chair = 200 &nbsp;|&nbsp; Cradle + Chair = 400.
+                        When rules exist, "Discount Type / Value" above is ignored.
+                        Use each product only once.
+                    </div>
+                    <div id="tiersContainer"></div>
+                    <input type="hidden" name="tiers_json" id="tiers_json" value="[]">
+                    <template id="tierRowTemplate">
+                        <div class="border rounded p-2 mb-2 tier-row">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-6">
+                                    <label class="form-label mb-1">Product</label>
+                                    <select class="form-select tier-products">
+                                        <option value="">-- Select product --</option>
+                                        {% for p in products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label mb-1">Discount (&#2547;)</label>
+                                    <input type="number" min="1" step="0.01" class="form-control tier-discount" placeholder="e.g. 200">
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-sm btn-danger remove-tier-btn w-100">Remove</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
                     <hr>
                     <h6 class="mb-3">Customer Eligibility</h6>
                     <div class="row">
@@ -359,6 +413,18 @@ document.addEventListener("submit", async function (e) {
     if (!form.querySelector("input[name='code']").value.trim()) { alert("Coupon code is required"); return; }
     if (!form.querySelector("input[name='discount_value']").value.trim()) { alert("Discount value is required"); return; }
 
+    const tiers = [];
+    let tierError = false;
+    document.querySelectorAll("#tiersContainer .tier-row").forEach(function (row) {
+        const ids = Array.from(row.querySelector(".tier-products").selectedOptions).map(o => parseInt(o.value)).filter(n => !isNaN(n));
+        const amount = row.querySelector(".tier-discount").value;
+        if (!ids.length && !amount) return;
+        if (!ids.length || !amount) { tierError = true; return; }
+        tiers.push({ products: ids, discount: amount });
+    });
+    if (tierError) { alert("Each product rule needs a product and a discount amount."); return; }
+    document.getElementById("tiers_json").value = JSON.stringify(tiers);
+
     try {
         const formData = new FormData(form);
         formData.set("csrfmiddlewaretoken", csrftoken);
@@ -425,6 +491,14 @@ document.addEventListener("click", function (e) {
     form.querySelector("select[name='order_history_scope']").value = btn.dataset.orderHistoryScope;
     form.querySelector("#coupon_count_before").checked = btn.dataset.countBefore === "true";
 
+    form.querySelector("#coupon_allow_landing").checked = btn.dataset.allowLanding === "true";
+    form.querySelector("#coupon_allow_website").checked = btn.dataset.allowWebsite === "true";
+
+    document.getElementById("tiersContainer").innerHTML = "";
+    let savedTiers = [];
+    try { savedTiers = JSON.parse(btn.dataset.tiers || "[]"); } catch (err) { savedTiers = []; }
+    savedTiers.forEach(t => addTierRow(t.products, t.discount));
+
     // Pre-select Landing Pages
     const landingIds = (btn.dataset.landingPageIds || "").split(",").filter(Boolean);
     const landingSelect = document.getElementById("coupon_landing_pages");
@@ -447,6 +521,24 @@ document.getElementById("CouponModal")?.addEventListener("hidden.bs.modal", func
     document.getElementById("coupon_modal_title").textContent = "Add Coupon";
     Array.from(document.getElementById("coupon_landing_pages").options).forEach(o => o.selected = false);
     Array.from(document.getElementById("coupon_products").options).forEach(o => o.selected = false);
+    document.getElementById("tiersContainer").innerHTML = "";
+});
+
+function addTierRow(productIds, discount) {
+    const tpl = document.getElementById("tierRowTemplate");
+    const node = tpl.content.firstElementChild.cloneNode(true);
+    const select = node.querySelector(".tier-products");
+    (productIds || []).forEach(id => {
+        const opt = Array.from(select.options).find(o => o.value === String(id));
+        if (opt) opt.selected = true;
+    });
+    if (discount) node.querySelector(".tier-discount").value = discount;
+    document.getElementById("tiersContainer").appendChild(node);
+}
+document.getElementById("addTierBtn")?.addEventListener("click", function () { addTierRow([], ""); });
+document.addEventListener("click", function (e) {
+    const rm = e.target.closest(".remove-tier-btn");
+    if (rm) rm.closest(".tier-row").remove();
 });
 
 let deleteCouponId = null;

@@ -540,34 +540,27 @@ class PlaceOrderAPIView(APIView):
                     cart_subtotal += Decimal(str(_price)) * line["quantity"]
 
                 if coupon_code:
-                    applied_coupon = Coupon.objects.filter(code__iexact=coupon_code).first()
+                    applied_coupon = Coupon.objects.select_for_update().filter(
+                        code__iexact=str(coupon_code).strip()
+                    ).first()
                     if not applied_coupon:
                         return Response({"status": False, "message": "Invalid coupon code."}, status=400)
 
-                    valid, reason = applied_coupon.is_currently_valid()
-                    if not valid:
-                        return Response({"status": False, "message": reason}, status=400)
-
                     product_ids_in_cart = [line["product"].id for line in line_items]
-                    scope_valid, scope_reason = applied_coupon.is_valid_for_scope(
-                        landing_page=None, product_ids=product_ids_in_cart
+                    discount_amount, coupon_error, _tier = applied_coupon.evaluate(
+                        phone=customer.phone,
+                        subtotal=cart_subtotal,
+                        landing_page=None,
+                        product_ids=product_ids_in_cart,
                     )
-                    if not scope_valid:
-                        return Response({"status": False, "message": scope_reason}, status=400)
-
-                    condition_valid, condition_reason = applied_coupon.customer_meets_condition(customer.phone)
-                    if not condition_valid:
-                        return Response({"status": False, "message": condition_reason}, status=400)
-
-                    if not applied_coupon.phone_can_use(customer.phone):
-                        return Response({"status": False, "message": "You have already used this coupon."}, status=400)
-
-                    discount_amount = applied_coupon.calculate_discount(cart_subtotal)
+                    if coupon_error:
+                        return Response({"status": False, "message": coupon_error}, status=400)
 
                 order = Order.objects.create(
                     customer=customer,
                     shipping_address=f"{address.street_01}, {address.district}",
                     district=address.district,
+                    coupon=applied_coupon,
                     source=ORDER_SOURCE.WEBSITE,
                     utm_source=request.data.get("utm_source"),
                     utm_medium=request.data.get("utm_medium"),
@@ -605,6 +598,7 @@ class PlaceOrderAPIView(APIView):
 
                     if variant:
                         if variant.inventory_quantity < quantity:
+                            transaction.set_rollback(True)
                             return Response({"status": False, "message": f"{product.name} out of stock"}, status=400)
                         variant.inventory_quantity -= quantity
                         variant.save()
@@ -616,9 +610,11 @@ class PlaceOrderAPIView(APIView):
                         discount_price = variant.discount_price or variant.price
                     else:
                         if not product.is_in_stock:
+                            transaction.set_rollback(True)
                             return Response({"status": False, "message": f"{product.name} out of stock"}, status=400)
                         if product.inventory_type == "in_stock":
                             if product.inventory_quantity < quantity:
+                                transaction.set_rollback(True)
                                 return Response({"status": False, "message": f"{product.name} out of stock"}, status=400)
                             product.inventory_quantity -= quantity
                             product.save(update_fields=["inventory_quantity"])

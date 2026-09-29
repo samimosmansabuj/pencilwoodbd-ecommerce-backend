@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from django.http import JsonResponse
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
-from .models import MarketingEventLog, MarketingIntegration, EmailConfig, UTMLink, Coupon
+from .models import MarketingEventLog, MarketingIntegration, EmailConfig, UTMLink, Coupon, CouponTier
 from pencilwoodbd.choices import MarketingIntegrationProviderChoices, MarketingIntegrationStatusChoices, USER_TYPE, CATEGORY_PRODUCT_STATUS
 
 from http import HTTPStatus
@@ -15,6 +15,7 @@ from django.views import View
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.db.models import Sum, Count
 from django.db.models.functions import TruncDate
 
@@ -312,7 +313,20 @@ class CouponSettingsView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
     def get(self, request):
-        coupons = Coupon.objects.all().order_by("-created_at")
+        coupons = list(
+            Coupon.objects.all()
+            .order_by("-created_at")
+            .prefetch_related("tiers__required_products", "applicable_landing_pages", "applicable_products")
+        )
+        for c in coupons:
+            c.tiers_json = json.dumps([
+                {
+                    "products": [p.id for p in t.required_products.all()],
+                    "discount": str(t.discount_amount),
+                }
+                for t in c.tiers.all()
+                    if t.required_products.count() == 1
+            ])
         landing_pages = LandingPageProduct.objects.filter(is_active=True)
         products = Product.objects.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE)
 
@@ -339,6 +353,9 @@ class CouponSettingsView(LoginRequiredMixin, View):
             max_uses_per_phone = data.get("max_uses_per_phone") or 1
             total_usage_limit = data.get("total_usage_limit") or None
 
+            allow_on_landing = data.get("allow_on_landing") == "on"
+            allow_on_website = data.get("allow_on_website") == "on"
+
             landing_page_ids = data.getlist("applicable_landing_pages")
             product_ids = data.getlist("applicable_products")
 
@@ -349,65 +366,98 @@ class CouponSettingsView(LoginRequiredMixin, View):
                 data.get("count_orders_before_coupon_creation") == "on"
             )
 
+            try:
+                raw_tiers = json.loads(data.get("tiers_json") or "[]")
+            except ValueError:
+                raw_tiers = []
+            tiers = []
+            seen_rule_products = set()
+            for t in raw_tiers:
+                t_products = [int(x) for x in (t.get("products") or [])]
+                t_discount = t.get("discount")
+                if len(t_products) != 1 or not t_discount or float(t_discount) <= 0:
+                    return JsonResponse(
+                        {"status": False, "message": "Each product rule needs exactly 1 product and a discount amount."},
+                        status=HTTPStatus.BAD_REQUEST,
+                    )
+                if t_products[0] in seen_rule_products:
+                    return JsonResponse(
+                        {"status": False, "message": "The same product is added in more than one rule. Use one rule per product."},
+                        status=HTTPStatus.BAD_REQUEST,
+                    )
+                seen_rule_products.add(t_products[0])
+                tiers.append({"products": t_products, "discount": t_discount})
+
             if not code or not discount_value:
                 return JsonResponse(
-                    {
-                        "status": False,
-                        "message": "Code and discount value are required.",
-                    },
+                    {"status": False, "message": "Code and discount value are required."},
                     status=HTTPStatus.BAD_REQUEST,
                 )
 
-            if not landing_page_ids and not product_ids:
+            if not allow_on_landing and not allow_on_website:
                 return JsonResponse(
-                    {
-                        "status": False,
-                        "message": "Please select at least one Landing Page or Product.",
-                    },
+                    {"status": False, "message": "Enable the coupon for at least Landing Pages or Website."},
                     status=HTTPStatus.BAD_REQUEST,
                 )
 
+            if not landing_page_ids and not product_ids and not tiers:
+                return JsonResponse(
+                    {"status": False, "message": "Please select at least one Landing Page, Product or Product Rule."},
+                    status=HTTPStatus.BAD_REQUEST,
+                )
+
+            duplicate = Coupon.objects.filter(code__iexact=code)
             if coupon_id:
-                coupon = get_object_or_404(Coupon, id=coupon_id)
-            else:
-                coupon = Coupon()
+                duplicate = duplicate.exclude(id=coupon_id)
+            if duplicate.exists():
+                return JsonResponse(
+                    {"status": False, "message": "A coupon with this code already exists."},
+                    status=HTTPStatus.BAD_REQUEST,
+                )
 
-            coupon.code = code
-            coupon.discount_type = discount_type
-            coupon.discount_value = discount_value
-            coupon.max_discount_amount = max_discount_amount
-            coupon.min_order_amount = min_order_amount
-            coupon.is_active = is_active
-            coupon.start_date = start_date
-            coupon.end_date = end_date
-            coupon.max_uses_per_phone = max_uses_per_phone
-            coupon.total_usage_limit = total_usage_limit
-            coupon.customer_condition = customer_condition
-            coupon.min_previous_orders = min_previous_orders
-            coupon.order_history_scope = order_history_scope
-            coupon.count_orders_before_coupon_creation = (
-                count_orders_before_coupon_creation
-            )
+            with transaction.atomic():
+                if coupon_id:
+                    coupon = get_object_or_404(Coupon, id=coupon_id)
+                else:
+                    coupon = Coupon()
 
-            coupon.save()
+                coupon.code = code
+                coupon.discount_type = discount_type
+                coupon.discount_value = discount_value
+                coupon.max_discount_amount = max_discount_amount
+                coupon.min_order_amount = min_order_amount
+                coupon.is_active = is_active
+                coupon.start_date = start_date
+                coupon.end_date = end_date
+                coupon.max_uses_per_phone = max_uses_per_phone
+                coupon.total_usage_limit = total_usage_limit
+                coupon.allow_on_landing = allow_on_landing
+                coupon.allow_on_website = allow_on_website
+                coupon.customer_condition = customer_condition
+                coupon.min_previous_orders = min_previous_orders
+                coupon.order_history_scope = order_history_scope
+                coupon.count_orders_before_coupon_creation = (
+                    count_orders_before_coupon_creation
+                )
 
-            coupon.applicable_landing_pages.set(landing_page_ids)
-            coupon.applicable_products.set(product_ids)
+                coupon.save()
+
+                coupon.applicable_landing_pages.set(landing_page_ids)
+                coupon.applicable_products.set(product_ids)
+
+                coupon.tiers.all().delete()
+                for t in tiers:
+                    tier = CouponTier.objects.create(coupon=coupon, discount_amount=t["discount"])
+                    tier.required_products.set(t["products"])
 
             return JsonResponse(
-                {
-                    "status": True,
-                    "message": "Coupon saved successfully.",
-                },
+                {"status": True, "message": "Coupon saved successfully."},
                 status=HTTPStatus.OK,
             )
 
         except Exception as e:
             return JsonResponse(
-                {
-                    "status": False,
-                    "message": str(e),
-                },
+                {"status": False, "message": str(e)},
                 status=HTTPStatus.BAD_REQUEST,
             )
 
