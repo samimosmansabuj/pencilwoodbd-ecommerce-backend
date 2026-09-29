@@ -567,6 +567,7 @@ class PlaceOrderAPIView(APIView):
                 order = Order.objects.create(
                     customer=customer,
                     shipping_address=f"{address.street_01}, {address.district}",
+                    district=address.district,
                     source=ORDER_SOURCE.WEBSITE,
                     utm_source=request.data.get("utm_source"),
                     utm_medium=request.data.get("utm_medium"),

@@ -179,14 +179,42 @@ class HomeSection(models.Model):
     item_limit = models.PositiveIntegerField(default=10)
 
 
-    # ---- Text Styling ----
-    text_font_family = models.CharField(max_length=60, choices=HomeSectionFontChoices.choices, blank=True, default="")
-    text_font_size = models.PositiveIntegerField(blank=True, null=True, help_text="Heading font size in px. Subheading is auto-scaled smaller. Leave blank for default.")
-    text_font_weight = models.CharField(max_length=10, choices=[("normal", "Normal"), ("bold", "Bold")], default="normal")
-    text_font_style = models.CharField(max_length=10, choices=[("normal", "Normal"), ("italic", "Italic")], default="normal")
-    text_color = models.CharField(max_length=9, blank=True, default="", help_text="Hex color, e.g. #ffffff. Leave blank for default.")
-    text_bg_color = models.CharField(max_length=9, blank=True, default="", help_text="Hex color for the text background box. Leave blank for no background.")
-    text_bg_opacity = models.PositiveIntegerField(default=0, help_text="0 = no background, 100 = fully solid. Used with Text Background Color.")
+    # ---- Text Styling: Heading toolbar ----
+    heading_font_family = models.CharField(max_length=100, blank=True, default="")
+    heading_font_size = models.PositiveIntegerField(blank=True, null=True)
+    heading_weight = models.CharField(max_length=10, blank=True, default="")
+    heading_italic = models.CharField(max_length=10, blank=True, default="")
+    heading_align = models.CharField(max_length=10, blank=True, default="")
+    heading_color = models.CharField(max_length=9, blank=True, default="")
+    heading_bg_color = models.CharField(max_length=9, blank=True, default="")
+    heading_bg_opacity = models.PositiveIntegerField(default=100)
+
+    # ---- Text Styling: Subheading toolbar ----
+    subheading_font_family = models.CharField(max_length=100, blank=True, default="")
+    subheading_font_size = models.PositiveIntegerField(blank=True, null=True)
+    subheading_weight = models.CharField(max_length=10, blank=True, default="")
+    subheading_italic = models.CharField(max_length=10, blank=True, default="")
+    subheading_align = models.CharField(max_length=10, blank=True, default="")
+    subheading_color = models.CharField(max_length=9, blank=True, default="")
+    subheading_bg_color = models.CharField(max_length=9, blank=True, default="")
+    subheading_bg_opacity = models.PositiveIntegerField(default=100)
+
+    def style_for(self, prefix):
+        return {
+            "font_family": getattr(self, f"{prefix}_font_family") or "",
+            "font_size": getattr(self, f"{prefix}_font_size") or "",
+            "weight": getattr(self, f"{prefix}_weight") or "",
+            "italic": getattr(self, f"{prefix}_italic") or "",
+            "align": getattr(self, f"{prefix}_align") or "",
+            "color": getattr(self, f"{prefix}_color") or "",
+            "bg_color": getattr(self, f"{prefix}_bg_color") or "",
+            "bg_opacity": getattr(self, f"{prefix}_bg_opacity"),
+        }
+
+    @property
+    def text_style_json(self):
+        import json as _json
+        return _json.dumps({"heading": self.style_for("heading"), "subheading": self.style_for("subheading")})
 
     heading = models.CharField(max_length=150, blank=True, null=True)
     subheading = models.CharField(max_length=255, blank=True, null=True)
@@ -196,7 +224,6 @@ class HomeSection(models.Model):
     button_text = models.CharField(max_length=50, blank=True, null=True)
     button_url = models.CharField(max_length=255, blank=True, null=True)
 
-    # Controls vertical spacing/height on the live site — only used by CUSTOM sections.
     size = models.CharField(max_length=10, choices=HomeSectionSizeChoices.choices, default=HomeSectionSizeChoices.NORMAL)
     min_height_px = models.PositiveIntegerField(blank=True, null=True)
 

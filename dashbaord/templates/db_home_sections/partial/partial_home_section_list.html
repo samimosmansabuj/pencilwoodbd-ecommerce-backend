@@ -82,13 +82,7 @@
                                         data-category-id="{{ item.category_id|default:'' }}"
                                         data-item-limit="{{ item.item_limit|default:10 }}"
                                         data-badge-text="{{ item.badge_text|default:'' }}"
-                                        data-text-font-family="{{ item.text_font_family|default:'' }}"
-                                        data-text-font-size="{{ item.text_font_size|default:'' }}"
-                                        data-text-font-weight="{{ item.text_font_weight|default:'normal' }}"
-                                        data-text-font-style="{{ item.text_font_style|default:'normal' }}"
-                                        data-text-color="{{ item.text_color|default:'' }}"
-                                        data-text-bg-color="{{ item.text_bg_color|default:'' }}"
-                                        data-text-bg-opacity="{{ item.text_bg_opacity|default:0 }}"
+                                        data-text-style="{{ item.text_style_json }}"
                                         data-heading="{{ item.heading|default:'' }}"
                                         data-subheading="{{ item.subheading|default:'' }}"
                                         data-body-html="{{ item.body_html|default:'' }}"
@@ -124,7 +118,7 @@
 </div>
 
 <!-- Add/Edit Home Section Modal -->
-<form method="post" id="add_home_section_form" hx-ignore="true" autocomplete="off" enctype="multipart/form-data" data-action-url="{% url 'home_section_list' %}">
+<form method="post" id="add_home_section_form" hx-ignore="true" autocomplete="off" enctype="multipart/form-data" data-action-url="{% url 'home_section_list' %}" data-fonts-url="{% url 'google_fonts_list' %}">
     <input type="hidden" name="item_id" id="home_section_id">
 
     <div class="modal fade" id="HomeSectionModal">
@@ -220,10 +214,12 @@
                         <div class="mb-3">
                             <label class="form-label">Heading</label>
                             <input type="text" class="form-control" name="heading" placeholder="Optional heading shown on site">
+                            <div class="hs-toolbar-mount" data-style-prefix="heading" data-default-bold="1" data-sample="Best seller"></div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Subheading</label>
                             <input type="text" class="form-control" name="subheading" placeholder="Optional subheading">
+                            <div class="hs-toolbar-mount" data-style-prefix="subheading" data-default-bold="0" data-sample="Tap a tab to browse"></div>
                         </div>
 
                         <!-- Fields for content_type = product -->
@@ -279,74 +275,6 @@
                             <div class="mb-3">
                                 <label class="form-label">Button URL</label>
                                 <input type="text" class="form-control" name="button_url" placeholder="e.g. /all_product.html">
-                            </div>
-                        </div>
-
-                        <!-- Text Styling -->
-                        <div class="card bg-transparent border mb-3">
-                            <div class="card-body">
-                                <h6 class="mb-3"><i class="bi bi-fonts me-1"></i>Text Styling</h6>
-
-                                <div class="row g-2 mb-2">
-                                    <div class="col-7">
-                                        <label class="form-label">Font</label>
-                                        <select class="form-select" name="text_font_family" id="home_section_text_font_family">
-                                            <option value="">Default (site font)</option>
-                                            <option value="'Sora', sans-serif">Sora (site default)</option>
-                                            <option value="'Hind Siliguri', sans-serif">Hind Siliguri (Bangla)</option>
-                                            <option value="'Poppins', sans-serif">Poppins</option>
-                                            <option value="'Playfair Display', serif">Playfair Display (elegant serif)</option>
-                                            <option value="'Montserrat', sans-serif">Montserrat</option>
-                                            <option value="'Oswald', sans-serif">Oswald (condensed/bold)</option>
-                                            <option value="'Nunito', sans-serif">Nunito (rounded)</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-5">
-                                        <label class="form-label">Font Size (px)</label>
-                                        <input type="number" class="form-control" name="text_font_size" id="home_section_text_font_size" placeholder="Auto" min="10" max="80">
-                                    </div>
-                                </div>
-
-                                <div class="row g-2 mb-2">
-                                    <div class="col-6">
-                                        <label class="form-label d-block">Weight</label>
-                                        <div class="btn-group w-100" role="group">
-                                            <input type="radio" class="btn-check" name="text_font_weight" id="home_section_weight_normal" value="normal" checked>
-                                            <label class="btn btn-outline-secondary btn-sm" for="home_section_weight_normal">Normal</label>
-                                            <input type="radio" class="btn-check" name="text_font_weight" id="home_section_weight_bold" value="bold">
-                                            <label class="btn btn-outline-secondary btn-sm" for="home_section_weight_bold">Bold</label>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <label class="form-label d-block">Style</label>
-                                        <div class="btn-group w-100" role="group">
-                                            <input type="radio" class="btn-check" name="text_font_style" id="home_section_style_normal" value="normal" checked>
-                                            <label class="btn btn-outline-secondary btn-sm" for="home_section_style_normal">Normal</label>
-                                            <input type="radio" class="btn-check" name="text_font_style" id="home_section_style_italic" value="italic">
-                                            <label class="btn btn-outline-secondary btn-sm" for="home_section_style_italic">Italic</label>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="row g-2 mb-2">
-                                    <div class="col-6">
-                                        <label class="form-label">Text Color</label>
-                                        <input type="color" class="form-control form-control-color w-100" name="text_color" id="home_section_text_color" value="#222222">
-                                    </div>
-                                    <div class="col-6">
-                                        <label class="form-label">Background Color</label>
-                                        <input type="color" class="form-control form-control-color w-100" name="text_bg_color" id="home_section_text_bg_color" value="#000000">
-                                    </div>
-                                </div>
-
-                                <div class="mb-1">
-                                    <label class="form-label d-flex justify-content-between">
-                                        <span>Background Opacity</span>
-                                        <span id="home_section_text_bg_opacity_value">0%</span>
-                                    </label>
-                                    <input type="range" class="form-range" name="text_bg_opacity" id="home_section_text_bg_opacity" min="0" max="100" value="0">
-                                    <small class="text-muted">0% = no background (plain text). 100% = fully solid color. In between = semi-transparent.</small>
-                                </div>
                             </div>
                         </div>
 
@@ -421,6 +349,34 @@
 .hs-choice-title { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
 .hs-choice-desc { font-size: 12px; color: #8a8f98; }
 @media (max-width: 480px) { .hs-choice-grid, .hs-choice-grid-3 { grid-template-columns: 1fr; } }
+
+/* ---- Heading / Subheading text-style toolbars ---- */
+.hs-tb-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.hs-tb-btn { min-width: 32px; height: 32px; padding: 0 8px; border: 1px solid rgba(108,117,125,.45); border-radius: 6px; background: transparent; color: inherit; display: inline-flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer; font-size: 14px; }
+.hs-tb-btn:hover { border-color: #6f42c1; }
+.hs-tb-btn.active { background: #6f42c1; border-color: #6f42c1; color: #fff; }
+.hs-font-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; }
+.hs-size { width: 62px; height: 32px; padding: 0 6px; border: 1px solid rgba(108,117,125,.45); border-radius: 6px; background: transparent; color: inherit; }
+.hs-color-wrap { position: relative; width: 28px; height: 28px; display: inline-block; }
+.hs-color-native { -webkit-appearance: none; appearance: none; width: 28px; height: 28px; padding: 0; border: 2px solid #adb5bd; border-radius: 50%; background: none; cursor: pointer; overflow: hidden; }
+.hs-color-native::-webkit-color-swatch-wrapper { padding: 0; }
+.hs-color-native::-webkit-color-swatch { border: none; border-radius: 50%; }
+.hs-color-native::-moz-color-swatch { border: none; border-radius: 50%; }
+.hs-color-wrap.is-empty::after { content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; background: linear-gradient(135deg, #fff 45%, #e03131 45%, #e03131 55%, #fff 55%); }
+.hs-x { min-width: 22px; height: 22px; padding: 0; border-radius: 50%; font-size: 15px; line-height: 1; }
+.hs-pop-wrap { position: relative; }
+.hs-pop { position: absolute; z-index: 30; top: 36px; left: 0; width: 260px; background: #fff; color: #212529; border: 1px solid #ced4da; border-radius: 8px; padding: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+.hs-bg-pop { left: auto; right: 0; }
+.hs-font-chips { display: flex; gap: 6px; margin: 8px 0; }
+.hs-chip { border: 1px solid #ced4da; background: #fff; color: #212529; border-radius: 999px; padding: 2px 10px; font-size: 12px; cursor: pointer; }
+.hs-chip.active { background: #6f42c1; border-color: #6f42c1; color: #fff; }
+.hs-font-list { max-height: 220px; overflow-y: auto; }
+.hs-font-item { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 6px 8px; border-radius: 6px; font-size: 14px; cursor: pointer; color: #212529; }
+.hs-font-item:hover { background: #f1e9fb; }
+.hs-bn { font-size: 11px; background: #e7f5ec; color: #1b7f4c; border-radius: 4px; padding: 0 5px; margin-left: 4px; }
+.hs-bg-A { font-weight: 700; border: 1px solid currentColor; border-radius: 4px; padding: 0 5px; line-height: 18px; }
+.hs-preview { margin-top: 8px; padding: 8px 10px; border-radius: 6px; background: #9aa3b2; color: #212529; min-height: 38px; overflow: hidden; }
+
 </style>
 
 <script>
@@ -635,6 +591,245 @@
     };
 })();
 
+/* ---------- Heading / Subheading text-style toolbars (font, size, colour, B, align, I, background) ---------- */
+(function initHomeSectionTextToolbars() {
+    var form = document.getElementById("add_home_section_form");
+    var fontsUrl = form.dataset.fontsUrl;
+    var fontsPromise = null;
+    var loadedFonts = {};
+    var toolbars = {};
+
+    function esc(s) {
+        return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function toRgba(hex, opacity) {
+        hex = String(hex || "").replace("#", "");
+        if (hex.length === 3) hex = hex.split("").map(function (c) { return c + c; }).join("");
+        if (!/^[0-9a-fA-F]{6}$/.test(hex)) return "";
+        var n = parseInt(hex, 16);
+        return "rgba(" + (n >> 16 & 255) + "," + (n >> 8 & 255) + "," + (n & 255) + "," + (Number(opacity) / 100) + ")";
+    }
+
+    // Loads a Google Font so the live preview shows the real font.
+    function loadFont(family) {
+        if (!family || loadedFonts[family]) return;
+        loadedFonts[family] = true;
+        var enc = encodeURIComponent(family).replace(/%20/g, "+");
+        var link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = "https://fonts.googleapis.com/css2?family=" + enc + ":ital,wght@0,400;0,700;1,400;1,700&display=swap";
+        link.onerror = function () {
+            link.onerror = null;
+            link.href = "https://fonts.googleapis.com/css2?family=" + enc + "&display=swap";
+        };
+        document.head.appendChild(link);
+    }
+
+    // Font list comes from our own backend (which asks the Google Fonts API). Fetched once, then cached.
+    function getFonts() {
+        if (!fontsPromise) {
+            fontsPromise = fetch(fontsUrl, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+                .then(function (r) { return r.json(); })
+                .then(function (d) { return (d && d.status) ? d.fonts : []; })
+                .catch(function () { return []; })
+                .then(function (fonts) { if (!fonts.length) fontsPromise = null; return fonts; });
+        }
+        return fontsPromise;
+    }
+
+    function closeAllPops(except) {
+        document.querySelectorAll(".hs-pop").forEach(function (p) { if (p !== except) p.style.display = "none"; });
+    }
+    function togglePop(pop) {
+        var show = pop.style.display === "none";
+        closeAllPops(pop);
+        pop.style.display = show ? "block" : "none";
+        return show;
+    }
+    document.addEventListener("click", function (e) {
+        if (!e.target.closest(".hs-pop-wrap")) closeAllPops(null);
+    });
+
+    function buildToolbar(mount) {
+        var p = mount.dataset.stylePrefix;
+        var defaultBold = mount.dataset.defaultBold === "1";
+        var sample = mount.dataset.sample || "Sample text";
+
+        mount.innerHTML =
+            '<input type="hidden" name="' + p + '_font_family">' +
+            '<input type="hidden" name="' + p + '_weight">' +
+            '<input type="hidden" name="' + p + '_italic">' +
+            '<input type="hidden" name="' + p + '_align">' +
+            '<input type="hidden" name="' + p + '_color">' +
+            '<input type="hidden" name="' + p + '_bg_color">' +
+            '<input type="hidden" name="' + p + '_bg_opacity" value="100">' +
+            '<div class="hs-tb-row">' +
+              '<div class="hs-pop-wrap">' +
+                '<button type="button" class="hs-tb-btn hs-font-btn" title="Font style"><span class="hs-font-label">Font style</span> <i class="bi bi-chevron-down"></i></button>' +
+                '<div class="hs-pop hs-font-pop" style="display:none;">' +
+                  '<input type="text" class="form-control form-control-sm hs-font-search" placeholder="Search font...">' +
+                  '<div class="hs-font-chips">' +
+                    '<button type="button" class="hs-chip active" data-lang="all">All</button>' +
+                    '<button type="button" class="hs-chip" data-lang="bn">\u09AC\u09BE\u0982\u09B2\u09BE</button>' +
+                    '<button type="button" class="hs-chip" data-lang="en">English</button>' +
+                  '</div>' +
+                  '<div class="hs-font-list"></div>' +
+                '</div>' +
+              '</div>' +
+              '<input type="number" class="hs-size" name="' + p + '_font_size" placeholder="px" min="8" max="120" title="Font size (px)">' +
+              '<span class="hs-color-wrap is-empty" title="Text colour"><input type="color" class="hs-color-native" value="#ff6600"></span>' +
+              '<button type="button" class="hs-tb-btn hs-x hs-color-reset" title="Reset colour" style="display:none;">&times;</button>' +
+              '<button type="button" class="hs-tb-btn hs-bold" title="Bold"><b>B</b></button>' +
+              '<button type="button" class="hs-tb-btn hs-align" title="Alignment (default / left / center / right)"><i class="bi bi-text-left"></i></button>' +
+              '<button type="button" class="hs-tb-btn hs-italic" title="Italic"><i>I</i></button>' +
+              '<div class="hs-pop-wrap">' +
+                '<button type="button" class="hs-tb-btn hs-bg-btn" title="Background colour"><span class="hs-bg-A">A</span></button>' +
+                '<div class="hs-pop hs-bg-pop" style="display:none;">' +
+                  '<div class="d-flex align-items-center gap-2 mb-2"><input type="color" class="hs-bg-native" value="#f4b400"><span class="small">Background colour</span></div>' +
+                  '<label class="small d-flex justify-content-between mb-0"><span>Opacity</span><span class="hs-op-val">100%</span></label>' +
+                  '<input type="range" class="form-range hs-bg-opacity" min="0" max="100" value="100">' +
+                  '<button type="button" class="btn btn-sm btn-outline-secondary w-100 hs-bg-remove">No background</button>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="hs-preview"><span class="hs-preview-text"></span></div>';
+
+        var q = function (sel) { return mount.querySelector(sel); };
+        var hid = function (n) { return mount.querySelector('input[name="' + p + '_' + n + '"]'); };
+        var el = {
+            family: hid("font_family"), size: hid("font_size"), weight: hid("weight"), italic: hid("italic"), align: hid("align"),
+            color: hid("color"), bgColor: hid("bg_color"), bgOpacity: hid("bg_opacity"),
+            fontBtn: q(".hs-font-btn"), fontLabel: q(".hs-font-label"), fontPop: q(".hs-font-pop"), search: q(".hs-font-search"), list: q(".hs-font-list"),
+            colorWrap: q(".hs-color-wrap"), colorNative: q(".hs-color-native"), colorReset: q(".hs-color-reset"),
+            bold: q(".hs-bold"), italicBtn: q(".hs-italic"), alignBtn: q(".hs-align"),
+            bgBtn: q(".hs-bg-btn"), bgPop: q(".hs-bg-pop"), bgNative: q(".hs-bg-native"), bgRange: q(".hs-bg-opacity"), opVal: q(".hs-op-val"),
+            preview: q(".hs-preview-text"), previewBox: q(".hs-preview")
+        };
+        var lang = "all";
+        var allFonts = [];
+
+        function isBold() { return el.weight.value ? el.weight.value === "bold" : defaultBold; }
+
+        function renderPreview() {
+            var src = form.querySelector('input[name="' + p + '"]');
+            el.preview.textContent = "Ex: " + ((src && src.value.trim()) || sample);
+            var s = "";
+            if (el.family.value) { loadFont(el.family.value); s += "font-family:'" + el.family.value + "',sans-serif;"; }
+            if (el.size.value) s += "font-size:" + Math.min(parseInt(el.size.value, 10) || 0, 48) + "px;";
+            s += "font-weight:" + (isBold() ? 700 : 400) + ";";
+            if (el.italic.value === "italic") s += "font-style:italic;";
+            if (el.color.value) s += "color:" + el.color.value + ";";
+            var bg = el.bgColor.value ? toRgba(el.bgColor.value, el.bgOpacity.value) : "";
+            if (bg) s += "background:" + bg + ";padding:4px 10px;border-radius:6px;";
+            el.preview.setAttribute("style", s);
+            el.previewBox.style.textAlign = el.align.value || "left";
+        }
+
+        function refresh() {
+            el.bold.classList.toggle("active", isBold());
+            el.italicBtn.classList.toggle("active", el.italic.value === "italic");
+            var a = el.align.value;
+            el.alignBtn.querySelector("i").className = "bi " + (a === "center" ? "bi-text-center" : a === "right" ? "bi-text-right" : "bi-text-left");
+            el.alignBtn.classList.toggle("active", !!a);
+            el.fontLabel.textContent = el.family.value || "Font style";
+            var hasColor = !!el.color.value;
+            el.colorWrap.classList.toggle("is-empty", !hasColor);
+            el.colorReset.style.display = hasColor ? "inline-flex" : "none";
+            if (hasColor && el.color.value.length === 7) el.colorNative.value = el.color.value;
+            var hasBg = !!el.bgColor.value;
+            el.bgBtn.classList.toggle("active", hasBg);
+            el.bgBtn.style.background = hasBg ? toRgba(el.bgColor.value, el.bgOpacity.value) : "";
+            el.opVal.textContent = el.bgOpacity.value + "%";
+            el.bgRange.value = el.bgOpacity.value;
+            if (hasBg && el.bgColor.value.length === 7) el.bgNative.value = el.bgColor.value;
+            renderPreview();
+        }
+
+        function renderFontList() {
+            var term = el.search.value.trim().toLowerCase();
+            var out = allFonts.filter(function (f) {
+                var okLang = lang === "all" || (lang === "bn" ? f.bn : f.en);
+                return okLang && (!term || f.family.toLowerCase().indexOf(term) !== -1);
+            }).slice(0, 80);
+            var html = '<button type="button" class="hs-font-item" data-family="">Default (site font)</button>';
+            out.forEach(function (f) {
+                html += '<button type="button" class="hs-font-item" data-family="' + esc(f.family) + '">' + esc(f.family) +
+                        (f.bn ? ' <span class="hs-bn">\u09AC\u09BE\u0982\u09B2\u09BE</span>' : '') + '</button>';
+            });
+            if (!out.length) html += '<div class="p-2 small text-muted">No fonts found</div>';
+            el.list.innerHTML = html;
+        }
+
+        el.fontBtn.addEventListener("click", function () {
+            if (!togglePop(el.fontPop)) return;
+            el.list.innerHTML = '<div class="p-2 small text-muted">Loading fonts...</div>';
+            getFonts().then(function (fonts) { allFonts = fonts; renderFontList(); });
+            el.search.focus();
+        });
+        el.search.addEventListener("input", renderFontList);
+        mount.querySelectorAll(".hs-chip").forEach(function (chip) {
+            chip.addEventListener("click", function () {
+                lang = chip.dataset.lang;
+                mount.querySelectorAll(".hs-chip").forEach(function (c) { c.classList.toggle("active", c === chip); });
+                renderFontList();
+            });
+        });
+        el.list.addEventListener("click", function (e) {
+            var item = e.target.closest(".hs-font-item");
+            if (!item) return;
+            el.family.value = item.dataset.family || "";
+            el.fontPop.style.display = "none";
+            refresh();
+        });
+
+        el.size.addEventListener("input", renderPreview);
+        el.colorNative.addEventListener("input", function () { el.color.value = this.value; refresh(); });
+        el.colorReset.addEventListener("click", function () { el.color.value = ""; refresh(); });
+        el.bold.addEventListener("click", function () { el.weight.value = isBold() ? "normal" : "bold"; refresh(); });
+        el.italicBtn.addEventListener("click", function () { el.italic.value = el.italic.value === "italic" ? "normal" : "italic"; refresh(); });
+        el.alignBtn.addEventListener("click", function () {
+            var order = ["", "left", "center", "right"];
+            el.align.value = order[(order.indexOf(el.align.value) + 1) % order.length];
+            refresh();
+        });
+        el.bgBtn.addEventListener("click", function () { togglePop(el.bgPop); });
+        el.bgNative.addEventListener("input", function () { el.bgColor.value = this.value; refresh(); });
+        el.bgRange.addEventListener("input", function () { el.bgOpacity.value = this.value; refresh(); });
+        mount.querySelector(".hs-bg-remove").addEventListener("click", function () { el.bgColor.value = ""; refresh(); });
+
+        var srcInput = form.querySelector('input[name="' + p + '"]');
+        if (srcInput) srcInput.addEventListener("input", renderPreview);
+
+        return {
+            setState: function (s) {
+                s = s || {};
+                el.family.value = s.font_family || "";
+                el.size.value = s.font_size || "";
+                el.weight.value = s.weight || "";
+                el.italic.value = s.italic || "";
+                el.align.value = s.align || "";
+                el.color.value = s.color || "";
+                el.bgColor.value = s.bg_color || "";
+                el.bgOpacity.value = (s.bg_opacity === 0 || s.bg_opacity) ? s.bg_opacity : 100;
+                refresh();
+            }
+        };
+    }
+
+    document.querySelectorAll(".hs-toolbar-mount").forEach(function (m) {
+        toolbars[m.dataset.stylePrefix] = buildToolbar(m);
+    });
+
+    // Used by the Edit button (fill from saved data) and by the modal-close reset.
+    window.hsSetTextStyles = function (obj) {
+        obj = obj || {};
+        Object.keys(toolbars).forEach(function (k) { toolbars[k].setState(obj[k]); });
+    };
+    window.hsResetTextStyles = function () { window.hsSetTextStyles({}); };
+    window.hsResetTextStyles();
+})();
+
 document.addEventListener("submit", async function (e) {
     if (e.target.id !== "add_home_section_form") return;
     e.preventDefault();
@@ -716,15 +911,8 @@ document.addEventListener("click", function (e) {
         form.querySelector("input[name='sort_order']").value = btn.dataset.sortOrder;
         form.querySelector("#home_section_is_active").checked = btn.dataset.isActive === "true";
 
-        // Text Styling
-        document.getElementById("home_section_text_font_family").value = btn.dataset.textFontFamily || "";
-        document.getElementById("home_section_text_font_size").value = btn.dataset.textFontSize || "";
-        document.getElementById(btn.dataset.textFontWeight === "bold" ? "home_section_weight_bold" : "home_section_weight_normal").checked = true;
-        document.getElementById(btn.dataset.textFontStyle === "italic" ? "home_section_style_italic" : "home_section_style_normal").checked = true;
-        document.getElementById("home_section_text_color").value = btn.dataset.textColor || "#222222";
-        document.getElementById("home_section_text_bg_color").value = btn.dataset.textBgColor || "#000000";
-        document.getElementById("home_section_text_bg_opacity").value = btn.dataset.textBgOpacity || 0;
-        document.getElementById("home_section_text_bg_opacity_value").textContent = (btn.dataset.textBgOpacity || 0) + "%";
+        // Text Styling (Heading / Subheading toolbars)
+        try { window.hsSetTextStyles(JSON.parse(btn.dataset.textStyle || "{}")); } catch (err) { window.hsResetTextStyles(); }
 
         // Content type (Banner / Product) + product-only fields
         const contentType = btn.dataset.contentType || "banner";
@@ -746,13 +934,9 @@ document.getElementById("HomeSectionModal")?.addEventListener("hidden.bs.modal",
     document.getElementById("home_section_modal_title").textContent = "Add Custom Section";
     document.getElementById("home_section_key_input").disabled = false;
     document.getElementById("home_section_key_group").style.opacity = "1";
-    document.getElementById("home_section_text_bg_opacity_value").textContent = "0%";
+    window.hsResetTextStyles();
     window.hsResetWizard();
     window.setHomeSectionCategory(null);
-});
-
-document.getElementById("home_section_text_bg_opacity")?.addEventListener("input", function () {
-    document.getElementById("home_section_text_bg_opacity_value").textContent = this.value + "%";
 });
 
 let deleteHomeSectionId = null;

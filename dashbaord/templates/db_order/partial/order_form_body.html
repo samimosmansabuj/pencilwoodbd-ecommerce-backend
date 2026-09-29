@@ -687,7 +687,8 @@
                     variant_id: it.variant_id,
                     variant_label: it.variant_label,
                     quantity: it.quantity,
-                    unit_price: parseFloat(it.unit_price) || 0
+                    unit_price: parseFloat(it.unit_price) || 0,
+                    price_manually_edited: !!it.price_manually_edited
                 });
             });
         }

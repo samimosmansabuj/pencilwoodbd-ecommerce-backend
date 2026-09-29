@@ -27,6 +27,7 @@ urlpatterns = [
 
     # ----------------- Home Sections (master on/off switches) ---------------------
     path('home-sections/', HomeSectionManagementView.as_view(), name='home_section_list'),
+    path('fonts/google/', google_fonts_list, name='google_fonts_list'),
     path('home-sections/get/<int:id>/', get_home_section, name='get_home_section'),
     path('home-sections/delete/<int:id>/', delete_home_section, name='delete_home_section'),
     path('home-sections/toggle/<int:id>/', toggle_home_section_active, name='toggle_home_section_active'),

@@ -259,17 +259,25 @@ class HomeSectionManagementView(LoginRequiredMixin, View):
             item.sort_order = int(sort_order) if str(sort_order).isdigit() else 0
             item.is_active = is_active
 
-            # ---- Text Styling ----
-            text_font_size = data.get("text_font_size", "").strip()
-            text_bg_opacity = data.get("text_bg_opacity", "").strip()
-            item.text_font_family = data.get("text_font_family", "").strip()
-            item.text_font_size = int(text_font_size) if text_font_size.isdigit() else None
-            item.text_font_weight = "bold" if data.get("text_font_weight") == "bold" else "normal"
-            item.text_font_style = "italic" if data.get("text_font_style") == "italic" else "normal"
-            item.text_color = data.get("text_color", "").strip()
-            item.text_bg_color = data.get("text_bg_color", "").strip()
-            item.text_bg_opacity = max(0, min(100, int(text_bg_opacity))) if text_bg_opacity.isdigit() else 0
+            # ---- Text Styling (Heading + Subheading toolbars) ----
+            def _hex(value):
+                value = (value or "").strip()
+                return value if value.startswith("#") and len(value) in (4, 7, 9) else ""
 
+            for prefix in ("heading", "subheading"):
+                size = data.get(f"{prefix}_font_size", "").strip()
+                opacity = data.get(f"{prefix}_bg_opacity", "").strip()
+                weight = data.get(f"{prefix}_weight", "").strip()
+                italic = data.get(f"{prefix}_italic", "").strip()
+                align = data.get(f"{prefix}_align", "").strip()
+                setattr(item, f"{prefix}_font_family", data.get(f"{prefix}_font_family", "").strip()[:100])
+                setattr(item, f"{prefix}_font_size", int(size) if size.isdigit() else None)
+                setattr(item, f"{prefix}_weight", weight if weight in ("bold", "normal") else "")
+                setattr(item, f"{prefix}_italic", italic if italic in ("italic", "normal") else "")
+                setattr(item, f"{prefix}_align", align if align in ("left", "center", "right") else "")
+                setattr(item, f"{prefix}_color", _hex(data.get(f"{prefix}_color")))
+                setattr(item, f"{prefix}_bg_color", _hex(data.get(f"{prefix}_bg_color")))
+                setattr(item, f"{prefix}_bg_opacity", max(0, min(100, int(opacity))) if opacity.isdigit() else 100)
             item.save()
 
             msg = "Section updated successfully" if item_id else "Section added successfully"
@@ -295,13 +303,7 @@ def get_home_section(request, id):
                 "category_id": item.category_id or "",
                 "item_limit": item.item_limit,
                 "badge_text": item.badge_text or "",
-                "text_font_family": item.text_font_family or "",
-                "text_font_size": item.text_font_size or "",
-                "text_font_weight": item.text_font_weight,
-                "text_font_style": item.text_font_style,
-                "text_color": item.text_color or "",
-                "text_bg_color": item.text_bg_color or "",
-                "text_bg_opacity": item.text_bg_opacity,
+                "text_style": pyjson.loads(item.text_style_json),
                 "heading": item.heading or "",
                 "subheading": item.subheading or "",
                 "body_html": item.body_html or "",
@@ -1242,3 +1244,53 @@ class InvoiceColorSettingsView(LoginRequiredMixin, View):
 
 
 
+
+_FALLBACK_FONTS = [
+    # Bangla-capable (these also include Latin)
+    ("Hind Siliguri", True), ("Noto Sans Bengali", True), ("Noto Serif Bengali", True),
+    ("Baloo Da 2", True), ("Anek Bangla", True), ("Tiro Bangla", True),
+    ("Atma", True), ("Galada", True), ("Mina", True),
+    # English only
+    ("Sora", False), ("Poppins", False), ("Playfair Display", False), ("Montserrat", False),
+    ("Oswald", False), ("Nunito", False), ("Roboto", False), ("Open Sans", False),
+    ("Lato", False), ("Inter", False), ("Raleway", False), ("Merriweather", False),
+    ("Lora", False), ("Pacifico", False), ("Bebas Neue", False), ("Dancing Script", False),
+    ("Cinzel", False), ("Rubik", False), ("Work Sans", False),
+]
+
+
+@login_required
+def google_fonts_list(request):
+    from django.core.cache import cache
+    import requests
+
+    cache_key = "google_fonts_list_v1"
+    cached = cache.get(cache_key)
+    if cached:
+        return JsonResponse({"status": True, "source": cached["source"], "fonts": cached["fonts"]})
+
+    fonts, source = [], "fallback"
+    api_key = getattr(settings, "GOOGLE_FONTS_API_KEY", "")
+    if api_key:
+        try:
+            res = requests.get(
+                "https://www.googleapis.com/webfonts/v1/webfonts",
+                params={"key": api_key, "sort": "popularity"},
+                timeout=10,
+            )
+            res.raise_for_status()
+            for item in res.json().get("items", []):
+                subsets = item.get("subsets", [])
+                bn, en = "bengali" in subsets, "latin" in subsets
+                if bn or en:
+                    fonts.append({"family": item["family"], "bn": bn, "en": en, "category": item.get("category", "")})
+            source = "google"
+        except Exception:
+            fonts = []
+
+    if not fonts:
+        fonts = [{"family": name, "bn": bn, "en": True, "category": ""} for name, bn in _FALLBACK_FONTS]
+        source = "fallback"
+
+    cache.set(cache_key, {"source": source, "fonts": fonts}, 60 * 60 * 12)
+    return JsonResponse({"status": True, "source": source, "fonts": fonts})

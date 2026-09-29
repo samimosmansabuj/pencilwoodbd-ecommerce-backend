@@ -231,6 +231,7 @@ class LandingPageOrderAPI(APIView):
                 # Customer Section---
                 customer = self.get_customer_data(data)
                 address = self.get_address(data)
+                district = data.get("district")
 
                 total_cost, quantity, subtotal, delivery = self.check_order_amount(variant, product, data)
 
@@ -285,6 +286,7 @@ class LandingPageOrderAPI(APIView):
                 order = Order.objects.create(
                     customer=customer,
                     shipping_address=address,
+                    district=district,
                     note=data.get("note", ""),
                     shipping_total=delivery,
                     total_cost=final_total,
@@ -572,6 +574,7 @@ class OrderCreateAPIView(APIView):
                 order = Order.objects.create(
                     customer=customer,
                     shipping_address=address,
+                    district=data.get("customer", {}).get("district"),
                     note=data.get("note", ""),
                     shipping_total=delivery_charge,
                     total_cost=final_total,
