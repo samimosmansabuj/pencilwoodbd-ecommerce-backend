@@ -61,7 +61,7 @@ class TrackEventAPIView(APIView):
         events_to_create = [
             ActivityEvent(
                 visitor=visitor,
-                customer=visitor.customer,
+                customer=customer,
                 event_type=ev.get("event_type"),
                 page_url=(ev.get("page_url") or "")[:500],
                 page_title=(ev.get("page_title") or "")[:255],

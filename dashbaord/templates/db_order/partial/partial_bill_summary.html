@@ -1,0 +1,78 @@
+<div class="table-responsive">
+    <table class="table table-bill table-invoice" style="border: 1px solid black; width: 100%;">
+        <thead>
+            <tr>
+                <th style="width: 5%;">#</th>
+                <th>PRODUCT DESCRIPTION</th>
+                <th style="width: 15%; text-align: center;">UNIT PRICE</th>
+                <th style="width: 8%; text-align: center;">QTY</th>
+                <th style="width: 16%; text-align: right;">TOTAL</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in order.order_items.all %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>
+                    <span>{{ item.display_name }}</span>
+                    {% if item.variant_label %}
+                        <span style="color: #555;"> ({{ item.variant_label }})</span>
+                    {% endif %}
+                    {% if item.is_gift %}
+                        <span style="border: 1px solid #000; border-radius: 3px; padding: 0 5px; font-size: 11px; font-weight: 700; margin-left: 4px;">GIFT</span>
+                    {% endif %}
+                </td>
+                <td style="text-align: center;">
+                    {% if item.is_gift and not item.discount_price %}FREE{% else %}৳{{ item.discount_price|floatformat:2 }}{% endif %}
+                </td>
+                <td style="text-align: center;">{{ item.quantity }}</td>
+                <td style="text-align: right;">
+                    {% if item.is_gift and not item.discount_price %}FREE{% else %}৳{{ item.discount_total_price|floatformat:2 }}{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="row m-0">
+    <div class="col-7"></div>
+    <div class="col-5 p-0">
+        <table class="table table-sm mb-0" style="color: #000; border: 1px solid #000;">
+            <tr>
+                <td>Subtotal</td>
+                <td style="text-align: right;">৳{{ order.get_discount_total|floatformat:2 }}</td>
+            </tr>
+            <tr>
+                <td>Shipping Charge</td>
+                <td style="text-align: right;">{% if order.shipping_total %}৳{{ order.shipping_total|floatformat:2 }}{% else %}Free{% endif %}</td>
+            </tr>
+            {% if order.coupon_discount %}
+            <tr>
+                <td>Coupon Discount{% if order.coupon %} ({{ order.coupon.code }}){% endif %}</td>
+                <td style="text-align: right;">- ৳{{ order.coupon_discount|floatformat:2 }}</td>
+            </tr>
+            {% endif %}
+            {% if order.extra_discount %}
+            <tr>
+                <td>Extra Discount</td>
+                <td style="text-align: right;">- ৳{{ order.extra_discount|floatformat:2 }}</td>
+            </tr>
+            {% endif %}
+            <tr style="border-top: 2px solid #000;">
+                <td><strong>Grand Total</strong></td>
+                <td style="text-align: right;"><strong>৳{{ order.total_cost|floatformat:2 }}</strong></td>
+            </tr>
+            {% if order.advance_amount %}
+            <tr>
+                <td>Advance Paid</td>
+                <td style="text-align: right;">- ৳{{ order.advance_amount|floatformat:2 }}</td>
+            </tr>
+            {% endif %}
+            <tr>
+                <td><strong>Due Amount</strong></td>
+                <td style="text-align: right;"><strong>৳{{ order.get_due_amount|floatformat:2 }}</strong></td>
+            </tr>
+        </table>
+    </div>
+</div>

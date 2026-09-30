@@ -83,71 +83,8 @@
                 </div>
             </div>
             <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-invoice" style="border: 1px solid black;">
-                        <thead>
-                            <tr>
-                                <th>PRODUCT DESCRIPTION</th>
-                                <th class="text-center" style="width: 10%;">UNIT</th>
-                                <th class="text-center" style="width: 10%;">QUANTITY</th>
-                                <th class="text-right" style="width: 10%;">TOTAL</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in order.order_items.all %}
-                            <tr>
-                                <td>
-                                    <span class="text-inverse">{{ item.product.name }}</span> 
-                                    <span class="text-muted">
-                                        ({% if item.get_size_attribute %}{{ item.get_size_attribute }}{% endif %}
-                                        {% if item.get_size_attribute and item.get_color_attribute %} | {% endif %}
-                                        {% if item.get_color_attribute %}{{ item.get_color_attribute }}{% endif %})
-                                    </span>
-                                </td>
-                                <td class="text-center">৳{{ item.discount_price }}</td>
-                                <td class="text-center">{{ item.quantity }}</td>
-                                <td class="text-right">৳{{ item.discount_total_price }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan="3">
-                                    <span class="text-inverse">Product Total</span>
-                                </td>
-                                <td class="text-right">৳{{ order.get_discount_total }}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-
-                <!-- sipping charge + subtotal = total amount -->
-                <div class="row bg-light align-items-center m-0" style="background-color: #dae3eb !important">
-                    <div class="col col-auto p-4">
-                        <p class="mb-0">SHIPPING CHARGE</p>
-                        <h4 class="mb-0" style="color: black !important;">৳{{ order.shipping_total }}</h4>
-                    </div>
-                    <div class="col col-auto p-4">
-                        <i class="bi bi-plus-lg text-muted"></i>
-                    </div>
-                    <div class="col col-auto me-auto p-4">
-                        <p class="mb-0">EXTRA DISCOUNT</p>
-                        <h4 class="mb-0" style="color: black !important;">৳{{ order.extra_discount|floatformat:2 }}</h4>
-                        {% if order.coupon_discount %}
-                        <small class="d-block text-muted">Coupon Discount: ৳{{ order.coupon_discount|floatformat:2 }}</small>
-                        {% endif %}
-                    </div>
-                    <div class="col bg-primary col-auto p-4">
-                        <p class="mb-0 text-white">TOTAL</p>
-
-                        {% with final_total=order.total_cost %}
-                            <h4 class="mb-0 text-white">
-                                ৳{{ final_total|floatformat:2 }}
-                            </h4>
-                        {% endwith %}
-                                            
-                    </div>
-                </div>
+                
+                {% include 'db_order/partial/partial_bill_summary.html' %}
 
                 <!--end row-->
 

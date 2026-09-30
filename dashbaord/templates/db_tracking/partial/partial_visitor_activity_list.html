@@ -1,0 +1,133 @@
+{% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
+
+<div class="card mb-3">
+    <div class="card-body d-flex flex-wrap align-items-center gap-3">
+        <div class="avatar-initial rounded-circle {% if visitor.customer %}bg-light-success text-success{% else %}bg-light-secondary text-secondary{% endif %} d-flex align-items-center justify-content-center"
+             style="width:48px;height:48px;font-weight:600;font-size:18px;">
+            {% if visitor.customer %}{{ visitor.customer.name|slice:":1"|upper }}{% else %}G{% endif %}
+        </div>
+        <div>
+            <h5 class="mb-0">
+                {% if visitor.customer %}
+                    {{ visitor.customer.name }}
+                    <span class="badge bg-light-success text-success ms-1">Customer</span>
+                {% else %}
+                    Guest Visitor
+                    <span class="badge bg-light-secondary text-secondary ms-1">Not Logged In</span>
+                {% endif %}
+            </h5>
+            <small class="text-secondary">
+                {% if visitor.customer %}{{ visitor.customer.phone }} &middot; {% endif %}
+                visitor id: {{ visitor.visitor_id }}
+            </small>
+        </div>
+        <div class="ms-auto d-flex gap-4">
+            <div class="text-center">
+                <div class="fw-bold fs-5">{{ paginator.count }}</div>
+                <small class="text-secondary">Total Events</small>
+            </div>
+            <div class="text-center">
+                <div class="fw-bold fs-5">{{ visitor.total_visits }}</div>
+                <small class="text-secondary">Visits</small>
+            </div>
+            <div class="text-center">
+                <div class="fw-bold fs-5">{{ visitor.total_page_views }}</div>
+                <small class="text-secondary">Page Views</small>
+            </div>
+        </div>
+    </div>
+    <div class="card-body pt-0">
+        <div class="row g-2 small text-secondary">
+            <div class="col-auto">IP: {{ visitor.last_ip|default:"—" }}</div>
+            <div class="col-auto">First seen: {{ visitor.first_seen|date:"M d, Y H:i" }}</div>
+            <div class="col-auto">Last seen: {{ visitor.last_seen|date:"M d, Y H:i" }}</div>
+            {% if visitor.utm_source %}<div class="col-auto">Source: {{ visitor.utm_source }}</div>{% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-auto">
+        <select
+            name="event_type"
+            class="form-select btn-filter"
+            hx-get="{% url 'visitor_activity' visitor.id %}"
+            hx-trigger="change"
+            hx-target="#visitor-activity-tab-content"
+            hx-swap="innerHTML"
+            hx-push-url="true">
+            <option value="">All Event Types</option>
+            {% for value, label in event_types %}
+                <option value="{{ value }}" {% if current_event_type == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <ul class="timeline-basic list-unstyled">
+            {% for event in events %}
+            <li class="d-flex gap-3 py-2 border-bottom">
+                <div>
+                    <span class="badge
+                        {% if event.event_type == 'product_view' %}bg-light-info text-info
+                        {% elif event.event_type == 'add_to_cart' %}bg-light-success text-success
+                        {% elif event.event_type == 'order_placed' %}bg-light-primary text-primary
+                        {% elif event.event_type == 'search' %}bg-light-warning text-warning
+                        {% else %}bg-light-secondary text-secondary{% endif %}">
+                        {{ event.get_event_type_display }}
+                    </span>
+                </div>
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            {% if event.product %}
+                                <strong>{{ event.product.title }}</strong>
+                            {% elif event.page_title %}
+                                <strong>{{ event.page_title }}</strong>
+                            {% endif %}
+                            <div class="text-secondary small">{{ event.page_url|default:"—" }}</div>
+                            {% if event.meta %}
+                                <div class="text-secondary small">{{ event.meta }}</div>
+                            {% endif %}
+                            {% if not event.customer and visitor.customer %}
+                                <span class="badge bg-light-secondary text-secondary">browsed as guest (not logged in at this moment)</span>
+                            {% endif %}
+                        </div>
+                        <div class="text-secondary small text-nowrap ms-3">{{ event.created_at|date:"M d, Y H:i:s" }}</div>
+                    </div>
+                </div>
+            </li>
+            {% empty %}
+            <li class="text-center py-4 text-secondary">No activity recorded yet for this visitor.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
+{% if events.paginator.num_pages > 1 %}
+<nav class="mt-3">
+    <ul class="pagination justify-content-center">
+        <li class="page-item {% if not events.has_previous %}disabled{% endif %}">
+            <a class="page-link"
+               hx-get="{% url 'visitor_activity' visitor.id %}?event_type={{ current_event_type }}{% if events.has_previous %}&page={{ events.previous_page_number }}{% endif %}"
+               hx-target="#visitor-activity-tab-content" hx-swap="innerHTML" hx-push-url="true">«</a>
+        </li>
+        {% for num in events.paginator.page_range %}
+            {% if num >= events.number|add:-2 and num <= events.number|add:2 %}
+            <li class="page-item {% if events.number == num %}active{% endif %}">
+                <a class="page-link"
+                   hx-get="{% url 'visitor_activity' visitor.id %}?event_type={{ current_event_type }}&page={{ num }}"
+                   hx-target="#visitor-activity-tab-content" hx-swap="innerHTML" hx-push-url="true">{{ num }}</a>
+            </li>
+            {% endif %}
+        {% endfor %}
+        <li class="page-item {% if not events.has_next %}disabled{% endif %}">
+            <a class="page-link"
+               hx-get="{% url 'visitor_activity' visitor.id %}?event_type={{ current_event_type }}{% if events.has_next %}&page={{ events.next_page_number }}{% endif %}"
+               hx-target="#visitor-activity-tab-content" hx-swap="innerHTML" hx-push-url="true">»</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}

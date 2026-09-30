@@ -23,7 +23,7 @@
         background: #fff;
         border-radius: 10px;
         margin: 0 auto;
-        padding: 20px 20px;
+        padding: 14px 16px;
         box-sizing: border-box;
         position: relative;
         box-shadow: 0 0 4px rgba(0, 0, 0, 0.1);
@@ -79,7 +79,7 @@
     .barcode-wrap { text-align: center; margin: 4px 0; }
     .barcode-wrap svg { max-width: 100%; height: 45px; }
 
-    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    table { width: 100%; border-collapse: collapse; font-size: 10px; }
     th, td { padding: 2px 0; text-align: left; }
     th { border-bottom: 1px solid #000; }
     td:nth-child(2), td:nth-child(3) { text-align: center; }
@@ -163,19 +163,32 @@
                     </tr>
                 </thead>
                 <tbody>
-                {% for item in order.order_items.all %}
+                    {% for item in order.order_items.all %}
                     <tr>
-                        <td>{{ item.product_name }}</td>
+                        <td>
+                            {% firstof item.product_name item.product.name "-" %}{% if item.is_gift %} <b>[GIFT]</b>{% endif %}
+                            {% if item.variant_label %}
+                                <small style="display:block; font-size:9px; font-weight:600;">{{ item.variant_label }}</small>
+                            {% endif %}
+                        </td>
                         <td>{{ item.quantity }}</td>
-                        <td>{{ item.discount_price|floatformat:2 }}</td>
-                        <td>{{ item.discount_total_price|floatformat:2 }}</td>
+                        <td>{% if item.is_gift and not item.discount_price %}Free{% else %}{{ item.discount_price|floatformat:2 }}{% endif %}</td>
+                        <td>{% if item.is_gift and not item.discount_price %}Free{% else %}{{ item.discount_total_price|floatformat:2 }}{% endif %}</td>
                     </tr>
                 {% endfor %}
                 </tbody>
             </table>
 
             <div class="summary">
+                <p><span>Subtotal:</span><span>{{ order.get_discount_total|floatformat:2 }}</span></p>
                 <p><span>Delivery Fee:</span><span>{% if order.shipping_total %}৳{{ order.shipping_total }}{% else %}Free{% endif %}</span></p>
+                {% if order.coupon_discount %}
+                <p><span>Coupon{% if order.coupon %} ({{ order.coupon.code }}){% endif %}:</span><span>-{{ order.coupon_discount|floatformat:2 }}</span></p>
+                {% endif %}
+                {% if order.extra_discount %}
+                <p><span>Extra Discount:</span><span>-{{ order.extra_discount|floatformat:2 }}</span></p>
+                {% endif %}
+                <p><span>Total:</span><span>{{ order.total_cost|floatformat:2 }}</span></p>
                 <p><span>Advanced Payment:</span><span>{{ order.advance_amount|floatformat:2 }}</span></p>
                 <p><strong><span>Due Amount:</span><span>{{ due_amount|floatformat:2 }}</span></strong></p>
             </div>

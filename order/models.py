@@ -127,6 +127,15 @@ class Order(models.Model):
         discount_percentage = (discount_amount / self.get_current_total) * 100
         return round(discount_percentage, 2)
     
+    @property
+    def get_total_discount(self):
+        return (self.coupon_discount or 0) + (self.extra_discount or 0)
+
+    @property
+    def get_due_amount(self):
+        due = (self.total_cost or 0) - (self.advance_amount or 0)
+        return due if due > 0 else 0
+    
     def generate_order_id(self):
         chars = string.ascii_uppercase + string.digits
         while True:
@@ -164,11 +173,11 @@ class OrderItem(models.Model):
 
     @property
     def current_total(self):
-        return self.price * self.quantity
-    
+        return (self.price or 0) * self.quantity
+
     @property
     def discount_total_price(self):
-        return self.discount_price * self.quantity
+        return (self.discount_price or 0) * self.quantity
     
     @property
     def get_size_attribute(self):
@@ -182,6 +191,29 @@ class OrderItem(models.Model):
             return self.variant.attributes.get("color")
         return None
 
+    @property
+    def display_name(self):
+        if self.product_name:
+            return self.product_name
+        if self.product:
+            return self.product.name
+        return "-"
+
+    @property
+    def is_gift(self):
+        return bool((self.snapshot or {}).get("is_gift"))
+
+    @property
+    def variant_label(self):
+        attrs = None
+        if self.variant and self.variant.attributes:
+            attrs = self.variant.attributes
+        elif isinstance((self.snapshot or {}).get("variant"), dict):
+            attrs = self.snapshot["variant"]
+        if not attrs:
+            return ""
+        return " / ".join(str(v) for v in attrs.values() if v not in (None, ""))
+    
     def save(self, *args, **kwargs):
         if self.variant:
             self.product = self.variant.product

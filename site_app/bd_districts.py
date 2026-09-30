@@ -1,14 +1,3 @@
-# site_app/bd_districts.py
-"""
-Static list of Bangladesh's 64 districts.
-Kept as plain names (matching the names returned by the frontend's
-`https://bdapi.vercel.app/api/v.1/district` API) so that the district
-string saved on `Address.district` (order/models.py) matches exactly
-the keys used in delivery-charge JSON configs.
-
-If bdapi ever renames a district, update it here AND in any existing
-area_and_charge JSON that used the old name (a small data-migration).
-"""
 
 BD_DISTRICTS = [
     "Bagerhat", "Bandarban", "Barguna", "Barishal", "Bhola",
@@ -26,12 +15,21 @@ BD_DISTRICTS = [
     "Sunamganj", "Sylhet", "Tangail", "Thakurgaon",
 ]
 
-# Choice tuples, in case any ModelForm/ChoiceField wants them
 BD_DISTRICT_CHOICES = [(d, d) for d in BD_DISTRICTS]
 
-# Sentinel key used inside area_and_charge JSON to mean
-# "this charge applies to every district not explicitly listed"
+_DISTRICT_LOOKUP = {d.lower(): d for d in BD_DISTRICTS}
+
+
+def normalize_district(value):
+    """Return the canonical BD_DISTRICTS spelling for `value`, or the
+    original (stripped) value if it doesn't match anything known — we
+    never want to silently drop a district just because it's unrecognized."""
+    if not value:
+        return value
+    value = str(value).strip()
+    return _DISTRICT_LOOKUP.get(value.lower(), value)
+
+
 ALL_DISTRICTS_KEY = "all"
 
-# Absolute last-resort charge if nothing else resolves (Taka)
 SYSTEM_DEFAULT_DELIVERY_CHARGE = 100

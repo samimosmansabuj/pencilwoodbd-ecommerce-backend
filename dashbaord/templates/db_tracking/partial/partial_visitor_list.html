@@ -60,13 +60,9 @@
                         <td>{{ v.first_seen|date:"M d, Y H:i" }}</td>
                         <td>{{ v.last_seen|date:"M d, Y H:i" }}</td>
                         <td>
-                            {% if v.customer %}
-                            <a class="btn btn-sm btn-filter" href="{% url 'customer_activity' v.customer.id %}" title="View Activity">
+                            <a class="btn btn-sm btn-filter" href="{% url 'visitor_activity' v.id %}" title="View Activity">
                                 <i class="bi bi-eye"></i>
                             </a>
-                            {% else %}
-                            <span class="text-secondary small">—</span>
-                            {% endif %}
                         </td>
                     </tr>
                     {% empty %}
