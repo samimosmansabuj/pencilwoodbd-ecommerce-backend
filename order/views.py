@@ -458,7 +458,11 @@ class OrderDetailView(LoginRequiredMixin, View):
                     f"{k}: {v}" for k, v in (item.variant.attributes.items() if item.variant else {}.items())
                 ) or None,
                 "quantity": item.quantity,
-                "unit_price": str(item.discount_price or item.price or 0),
+                "unit_price": str(
+                    item.discount_price if (item.snapshot or {}).get("is_gift")
+                    else (item.discount_price or item.price or 0)
+                ),
+                "is_gift": bool((item.snapshot or {}).get("is_gift")),
                 "price_manually_edited": item.price_manually_edited,
             })
 
@@ -565,6 +569,8 @@ class OrderUpdateView(LoginRequiredMixin, View):
                     messages.error(request, "Please add at least one product.")
                     return redirect("order_detail", id=pk)
 
+                old_items_by_id = {oi.id: oi for oi in order.order_items.all()}
+
                 order.order_items.all().delete()
 
                 grand_total = order.shipping_total
@@ -579,16 +585,40 @@ class OrderUpdateView(LoginRequiredMixin, View):
                     default_price = variant.price if variant else product.price
                     default_discount_price = variant.discount_price if variant else product.discount_price
 
+                    old_item = None
+                    raw_item_id = item.get("item_id")
+                    if raw_item_id:
+                        try:
+                            old_item = old_items_by_id.get(int(raw_item_id))
+                        except (TypeError, ValueError):
+                            old_item = None
+                    if old_item and (
+                        old_item.product_id != product.id
+                        or old_item.variant_id != (variant.id if variant else None)
+                    ):
+                        old_item = None
+
+                    old_snapshot = (old_item.snapshot if old_item else None) or {}
+                    is_gift_line = bool(old_snapshot.get("is_gift"))
+
                     manually_edited = bool(item.get("price_manually_edited"))
                     if manually_edited and item.get("unit_price") is not None:
                         manual_unit_price = parse_decimal(item.get("unit_price"))
                         price = manual_unit_price
                         discount_price = manual_unit_price
                         final_price = manual_unit_price
+                    elif old_item is not None:
+                        price = old_item.price if old_item.price is not None else Decimal("0")
+                        if is_gift_line:
+                            discount_price = old_item.discount_price if old_item.discount_price is not None else Decimal("0")
+                        else:
+                            discount_price = old_item.discount_price or price
+                        final_price = discount_price
+                        manually_edited = old_item.price_manually_edited
                     else:
                         price = default_price
-                        discount_price = default_discount_price
-                        final_price = discount_price if discount_price else price
+                        discount_price = default_discount_price or default_price
+                        final_price = discount_price
 
                     line_total = final_price * quantity
 
@@ -600,10 +630,12 @@ class OrderUpdateView(LoginRequiredMixin, View):
                         price=price,
                         discount_price=discount_price,
                         price_manually_edited=manually_edited,
+                        snapshot=old_snapshot,
                     )
 
                     grand_total += line_total
 
+                grand_total -= (order.coupon_discount or Decimal("0"))
                 grand_total -= order.extra_discount
                 if grand_total < 0:
                     grand_total = Decimal("0")
