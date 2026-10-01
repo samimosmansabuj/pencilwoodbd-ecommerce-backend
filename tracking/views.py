@@ -8,7 +8,11 @@ from .models import ActivityEvent, VisitorProfile, EVENT_TYPE
 
 
 class CustomerActivityView(LoginRequiredMixin, View):
-
+    """
+    Ekjon nirdishto customer (login kora) web e ki ki korlo - shob device
+    mile ekta combined timeline dekhabe. Eta Customer.id diye lookup kore,
+    tai customer login kore joto event korse shudhu oigula e dekha jabe.
+    """
     login_url = "admin_login"
 
     def get(self, request, pk):
@@ -39,13 +43,16 @@ class CustomerActivityView(LoginRequiredMixin, View):
         }
 
         if request.htmx:
-            return render(request, "db_tracking/partial_activity_list.html", context)
+            return render(request, "db_tracking/partial/partial_activity_list.html", context)
 
         return render(request, "db_tracking/customer_activity.html", context)
 
 
 class VisitorListView(LoginRequiredMixin, View):
-    
+    """
+    Website e ashra shob visitor (login + guest) ekta list akare dekhabe,
+    jate admin/staff bujhte pare kara ghurse - identified customer howa lagbe na.
+    """
     login_url = "admin_login"
 
     def get(self, request):
@@ -70,6 +77,39 @@ class VisitorListView(LoginRequiredMixin, View):
         }
 
         if request.htmx:
-            return render(request, "db_tracking/partial_visitor_list.html", context)
+            return render(request, "db_tracking/partial/partial_visitor_list.html", context)
 
         return render(request, "db_tracking/visitor_list.html", context)
+
+
+class VisitorActivityView(LoginRequiredMixin, View):
+
+    login_url = "admin_login"
+
+    def get(self, request, pk):
+        visitor = get_object_or_404(VisitorProfile, pk=pk)
+        events = (
+            ActivityEvent.objects.filter(visitor=visitor)
+            .select_related("product")
+            .order_by("-created_at")
+        )
+
+        event_type = request.GET.get("event_type", "").strip()
+        if event_type:
+            events = events.filter(event_type=event_type)
+
+        paginator = Paginator(events, 30)
+        page_obj = paginator.get_page(request.GET.get("page", 1))
+
+        context = {
+            "visitor": visitor,
+            "events": page_obj,
+            "paginator": paginator,
+            "event_types": EVENT_TYPE.choices,
+            "current_event_type": event_type,
+        }
+
+        if request.htmx:
+            return render(request, "db_tracking/partial/partial_visitor_activity_list.html", context)
+
+        return render(request, "db_tracking/visitor_activity.html", context)

@@ -28,6 +28,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from marketing.models import Coupon, CouponUsage
 from pencilwoodbd.extra_module import safe_error_message
+from site_app.bd_districts import normalize_district
 
 # =========================
 # HOME PAGE
@@ -138,7 +139,9 @@ class LandingPageOrderAPI(APIView):
             raise ValueError("Address is required")
         if not district or district.strip().lower() in self.INVALID_DISTRICT_VALUES:
             raise ValueError("Please select a valid district")
-        return f"{address}, {district}"
+        # Address and district are stored in separate columns (Order.shipping_address,
+        # Order.district) — don't concatenate them into one string here.
+        return str(address).strip()
     
     def get_product_object(self, id):
         try:
@@ -231,7 +234,7 @@ class LandingPageOrderAPI(APIView):
                 # Customer Section---
                 customer = self.get_customer_data(data)
                 address = self.get_address(data)
-                district = data.get("district")
+                district = normalize_district(data.get("district"))
 
                 total_cost, quantity, subtotal, delivery = self.check_order_amount(variant, product, data)
 
@@ -451,8 +454,8 @@ class OrderCreateAPIView(APIView):
         return products
 
     def get_make_address(self, data):
-        address = f"{data.get('address')}, {data.get('district')}"
-        return address
+        address = data.get("address")
+        return str(address).strip() if address else address
 
     def get_customer(self, data):
         phone = normalize_bd_phone(data.get("phone"))
@@ -577,7 +580,7 @@ class OrderCreateAPIView(APIView):
                 order = Order.objects.create(
                     customer=customer,
                     shipping_address=address,
-                    district=data.get("customer", {}).get("district"),
+                    district=normalize_district(data.get("customer", {}).get("district")),
                     note=data.get("note", ""),
                     shipping_total=delivery_charge,
                     total_cost=final_total,

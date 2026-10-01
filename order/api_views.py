@@ -26,6 +26,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from marketing.models import Coupon, CouponUsage
 from pencilwoodbd.extra_module import safe_error_message
+from site_app.bd_districts import normalize_district
 
 class DeliveryOptionListAPIView(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -109,7 +110,7 @@ class CustomerAddressListAPIView(APIView):
             return Response({"status": False, "message": "No customer profile found."}, status=400)
 
         street_01 = (request.data.get("address") or "").strip()
-        district = (request.data.get("district") or "").strip()
+        district = normalize_district((request.data.get("district") or "").strip())
         upazila = (request.data.get("upazila") or "N/A").strip() or "N/A"
         name = (request.data.get("name") or "").strip()
         phone = (request.data.get("phone") or "").strip()
@@ -158,7 +159,7 @@ class CustomerAddressDetailAPIView(APIView):
             return Response({"status": False, "message": "Address not found."}, status=404)
 
         street_01 = (request.data.get("address") or "").strip()
-        district = (request.data.get("district") or "").strip()
+        district = normalize_district((request.data.get("district") or "").strip())
         upazila = (request.data.get("upazila") or addr.upazila or "N/A").strip() or "N/A"
         name = (request.data.get("name") or "").strip()
         phone = (request.data.get("phone") or "").strip()
@@ -420,7 +421,7 @@ class PlaceOrderAPIView(APIView):
             with transaction.atomic():
                 name = request.data.get("name")
                 address_text = request.data.get("address")
-                district = request.data.get("district")
+                district = normalize_district(request.data.get("district"))
                 upazila = request.data.get("upazila") or "N/A"
 
                 INVALID_DISTRICT_VALUES = ["", "জেলা নির্বাচন করুন", "district select", "select district", "n/a", "none"]
@@ -507,7 +508,7 @@ class PlaceOrderAPIView(APIView):
 
                 recent_candidates = Order.objects.filter(
                     customer=customer,
-                    shipping_address=f"{address.street_01}, {address.district}",
+                    shipping_address=address.street_01,
                     created_at__gte=timezone.now() - timedelta(seconds=30),
                 ).prefetch_related("order_items")
 
@@ -558,7 +559,7 @@ class PlaceOrderAPIView(APIView):
 
                 order = Order.objects.create(
                     customer=customer,
-                    shipping_address=f"{address.street_01}, {address.district}",
+                    shipping_address=address.street_01,
                     district=address.district,
                     coupon=applied_coupon,
                     source=ORDER_SOURCE.WEBSITE,
