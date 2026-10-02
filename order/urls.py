@@ -1,4 +1,5 @@
 from django.urls import path
+from .export_views import OrderExportCSVView
 from .api_views import (
     DeliveryOptionListAPIView, 
      
@@ -81,4 +82,8 @@ urlpatterns = [
     path('orders/bulk-token-print/', OrderBulkTokenPrintView.as_view(), name='order_bulk_token_print'),
     path('orders/<int:pk>/pathao-submit/', OrderPathaoParcelSubmitView.as_view(), name='order_pathao_submit'),
     path('orders/<int:pk>/toggle-urgent/', OrderUrgentToggleView.as_view(), name='order_toggle_urgent'),
+
+
+    # Export Orders
+    path('orders/export/csv/', OrderExportCSVView.as_view(), name='order_export_csv'),
 ]
