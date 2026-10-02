@@ -1,0 +1,199 @@
+<!-- ====================================================
+     ORDER EXPORT MODAL
+     Triggered by the Export button in partial_order_list.html
+     ==================================================== -->
+<button
+    class="btn btn-filter px-4"
+    data-bs-toggle="modal"
+    data-bs-target="#orderExportModal"
+    type="button">
+    <i class="bi bi-box-arrow-right me-2"></i>
+    Export
+</button>
+
+<div
+    class="modal fade"
+    id="orderExportModal"
+    tabindex="-1"
+    aria-labelledby="orderExportModalLabel"
+    aria-hidden="true">
+
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+
+            <!-- Header -->
+            <div class="modal-header border-0 pb-0">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="export-icon-wrap">
+                        <i class="bi bi-file-earmark-spreadsheet fs-4 text-success"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-semibold mb-0" id="orderExportModalLabel">
+                            Export Orders to CSV
+                        </h5>
+                        <p class="text-muted small mb-0">Apply filters then download the report</p>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <!-- Body -->
+            <div class="modal-body pt-3">
+                <form id="exportOrderForm" method="GET" action="{% url 'order_export_csv' %}">
+
+                    <!-- Date Range -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-medium small" for="exportStartDate">
+                                <i class="bi bi-calendar-event me-1 text-primary"></i>Start Date
+                            </label>
+                            <input
+                                type="date"
+                                class="form-control form-control-sm"
+                                id="exportStartDate"
+                                name="start_date"
+                                value="{{ start_date }}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-medium small" for="exportEndDate">
+                                <i class="bi bi-calendar-event me-1 text-primary"></i>End Date
+                            </label>
+                            <input
+                                type="date"
+                                class="form-control form-control-sm"
+                                id="exportEndDate"
+                                name="end_date"
+                                value="{{ end_date }}">
+                        </div>
+                    </div>
+
+                    <!-- Status (multi-select) -->
+                    <div class="mb-3">
+                        <label class="form-label fw-medium small">
+                            <i class="bi bi-tags me-1 text-warning"></i>
+                            Order Status
+                            <span class="text-muted">(hold Ctrl/Cmd for multiple)</span>
+                        </label>
+
+                        <!-- All Status toggle -->
+                        <div class="form-check mb-2">
+                            <input
+                                class="form-check-input"
+                                type="checkbox"
+                                id="exportStatusAll"
+                                checked>
+                            <label class="form-check-label fw-medium" for="exportStatusAll">
+                                All Statuses
+                            </label>
+                        </div>
+
+                        <select
+                            class="form-select form-select-sm"
+                            id="exportStatusSelect"
+                            multiple
+                            size="8"
+                            style="display:none;">
+                            <option value="new">NEW</option>
+                            <option value="follow_up">FOLLOW UP</option>
+                            <option value="confirmed">CONFIRMED</option>
+                            <option value="hold">HOLD</option>
+                            <option value="token_print">TOKEN PRINT</option>
+                            <option value="ready_to_ship">READY TO SHIP</option>
+                            <option value="parcel_created">PARCEL CREATED</option>
+                            <option value="shipped">SHIPPED</option>
+                            <option value="delivered">DELIVERED</option>
+                            <option value="cancelled">CANCELLED</option>
+                            <option value="return_processing">RETURN PROCESSING</option>
+                            <option value="returned">RETURNED</option>
+                            <option value="refunded">REFUNDED</option>
+                        </select>
+                        <!-- Hidden input to carry the final status value -->
+                        <input type="hidden" id="exportStatusHidden" name="status" value="all">
+                    </div>
+
+                    <!-- Product (optional) -->
+                    <div class="mb-3">
+                        <label class="form-label fw-medium small" for="exportProductSlug">
+                            <i class="bi bi-box-seam me-1 text-info"></i>
+                            Product
+                            <span class="text-muted">(optional)</span>
+                        </label>
+                        <select
+                            class="form-select form-select-sm"
+                            id="exportProductSlug"
+                            name="product">
+                            <option value="">— All Products —</option>
+                            {% for product in products %}
+                                <option
+                                    value="{{ product.slug }}"
+                                    {% if product.slug == current_product_slug %}selected{% endif %}>
+                                    {{ product.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Info note -->
+                    <div class="alert alert-info py-2 px-3 small mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        The CSV will include one row per order item with full order, customer, payment, product, and shipment details — ready for analysis.
+                    </div>
+
+                </form>
+            </div>
+
+            <!-- Footer -->
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button
+                    type="button"
+                    class="btn btn-sm btn-success px-4 fw-medium"
+                    id="exportDownloadBtn"
+                    onclick="submitExportForm()">
+                    <i class="bi bi-download me-1"></i>
+                    Download CSV
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+
+<script>
+(function () {
+    // Toggle between "All statuses" checkbox and multi-select
+    const allChk    = document.getElementById('exportStatusAll');
+    const multiSel  = document.getElementById('exportStatusSelect');
+    const hiddenInp = document.getElementById('exportStatusHidden');
+
+    if (allChk) {
+        allChk.addEventListener('change', function () {
+            if (this.checked) {
+                multiSel.style.display = 'none';
+                hiddenInp.value = 'all';
+            } else {
+                multiSel.style.display = 'block';
+                syncStatus();
+            }
+        });
+
+        multiSel.addEventListener('change', syncStatus);
+    }
+
+    function syncStatus() {
+        const selected = Array.from(multiSel.selectedOptions).map(o => o.value);
+        hiddenInp.value = selected.length ? selected.join(',') : 'all';
+    }
+
+    window.submitExportForm = function () {
+        // Sync status one last time before submit
+        if (allChk && !allChk.checked) {
+            syncStatus();
+        }
+        document.getElementById('exportOrderForm').submit();
+    };
+})();
+</script>
