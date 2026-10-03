@@ -206,3 +206,22 @@ def get_or_verify_otp_override(phone, otp_code=None):
     otp_obj.is_verified = True
     otp_obj.save(update_fields=["is_verified"])
     return True
+
+
+def get_blocked_order_policy(landing_code=None):
+    from .models import TrackSettings
+    from pencilwoodbd.choices import BlockedOrderModeChoices, DEFAULT_BLOCKED_MESSAGE
+
+    track = TrackSettings.get_solo()
+    message = (track.blocked_message or "").strip() or DEFAULT_BLOCKED_MESSAGE
+    mode = track.ecom_blocked_mode
+
+    if landing_code:
+        from site_app.models import LandingPageProduct
+        landing = LandingPageProduct.objects.filter(code=landing_code).only("blocked_mode").first()
+        if landing:
+            mode = landing.blocked_mode
+
+    if mode not in BlockedOrderModeChoices.values:
+        mode = BlockedOrderModeChoices.OTP
+    return mode, message

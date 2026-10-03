@@ -11,7 +11,7 @@ from product.models import Product, AddToCart
 from pencilwoodbd.choices import PRODUCT_GIFT_TYPE, PAYMENT_STATUS, PAYMENT_TYPE, STATUS, CATEGORY_PRODUCT_STATUS
 from django.db import transaction
 from order.models import Order, OrderItem, Shipment, Address, Payment, PaymentMethod, OrderAttempt, OrderActivityLog
-from .utils import OrderConfirmatinoEmailSend
+from .utils import OrderConfirmatinoEmailSend, safe_order_bill
 from site_app.models import DeliveryOption, OTPVerification, WebhookLog, LandingPageProduct
 from .serializers import DeliveryOptionSerializer, ShipmentSerializer
 from product.models import Product, ProductVariant
@@ -20,17 +20,13 @@ from decimal import Decimal
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from pencilwoodbd.choices import USER_TYPE, ORDER_SOURCE
-from authentication.utils import normalize_bd_phone, get_client_identity, check_is_blocked, record_order_track, get_or_verify_otp_override
+from authentication.utils import normalize_bd_phone, get_client_identity, check_is_blocked, record_order_track, get_or_verify_otp_override, get_blocked_order_policy
 from site_app.delivery_charge import DeliveryChargeResolver
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from marketing.models import Coupon, CouponUsage
 from pencilwoodbd.extra_module import safe_error_message
 from site_app.bd_districts import normalize_district
-
-
-OTP_TEMPORARILY_OFF = True
-
 
 class DeliveryOptionListAPIView(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -405,22 +401,31 @@ class PlaceOrderAPIView(APIView):
             ip, user_agent, device_hash = get_client_identity(request)
             blocked = check_is_blocked(ip, device_hash, phone=phone)
 
-            otp_override_verified = bool(blocked) and OTP_TEMPORARILY_OFF
-            if blocked and not OTP_TEMPORARILY_OFF:
-                otp_code = request.data.get("otp_code")
-                if otp_code:
-                    otp_override_verified = get_or_verify_otp_override(phone, otp_code)
-
-                if not otp_override_verified:
+            otp_override_verified = False
+            if blocked:
+                blocked_mode, blocked_msg = get_blocked_order_policy()
+                if blocked_mode == "deny":
                     return Response(
-                        {
-                            "status": False,
-                            "otp_required": True,
-                            "phone": phone,
-                            "message": "Apnar account block kora ase. Age OTP verify korun.",
-                        },
+                        {"status": False, "blocked": True, "otp_required": False, "message": blocked_msg},
                         status=403,
                     )
+                elif blocked_mode == "allow":
+                    otp_override_verified = True
+                else:
+                    otp_code = request.data.get("otp_code")
+                    if otp_code:
+                        otp_override_verified = get_or_verify_otp_override(phone, otp_code)
+
+                    if not otp_override_verified:
+                        return Response(
+                            {
+                                "status": False,
+                                "otp_required": True,
+                                "phone": phone,
+                                "message": "Apnar account block kora ase. Age OTP verify korun.",
+                            },
+                            status=403,
+                        )
 
             with transaction.atomic():
                 name = request.data.get("name")
@@ -710,7 +715,8 @@ class PlaceOrderAPIView(APIView):
                 return Response({
                     "status": True,
                     "message": "Order placed successfully",
-                    "order_id": order.order_id
+                    "order_id": order.order_id,
+                    "bill": safe_order_bill(order, request),
                 })
 
         except Exception as e:

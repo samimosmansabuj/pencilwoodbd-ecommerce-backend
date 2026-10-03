@@ -167,6 +167,14 @@ class BlockedIdentityReasonChoices(models.TextChoices):
     AUTO_CANCEL_LIMIT = "auto_cancel_limit", "Auto: Cancel limit exceeded"
     MANUAL = "manual", "Manually blocked by admin"
 
+class BlockedOrderModeChoices(models.TextChoices):
+    OTP = "otp", "OTP ON - Blocked user must verify OTP to order"
+    ALLOW = "allow", "OTP OFF - Allow order directly (no OTP)"
+    DENY = "deny", "OTP OFF - Do not take order, show blocked message"
+
+DEFAULT_BLOCKED_MESSAGE = "আপনার অ্যাকাউন্ট ব্লক করা হয়েছে। অনুগ্রহ করে আমাদের সাইটে যোগাযোগ করুন।"
+
+
 class ManualBlockScopeChoices(models.TextChoices):
     ALL = "all", "IP + Device + Phone"
     PHONE_ONLY = "phone_only", "Phone Only"

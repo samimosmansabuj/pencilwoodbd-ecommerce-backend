@@ -7,6 +7,7 @@ from product.models import Product, ProductVariant, Category
 from django.core.validators import FileExtensionValidator
 from django.utils import timezone
 from datetime import timedelta
+from pencilwoodbd.choices import BlockedOrderModeChoices
 from site_app.bd_districts import SYSTEM_DEFAULT_DELIVERY_CHARGE  
 
 #Fixed One Object Models=============================================
@@ -371,6 +372,7 @@ class LandingPageProduct(models.Model):
     main_product = models.ForeignKey(Product, on_delete=models.SET_NULL, related_name="landing_page", null=True, blank=True)
     product = models.ManyToManyField(Product, blank=True)
     need_otp_verified = models.BooleanField(default=False)
+    blocked_mode = models.CharField(max_length=10, choices=BlockedOrderModeChoices.choices, default=BlockedOrderModeChoices.OTP)
     area_and_charge = models.JSONField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
 

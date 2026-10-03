@@ -1,7 +1,7 @@
 import hashlib
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from pencilwoodbd.choices import USER_TYPE, TrackSettingsModeChoices,TrackSettingsScopeChoices, BlockedIdentityReasonChoices
+from pencilwoodbd.choices import USER_TYPE, TrackSettingsModeChoices,TrackSettingsScopeChoices, BlockedIdentityReasonChoices, BlockedOrderModeChoices, DEFAULT_BLOCKED_MESSAGE
 from django.utils import timezone
 from django.db.models import Q
 class CustomUser(AbstractUser):
@@ -76,6 +76,8 @@ class TrackSettings(models.Model):
     scope = models.CharField(max_length=20, choices=TrackSettingsScopeChoices.choices, default=TrackSettingsScopeChoices.ORDER, help_text="Default: Order-wise. Order-wise hole ekta order e jotogula product e cancel thakuk na keno, seta 1 cancel hisebe count hobe. Product-wise hole prottek product er cancel count alada vabe track hobe.")
     cancel_threshold = models.PositiveIntegerField(default=5, help_text="Koto bar cancel hole auto-block hobe. Default: 5")
     is_auto_block_enabled = models.BooleanField(default=True, help_text="Off korle auto-block hobe na, shudhu count track hobe.")
+    ecom_blocked_mode = models.CharField(max_length=10, choices=BlockedOrderModeChoices.choices, default=BlockedOrderModeChoices.OTP, help_text="E-commerce checkout: blocked user er jonno OTP on/off. OTP = OTP diye order, Allow = OTP charai order nibe, Deny = order nibe na, message dekhabe.")
+    blocked_message = models.TextField(default=DEFAULT_BLOCKED_MESSAGE, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

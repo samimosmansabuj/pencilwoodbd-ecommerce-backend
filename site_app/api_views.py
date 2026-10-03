@@ -22,15 +22,13 @@ from pencilwoodbd.choices import (
 from order.models import Order, OrderItem, OrderAttempt, OrderActivityLog
 from authentication.models import Customer
 from site_app.models import OTPVerification
-from order.utils import OrderConfirmatinoEmailSend
-from authentication.utils import normalize_bd_phone, get_client_identity, check_is_blocked, record_order_track, get_or_verify_otp_override
+from order.utils import OrderConfirmatinoEmailSend, safe_order_bill
+from authentication.utils import normalize_bd_phone, get_client_identity, check_is_blocked, record_order_track, get_or_verify_otp_override, get_blocked_order_policy
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from marketing.models import Coupon, CouponUsage
 from pencilwoodbd.extra_module import safe_error_message
 from site_app.bd_districts import normalize_district
-
-OTP_TEMPORARILY_OFF = True
 
 # =========================
 # HOME PAGE
@@ -195,17 +193,26 @@ class LandingPageOrderAPI(APIView):
             ip, user_agent, device_hash = get_client_identity(request)
             blocked = check_is_blocked(ip, device_hash, phone=phone)
 
-            otp_override_verified = bool(blocked) and OTP_TEMPORARILY_OFF
-            if blocked and not OTP_TEMPORARILY_OFF:
-                otp_code = data.get("otp_code")
-                if otp_code:
-                    otp_override_verified = get_or_verify_otp_override(phone, otp_code)
-
-                if not otp_override_verified:
+            otp_override_verified = False
+            if blocked:
+                blocked_mode, blocked_msg = get_blocked_order_policy(data.get("landing_page_code"))
+                if blocked_mode == "deny":
                     return Response(
-                        {"status": False, "otp_required": True, "phone": phone, "message": "Please Verify Your OTP First."},
+                        {"status": False, "blocked": True, "otp_required": False, "message": blocked_msg},
                         status=status.HTTP_403_FORBIDDEN,
                     )
+                elif blocked_mode == "allow":
+                    otp_override_verified = True
+                else:
+                    otp_code = data.get("otp_code")
+                    if otp_code:
+                        otp_override_verified = get_or_verify_otp_override(phone, otp_code)
+
+                    if not otp_override_verified:
+                        return Response(
+                            {"status": False, "otp_required": True, "phone": phone, "message": "Please Verify Your OTP First."},
+                            status=status.HTTP_403_FORBIDDEN,
+                        )
 
             with transaction.atomic():
                 print("data: ", data)
@@ -343,7 +350,7 @@ class LandingPageOrderAPI(APIView):
                 record_order_track(order, request)
 
                 return Response(
-                    {"status": True, "message": "Order received successfully"},
+                    {"status": True, "message": "Order received successfully", "order_id": order.order_id, "bill": safe_order_bill(order, request)},
                     status=status.HTTP_201_CREATED
                 )
         except Exception as e:
@@ -479,22 +486,31 @@ class OrderCreateAPIView(APIView):
             ip, user_agent, device_hash = get_client_identity(request)
             blocked = check_is_blocked(ip, device_hash, phone=phone_preview)
 
-            otp_override_verified = bool(blocked) and OTP_TEMPORARILY_OFF
-            if blocked and not OTP_TEMPORARILY_OFF:
-                otp_code = data.get("otp_code")
-                if otp_code:
-                    otp_override_verified = get_or_verify_otp_override(phone_preview, otp_code)
-
-                if not otp_override_verified:
+            otp_override_verified = False
+            if blocked:
+                blocked_mode, blocked_msg = get_blocked_order_policy(data.get("landing_page_code"))
+                if blocked_mode == "deny":
                     return Response(
-                        {"success": False, "otp_required": True, "phone": phone_preview, "message": "Please Verify Your OTP First."},
+                        {"success": False, "blocked": True, "otp_required": False, "message": blocked_msg},
                         status=status.HTTP_403_FORBIDDEN,
                     )
+                elif blocked_mode == "allow":
+                    otp_override_verified = True
+                else:
+                    otp_code = data.get("otp_code")
+                    if otp_code:
+                        otp_override_verified = get_or_verify_otp_override(phone_preview, otp_code)
+
+                    if not otp_override_verified:
+                        return Response(
+                            {"success": False, "otp_required": True, "phone": phone_preview, "message": "Please Verify Your OTP First."},
+                            status=status.HTTP_403_FORBIDDEN,
+                        )
 
             with transaction.atomic():
 
                 otp_verified = None
-                otp_required = False if OTP_TEMPORARILY_OFF else bool(data.get("otp_required", False))
+                otp_required = bool(data.get("otp_required", False))
 
                 if otp_required:
                     customer_data = data.get("customer", {})
@@ -634,7 +650,7 @@ class OrderCreateAPIView(APIView):
                 record_order_track(order, request)
 
                 return Response(
-                    {"success": True, "message": "Order Created", "order_id": order.order_id},
+                    {"success": True, "message": "Order Created", "order_id": order.order_id, "bill": safe_order_bill(order, request)},
                     status=status.HTTP_201_CREATED,
                 )
         except Exception as e:

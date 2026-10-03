@@ -84,6 +84,240 @@
     </div>
 </div>
 
+<!-- ================= Blocked User OTP Control: trigger button ================= -->
+<div class="d-flex justify-content-end mb-3">
+    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#blockedOtpControlModal">
+        <i class="bx bx-shield-quarter me-1"></i> Blocked User OTP Control
+    </button>
+</div>
+
+<!-- ================= Blocked User OTP Control: modal ================= -->
+<div class="modal fade" id="blockedOtpControlModal" tabindex="-1" aria-labelledby="blockedOtpControlModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="blockedOtpControlModalLabel">Blocked User &mdash; OTP Control</h5>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Order Source</th>
+                                <th style="width:110px">OTP</th>
+                                <th style="width:320px">When OTP is OFF</th>
+                                <th style="width:120px">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr data-target="ecom">
+                                <td><strong>E-commerce</strong> <span class="badge bg-info">Main Site Checkout</span></td>
+                                <td>
+                                    <div class="form-check form-switch mb-0">
+                                        <input class="form-check-input blocked-otp-switch" type="checkbox" role="switch" {% if settings_obj.ecom_blocked_mode == "otp" %}checked{% endif %}>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="blocked-off-wrap {% if settings_obj.ecom_blocked_mode == 'otp' %}d-none{% endif %}">
+                                        <select class="form-select form-select-sm blocked-off-select">
+                                            <option value="deny" {% if settings_obj.ecom_blocked_mode != "allow" %}selected{% endif %}>Cancel order &amp; show message</option>
+                                            <option value="allow" {% if settings_obj.ecom_blocked_mode == "allow" %}selected{% endif %}>Accept order</option>
+                                        </select>
+                                    </div>
+                                    <span class="blocked-on-note small {% if settings_obj.ecom_blocked_mode != 'otp' %}d-none{% endif %}">Blocked users must verify OTP to place an order.</span>
+                                </td>
+                                <td class="blocked-otp-status small"></td>
+                            </tr>
+
+                            {% for lp in landing_pages %}
+                            <tr data-target="landing:{{ lp.pk }}">
+                                <td>
+                                    {{ lp.title|default:"Untitled" }} <code>{{ lp.code|default:"-" }}</code>
+                                    {% if not lp.is_active %}<span class="badge bg-secondary">Inactive</span>{% endif %}
+                                </td>
+                                <td>
+                                    <div class="form-check form-switch mb-0">
+                                        <input class="form-check-input blocked-otp-switch" type="checkbox" role="switch" {% if lp.blocked_mode == "otp" %}checked{% endif %}>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="blocked-off-wrap {% if lp.blocked_mode == 'otp' %}d-none{% endif %}">
+                                        <select class="form-select form-select-sm blocked-off-select">
+                                            <option value="deny" {% if lp.blocked_mode != "allow" %}selected{% endif %}>Cancel order &amp; show message</option>
+                                            <option value="allow" {% if lp.blocked_mode == "allow" %}selected{% endif %}>Accept order</option>
+                                        </select>
+                                    </div>
+                                    <span class="blocked-on-note small {% if lp.blocked_mode != 'otp' %}d-none{% endif %}">Blocked users must verify OTP to place an order.</span>
+                                </td>
+                                <td class="blocked-otp-status small"></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <hr class="my-4">
+
+                <label for="blockedMessageInput" class="form-label fw-semibold">Blocked Message</label>
+                <textarea id="blockedMessageInput" rows="2" class="form-control">{{ settings_obj.blocked_message }}</textarea>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <small class="text">Shown to blocked users when &ldquo;Cancel order &amp; show message&rdquo; is selected.</small>
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="blockedMessageStatus" class="small text-muted"></span>
+                        <button type="button" id="blockedMessageSaveBtn" class="btn btn-sm btn-primary">Save Message</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <small class="text-muted me-auto">Changes to the OTP options are saved automatically.</small>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    // Move the modal to <body> so it is not clipped by the page layout, and avoid duplicates on re-render.
+    var modalEl = document.getElementById('blockedOtpControlModal');
+    if (modalEl) {
+        document.querySelectorAll('#blockedOtpControlModal').forEach(function (el) {
+            if (el !== modalEl) el.remove();
+        });
+        if (modalEl.parentNode !== document.body) document.body.appendChild(modalEl);
+    }
+
+    if (window.__blockedOtpBound) return;
+    window.__blockedOtpBound = true;
+
+    var SAVE_URL = "{% url 'blocked_order_mode_update' %}";
+
+    function csrf() {
+        var m = document.cookie.match(/csrftoken=([^;]+)/);
+        if (m) return m[1];
+        var el = document.querySelector('input[name=csrfmiddlewaretoken]');
+        return el ? el.value : '';
+    }
+
+    function send(data, done) {
+        var body = new URLSearchParams();
+        Object.keys(data).forEach(function (k) { body.append(k, data[k]); });
+        fetch(SAVE_URL, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest'},
+            body: body
+        })
+        .then(function (r) {
+            return r.json().catch(function () { return {success: false, message: 'Unexpected server response.'}; });
+        })
+        .then(done)
+        .catch(function () { done({success: false, message: 'Network error. Please try again.'}); });
+    }
+
+    function setStatus(el, ok, text) {
+        el.textContent = text;
+        el.className = el.className.replace(/\btext-(muted|success|danger)\b/g, '').trim() + ' ' + (ok === null ? 'text-muted' : ok ? 'text-success' : 'text-danger');
+    }
+
+    function refreshRow(row) {
+        var on = row.querySelector('.blocked-otp-switch').checked;
+        row.querySelector('.blocked-off-wrap').classList.toggle('d-none', on);
+        row.querySelector('.blocked-on-note').classList.toggle('d-none', !on);
+    }
+
+    function saveRow(row) {
+        var sw = row.querySelector('.blocked-otp-switch');
+        var sel = row.querySelector('.blocked-off-select');
+        var status = row.querySelector('.blocked-otp-status');
+        var mode = sw.checked ? 'otp' : sel.value;
+
+        refreshRow(row);
+        setStatus(status, null, 'Saving...');
+
+        send({target: row.dataset.target, mode: mode}, function (d) {
+            setStatus(status, !!d.success, d.success ? 'Saved' : (d.message || 'Failed'));
+            if (!d.success) setTimeout(function () { location.reload(); }, 1500);
+        });
+    }
+
+    document.addEventListener('change', function (e) {
+        var t = e.target;
+        if (!t.classList) return;
+        if (t.classList.contains('blocked-otp-switch') || t.classList.contains('blocked-off-select')) {
+            var row = t.closest('tr[data-target]');
+            if (row) saveRow(row);
+        }
+    });
+
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest ? e.target.closest('#blockedMessageSaveBtn') : null;
+        if (!btn) return;
+        var input = document.getElementById('blockedMessageInput');
+        var status = document.getElementById('blockedMessageStatus');
+        setStatus(status, null, 'Saving...');
+        send({target: 'message', message: input.value}, function (d) {
+            setStatus(status, !!d.success, d.success ? 'Saved' : (d.message || 'Failed'));
+        });
+    });
+})();
+</script>
+
+<script>
+(function () {
+    if (window.__blockedOtpBound) return;
+    window.__blockedOtpBound = true;
+
+    function csrf() {
+        var m = document.cookie.match(/csrftoken=([^;]+)/);
+        if (m) return m[1];
+        var el = document.querySelector('input[name=csrfmiddlewaretoken]');
+        return el ? el.value : '';
+    }
+
+    function save(row) {
+        var sw = row.querySelector('.blocked-otp-switch');
+        var sel = row.querySelector('.blocked-off-select');
+        var status = row.querySelector('.blocked-otp-status');
+        var mode = sw.checked ? 'otp' : sel.value;
+        sel.disabled = sw.checked;
+        status.textContent = 'Saving...';
+        status.className = 'blocked-otp-status small text-muted';
+
+        var body = new URLSearchParams();
+        body.append('target', row.dataset.target);
+        body.append('mode', mode);
+
+        fetch("{% url 'blocked_order_mode_update' %}", {
+            method: 'POST',
+            headers: {'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest'},
+            body: body
+        }).then(function (r) { return r.json(); }).then(function (d) {
+            status.textContent = d.success ? 'Saved \u2713' : (d.message || 'Failed');
+            if (!d.success) { setTimeout(function () { location.reload(); }, 1200); }
+            status.className = 'blocked-otp-status small ' + (d.success ? 'text-success' : 'text-danger');
+        }).catch(function () {
+            status.textContent = 'Failed';
+            status.className = 'blocked-otp-status small text-danger';
+        });
+    }
+
+    document.addEventListener('change', function (e) {
+        var t = e.target;
+        if (!t.classList) return;
+        if (t.classList.contains('blocked-otp-switch') || t.classList.contains('blocked-off-select')) {
+            var row = t.closest('tr[data-target]');
+            if (row) save(row);
+        }
+    });
+})();
+</script>
+
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h5 class="mb-0">Blocked IPs / Devices</h5>
