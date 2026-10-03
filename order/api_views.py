@@ -28,6 +28,10 @@ from marketing.models import Coupon, CouponUsage
 from pencilwoodbd.extra_module import safe_error_message
 from site_app.bd_districts import normalize_district
 
+
+OTP_TEMPORARILY_OFF = True
+
+
 class DeliveryOptionListAPIView(views.APIView):
     permission_classes = [permissions.AllowAny]
     
@@ -401,8 +405,8 @@ class PlaceOrderAPIView(APIView):
             ip, user_agent, device_hash = get_client_identity(request)
             blocked = check_is_blocked(ip, device_hash, phone=phone)
 
-            otp_override_verified = False
-            if blocked:
+            otp_override_verified = bool(blocked) and OTP_TEMPORARILY_OFF
+            if blocked and not OTP_TEMPORARILY_OFF:
                 otp_code = request.data.get("otp_code")
                 if otp_code:
                     otp_override_verified = get_or_verify_otp_override(phone, otp_code)

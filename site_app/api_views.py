@@ -30,6 +30,8 @@ from marketing.models import Coupon, CouponUsage
 from pencilwoodbd.extra_module import safe_error_message
 from site_app.bd_districts import normalize_district
 
+OTP_TEMPORARILY_OFF = True
+
 # =========================
 # HOME PAGE
 # =========================
@@ -193,8 +195,8 @@ class LandingPageOrderAPI(APIView):
             ip, user_agent, device_hash = get_client_identity(request)
             blocked = check_is_blocked(ip, device_hash, phone=phone)
 
-            otp_override_verified = False
-            if blocked:
+            otp_override_verified = bool(blocked) and OTP_TEMPORARILY_OFF
+            if blocked and not OTP_TEMPORARILY_OFF:
                 otp_code = data.get("otp_code")
                 if otp_code:
                     otp_override_verified = get_or_verify_otp_override(phone, otp_code)
@@ -477,8 +479,8 @@ class OrderCreateAPIView(APIView):
             ip, user_agent, device_hash = get_client_identity(request)
             blocked = check_is_blocked(ip, device_hash, phone=phone_preview)
 
-            otp_override_verified = False
-            if blocked:
+            otp_override_verified = bool(blocked) and OTP_TEMPORARILY_OFF
+            if blocked and not OTP_TEMPORARILY_OFF:
                 otp_code = data.get("otp_code")
                 if otp_code:
                     otp_override_verified = get_or_verify_otp_override(phone_preview, otp_code)
@@ -492,7 +494,7 @@ class OrderCreateAPIView(APIView):
             with transaction.atomic():
 
                 otp_verified = None
-                otp_required = bool(data.get("otp_required", False))
+                otp_required = False if OTP_TEMPORARILY_OFF else bool(data.get("otp_required", False))
 
                 if otp_required:
                     customer_data = data.get("customer", {})
