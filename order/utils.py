@@ -9,7 +9,7 @@ from authentication.models import CustomUser
 from django.shortcuts import get_object_or_404
 from site_app.models import DeliveryOption
 import requests
-
+from decimal import Decimal
 
 class OrderConfirmatinoEmailSend:
     def __init__(self, order, email) -> None:
@@ -200,3 +200,87 @@ class PathaoParcelAPI:
         response = requests.post(url, headers=headers, json=order_data)
         response.raise_for_status()
         return response.json()
+    
+
+
+def _bill_money(value):
+    value = Decimal(str(value or 0))
+    return int(value) if value == value.to_integral_value() else float(value)
+
+
+def build_order_bill(order, request=None):
+    from site_app.models import SiteContent, InvoiceColorConfig
+    from django.utils import timezone
+
+    site = SiteContent.objects.first()
+    colors = InvoiceColorConfig.get_config()
+
+    def abs_url(file_field):
+        if not file_field:
+            return ""
+        try:
+            url = file_field.url
+        except ValueError:
+            return ""
+        return request.build_absolute_uri(url) if request else url
+
+    brand_name = (getattr(site, "brand_name", None) or "PencilWoodBD").strip()
+
+    items = []
+    subtotal = Decimal("0")
+    for item in order.order_items.all().order_by("id"):
+        unit = item.discount_price if item.discount_price is not None else (item.price or 0)
+        unit = Decimal(str(unit or 0))
+        line_total = unit * item.quantity
+        subtotal += line_total
+        items.append({
+            "name": item.display_name,
+            "variant": item.variant_label,
+            "quantity": item.quantity,
+            "unit_price": _bill_money(unit),
+            "line_total": _bill_money(line_total),
+            "is_free": line_total == 0,
+        })
+
+    discount = Decimal(str(order.coupon_discount or 0)) + Decimal(str(order.extra_discount or 0))
+    delivery = Decimal(str(order.shipping_total or 0))
+    total = order.total_cost if order.total_cost is not None else (subtotal + delivery - discount)
+
+    customer = order.customer
+    created = timezone.localtime(order.created_at) if order.created_at else timezone.localtime()
+
+    return {
+        "order_id": order.order_id,
+        "date": created.strftime("%d %b %Y, %I:%M %p"),
+        "payment_type": "Cash on Delivery" if str(order.payment_type).lower() == "cod" else order.get_payment_type_display(),
+        "customer": {
+            "name": getattr(customer, "name", "") or "",
+            "phone": getattr(customer, "phone", "") or "",
+            "address": order.shipping_address or "",
+            "district": order.district or "",
+        },
+        "brand": {
+            "name": brand_name,
+            "logo": abs_url(getattr(site, "logo", None)),
+            "website": getattr(site, "brand_website", "") or "",
+            "phone": getattr(site, "brand_phone", "") or "",
+            "email": getattr(site, "brand_email", "") or "",
+        },
+        "colors": {
+            "header_bg": colors.header_bg or "#000000",
+            "header_text": colors.header_text_color or "#ffffff",
+            "highlight": colors.highlight_color or "#f5f5f5",
+        },
+        "items": items,
+        "subtotal": _bill_money(subtotal),
+        "delivery": _bill_money(delivery),
+        "discount": _bill_money(discount),
+        "total": _bill_money(total),
+    }
+
+
+def safe_order_bill(order, request=None):
+    try:
+        return build_order_bill(order, request)
+    except Exception:
+        return None

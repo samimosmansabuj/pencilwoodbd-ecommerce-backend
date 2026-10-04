@@ -150,6 +150,8 @@ class BlockedIdentityListView(LoginRequiredMixin, View):
             "settings_obj": settings_obj,
             "mode_choices": TrackSettings.ModeChoices.choices,
             "scope_choices": TrackSettings.ScopeChoices.choices,
+            "landing_pages": LandingPageProduct.objects.all().order_by("-id"),
+            "can_manage_otp_control": request.user.user_type in [USER_TYPE.STAFF, USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN],
         }
         return render(request, self.template_name, context)
 
@@ -174,10 +176,71 @@ class BlockedIdentityListView(LoginRequiredMixin, View):
         except (TypeError, ValueError):
             pass
         settings_obj.is_auto_block_enabled = is_enabled
+        if "blocked_message" in request.POST and request.user.user_type in [USER_TYPE.STAFF, USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN]:
+            settings_obj.blocked_message = request.POST.get("blocked_message", "").strip()
         settings_obj.save()
 
         messages.success(request, "Track settings updated successfully.")
         return redirect("blocked_identity_list")
+
+
+class BlockedOrderModeUpdateView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+    ALLOWED_ROLES = (USER_TYPE.STAFF, USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN)
+
+    MODE_TEXT = {
+        "otp": "OTP verification enabled",
+        "deny": "OTP disabled: orders will be cancelled and the blocked message will be shown",
+        "allow": "OTP disabled: orders will be accepted",
+    }
+
+    def post(self, request):
+        from pencilwoodbd.choices import BlockedOrderModeChoices
+
+        if request.user.user_type not in self.ALLOWED_ROLES:
+            return JsonResponse(
+                {"success": False, "message": "You do not have permission to change this setting."},
+                status=403,
+            )
+
+        target = (request.POST.get("target") or "").strip()
+
+        # ---- Blocked message ----
+        if target == "message":
+            text = (request.POST.get("message") or "").strip()
+            if not text:
+                return JsonResponse({"success": False, "message": "The message cannot be empty."}, status=400)
+            settings_obj = TrackSettings.get_solo()
+            settings_obj.blocked_message = text
+            settings_obj.save(update_fields=["blocked_message", "updated_at"])
+            return JsonResponse({"success": True, "message": "Blocked message updated."})
+
+        # ---- OTP mode ----
+        mode = (request.POST.get("mode") or "").strip()
+        if mode not in BlockedOrderModeChoices.values:
+            return JsonResponse({"success": False, "message": "Invalid mode."}, status=400)
+
+        if target == "ecom":
+            settings_obj = TrackSettings.get_solo()
+            settings_obj.ecom_blocked_mode = mode
+            settings_obj.save(update_fields=["ecom_blocked_mode", "updated_at"])
+            label = "E-commerce"
+        elif target.startswith("landing:"):
+            try:
+                landing = LandingPageProduct.objects.get(pk=int(target.split(":", 1)[1]))
+            except (ValueError, LandingPageProduct.DoesNotExist):
+                return JsonResponse({"success": False, "message": "Landing page not found."}, status=404)
+            landing.blocked_mode = mode
+            landing.save(update_fields=["blocked_mode"])
+            label = landing.title or landing.code or f"Landing #{landing.pk}"
+        else:
+            return JsonResponse({"success": False, "message": "Invalid target."}, status=400)
+
+        return JsonResponse({
+            "success": True,
+            "mode": mode,
+            "message": f"{label}: {self.MODE_TEXT.get(mode, mode)}",
+        })
 
 
 class UnblockIdentityView(LoginRequiredMixin, View):
