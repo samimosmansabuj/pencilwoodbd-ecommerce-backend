@@ -79,7 +79,7 @@
                         <span class="badge bg-secondary">{{ platform }}</span>
                         {% endif %}
                         {% else %}
-                        <span class="text-muted">—</span>
+                        <span class="">—</span>
                         {% endif %}
                         {% endwith %}
                     </td>
@@ -217,19 +217,25 @@
                                 data-bs-toggle="modal" data-bs-target="#deleteOrderModal">
                                 <i class="bi bi-trash"></i>
                             </button>
+                            
                             <button type="button" class="btn btn-sm btn-filter" onclick="printInvoice({{ order.id }})"
                                 title="Print Invoice">
                                 <i class="material-icons-outlined">print</i>
                             </button>
+
                             <button type="button" class="btn btn-sm btn-filter" onclick="printBill({{ order.id }})"
                                 title="Print A4 Bill">
                                 <i class="bi bi-file-earmark-text"></i>
                             </button>
+
                             <button type="button" class="btn btn-sm btn-filter" onclick="printToken({{ order.id }})"
                                 title="Print Token">
                                 <i class="bi bi-ticket-perforated"></i>
                             </button>
-
+                            
+                            <button type="button" class="btn btn-sm btn-filter" onclick="shortDetailView({{ order.id }})" title="Short Detail View">
+                                <i class="bi bi-eye"></i>
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -391,5 +397,277 @@
                 printWindow.close();
             };
         };
+
+        // Short Detail View Script--------
+        window.shortDetailView = function (orderId) {
+            const modal = new bootstrap.Modal(
+                document.getElementById('orderShortDetailModal'),
+                { backdrop: true }
+            );
+            document.getElementById('shortDetailBody').innerHTML = `
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" style="width:2.5rem;height:2.5rem;"></div>
+                    <p class="mt-2 small">Loading order details…</p>
+                </div>`;
+            document.getElementById('shortDetailTitle').textContent = 'Order Detail';
+            modal.show();
+
+            fetch(`/orders/${orderId}/short-detail/`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) throw new Error('Server error');
+                renderShortDetail(data.order);
+            })
+            .catch(() => {
+                document.getElementById('shortDetailBody').innerHTML = `
+                    <div class="alert alert-danger m-3">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        Failed to load order details. Please try again.
+                    </div>`;
+            });
+        };
+
+        function copyText(text, btn) {
+            navigator.clipboard.writeText(text).then(() => {
+                const icon = btn.querySelector('i');
+                if (icon) {
+                    icon.className = 'bi bi-check-lg text-success';
+                    setTimeout(() => { icon.className = 'bi bi-copy'; }, 1400);
+                }
+            }).catch(() => {});
+        }
+        window.__sdvCopyText = copyText;
+
+        function escH(str) {
+            return String(str || '')
+                .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        function copyBtn(text) {
+            const safe = escH(text).replace(/'/g, '&#39;');
+            return `<button type="button" class="btn btn-link btn-sm p-0 ms-1 align-middle"
+                        onclick="__sdvCopyText('${safe}', this)"
+                        title="Copy">
+                        <i class="bi bi-copy" style="font-size:.75rem;"></i>
+                    </button>`;
+        }
+
+        function statusBadge(status) {
+            const map = {
+                new:'primary', follow_up:'warning', confirmed:'success',
+                hold:'secondary', token_print:'info', ready_to_ship:'info',
+                parcel_created:'dark', shipped:'primary', delivered:'success',
+                cancelled:'danger', return_processing:'warning',
+                returned:'secondary', refunded:'light'
+            };
+            const cls = map[status] || 'secondary';
+            return `<span class="badge bg-${cls}">${escH(status.replace(/_/g,' ').toUpperCase())}</span>`;
+        }
+
+        function fmtMoney(n) {
+            return '৳\u00a0' + Number(n).toLocaleString('en-BD',
+                { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function renderShortDetail(o) {
+            document.getElementById('shortDetailTitle').innerHTML =
+                `#${escH(o.order_id)} ${copyBtn(o.order_id)} ${statusBadge(o.status)}
+                 ${o.is_urgent ? '<span class="badge bg-danger ms-1">URGENT</span>' : ''}`;
+
+            // ── Items rows ──────────────────────────────────────────────
+            let itemRows = '';
+            (o.items || []).forEach((item, idx) => {
+                const variantTxt = item.variant ? ` <span class="text small">(${escH(item.variant)})</span>` : '';
+                const copyLine = `${item.name}${item.variant ? ' - ' + item.variant : ''} × ${item.qty}`;
+                itemRows += `
+                    <tr>
+                        <td class="text-center">${idx + 1}</td>
+                        <td>
+                            <span class="fw-medium">${escH(item.name)}</span>${variantTxt}
+                            ${item.is_gift ? '<span class="badge bg-warning text-dark ms-1">Gift</span>' : ''}
+                            ${copyBtn(copyLine)}
+                        </td>
+                        <td><code class="small">${escH(item.sku)}</code></td>
+                        <td class="text-center">${item.qty}</td>
+                        <td class="text-end">
+                            ${item.discount_price && item.discount_price < item.unit_price
+                                ? `<span class="text-decoration-line-through small me-1">${fmtMoney(item.unit_price)}</span>
+                                   <span class="fw-medium">${fmtMoney(item.discount_price)}</span>`
+                                : `<span class="fw-medium">${fmtMoney(item.unit_price)}</span>`
+                            }
+                        </td>
+                        <td class="text-end fw-semibold">${fmtMoney(item.item_total)}</td>
+                    </tr>`;
+            });
+
+            // ── Shipment row ────────────────────────────────────────────
+            let shipmentHtml = '';
+            if (o.shipment) {
+                shipmentHtml = `
+                <div class="mt-3">
+                    <h6 class="fw-semibold small text-uppercase mb-2">
+                        <i class="bi bi-truck me-1"></i>Shipment
+                    </h6>
+                    <div class="d-flex flex-wrap gap-3 small">
+                        ${o.shipment.courier ? `<span><strong>Courier:</strong> ${escH(o.shipment.courier)}</span>` : ''}
+                        ${o.shipment.tracking
+                            ? `<span><strong>Tracking:</strong> ${escH(o.shipment.tracking)} ${copyBtn(o.shipment.tracking)}</span>`
+                            : ''}
+                        ${o.shipment.status ? `<span><strong>Status:</strong> ${escH(o.shipment.status)}</span>` : ''}
+                    </div>
+                </div>`;
+            }
+
+            // ── Full address copy string ────────────────────────────────
+            const fullAddress = [o.shipping_address, o.district]
+                .filter(Boolean).join(', ');
+
+            // ── Render ──────────────────────────────────────────────────
+            document.getElementById('shortDetailBody').innerHTML = `
+<div class="px-1">
+
+    <!-- Customer & Address -->
+    <div class="row g-3 mb-3">
+        <div class="col-md-6">
+            <div class="card border-0 bg-light h-100 p-3">
+                <h6 class="fw-semibold small text-uppercase mb-2">
+                    <i class="bi bi-person me-1"></i>Customer
+                </h6>
+                <div class="mb-1">
+                    <strong>${escH(o.customer_name)}</strong>
+                    ${copyBtn(o.customer_name)}
+                </div>
+                ${o.customer_phone ? `<div class="small mb-1">
+                    <i class="bi bi-telephone me-1"></i>${escH(o.customer_phone)}
+                    ${copyBtn(o.customer_phone)}
+                </div>` : ''}
+                ${o.customer_email ? `<div class="small">${escH(o.customer_email)}</div>` : ''}
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 bg-light h-100 p-3">
+                <h6 class="fw-semibold small text-uppercase mb-2">
+                    <i class="bi bi-geo-alt me-1"></i>Delivery Address
+                    ${copyBtn(fullAddress)}
+                </h6>
+                <div class="small">
+                    ${o.shipping_address ? `<div>${escH(o.shipping_address)}</div>` : ''}
+                    ${o.district ? `<div class="">${escH(o.district)}</div>` : ''}
+                    ${o.delivery_type ? `<div class="mt-1"><span class="badge bg-secondary">${escH(o.delivery_type)}</span></div>` : ''}
+                    ${o.delivery_date ? `<div class="mt-1">📅 ${escH(o.delivery_date)}</div>` : ''}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Items -->
+    <h6 class="fw-semibold small text-uppercase mb-2">
+        <i class="bi bi-box-seam me-1"></i>Order Items
+    </h6>
+    <div class="table-responsive mb-3">
+        <table class="table table-sm table-bordered align-middle small mb-0">
+            <thead class="table-dark">
+                <tr>
+                    <th class="text-center" style="width:36px;">#</th>
+                    <th>Product</th>
+                    <th>SKU</th>
+                    <th class="text-center" style="width:50px;">Qty</th>
+                    <th class="text-end">Unit Price</th>
+                    <th class="text-end">Total</th>
+                </tr>
+            </thead>
+            <tbody>${itemRows || '<tr><td colspan="6" class="text-center">No items</td></tr>'}</tbody>
+        </table>
+    </div>
+
+    <!-- Payment Summary -->
+    <div class="row g-3 mb-3">
+        <div class="col-md-6">
+            <div class="card border-0 bg-light p-3 h-100">
+                <h6 class="fw-semibold small text-uppercase mb-2">
+                    <i class="bi bi-credit-card me-1"></i>Payment
+                </h6>
+                <div class="small">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="">Payment Type</span>
+                        <span class="fw-medium">${escH(o.payment_type)}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="">Payment Status</span>
+                        <span>${o.payment_status === 'Paid'
+                            ? '<span class="badge bg-success">Paid</span>'
+                            : o.payment_status === 'Partial'
+                                ? '<span class="badge bg-warning text-dark">Partial</span>'
+                                : '<span class="badge bg-danger">Unpaid</span>'}</span>
+                    </div>
+                    ${o.coupon_code ? `<div class="d-flex justify-content-between mb-1">
+                        <span class="">Coupon</span>
+                        <span><code>${escH(o.coupon_code)}</code> (-${fmtMoney(o.coupon_discount)})</span>
+                    </div>` : ''}
+                    ${o.extra_discount ? `<div class="d-flex justify-content-between mb-1">
+                        <span class="">Extra Discount</span>
+                        <span class="text-danger">-${fmtMoney(o.extra_discount)}</span>
+                    </div>` : ''}
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="">Shipping</span>
+                        <span>${fmtMoney(o.shipping_total)}</span>
+                    </div>
+                    <hr class="my-1">
+                    <div class="d-flex justify-content-between fw-bold">
+                        <span>Total</span>
+                        <span>${fmtMoney(o.total_cost)} ${copyBtn(String(o.total_cost))}</span>
+                    </div>
+                    ${o.advance_amount ? `<div class="d-flex justify-content-between text-success mt-1">
+                        <span>Advance Paid</span><span>${fmtMoney(o.advance_amount)}</span>
+                    </div>` : ''}
+                    ${o.due_amount ? `<div class="d-flex justify-content-between text-danger mt-1 fw-semibold">
+                        <span>Due</span><span>${fmtMoney(o.due_amount)}</span>
+                    </div>` : ''}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 bg-light p-3 h-100">
+                <h6 class="fw-semibold small text-uppercase mb-2">
+                    <i class="bi bi-info-circle me-1"></i>Order Info
+                </h6>
+                <div class="small">
+                    ${o.source ? `<div class="mb-1"><span class="">Source:</span> <span class="badge bg-secondary">${escH(o.source)}</span></div>` : ''}
+                    ${o.work_assign ? `<div class="mb-1"><span class="">Work Assign:</span> ${escH(o.work_assign)}</div>` : ''}
+                    ${o.note ? `<div class="mb-1 p-2 border rounded bg-white" style="color: black;"><span class=" d-block small">Note:</span>${escH(o.note)} ${copyBtn(o.note)}</div>` : ''}
+                    ${o.special_instructions ? `<div class="mb-1 p-2 border rounded bg-white" style="color: black;"><span class="d-block small">Instructions:</span>${escH(o.special_instructions)} ${copyBtn(o.special_instructions)}</div>` : ''}
+                    <div class="mt-2">Created: ${escH(o.created_at)}</div>
+                    ${o.updated_by ? `<div class="">Updated by: ${escH(o.updated_by)} — ${escH(o.updated_at)}</div>` : ''}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    ${shipmentHtml}
+
+</div>`;
+        }
     }
 </script>
+
+
+<!-- ── Short Detail Modal ───────────────────────────────────────── -->
+<div class="modal fade" id="orderShortDetailModal" tabindex="-1"
+     aria-labelledby="shortDetailTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-1">
+                <h5 class="modal-title fw-semibold" id="shortDetailTitle">Order Detail</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2" id="shortDetailBody">
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>

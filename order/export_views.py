@@ -5,7 +5,8 @@ from django.http import JsonResponse
 from datetime import datetime
 
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404
 from django.views import View
 
 from .models import Order
@@ -374,4 +375,87 @@ class OrderProductRequirementView(LoginRequiredMixin, View):
             "items":               result,
             "grand_total_qty":     grand_total_qty,
             "grand_total_amount":  grand_total_amount,
+        })
+
+
+class OrderShortDetailView(LoginRequiredMixin, View):
+    """
+    Returns a lightweight JSON snapshot of a single order for the quick-view modal.
+
+    GET /orders/<id>/short-detail/
+    """
+
+    def get(self, request, pk, *args, **kwargs):
+        order = get_object_or_404(
+            Order.objects.select_related("customer", "coupon", "updated_by", "created_by")
+                         .prefetch_related("order_items__product", "order_items__variant",
+                                           "shipments__courier"),
+            pk=pk,
+        )
+
+        customer = order.customer
+
+        # ── Items ─────────────────────────────────────────────────────────
+        items = []
+        for item in order.order_items.all():
+            items.append({
+                "name":           item.display_name,
+                "sku":            item.sku or "",
+                "variant":        item.variant_label or "",
+                "qty":            item.quantity,
+                "unit_price":     float(item.price or 0),
+                "discount_price": float(item.discount_price or 0),
+                "item_total":     float(item.discount_total_price or item.current_total or 0),
+                "is_gift":        item.is_gift,
+            })
+
+        # ── Shipment ──────────────────────────────────────────────────────
+        shipment = order.shipments.first()
+        shipment_data = None
+        if shipment:
+            shipment_data = {
+                "courier":        shipment.courier.name if shipment.courier else "",
+                "tracking":       shipment.tracking_number or "",
+                "status":         shipment.status or "",
+            }
+
+        # ── Response ──────────────────────────────────────────────────────
+        return JsonResponse({
+            "success": True,
+            "order": {
+                "id":               order.id,
+                "order_id":         order.order_id or "",
+                "status":           order.status,
+                "source":           order.source or "",
+                "is_urgent":        order.is_urgent,
+                "payment_type":     order.payment_type or "",
+                "payment_status":   order.payment_status or "",
+                "delivery_type":    order.delivery_type or "",
+                "delivery_date":    str(order.delivery_date) if order.delivery_date else "",
+                "note":             order.note or "",
+                "special_instructions": order.special_instructions or "",
+                "work_assign":      order.work_assign or "",
+                # totals
+                "total_cost":       float(order.total_cost or 0),
+                "shipping_total":   float(order.shipping_total or 0),
+                "advance_amount":   float(order.advance_amount or 0),
+                "due_amount":       float(order.get_due_amount),
+                "coupon_code":      order.coupon.code if order.coupon else "",
+                "coupon_discount":  float(order.coupon_discount or 0),
+                "extra_discount":   float(order.extra_discount or 0),
+                # customer
+                "customer_name":    customer.name if customer else "",
+                "customer_phone":   customer.phone if customer else "",
+                "customer_email":   (customer.email if hasattr(customer, "email") else "") if customer else "",
+                # address
+                "shipping_address": order.shipping_address or "",
+                "district":         order.district or "",
+                # dates
+                "created_at":       order.created_at.strftime("%d %b %Y, %I:%M %p") if order.created_at else "",
+                "updated_at":       order.updated_at.strftime("%d %b %Y, %I:%M %p") if order.updated_at else "",
+                "updated_by":       order.updated_by.get_full_name() if order.updated_by else "",
+                # items & shipment
+                "items":            items,
+                "shipment":         shipment_data,
+            }
         })
