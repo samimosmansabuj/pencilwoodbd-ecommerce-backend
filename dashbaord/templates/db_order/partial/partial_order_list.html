@@ -194,7 +194,6 @@
          FILTER ROW
     ========================== -->
     <div class="row g-3 align-items-end mb-3">
-
         <!-- Search -->
         <div class="col-auto">
             <div class="position-relative">
@@ -217,9 +216,8 @@
             </div>
         </div>
 
-
         <!-- Product Filter -->
-        <div class="col-auto">
+        <div class="col-2">
             <div class="btn-group position-static">
 
                 <select
@@ -244,7 +242,6 @@
 
             </div>
         </div>
-
 
         <!-- Updated By Filter -->
         <div class="col-auto">
@@ -277,8 +274,15 @@
 
                 {% include 'db_order/modal/order_export_modal.html' %}
 
-                {% include 'db_order/modal/order_form_modal.html' %}
+                {% comment %} {% include 'db_order/modal/order_form_modal.html' %} {% endcomment %}
 
+            </div>
+        </div>
+
+        <!-- Product Requirements -->
+        <div class="col-auto">
+            <div class="d-flex align-items-center gap-2 justify-content-lg-end">
+                {% include 'db_order/modal/order_product_requirement_modal.html' %}
             </div>
         </div>
 

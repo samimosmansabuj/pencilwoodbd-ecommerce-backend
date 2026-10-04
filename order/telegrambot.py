@@ -19,8 +19,9 @@ class TelegramBotService:
         items_lines = []
         for item in order.order_items.all():
             item_total = item.discount_total_price or 0
+            variante = f" ({item.variant})" if item.variant else ""
             items_lines.append(
-                f"• {item.product_name} × {item.quantity} — ৳{item_total:,.0f}"
+                f"• {item.product_name}{variante} × {item.quantity} — ৳{item_total:,.0f}"
             )
         items_text = "\n".join(items_lines) if items_lines else "N/A"
 

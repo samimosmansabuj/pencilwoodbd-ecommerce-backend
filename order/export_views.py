@@ -1,8 +1,12 @@
 import csv
+from collections import defaultdict
+
+from django.http import JsonResponse
 from datetime import datetime
 
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404
 from django.views import View
 
 from .models import Order
@@ -283,3 +287,175 @@ class OrderExportCSVView(LoginRequiredMixin, View):
             writer.writerow(order_cells)
 
         return response
+
+
+class OrderProductRequirementView(LoginRequiredMixin, View):
+    """
+    Returns a JSON list that shows, for the given status/product filters,
+    how many units of each product variant are required across all matching orders.
+
+    Response shape:
+    {
+        "success": true,
+        "filters": { "status": [...], "product": "slug" },
+        "items": [
+            {
+                "product_name": "...",
+                "sku": "...",
+                "variant": "Size: L / Color: Red",
+                "total_quantity": 42,
+                "total_sale_amount": 25200.00
+            },
+            ...
+        ],
+        "grand_total_qty": 120,
+        "grand_total_amount": 75000.00
+    }
+    """
+
+    def get(self, request, *args, **kwargs):
+        status_raw   = request.GET.get("status", "all").strip()
+        product_slug = request.GET.get("product", "").strip()
+
+        from .models import OrderItem
+
+        qs = OrderItem.objects.select_related(
+            "order",
+            "product",
+            "variant",
+        ).filter(
+            order__isnull=False,
+        )
+
+        # Status filter
+        if status_raw and status_raw.lower() != "all":
+            statuses = [s.strip() for s in status_raw.split(",") if s.strip()]
+            if statuses:
+                qs = qs.filter(order__status__in=statuses)
+
+        # Product filter
+        if product_slug:
+            qs = qs.filter(product__slug=product_slug)
+
+        # ── Aggregate ────────────────────────────────────────────────────
+        # Key: (product_name, sku, variant_label)
+        aggregated = defaultdict(lambda: {"total_quantity": 0, "total_sale_amount": 0})
+
+        for item in qs:
+            product_name = item.display_name
+            sku          = item.sku or ""
+            variant_lbl  = item.variant_label or "—"
+
+            key = (product_name, sku, variant_lbl)
+            aggregated[key]["total_quantity"]   += item.quantity
+            aggregated[key]["total_sale_amount"] += float(
+                (item.discount_price or item.price or 0) * item.quantity
+            )
+
+        # Sort by product name then variant
+        result = []
+        for (product_name, sku, variant_lbl), data in sorted(aggregated.items()):
+            result.append({
+                "product_name":      product_name,
+                "sku":               sku,
+                "variant":           variant_lbl,
+                "total_quantity":    data["total_quantity"],
+                "total_sale_amount": round(data["total_sale_amount"], 2),
+            })
+
+        grand_total_qty    = sum(r["total_quantity"]    for r in result)
+        grand_total_amount = round(sum(r["total_sale_amount"] for r in result), 2)
+
+        return JsonResponse({
+            "success": True,
+            "filters": {
+                "status":  status_raw,
+                "product": product_slug,
+            },
+            "items":               result,
+            "grand_total_qty":     grand_total_qty,
+            "grand_total_amount":  grand_total_amount,
+        })
+
+
+class OrderShortDetailView(LoginRequiredMixin, View):
+    """
+    Returns a lightweight JSON snapshot of a single order for the quick-view modal.
+
+    GET /orders/<id>/short-detail/
+    """
+
+    def get(self, request, pk, *args, **kwargs):
+        order = get_object_or_404(
+            Order.objects.select_related("customer", "coupon", "updated_by", "created_by")
+                         .prefetch_related("order_items__product", "order_items__variant",
+                                           "shipments__courier"),
+            pk=pk,
+        )
+
+        customer = order.customer
+
+        # ── Items ─────────────────────────────────────────────────────────
+        items = []
+        for item in order.order_items.all():
+            items.append({
+                "name":           item.display_name,
+                "sku":            item.sku or "",
+                "variant":        item.variant_label or "",
+                "qty":            item.quantity,
+                "unit_price":     float(item.price or 0),
+                "discount_price": float(item.discount_price or 0),
+                "item_total":     float(item.discount_total_price or item.current_total or 0),
+                "is_gift":        item.is_gift,
+            })
+
+        # ── Shipment ──────────────────────────────────────────────────────
+        shipment = order.shipments.first()
+        shipment_data = None
+        if shipment:
+            shipment_data = {
+                "courier":        shipment.courier.name if shipment.courier else "",
+                "tracking":       shipment.tracking_number or "",
+                "status":         shipment.status or "",
+            }
+
+        # ── Response ──────────────────────────────────────────────────────
+        return JsonResponse({
+            "success": True,
+            "order": {
+                "id":               order.id,
+                "order_id":         order.order_id or "",
+                "status":           order.status,
+                "source":           order.source or "",
+                "is_urgent":        order.is_urgent,
+                "payment_type":     order.payment_type or "",
+                "payment_status":   order.payment_status or "",
+                "delivery_type":    order.delivery_type or "",
+                "delivery_date":    str(order.delivery_date) if order.delivery_date else "",
+                "note":             order.note or "",
+                "special_instructions": order.special_instructions or "",
+                "work_assign":      order.work_assign or "",
+                # totals
+                "total_cost":       float(order.total_cost or 0),
+                "shipping_total":   float(order.shipping_total or 0),
+                "advance_amount":   float(order.advance_amount or 0),
+                "due_amount":       float(order.get_due_amount),
+                "coupon_code":      order.coupon.code if order.coupon else "",
+                "coupon_discount":  float(order.coupon_discount or 0),
+                "extra_discount":   float(order.extra_discount or 0),
+                # customer
+                "customer_name":    customer.name if customer else "",
+                "customer_phone":   customer.phone if customer else "",
+                "customer_email":   (customer.email if hasattr(customer, "email") else "") if customer else "",
+                # address
+                "shipping_address": order.shipping_address or "",
+                "district":         order.district or "",
+                # dates
+                "created_at":       order.created_at.strftime("%d %b %Y, %I:%M %p") if order.created_at else "",
+                "updated_at":       order.updated_at.strftime("%d %b %Y, %I:%M %p") if order.updated_at else "",
+                "updated_by":       order.updated_by.get_full_name() if order.updated_by else "",
+                # items & shipment
+                "items":            items,
+                "shipment":         shipment_data,
+            }
+        })

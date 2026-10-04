@@ -1,0 +1,311 @@
+<!-- =============================================================
+     ORDER PRODUCT REQUIREMENT MODAL
+     Trigger button + Bootstrap modal
+     ============================================================= -->
+
+<button
+    type="button"
+    class="btn btn-filter px-4"
+    data-bs-toggle="modal"
+    data-bs-target="#productRequirementModal"
+    id="productRequirementBtn">
+    <i class="bi bi-clipboard-data me-2"></i>
+    Product Requirements
+</button>
+
+
+<div
+    class="modal fade"
+    id="productRequirementModal"
+    tabindex="-1"
+    aria-labelledby="productRequirementModalLabel"
+    aria-hidden="true">
+
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+
+            <!-- Header -->
+            <div class="modal-header border-0 pb-0">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-clipboard-data-fill fs-4 text-primary"></i>
+                    <div>
+                        <h5 class="modal-title fw-semibold mb-0" id="productRequirementModalLabel">
+                            Product Requirements
+                        </h5>
+                        <p class="text-muted small mb-0">
+                            Filter by status &amp; product — see total pieces needed per variant
+                        </p>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <!-- Body -->
+            <div class="modal-body pt-3">
+
+                <!-- Filter Controls -->
+                <div class="row g-3 mb-4 align-items-end">
+
+                    <!-- Status -->
+                    <div class="col-12 col-md-6">
+                        <label class="form-label fw-medium small mb-1">
+                            <i class="bi bi-tags me-1 text-warning"></i>
+                            Order Status
+                        </label>
+
+                        <div class="form-check mb-2">
+                            <input
+                                class="form-check-input"
+                                type="checkbox"
+                                id="reqStatusAll"
+                                checked>
+                            <label class="form-check-label fw-medium" for="reqStatusAll">
+                                All Statuses
+                            </label>
+                        </div>
+
+                        <select
+                            class="form-select form-select-sm"
+                            id="reqStatusSelect"
+                            multiple
+                            size="8"
+                            style="display:none;">
+                            <option value="new">NEW</option>
+                            <option value="follow_up">FOLLOW UP</option>
+                            <option value="confirmed">CONFIRMED</option>
+                            <option value="hold">HOLD</option>
+                            <option value="token_print">TOKEN PRINT</option>
+                            <option value="ready_to_ship">READY TO SHIP</option>
+                            <option value="parcel_created">PARCEL CREATED</option>
+                            <option value="shipped">SHIPPED</option>
+                            <option value="delivered">DELIVERED</option>
+                            <option value="cancelled">CANCELLED</option>
+                            <option value="return_processing">RETURN PROCESSING</option>
+                            <option value="returned">RETURNED</option>
+                            <option value="refunded">REFUNDED</option>
+                        </select>
+
+                        <small id="reqStatusHint" class="text-muted d-none">
+                            Hold <kbd>Ctrl</kbd> / <kbd>Cmd</kbd> to select multiple
+                        </small>
+                    </div>
+
+                    <!-- Product -->
+                    <div class="col-12 col-md-4">
+                        <label class="form-label fw-medium small mb-1" for="reqProductSlug">
+                            <i class="bi bi-box-seam me-1 text-info"></i>
+                            Product
+                            <span class="text-muted">(optional)</span>
+                        </label>
+                        <select
+                            class="form-select form-select-sm"
+                            id="reqProductSlug">
+                            <option value="">— All Products —</option>
+                            {% for product in products %}
+                                <option value="{{ product.slug }}">{{ product.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Generate -->
+                    <div class="col-auto">
+                        <button
+                            type="button"
+                            class="btn btn-primary btn-sm px-4 fw-medium"
+                            id="reqGenerateBtn"
+                            onclick="generateProductRequirement()">
+                            <i class="bi bi-search me-1"></i>
+                            Generate
+                        </button>
+                    </div>
+
+                </div>
+                <!-- /Filter Controls -->
+
+                <!-- Results -->
+                <div id="reqResultArea">
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-clipboard2-data fs-1 opacity-25"></i>
+                        <p class="mt-2 small">
+                            Select filters and click <strong>Generate</strong> to see results.
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+            <!-- /Body -->
+
+            <!-- Footer -->
+            <div class="modal-footer border-0 pt-0 justify-content-between">
+                <div id="reqSummaryFooter" class="text-muted small"></div>
+                <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">
+                    Close
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+
+<script>
+(function () {
+
+    var allChk   = document.getElementById('reqStatusAll');
+    var multiSel = document.getElementById('reqStatusSelect');
+    var hint     = document.getElementById('reqStatusHint');
+
+    if (allChk) {
+        allChk.addEventListener('change', function () {
+            if (this.checked) {
+                multiSel.style.display = 'none';
+                hint.classList.add('d-none');
+            } else {
+                multiSel.style.display = 'block';
+                hint.classList.remove('d-none');
+            }
+        });
+    }
+
+    function getStatusValue() {
+        if (allChk && allChk.checked) return 'all';
+        var selected = Array.from(multiSel.selectedOptions).map(function(o){ return o.value; });
+        return selected.length ? selected.join(',') : 'all';
+    }
+
+    window.generateProductRequirement = function () {
+        var statusVal   = getStatusValue();
+        var productVal  = document.getElementById('reqProductSlug').value.trim();
+        var btn         = document.getElementById('reqGenerateBtn');
+        var resultArea  = document.getElementById('reqResultArea');
+        var footerEl    = document.getElementById('reqSummaryFooter');
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Loading\u2026';
+        resultArea.innerHTML = [
+            '<div class="text-center py-5">',
+            '  <div class="spinner-border text-primary" style="width:2rem;height:2rem;"></div>',
+            '  <p class="mt-2 small text-muted">Fetching data\u2026</p>',
+            '</div>'
+        ].join('');
+        footerEl.textContent = '';
+
+        var params = new URLSearchParams({ status: statusVal });
+        if (productVal) params.append('product', productVal);
+
+        var apiUrl = '{% url "order_product_requirement" %}?' + params.toString();
+
+        fetch(apiUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-search me-1"></i> Generate';
+
+            if (!data.success || !data.items.length) {
+                resultArea.innerHTML = [
+                    '<div class="text-center text-muted py-5">',
+                    '  <i class="bi bi-inbox fs-1 opacity-25"></i>',
+                    '  <p class="mt-2 small">No product items found for the selected filters.</p>',
+                    '</div>'
+                ].join('');
+                footerEl.textContent = '';
+                return;
+            }
+
+            /* Status badges */
+            var statusLabel = data.filters.status === 'all'
+                ? '<span class="badge bg-secondary">All Statuses</span>'
+                : data.filters.status.split(',').map(function(s){
+                    return '<span class="badge bg-primary me-1">'
+                        + escHtml(s.replace(/_/g,' ').toUpperCase())
+                        + '</span>';
+                  }).join('');
+
+            /* Table rows */
+            var rows = '';
+            data.items.forEach(function(item, idx){
+                rows += [
+                    '<tr>',
+                    '  <td class="text-center text-muted">' + (idx + 1) + '</td>',
+                    '  <td class="fw-medium">' + escHtml(item.product_name) + '</td>',
+                    '  <td><code class="small">' + escHtml(item.sku) + '</code></td>',
+                    '  <td>' + escHtml(item.variant) + '</td>',
+                    '  <td class="text-center">',
+                    '    <span class="badge bg-primary fs-6 px-3">' + item.total_quantity + '</span>',
+                    '  </td>',
+                    '  <td class="text-end fw-medium">\u09f3 ' + numFmt(item.total_sale_amount) + '</td>',
+                    '</tr>'
+                ].join('');
+            });
+
+            /* Product filter badge */
+            var prodBadge = data.filters.product
+                ? '<span class="badge bg-info text-dark">' + escHtml(data.filters.product) + '</span>'
+                : '';
+
+            resultArea.innerHTML = [
+                '<div class="mb-3 d-flex flex-wrap gap-2 align-items-center">',
+                '  <span class="small text-muted me-1">Filters:</span>',
+                '  ' + statusLabel,
+                '  ' + prodBadge,
+                '</div>',
+                '<div class="table-responsive">',
+                '  <table class="table table-hover table-bordered align-middle small mb-0">',
+                '    <thead class="table-dark">',
+                '      <tr>',
+                '        <th class="text-center" style="width:50px;">#</th>',
+                '        <th>Product Name</th>',
+                '        <th>SKU</th>',
+                '        <th>Variant</th>',
+                '        <th class="text-center" style="width:130px;">Total Qty Needed</th>',
+                '        <th class="text-end" style="width:140px;">Sale Amount</th>',
+                '      </tr>',
+                '    </thead>',
+                '    <tbody>' + rows + '</tbody>',
+                '    <tfoot class="table-light fw-bold">',
+                '      <tr>',
+                '        <td colspan="4" class="text-end">Grand Total</td>',
+                '        <td class="text-center">',
+                '          <span class="badge bg-success fs-6 px-3">' + data.grand_total_qty + '</span>',
+                '        </td>',
+                '        <td class="text-end">\u09f3 ' + numFmt(data.grand_total_amount) + '</td>',
+                '      </tr>',
+                '    </tfoot>',
+                '  </table>',
+                '</div>'
+            ].join('');
+
+            footerEl.innerHTML = [
+                '<i class="bi bi-check-circle text-success me-1"></i>',
+                '<strong>' + data.items.length + '</strong> variant(s) &bull;',
+                '<strong>' + data.grand_total_qty + '</strong> total pieces &bull;',
+                'Sale: <strong>\u09f3 ' + numFmt(data.grand_total_amount) + '</strong>'
+            ].join(' ');
+        })
+        .catch(function(){
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-search me-1"></i> Generate';
+            resultArea.innerHTML = [
+                '<div class="alert alert-danger">',
+                '  <i class="bi bi-exclamation-triangle me-1"></i>',
+                '  Something went wrong. Please try again.',
+                '</div>'
+            ].join('');
+        });
+    };
+
+    function escHtml(str) {
+        return String(str || '')
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+            .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function numFmt(n) {
+        return Number(n).toLocaleString('en-BD', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+
+})();
+</script>
