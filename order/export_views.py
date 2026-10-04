@@ -1,4 +1,7 @@
 import csv
+from collections import defaultdict
+
+from django.http import JsonResponse
 from datetime import datetime
 
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -283,3 +286,92 @@ class OrderExportCSVView(LoginRequiredMixin, View):
             writer.writerow(order_cells)
 
         return response
+
+
+class OrderProductRequirementView(LoginRequiredMixin, View):
+    """
+    Returns a JSON list that shows, for the given status/product filters,
+    how many units of each product variant are required across all matching orders.
+
+    Response shape:
+    {
+        "success": true,
+        "filters": { "status": [...], "product": "slug" },
+        "items": [
+            {
+                "product_name": "...",
+                "sku": "...",
+                "variant": "Size: L / Color: Red",
+                "total_quantity": 42,
+                "total_sale_amount": 25200.00
+            },
+            ...
+        ],
+        "grand_total_qty": 120,
+        "grand_total_amount": 75000.00
+    }
+    """
+
+    def get(self, request, *args, **kwargs):
+        status_raw   = request.GET.get("status", "all").strip()
+        product_slug = request.GET.get("product", "").strip()
+
+        from .models import OrderItem
+
+        qs = OrderItem.objects.select_related(
+            "order",
+            "product",
+            "variant",
+        ).filter(
+            order__isnull=False,
+        )
+
+        # Status filter
+        if status_raw and status_raw.lower() != "all":
+            statuses = [s.strip() for s in status_raw.split(",") if s.strip()]
+            if statuses:
+                qs = qs.filter(order__status__in=statuses)
+
+        # Product filter
+        if product_slug:
+            qs = qs.filter(product__slug=product_slug)
+
+        # ── Aggregate ────────────────────────────────────────────────────
+        # Key: (product_name, sku, variant_label)
+        aggregated = defaultdict(lambda: {"total_quantity": 0, "total_sale_amount": 0})
+
+        for item in qs:
+            product_name = item.display_name
+            sku          = item.sku or ""
+            variant_lbl  = item.variant_label or "—"
+
+            key = (product_name, sku, variant_lbl)
+            aggregated[key]["total_quantity"]   += item.quantity
+            aggregated[key]["total_sale_amount"] += float(
+                (item.discount_price or item.price or 0) * item.quantity
+            )
+
+        # Sort by product name then variant
+        result = []
+        for (product_name, sku, variant_lbl), data in sorted(aggregated.items()):
+            result.append({
+                "product_name":      product_name,
+                "sku":               sku,
+                "variant":           variant_lbl,
+                "total_quantity":    data["total_quantity"],
+                "total_sale_amount": round(data["total_sale_amount"], 2),
+            })
+
+        grand_total_qty    = sum(r["total_quantity"]    for r in result)
+        grand_total_amount = round(sum(r["total_sale_amount"] for r in result), 2)
+
+        return JsonResponse({
+            "success": True,
+            "filters": {
+                "status":  status_raw,
+                "product": product_slug,
+            },
+            "items":               result,
+            "grand_total_qty":     grand_total_qty,
+            "grand_total_amount":  grand_total_amount,
+        })
