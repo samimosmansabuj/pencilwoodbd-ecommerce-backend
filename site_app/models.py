@@ -399,6 +399,7 @@ class DeliveryOption(models.Model):
     extra_username = models.CharField(max_length=255, blank=True, null=True)
     extra_password = models.CharField(max_length=255, blank=True, null=True)
     is_active = models.BooleanField(default=True)
+    store_id = models.CharField(max_length=255, blank=True, null=True)
     
     def __str__(self):
         if self.type:

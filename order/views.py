@@ -1608,6 +1608,40 @@ class OrderDeliveryOptionSubmitView(LoginRequiredMixin, View):
         #     },
         # }
     
+    def pathao_response(self, logistics_partner, order):
+        order_items = order.order_items.select_related(
+            "product"
+        ).all()
+        item_description = ", ".join(
+            f"{item.product.name} - {item.variant_label if item.variant else 'No Variant'} (Qty: {item.quantity})"
+            for item in order_items
+        )
+                
+        def normalize_bd_phone(phone):
+            phone = str(phone).strip().replace(" ", "").replace("-", "")
+            if phone.startswith("+880"):
+                phone = "0" + phone[4:]
+            elif phone.startswith("880"):
+                phone = "0" + phone[3:]
+            return phone
+        
+        order_data = {
+            "store_id": logistics_partner.store_id,
+            "merchant_order_id": order.order_id,
+            "recipient_name": order.customer.name,
+            "recipient_phone": normalize_bd_phone(order.customer.phone),
+            "recipient_address": order.shipping_address,
+            "delivery_type": 48,
+            "item_type": 2,
+            "special_instruction": order.note,
+            "item_quantity": order.order_items.count(),
+            "item_weight": "0.5",
+            "item_description": item_description,
+            "amount_to_collect": int(order.total_cost)
+        }
+        pathao = PathaoParcelAPI(logistics_partner.id)
+        return pathao.create_order(order_data)
+    
     def get_logistics_partners(self, data):
         logistics_partner_id = data.get("logistics_partner")
         return DeliveryOption.objects.get(id=logistics_partner_id)
@@ -1640,16 +1674,30 @@ class OrderDeliveryOptionSubmitView(LoginRequiredMixin, View):
                 data = json.loads(request.body)
                 logistics_partner = self.get_logistics_partners(data)
                 order = self.get_order(kwargs.get("pk"))
-                steadfast_response = self.steadfast_response(logistics_partner, order)
-                if steadfast_response.get("status") == 200:
-                    order_shipped_data = order.shipments.create(
-                        courier=logistics_partner,
-                        tracking_number=steadfast_response["consignment"]["consignment_id"],
-                        status=steadfast_response["consignment"]["status"],
-                    )
-                    return self.return_response(True, steadfast_response.get("message"), data=order_shipped_data, status=HTTPStatus.OK)
-                else:
-                    return self.return_response(False, steadfast_response.get("message"), status=HTTPStatus.BAD_REQUEST)
+
+                if logistics_partner.name == "Pathao":
+                    pathao_response = self.pathao_response(logistics_partner, order)
+                    if pathao_response.get("code") == 200 and pathao_response.get("type") == "success":
+                        response_data = pathao_response.get("data", {})
+                        order_shipped_data = order.shipments.create(
+                            courier=logistics_partner,
+                            tracking_number=response_data.get("consignment_id"),
+                            status=response_data.get("order_status", "pending")
+                        )
+                        return self.return_response(True, pathao_response.get("message"), data=order_shipped_data, status=HTTPStatus.OK)
+                    else:
+                        return self.return_response(False, pathao_response.get("message"), status=HTTPStatus.BAD_REQUEST)
+                elif logistics_partner.name == "SteadFast":
+                    steadfast_response = self.steadfast_response(logistics_partner, order)
+                    if steadfast_response.get("status") == 200:
+                        order_shipped_data = order.shipments.create(
+                            courier=logistics_partner,
+                            tracking_number=steadfast_response["consignment"]["consignment_id"],
+                            status=steadfast_response["consignment"]["status"],
+                        )
+                        return self.return_response(True, steadfast_response.get("message"), data=order_shipped_data, status=HTTPStatus.OK)
+                    else:
+                        return self.return_response(False, steadfast_response.get("message"), status=HTTPStatus.BAD_REQUEST)
         except Exception as e:
             return self.return_response(False, f"{str(e)}", status=HTTPStatus.BAD_REQUEST)
 
