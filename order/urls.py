@@ -28,7 +28,6 @@ from .views import (
 )
 
 urlpatterns = [
-    
     path('api/checkout/summary/', CheckoutSummaryAPIView.as_view(), name="checkout_summary"),
     path('api/addresses/', CustomerAddressListAPIView.as_view(), name="customer_addresses"),
     path('api/addresses/<int:address_id>/', CustomerAddressDetailAPIView.as_view(), name="customer_address_detail"),

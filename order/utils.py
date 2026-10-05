@@ -197,7 +197,11 @@ class PathaoParcelAPI:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
         }
-        response = requests.post(url, headers=headers, json=order_data)
+        response = requests.post(url, headers=headers, json=order_data, timeout=30)
+        if not response.ok:
+            print("Pathao Status:", response.status_code)
+            print("Pathao Response:", response.text)
+            print("Pathao Payload:", order_data)
         response.raise_for_status()
         return response.json()
     
