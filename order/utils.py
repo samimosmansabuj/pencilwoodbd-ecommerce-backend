@@ -202,7 +202,7 @@ class PathaoParcelAPI:
             order_data,
             ensure_ascii=False
         ).encode("utf-8")
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        response = requests.post(url, headers=headers, data=payload, timeout=30)
         if not response.ok:
             print("Pathao Status:", response.status_code)
             print("Pathao Response:", response.text)
