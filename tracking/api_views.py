@@ -7,7 +7,13 @@ from rest_framework.permissions import AllowAny
 
 from .models import VisitorProfile, ActivityEvent
 from .serializers import TrackBatchSerializer
-from product.models import Product
+from product.models import Product, ProductVariant
+
+
+def variant_label_for(variant):
+    attrs = variant.attributes or {}
+    label = ", ".join(f"{k}: {v}" for k, v in sorted(attrs.items()))
+    return (label or variant.sku or f"Variant #{variant.pk}")[:255]
 
 
 def get_client_ip(request):
@@ -55,23 +61,45 @@ class TrackEventAPIView(APIView):
         visitor.save()
 
         events_payload = data["events"]
-        product_ids = {ev["product_id"] for ev in events_payload if ev.get("product_id")}
+
+        def _variant_id(ev):
+            vid = ev.get("variant_id")
+            if vid is None:
+                vid = (ev.get("meta") or {}).get("variant_id")
+            try:
+                return int(vid) if vid is not None else None
+            except (TypeError, ValueError):
+                return None
+
+        variant_ids = {_variant_id(ev) for ev in events_payload} - {None}
+        variants_by_id = ProductVariant.objects.in_bulk(variant_ids) if variant_ids else {}
+
+        def _product_id(ev):
+            pid = ev.get("product_id")
+            if pid:
+                return pid
+            variant = variants_by_id.get(_variant_id(ev))
+            return variant.product_id if variant else None
+
+        product_ids = {_product_id(ev) for ev in events_payload} - {None}
         products_by_id = Product.objects.in_bulk(product_ids) if product_ids else {}
 
-        events_to_create = [
-            ActivityEvent(
+        events_to_create = []
+        for ev in events_payload:
+            variant = variants_by_id.get(_variant_id(ev))
+            events_to_create.append(ActivityEvent(
                 visitor=visitor,
                 customer=customer,
                 event_type=ev.get("event_type"),
                 page_url=(ev.get("page_url") or "")[:500],
                 page_title=(ev.get("page_title") or "")[:255],
                 referrer=ev.get("referrer"),
-                product=products_by_id.get(ev.get("product_id")),
+                product=products_by_id.get(_product_id(ev)),
+                variant=variant,
+                variant_label=variant_label_for(variant) if variant else None,
                 meta=ev.get("meta") or {},
                 ip_address=ip,
-            )
-            for ev in events_payload
-        ]
+            ))
         ActivityEvent.objects.bulk_create(events_to_create)
 
         page_view_count = sum(1 for ev in events_payload if ev.get("event_type") == "page_view")

@@ -8,6 +8,7 @@ class EventInputSerializer(serializers.Serializer):
     page_title = serializers.CharField(max_length=255, required=False, allow_blank=True)
     referrer = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
     product_id = serializers.IntegerField(required=False, allow_null=True)
+    variant_id = serializers.IntegerField(required=False, allow_null=True)
     meta = serializers.DictField(required=False)
     occurred_at = serializers.CharField(required=False, allow_blank=True)
 

@@ -6,6 +6,7 @@ class EVENT_TYPE(models.TextChoices):
     PAGE_VIEW = "page_view", "Page View"
     PRODUCT_VIEW = "product_view", "Product View"
     CATEGORY_VIEW = "category_view", "Category View"
+    VARIANT_VIEW = "variant_view", "Variant View"
     SEARCH = "search", "Search"
     ADD_TO_CART = "add_to_cart", "Add To Cart"
     REMOVE_FROM_CART = "remove_from_cart", "Remove From Cart"
@@ -74,6 +75,12 @@ class ActivityEvent(models.Model):
         on_delete=models.SET_NULL, related_name="activity_events"
     )
 
+    variant = models.ForeignKey(
+        "product.ProductVariant", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="activity_events"
+    )
+    variant_label = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+
     meta = models.JSONField(blank=True, null=True, default=dict)
 
     ip_address = models.GenericIPAddressField(null=True, blank=True)
@@ -85,9 +92,17 @@ class ActivityEvent(models.Model):
             models.Index(fields=["customer", "-created_at"]),
             models.Index(fields=["visitor", "-created_at"]),
             models.Index(fields=["event_type", "-created_at"]),
+            models.Index(fields=["product", "-created_at"]),
         ]
         verbose_name = "Activity Event"
         verbose_name_plural = "Activity Events"
 
     def __str__(self):
         return f"{self.event_type} | visitor#{self.visitor_id} | {self.created_at:%Y-%m-%d %H:%M}"
+
+    @property
+    def display_meta(self):
+        if not isinstance(self.meta, dict):
+            return None
+        data = {k: v for k, v in self.meta.items() if k not in ("product_id", "variant_id") and v not in (None, "")}
+        return data or None
