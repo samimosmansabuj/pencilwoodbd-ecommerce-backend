@@ -198,11 +198,11 @@ class PathaoParcelAPI:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
         }
-        # payload = json.dumps(
-        #     order_data,
-        #     ensure_ascii=False
-        # ).encode("utf-8")
-        response = requests.post(url, headers=headers, json=order_data, timeout=30)
+        payload = json.dumps(
+            order_data,
+            ensure_ascii=False
+        ).encode("utf-8")
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
         if not response.ok:
             print("Pathao Status:", response.status_code)
             print("Pathao Response:", response.text)
