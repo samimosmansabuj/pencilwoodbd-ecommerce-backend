@@ -6,6 +6,7 @@ from .api_views import (
     ResetPasswordAPIView,      
     UserProfileAPIView,
     LogoutAPIView,
+    GoogleLoginAPIView,
 )
 from .views import *
 
@@ -14,6 +15,7 @@ urlpatterns = [
     path('api/auth/set-password/', SetPasswordAPIView.as_view(), name='auth_set_password'),
     path('api/auth/phone-login/', PhoneLoginAPIView.as_view(), name='auth_phone_login'),
     path('api/auth/reset-password/', ResetPasswordAPIView.as_view(), name='auth_reset_password'),
+    path('api/auth/google-login/', GoogleLoginAPIView.as_view(), name='auth_google_login'),
     
     path('api/auth/profile/', UserProfileAPIView.as_view(), name='user_profile'),
     path('api/auth/logout/', LogoutAPIView.as_view(), name='auth_logout'),

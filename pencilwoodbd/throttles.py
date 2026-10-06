@@ -19,3 +19,10 @@ class OTPSendRateThrottle(PhoneOrIPRateThrottle):
 
 class OTPVerifyRateThrottle(PhoneOrIPRateThrottle):
     scope = "otp_verify"
+
+
+class GoogleAuthRateThrottle(SimpleRateThrottle):
+    scope = "google_auth"
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}

@@ -12,6 +12,9 @@ DEBUG = os.getenv('DEBUG', 'False').strip().lower() in ('true', '1', 'yes')
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
 BACKEND_SITE_URL = os.getenv("BACKEND_SITE_URL", "https://api.pencilwoodbd.org").rstrip("/")
+
+# Google Sign-In (OAuth 2.0 Web client ID from Google Cloud Console). Used to verify ID tokens.
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
 CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
 TRUST_X_FORWARDED_FOR = os.getenv("TRUST_X_FORWARDED_FOR", "False").strip().lower() in ("true", "1", "yes")
 
@@ -71,6 +74,7 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'otp_send': '5/hour',
         'otp_verify': '10/hour',
+        'google_auth': '120/hour',
     },
 }
 

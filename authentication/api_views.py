@@ -1,4 +1,6 @@
 import traceback
+import uuid
+from django.conf import settings
 from django.db import transaction, IntegrityError
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -8,7 +10,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .models import CustomUser, Customer, Role
 from .utils import normalize_bd_phone, phone_lookup_variants
 from pencilwoodbd.extra_module import safe_error_message
-from pencilwoodbd.throttles import OTPVerifyRateThrottle
+from pencilwoodbd.throttles import OTPVerifyRateThrottle, GoogleAuthRateThrottle
 
 class PhoneCheckAPIView(APIView):
     permission_classes = [AllowAny]
@@ -234,6 +236,120 @@ class ResetPasswordAPIView(APIView):
                 "refresh": str(refresh)
             })
 
+        except Exception as e:
+            traceback.print_exc()
+            return Response({"status": False, "message": safe_error_message(e)}, status=500)
+
+# GOOGLE LOGIN
+def _unique_username(base):
+    base = (base or "user")[:140]
+    username = base
+    while CustomUser.objects.filter(username=username).exists():
+        username = f"{base}-{uuid.uuid4().hex[:6]}"
+    return username
+
+
+class GoogleLoginAPIView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [GoogleAuthRateThrottle]
+
+    def post(self, request):
+        credential = (request.data.get("credential") or "").strip()
+        if not credential:
+            return Response({"status": False, "message": "Google credential required"}, status=400)
+
+        client_id = getattr(settings, "GOOGLE_CLIENT_ID", "")
+        if not client_id:
+            return Response({"status": False, "message": "Google login is not configured"}, status=503)
+
+        try:
+            from google.oauth2 import id_token as google_id_token
+            from google.auth.transport import requests as google_requests
+
+            info = google_id_token.verify_oauth2_token(
+                credential,
+                google_requests.Request(),
+                client_id,
+                clock_skew_in_seconds=10,
+            )
+        except ValueError:
+            return Response({"status": False, "message": "Invalid or expired Google login. Please try again."}, status=401)
+        except Exception:
+            traceback.print_exc()
+            return Response({"status": False, "message": "Could not verify Google login. Please try again."}, status=503)
+
+        sub = str(info.get("sub") or "")
+        email = (info.get("email") or "").strip().lower()
+        if not sub or not email:
+            return Response({"status": False, "message": "Google account has no email"}, status=400)
+        if not info.get("email_verified"):
+            return Response({"status": False, "message": "Your Google email is not verified"}, status=400)
+
+        full_name = (info.get("name") or "").strip() or email.split("@")[0]
+
+        try:
+            with transaction.atomic():
+                created = False
+                user = CustomUser.objects.filter(google_id=sub).first()
+
+                if not user:
+                    user = CustomUser.objects.filter(email__iexact=email).first()
+                    if user:
+                        if user.user_type != "customer":
+                            return Response(
+                                {"status": False, "message": "This account cannot log in with Google."},
+                                status=403,
+                            )
+                        user.google_id = sub
+                        user.save(update_fields=["google_id"])
+                    else:
+                        user = CustomUser(
+                            username=_unique_username(email),
+                            email=email,
+                            first_name=(info.get("given_name") or "")[:150],
+                            last_name=(info.get("family_name") or "")[:150],
+                            user_type="customer",
+                            google_id=sub,
+                        )
+                        user.set_unusable_password()
+                        user.save()
+                        created = True
+
+                if not user.is_active:
+                    return Response({"status": False, "message": "This account is disabled."}, status=403)
+                if user.user_type != "customer":
+                    return Response(
+                        {"status": False, "message": "This account cannot log in with Google."},
+                        status=403,
+                    )
+
+                customer = getattr(user, "customer_profile", None)
+                if not customer:
+                    customer = Customer.objects.create(
+                        user=user,
+                        name=full_name[:50],
+                        email=email,
+                    )
+                elif not customer.email:
+                    customer.email = email
+                    customer.save(update_fields=["email"])
+
+                refresh = RefreshToken.for_user(user)
+
+            return Response({
+                "status": True,
+                "is_new_user": created,
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+            }, status=201 if created else 200)
+
+        except IntegrityError:
+            traceback.print_exc()
+            return Response(
+                {"status": False, "message": "Something went wrong, please try again."},
+                status=409,
+            )
         except Exception as e:
             traceback.print_exc()
             return Response({"status": False, "message": safe_error_message(e)}, status=500)
