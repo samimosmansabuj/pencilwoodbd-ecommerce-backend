@@ -12,8 +12,9 @@ class VisitorProfileAdmin(admin.ModelAdmin):
 
 @admin.register(ActivityEvent)
 class ActivityEventAdmin(admin.ModelAdmin):
-    list_display = ("event_type", "customer", "visitor", "page_url", "product", "created_at")
+    list_display = ("event_type", "customer", "visitor", "page_url", "product", "variant_label", "created_at")
     list_filter = ("event_type", "created_at")
-    search_fields = ("customer__name", "page_url", "visitor__visitor_id")
+    search_fields = ("customer__name", "page_url", "visitor__visitor_id", "product__name", "product__slug", "variant_label")
     autocomplete_fields = ("customer", "product", "visitor")
+    raw_id_fields = ("variant",)
     date_hierarchy = "created_at"

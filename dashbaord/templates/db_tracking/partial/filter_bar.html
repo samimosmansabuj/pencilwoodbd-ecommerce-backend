@@ -1,0 +1,61 @@
+{# Shared filter bar (ekta compact line). Context: filters, products, variants, event_types, page_url, target_id, show_visitor_extras, guest_only, source #}
+<form id="tracking-filter-form" class="card mb-3"
+      hx-get="{{ page_url }}"
+      hx-trigger="input delay:450ms, change, submit"
+      hx-target="#{{ target_id }}"
+      hx-swap="innerHTML"
+      hx-push-url="true"
+      hx-sync="this:replace"
+      onsubmit="return false;">
+    <div class="card-body py-3">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+
+            <div class="position-relative flex-grow-1" style="min-width:240px;max-width:360px;">
+                <input class="form-control px-5" type="search" id="flt-q" name="q" value="{{ filters.q }}"
+                       placeholder="Search customer, phone, IP, keyword..." autocomplete="off">
+                <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">search</span>
+            </div>
+
+            <select name="product" class="form-select btn-filter" style="width:auto;max-width:240px;" title="Product">
+                <option value="">All Products</option>
+                {% for p in products %}
+                    <option value="{{ p.id }}" {% if filters.product == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name|truncatechars:40 }}{% if p.slug %} ({{ p.slug|truncatechars:25 }}){% endif %}</option>
+                {% endfor %}
+            </select>
+
+            {% if variants %}
+            <select name="variant" class="form-select btn-filter" style="width:auto;max-width:220px;" title="Variant">
+                <option value="">All Variants</option>
+                {% for v in variants %}
+                    <option value="{{ v.id }}" {% if filters.variant == v.id|stringformat:"s" %}selected{% endif %}>{{ v.label }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+
+            <select name="event_type" class="form-select btn-filter" style="width:auto;" title="Event type">
+                <option value="">All Events</option>
+                {% for value, label in event_types %}
+                    <option value="{{ value }}" {% if filters.event_type == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+
+            <div class="input-group" style="width:auto;">
+                <span class="input-group-text">From</span>
+                <input type="date" name="start_date" class="form-control" value="{{ filters.start_date }}">
+                <span class="input-group-text">To</span>
+                <input type="date" name="end_date" class="form-control" value="{{ filters.end_date }}">
+            </div>
+
+            {% if show_visitor_extras %}
+            <input class="form-control" style="width:140px;" type="search" id="flt-source" name="source" value="{{ source }}"
+                   placeholder="Source (UTM)" autocomplete="off">
+            <div class="form-check mb-0 ms-1">
+                <input class="form-check-input" type="checkbox" id="guestOnly" name="guest_only" value="1" {% if guest_only %}checked{% endif %}>
+                <label class="form-check-label text-nowrap" for="guestOnly">Guests only</label>
+            </div>
+            {% endif %}
+
+            <a href="{{ page_url }}" class="btn btn-outline-secondary ms-auto text-nowrap">Clear</a>
+        </div>
+    </div>
+</form>

@@ -7,6 +7,7 @@ from django.db.models import Q
 class CustomUser(AbstractUser):
     email = models.EmailField(unique=True, blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
+    google_id = models.CharField(max_length=64, unique=True, blank=True, null=True)
     user_type = models.CharField(max_length=20, choices=USER_TYPE.choices, default=USER_TYPE.CUSTOMER)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

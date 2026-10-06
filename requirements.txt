@@ -12,6 +12,7 @@ django-json-widget==2.1.1
 django-material-admin==1.8.6
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
+google-auth==2.59.1
 idna==3.11
 pillow==12.1.0
 PyJWT==2.11.0

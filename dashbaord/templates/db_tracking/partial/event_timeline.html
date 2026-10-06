@@ -1,0 +1,78 @@
+{# Shared event timeline + pagination. Context: events, page_url, qs, target_id, empty_text #}
+<div class="text-secondary small mb-2">{{ events.paginator.count }} event{{ events.paginator.count|pluralize }} found</div>
+
+<div class="card">
+    <div class="card-body">
+        <ul class="timeline-basic list-unstyled mb-0">
+            {% for event in events %}
+            <li class="d-flex gap-3 py-2 border-bottom">
+                <div>
+                    <span class="badge
+                        {% if event.event_type == 'product_view' %}bg-light-info text-info
+                        {% elif event.event_type == 'variant_view' %}bg-light-info text-info
+                        {% elif event.event_type == 'add_to_cart' %}bg-light-success text-success
+                        {% elif event.event_type == 'order_placed' %}bg-light-primary text-primary
+                        {% elif event.event_type == 'search' %}bg-light-warning text-warning
+                        {% else %}bg-light-secondary text-secondary{% endif %}">
+                        {{ event.get_event_type_display }}
+                    </span>
+                </div>
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            {% if event.product %}
+                                <strong>{{ event.product.name }}</strong>
+                                <span class="text-secondary small">/{{ event.product.slug }}</span>
+                                {% if event.variant_label %}
+                                    <span class="badge bg-light-warning text-warning ms-1">{{ event.variant_label }}</span>
+                                {% endif %}
+                            {% elif event.event_type == 'search' and event.meta.query %}
+                                <strong>Searched: "{{ event.meta.query }}"</strong>
+                            {% elif event.page_title %}
+                                <strong>{{ event.page_title }}</strong>
+                            {% endif %}
+                            <div class="text-secondary small">{{ event.page_url|default:"—" }}</div>
+                            {% if event.display_meta %}
+                                <div class="text-secondary small">{{ event.display_meta }}</div>
+                            {% endif %}
+                            {% if show_customer_badge and not event.customer and visitor.customer %}
+                                <span class="badge bg-light-secondary text-secondary">browsed as guest (not logged in at this moment)</span>
+                            {% endif %}
+                        </div>
+                        <div class="text-secondary small text-nowrap ms-3">{{ event.created_at|date:"M d, Y H:i:s" }}</div>
+                    </div>
+                </div>
+            </li>
+            {% empty %}
+            <li class="text-center py-4 text-secondary">{{ empty_text|default:"No activity found." }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
+{% if events.paginator.num_pages > 1 %}
+<nav class="mt-3">
+    <ul class="pagination justify-content-center">
+        <li class="page-item {% if not events.has_previous %}disabled{% endif %}">
+            {% if events.has_previous %}
+            <a class="page-link" hx-get="{{ page_url }}?{{ qs }}&page={{ events.previous_page_number }}"
+               hx-target="#{{ target_id }}" hx-swap="innerHTML" hx-push-url="true">«</a>
+            {% else %}<span class="page-link">«</span>{% endif %}
+        </li>
+        {% for num in events.paginator.page_range %}
+            {% if num >= events.number|add:-2 and num <= events.number|add:2 %}
+            <li class="page-item {% if events.number == num %}active{% endif %}">
+                <a class="page-link" hx-get="{{ page_url }}?{{ qs }}&page={{ num }}"
+                   hx-target="#{{ target_id }}" hx-swap="innerHTML" hx-push-url="true">{{ num }}</a>
+            </li>
+            {% endif %}
+        {% endfor %}
+        <li class="page-item {% if not events.has_next %}disabled{% endif %}">
+            {% if events.has_next %}
+            <a class="page-link" hx-get="{{ page_url }}?{{ qs }}&page={{ events.next_page_number }}"
+               hx-target="#{{ target_id }}" hx-swap="innerHTML" hx-push-url="true">»</a>
+            {% else %}<span class="page-link">»</span>{% endif %}
+        </li>
+    </ul>
+</nav>
+{% endif %}
