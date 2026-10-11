@@ -397,7 +397,8 @@ class UserProfileAPIView(APIView):
             "data": {
                 "phone": request.user.phone,
                 "name": customer.name if customer else "",
-                "whatsapp": customer.whatsapp if customer else ""
+                "whatsapp": customer.whatsapp if customer else "",
+                "email": request.user.email or (customer.email if customer else "") or ""
             }
         })
 
