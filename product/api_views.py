@@ -398,19 +398,24 @@ def _products_for_category(category, limit, request):
         .select_related("category")
         .order_by("-id")[:limit]
     )
-    return [
-        {
+    result = []
+    for p in products:
+        price, discount_price = p.price, p.discount_price
+        if p.has_variants:
+            v = p.display_variant
+            if v:
+                price, discount_price = v.price, v.discount_price
+        result.append({
             "id": p.id,
             "slug": p.slug,
             "name": p.name,
-            "price": p.price,
-            "discount_price": p.discount_price,
+            "price": price,
+            "discount_price": discount_price,
             "image": p.primary_image,
             "has_variants": p.has_variants,
             "category": {"id": p.category.id, "name": p.category.name} if p.category else None,
-        }
-        for p in products
-    ]
+        })
+    return result
 
 def _serialize_category_node(category, request):
     return {
@@ -578,9 +583,11 @@ class ProductDetailAPIView(APIView):
                     "images": [
                         i.image.url for i in p.images.all() if i.image
                     ],
+                    "default_variant_id": (p.display_variant.id if p.has_variants and p.display_variant else None),
                     "variants": [
                         {
                             "id": v.id,
+                            "is_default": v.is_default,
                             "attributes": v.attributes,
                             "price": v.price,
                             "discount_price": v.discount_price,
@@ -590,7 +597,7 @@ class ProductDetailAPIView(APIView):
                                 if v.images.exists() else None
                             ),
                         }
-                        for v in p.variants.filter(is_active=True)
+                        for v in p.variants.filter(is_active=True).order_by("-is_default", "id")
                     ],
                     "features": [
                         {

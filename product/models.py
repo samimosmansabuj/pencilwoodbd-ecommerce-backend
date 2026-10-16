@@ -195,10 +195,16 @@ class Product(models.Model):
         return None
     
     @property
+    def display_variant(self):
+        variants = list(self.variants.filter(is_active=True).order_by("-is_default", "id"))
+        if not variants:
+            return None
+        return next((v for v in variants if v.inventory_quantity > 0), variants[0])
+
+    @property
     def effective_price(self):
         if self.has_variants:
-            variant = self.variants.filter(is_active=True, is_default=True).first() \
-                    or self.variants.filter(is_active=True).first()
+            variant = self.display_variant
             if variant:
                 return variant.discount_price or variant.price
             return 0
