@@ -213,3 +213,9 @@ class HomeSectionFontChoices(models.TextChoices):
     MONTSERRAT = "'Montserrat', sans-serif", "Montserrat"
     OSWALD = "'Oswald', sans-serif", "Oswald (condensed/bold)"
     NUNITO = "'Nunito', sans-serif", "Nunito (rounded)"
+
+class CUSTOMIZATION_FIELD_TYPES(models.TextChoices):
+    TEXT = "text", "Short text"
+    TEXTAREA = "textarea", "Long text"
+    SELECT = "select", "Dropdown"
+    NUMBER = "number", "Number"

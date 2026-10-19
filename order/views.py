@@ -242,6 +242,7 @@ class AddOrderView(LoginRequiredMixin, View):
                         price=price,
                         discount_price=discount_price,
                         price_manually_edited=manually_edited,
+                        customization_note=(str(item.get("customization_note") or "").strip()[:1000] or None),
                     )
 
                     grand_total += line_total
@@ -464,6 +465,7 @@ class OrderDetailView(LoginRequiredMixin, View):
                 ),
                 "is_gift": bool((item.snapshot or {}).get("is_gift")),
                 "price_manually_edited": item.price_manually_edited,
+                "customization_note": item.customization_note or "",
             })
 
         orders = Order.objects.all().order_by("-created_at")
@@ -630,6 +632,11 @@ class OrderUpdateView(LoginRequiredMixin, View):
                         price=price,
                         discount_price=discount_price,
                         price_manually_edited=manually_edited,
+                        customization_note=(
+                            (str(item.get("customization_note") or "").strip()[:1000] or None)
+                            if "customization_note" in item
+                            else (old_item.customization_note if old_item else None)
+                        ),
                         snapshot=old_snapshot,
                     )
 

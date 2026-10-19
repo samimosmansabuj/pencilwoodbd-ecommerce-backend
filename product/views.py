@@ -1,5 +1,5 @@
 from http import HTTPStatus
-import json
+import json, re
 import json as pyjson
 from decimal import Decimal
 
@@ -28,6 +28,27 @@ from .models import (
 )
 from order.models import Review
 from authentication.models import Customer
+from .models import clean_customization_fields
+
+def _custom_fields_json(fields):
+    return pyjson.dumps(fields or []).replace("<", "\\u003c")
+
+_VARIANT_IMAGE_KEY_RE = re.compile(r"^vimg_\d+$")
+
+
+def _save_variant_images(request, product, variant, data):
+    key = str((data or {}).get("image_key") or "")
+    if not _VARIANT_IMAGE_KEY_RE.match(key):
+        return
+    files = request.FILES.getlist(key)
+    if not files:
+        return
+    start = variant.images.count()
+    for idx, f in enumerate(files):
+        ProductImage.objects.create(
+            product=product, variant=variant, image=f,
+            role="gallery", position=start + idx,
+        )
 
 # Forms
 from .forms import ProductForm, ProductImageForm, ProductVideoForm
@@ -226,6 +247,9 @@ def add_product(request):
                     inventory_type=inventory_type,
                     status=status_value,
                     product_type=product_type,
+                    has_customization=request.POST.get("has_customization") == "on",
+                    customization_placeholder=request.POST.get("customization_placeholder", "").strip() or None,
+                    customization_fields=clean_customization_fields(request.POST.get("customization_fields_json")),
                     enable_pixel_tracking=request.POST.get("enable_pixel_tracking") == "on",
                     facebook_pixel_id=request.POST.get("facebook_pixel_id", "").strip() or None,
                     gtm_container_id=request.POST.get("gtm_container_id", "").strip() or None,
@@ -308,6 +332,7 @@ def add_product(request):
                         is_active=data.get("is_active", True),
                         is_default=is_default_flag,
                     )
+                    _save_variant_images(request, product, variant, data)
                     created_variants.append(variant)
 
                 if product.has_variants:
@@ -352,6 +377,7 @@ def add_product(request):
             "attributes": attributes,
             "attributes_data": pyjson.dumps(attributes_data),
             "existing_variants_data": "[]",
+            "custom_fields_json": "[]",
             "CATEGORY_PRODUCT_STATUS_CHOICES": CATEGORY_PRODUCT_STATUS.choices,
             "bd_districts": BD_DISTRICTS,
             "existing_delivery_charge_json": "{}",
@@ -380,8 +406,12 @@ def product_update(request, pk):
             "inventory_quantity": v.inventory_quantity,
             "is_active": v.is_active,
             "is_default": v.is_default,
+            "images": [
+                {"id": img.id, "url": img.image.url}
+                for img in v.images.all() if img.image
+            ],
         }
-        for v in product.variants.all()
+        for v in product.variants.prefetch_related("images")
     ]
 
     valid_statuses = [c[0] for c in CATEGORY_PRODUCT_STATUS.choices]
@@ -410,6 +440,9 @@ def product_update(request, pk):
                     status_value = product.status
 
                 product.status = status_value
+                product.has_customization = request.POST.get("has_customization") == "on"
+                product.customization_placeholder = request.POST.get("customization_placeholder", "").strip() or None
+                product.customization_fields = clean_customization_fields(request.POST.get("customization_fields_json"))
                 product.enable_pixel_tracking = request.POST.get("enable_pixel_tracking") == "on"
                 product.facebook_pixel_id = request.POST.get("facebook_pixel_id", "").strip() or None
                 product.gtm_container_id = request.POST.get("gtm_container_id", "").strip() or None
@@ -468,7 +501,7 @@ def product_update(request, pk):
 
                 # ---------------- Images: new uploads ----------------
                 image_files = request.FILES.getlist("images")
-                start_position = product.images.count()
+                start_position = product.product_level_images.count()
                 primary_image_id = request.POST.get("primary_image_index")
 
                 new_image_objs = []
@@ -484,20 +517,20 @@ def product_update(request, pk):
                 # ---------------- Set primary from existing OR newly uploaded ----------------
                 existing_primary_id = request.POST.get("existing_primary_image_id")
                 if existing_primary_id:
-                    ProductImage.objects.filter(product=product).update(role="gallery")
-                    ProductImage.objects.filter(id=existing_primary_id, product=product).update(role="primary")
+                    ProductImage.objects.filter(product=product, variant__isnull=True).update(role="gallery")
+                    ProductImage.objects.filter(id=existing_primary_id, product=product, variant__isnull=True).update(role="primary")
                 elif primary_image_id is not None and new_image_objs:
                     try:
                         idx = int(primary_image_id)
                         if 0 <= idx < len(new_image_objs):
-                            ProductImage.objects.filter(product=product).update(role="gallery")
+                            ProductImage.objects.filter(product=product, variant__isnull=True).update(role="gallery")
                             new_image_objs[idx].role = "primary"
                             new_image_objs[idx].save(update_fields=["role"])
                     except (ValueError, TypeError):
                         pass
 
-                if not product.images.filter(role="primary").exists():
-                    first_img = product.images.order_by("position").first()
+                if not product.product_level_images.filter(role="primary").exists():
+                    first_img = product.product_level_images.order_by("position").first()
                     if first_img:
                         first_img.role = "primary"
                         first_img.save(update_fields=["role"])
@@ -546,6 +579,7 @@ def product_update(request, pk):
                         variant.is_active = data.get("is_active", variant.is_active)
                         variant.is_default = is_default_flag
                         variant.save()
+                        _save_variant_images(request, product, variant, data)
                         existing_ids.append(variant.id)
                     else:
                         variant = ProductVariant.objects.create(
@@ -558,6 +592,7 @@ def product_update(request, pk):
                             is_active=data.get("is_active", True),
                             is_default=is_default_flag,
                         )
+                        _save_variant_images(request, product, variant, data)
                         existing_ids.append(variant.id)
 
                 ProductVariant.objects.filter(product=product).exclude(id__in=existing_ids).delete()
@@ -615,11 +650,13 @@ def product_update(request, pk):
         "db_product/add_product.html",
         {
             "product": product,
+            "product_level_images": product.product_level_images,
             "variants": product.variants.all(),
             "categories": Category.objects.all(),
             "attributes": attributes,
             "attributes_data": attributes_data_json,
             "existing_variants_data": existing_variants_data_json,
+            "custom_fields_json": _custom_fields_json(product.customization_fields),
             "is_update": True,
             "CATEGORY_PRODUCT_STATUS_CHOICES": CATEGORY_PRODUCT_STATUS.choices,
             "product_tag_ids": pyjson.dumps(

@@ -1,5 +1,6 @@
 import string, secrets
 from django.db import models
+from site_app.order_prefix import get_order_id_prefix
 from django.forms import ValidationError
 from authentication.models import Customer
 from product.models import Product, ProductVariant
@@ -141,7 +142,7 @@ class Order(models.Model):
         while True:
             code = ''.join(secrets.choice(chars) for _ in range(4))
             today = datetime.now().strftime("%b%d")
-            generate_id = f"PWBD-{today.upper()}-{code}"
+            generate_id = f"{get_order_id_prefix()}-{today.upper()}-{code}"
             if not Order.objects.filter(order_id=generate_id).exists():
                 return generate_id
 
@@ -166,6 +167,7 @@ class OrderItem(models.Model):
     discount_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     # discount_total_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     price_manually_edited = models.BooleanField(default=False)
+    customization_note = models.TextField(blank=True, null=True, help_text="What the customer asked to customize on this item")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

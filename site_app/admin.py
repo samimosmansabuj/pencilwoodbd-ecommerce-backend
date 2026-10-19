@@ -31,7 +31,7 @@ class SiteContentAdmin(admin.ModelAdmin):
         ('Brand Identity (Dashboard, Invoice, Delivery Token, OTP SMS)', {
             'fields': (
                 'brand_name', 'brand_short_name', 'dashboard_title',
-                'brand_website', 'brand_email', 'brand_phone', 'invoice_note',
+                'brand_website', 'brand_email', 'brand_phone', 'invoice_note', 'order_id_prefix',
             ),
             'description': (
                 'These values control the brand name/contact info shown across the '

@@ -49,8 +49,13 @@ class SiteContent(models.Model):
         max_length=255, blank=True, null=True, default="Make all cheques payable to {brand_name}",
         help_text="Note shown on the invoice above the footer. Use {brand_name} as a placeholder if needed."
     )
+    order_id_prefix = models.CharField(max_length=10, blank=True, default="")
 
     def save(self, *args, **kwargs):
+        from .order_prefix import clean_prefix, suggest_order_prefix
+        self.order_id_prefix = clean_prefix(self.order_id_prefix)
+        if not self.pk and not self.order_id_prefix:
+            self.order_id_prefix = suggest_order_prefix(self.brand_short_name or self.brand_name or self.title)
         if self.pk and SiteContent.objects.filter(pk=self.pk).exists():
             old_instance = SiteContent.objects.get(pk=self.pk)
             previous_image_delete_os(old_instance.logo, self.logo)

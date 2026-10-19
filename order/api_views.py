@@ -14,7 +14,7 @@ from order.models import Order, OrderItem, Shipment, Address, Payment, PaymentMe
 from .utils import OrderConfirmatinoEmailSend, safe_order_bill
 from site_app.models import DeliveryOption, OTPVerification, WebhookLog, LandingPageProduct
 from .serializers import DeliveryOptionSerializer, ShipmentSerializer
-from product.models import Product, ProductVariant
+from product.models import Product, ProductVariant, clean_customization_note
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from decimal import Decimal
 from rest_framework.views import APIView
@@ -318,6 +318,7 @@ class CheckoutSummaryAPIView(APIView):
                         "variant_id": item.variant.id if item.variant else None,
                         "product": product.name,
                         "variant": item.variant.attributes if item.variant else None,
+                        "customization_note": item.customization_note or "",
                         "quantity": item.quantity,
                         "price": item.price,
                         "total": item.total_price,
@@ -363,6 +364,7 @@ class CheckoutSummaryAPIView(APIView):
                         "variant_id": variant.id if variant else None,
                         "product": product.name,
                         "variant": variant.attributes if variant else None,
+                        "customization_note": clean_customization_note(product, row.get("customization_note")),
                         "quantity": quantity,
                         "price": discount_price,
                         "total": line_total,
@@ -459,6 +461,17 @@ class PlaceOrderAPIView(APIView):
                             status=401,
                         )
                     customer = request.user.customer_profile
+                    # Google-login customers have no phone on their profile; save the
+                    # phone entered at checkout so the order shows it in order details.
+                    profile_update_fields = []
+                    if phone and customer.phone != phone:
+                        customer.phone = phone
+                        profile_update_fields.append("phone")
+                    if name and not customer.name:
+                        customer.name = str(name)[:50]
+                        profile_update_fields.append("name")
+                    if profile_update_fields:
+                        customer.save(update_fields=profile_update_fields)
                     cart_ids = cart_ids_in_request
                     if not cart_ids:
                         return Response({"status": False, "message": "No cart items selected"}, status=400)
@@ -476,7 +489,10 @@ class PlaceOrderAPIView(APIView):
                         return Response({"status": False, "message": "Cart items are no longer available"}, status=400)
 
                     line_items = [
-                        {"product": ci.product, "variant": ci.variant, "quantity": ci.quantity}
+                        {
+                            "product": ci.product, "variant": ci.variant, "quantity": ci.quantity,
+                            "customization_note": clean_customization_note(ci.product, ci.customization_note),
+                        }
                         for ci in active_cart_items
                     ]
                     should_delete_cart = cart_items
@@ -499,7 +515,8 @@ class PlaceOrderAPIView(APIView):
                             ).first()
                         line_items.append({
                             "product": product, "variant": variant,
-                            "quantity": int(row.get("quantity", 1))
+                            "quantity": int(row.get("quantity", 1)),
+                            "customization_note": clean_customization_note(product, row.get("customization_note")),
                         })
 
                     if not line_items:
@@ -511,7 +528,12 @@ class PlaceOrderAPIView(APIView):
                 )
 
                 requested_signature = sorted(
-                    (line["product"].id, line["variant"].id if line["variant"] else None, line["quantity"])
+                    (
+                        line["product"].id,
+                        line["variant"].id if line["variant"] else None,
+                        line["quantity"],
+                        line.get("customization_note") or "",
+                    )
                     for line in line_items
                 )
 
@@ -523,7 +545,7 @@ class PlaceOrderAPIView(APIView):
 
                 for candidate in recent_candidates:
                     candidate_signature = sorted(
-                        (oi.product_id, oi.variant_id, oi.quantity)
+                        (oi.product_id, oi.variant_id, oi.quantity, oi.customization_note or "")
                         for oi in candidate.order_items.all()
                         if not (oi.snapshot or {}).get("is_gift")
                     )
@@ -572,6 +594,7 @@ class PlaceOrderAPIView(APIView):
                     district=address.district,
                     coupon=applied_coupon,
                     source=ORDER_SOURCE.WEBSITE,
+                    note=(str(request.data.get("note") or "").strip()[:1000] or None),
                     utm_source=request.data.get("utm_source"),
                     utm_medium=request.data.get("utm_medium"),
                     utm_campaign=request.data.get("utm_campaign"),
@@ -632,10 +655,12 @@ class PlaceOrderAPIView(APIView):
                         price = product.price
                         discount_price = product.discount_price or product.price
 
+                    item_note = line.get("customization_note") or ""
                     OrderItem.objects.create(
                         order=order, product=product, variant=variant, product_name=product.name,
                         quantity=quantity, price=price, discount_price=discount_price,
-                        snapshot={"is_gift": False},
+                        customization_note=item_note or None,
+                        snapshot={"is_gift": False, "customized": bool(item_note)},
                     )
                     total += discount_price * quantity
 
@@ -752,10 +777,10 @@ class OrderListAPIView(APIView):
 
                 image = ""
 
-                if item.product and item.product.primary_image:
-                    image = request.build_absolute_uri(
-                        item.product.primary_image
-                    )
+                if item.product:
+                    _img = item.product.variant_image_url(item.variant)
+                    if _img:
+                        image = request.build_absolute_uri(_img)
 
                 items.append({
                     "name": item.product_name,
@@ -763,6 +788,7 @@ class OrderListAPIView(APIView):
                     "price": item.price,
                     "image": image,
                     "variant": item.variant.attributes if item.variant else None,
+                    "customization_note": item.customization_note or "",
                 })
 
             data.append({
@@ -815,13 +841,10 @@ class OrderDetailAPIView(APIView):
 
                 try:
 
-                    if (
-                        item.product and
-                        item.product.primary_image
-                    ):
-                        image = request.build_absolute_uri(
-                            item.product.primary_image
-                        )
+                    if item.product:
+                        _img = item.product.variant_image_url(item.variant)
+                        if _img:
+                            image = request.build_absolute_uri(_img)
 
                 except Exception:
                     image = None
@@ -848,7 +871,9 @@ class OrderDetailAPIView(APIView):
                         item.variant.attributes
                         if item.variant
                         else None
-                    )
+                    ),
+
+                    "customization_note": item.customization_note or ""
                 })
 
             data = {
@@ -878,6 +903,8 @@ class OrderDetailAPIView(APIView):
                 ),
 
                 "address": order.shipping_address,
+
+                "note": order.note or "",
 
                 "items": items
             }

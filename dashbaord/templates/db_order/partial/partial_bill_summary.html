@@ -18,6 +18,9 @@
                     {% if item.variant_label %}
                         <span style="color: #555;"> ({{ item.variant_label }})</span>
                     {% endif %}
+                    {% if item.customization_note %}
+                        <div style="font-size: 11px; color: #000; margin-top: 2px;"><b>Custom:</b> {{ item.customization_note|linebreaksbr }}</div>
+                    {% endif %}
                     {% if item.is_gift %}
                         <span style="border: 1px solid #000; border-radius: 3px; padding: 0 5px; font-size: 11px; font-weight: 700; margin-left: 4px;">GIFT</span>
                     {% endif %}
