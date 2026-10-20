@@ -170,6 +170,9 @@
                             {% if item.variant_label %}
                                 <small style="display:block; font-size:9px; font-weight:600;">{{ item.variant_label }}</small>
                             {% endif %}
+                            {% if item.customization_note %}
+                                <small style="display:block; font-size:9px; font-weight:700; white-space:pre-line;">Custom: {{ item.customization_note }}</small>
+                            {% endif %}
                         </td>
                         <td>{{ item.quantity }}</td>
                         <td>{% if item.is_gift and not item.discount_price %}Free{% else %}{{ item.discount_price|floatformat:2 }}{% endif %}</td>
@@ -193,6 +196,12 @@
                 <p><strong><span>Due Amount:</span><span>{{ due_amount|floatformat:2 }}</span></strong></p>
             </div>
         </div>
+
+        {% if order.note %}
+        <div class="footer-note">
+            <span style="font-weight: bold;">Customer note:</span> {{ order.note }}
+        </div>
+        {% endif %}
 
         {% if order.special_instructions %}
         <div class="footer-note">

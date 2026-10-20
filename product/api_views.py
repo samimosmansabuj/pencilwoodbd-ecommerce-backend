@@ -23,7 +23,7 @@ from rest_framework.views import APIView
 from django.conf import settings
 from rest_framework.permissions import AllowAny
 from rest_framework.permissions import IsAuthenticated
-from .models import Wishlist, ProductFeature, ProductFAQ, ReviewSettings
+from .models import Wishlist, ProductFeature, ProductFAQ, ReviewSettings, clean_customization_note
 
 from django.http import JsonResponse
 from pencilwoodbd.extra_module import safe_error_message
@@ -417,6 +417,14 @@ def _products_for_category(category, limit, request):
         })
     return result
 
+def _listing_price_fields(p):
+    price, discount_price = p.price, p.discount_price
+    if p.has_variants:
+        v = p.display_variant
+        if v:
+            price, discount_price = v.price, v.discount_price
+    return {"price": price, "discount_price": discount_price}
+
 def _serialize_category_node(category, request):
     return {
         "id": category.id,
@@ -512,8 +520,7 @@ class ProductListAPIView(APIView):
                 "id": p.id,
                 "slug": p.slug,
                 "name": p.name,
-                "price": p.price,
-                "discount_price": p.discount_price,
+                **_listing_price_fields(p),
                 "image": p.primary_image,
                 "has_variants": p.has_variants,
                 "category": {
@@ -541,13 +548,18 @@ class ProductDetailAPIView(APIView):
             if not p:
                 return Response({"status": False}, status=404)
 
+            active_variants = sorted(
+                (v for v in p.variants.all() if v.is_active),
+                key=lambda v: (not v.is_default, v.id),
+            )
+
             if p.has_variants:
-                stock = sum(
-                    v.inventory_quantity
-                    for v in p.variants.filter(is_active=True)
-                )
+                stock = sum(v.inventory_quantity for v in active_variants)
             else:
                 stock = p.available_stock
+
+            all_images = [i for i in p.images.all() if i.image]
+            product_images = [i for i in all_images if i.variant_id is None] or all_images
 
             approved_reviews = Review.objects.filter(
                 product=p, status=REVIEW_STATUS.APPROVED
@@ -580,9 +592,10 @@ class ProductDetailAPIView(APIView):
                     "stock": stock,
                     "short_description": p.short_description,
                     "description": p.details,
-                    "images": [
-                        i.image.url for i in p.images.all() if i.image
-                    ],
+                    "images": [i.image.url for i in product_images],
+                    "has_customization": p.has_customization,
+                    "customization_placeholder": p.customization_placeholder or "",
+                    "customization_fields": p.customization_fields or [],
                     "default_variant_id": (p.display_variant.id if p.has_variants and p.display_variant else None),
                     "variants": [
                         {
@@ -592,12 +605,16 @@ class ProductDetailAPIView(APIView):
                             "price": v.price,
                             "discount_price": v.discount_price,
                             "stock": v.inventory_quantity,
-                            "image": (
-                                v.images.first().image.url
-                                if v.images.exists() else None
+
+                            "images": [
+                                i.image.url for i in p.variant_gallery(v, active_variants)
+                            ],
+                            "image": next(
+                                (i.image.url for i in p.variant_gallery(v, active_variants)),
+                                None,
                             ),
                         }
-                        for v in p.variants.filter(is_active=True).order_by("-is_default", "id")
+                        for v in active_variants
                     ],
                     "features": [
                         {
@@ -637,7 +654,7 @@ class ProductDetailAPIView(APIView):
 #-------------Cart-------------
 
 class AddToCartAPIView(APIView):
-    permission_classes = [AllowAny]  # CHANGED from IsAuthenticated
+    permission_classes = [AllowAny]
 
     def post(self, request):
         try:
@@ -653,6 +670,7 @@ class AddToCartAPIView(APIView):
                 ).first()
                 if not product:
                     return Response({"status": False, "message": "Product not available"}, status=404)
+                customization_note = clean_customization_note(product, request.data.get("customization_note"))
                 variant = None
 
                 if product.has_variants:
@@ -668,9 +686,9 @@ class AddToCartAPIView(APIView):
                         return Response({"status": False, "message": "Product out of stock"}, status=400)
 
                 if customer:
-                    # Logged-in: persist server-side as before
                     cart_item, created = AddToCart.objects.get_or_create(
                         customer=customer, product=product, variant=variant,
+                        customization_note=customization_note,
                         defaults={"quantity": quantity}
                     )
                     if not created:
@@ -693,7 +711,9 @@ class CartListAPIView(APIView):
             return Response({"status": True, "data": [], "cart_total": 0})
 
         customer = request.user.customer_profile
-        cart_items = AddToCart.objects.filter(customer=customer)
+        cart_items = AddToCart.objects.filter(customer=customer).select_related(
+            "product", "variant"
+        ).prefetch_related("product__variants__images")
 
         data, total = [], Decimal("0")
         for item in cart_items:
@@ -702,11 +722,12 @@ class CartListAPIView(APIView):
                 "product_id": item.product.id,
                 "variant_id": item.variant.id if item.variant else None,
                 "product": item.product.name,
-                "image": item.product.primary_image,
+                "image": item.product.variant_image_url(item.variant),
                 "variant": item.variant.attributes if item.variant else None,
                 "quantity": item.quantity,
                 "price": item.price,
-                "total": item.total_price
+                "total": item.total_price,
+                "customization_note": item.customization_note or "",
             })
             total += item.total_price
 
@@ -774,13 +795,13 @@ class WishlistAPIView(APIView):
             return Response({"status": True, "data": []})
         try:
             customer = request.user.customer_profile
-            items = Wishlist.objects.filter(customer=customer).select_related("product", "variant")
+            items = Wishlist.objects.filter(customer=customer).select_related("product", "variant").prefetch_related("product__variants__images")
             data = [{
                 "id": item.id, "product_id": item.product.id, "variant_id": item.variant.id if item.variant else None,
                 "slug": item.product.slug, "name": item.product.name,
                 "price": item.variant.price if item.variant else item.product.price,
                 "discount_price": item.variant.discount_price if item.variant else item.product.discount_price,
-                "image": item.product.primary_image,
+                "image": item.product.variant_image_url(item.variant),
                 "attributes": item.variant.attributes if item.variant else None,
             } for item in items]
             return Response({"status": True, "data": data})
@@ -816,13 +837,14 @@ class GuestCartRefreshAPIView(APIView):
 
         products = Product.objects.filter(
             id__in=ids, status=CATEGORY_PRODUCT_STATUS.ACTIVE
-        ).prefetch_related("variants")
+        ).prefetch_related("variants", "variants__images")
 
         data = []
         for p in products:
+            active_variants = [v for v in p.variants.all() if v.is_active]
             stock = p.inventory_quantity
             if p.has_variants:
-                stock = sum(v.inventory_quantity for v in p.variants.filter(is_active=True))
+                stock = sum(v.inventory_quantity for v in active_variants)
 
             data.append({
                 "id": p.id,
@@ -832,14 +854,19 @@ class GuestCartRefreshAPIView(APIView):
                 "discount_price": p.discount_price,
                 "stock": stock,
                 "has_variants": p.has_variants,
+                "has_customization": p.has_customization,
                 "variants": [
                     {
                         "id": v.id,
                         "price": v.price,
                         "discount_price": v.discount_price,
                         "stock": v.inventory_quantity,
+                        "image": next(
+                            (i.image.url for i in p.variant_gallery(v, active_variants)),
+                            None,
+                        ),
                     }
-                    for v in p.variants.filter(is_active=True)
+                    for v in active_variants
                 ] if p.has_variants else [],
             })
 
@@ -892,8 +919,10 @@ class MergeGuestCartWishlistAPIView(APIView):
                     skipped_cart += 1
                     continue
 
+                customization_note = clean_customization_note(product, item.get("customization_note"))
                 cart_item, created = AddToCart.objects.get_or_create(
                     customer=customer, product=product, variant=variant,
+                    customization_note=customization_note,
                     defaults={"quantity": min(quantity, available_stock)}
                 )
                 if not created:

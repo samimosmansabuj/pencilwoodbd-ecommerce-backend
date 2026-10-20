@@ -245,6 +245,7 @@ def build_order_bill(order, request=None):
         items.append({
             "name": item.display_name,
             "variant": item.variant_label,
+            "customization": item.customization_note or "",
             "quantity": item.quantity,
             "unit_price": _bill_money(unit),
             "line_total": _bill_money(line_total),
@@ -280,6 +281,7 @@ def build_order_bill(order, request=None):
             "header_text": colors.header_text_color or "#ffffff",
             "highlight": colors.highlight_color or "#f5f5f5",
         },
+        "note": order.note or "",
         "items": items,
         "subtotal": _bill_money(subtotal),
         "delivery": _bill_money(delivery),

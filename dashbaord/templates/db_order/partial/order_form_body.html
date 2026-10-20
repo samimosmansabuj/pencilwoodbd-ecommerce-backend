@@ -506,7 +506,8 @@
                     const lineTotal = item.unit_price * item.quantity;
                     const tr = document.createElement("tr");
                     tr.innerHTML =
-                    "<td>" + item.product_name + (item.is_gift ? ' <span class="badge bg-success">Gift</span>' : '') + "</td>" +
+                    "<td>" + item.product_name + (item.is_gift ? ' <span class="badge bg-success">Gift</span>' : '') +
+                        (item.is_gift ? '' : '<textarea rows="2" maxlength="1000" class="form-control form-control-sm item-note-input mt-1" data-index="' + index + '" placeholder="Customization details (optional)">' + String(item.customization_note || "").replace(/&/g, "&amp;").replace(/</g, "&lt;") + '</textarea>') + "</td>" +
                         "<td>" + (item.variant_label || "-") + "</td>" +
                         '<td><input type="number" min="1" step="1" class="form-control form-control-sm item-qty-input" data-index="' + index + '" value="' + item.quantity + '" style="width:80px;"></td>' +
                         '<td><input type="number" min="0" step="0.01" class="form-control form-control-sm item-price-input" data-index="' + index + '" value="' + item.unit_price.toFixed(2) + '" style="width:100px;"></td>' +
@@ -543,7 +544,8 @@
                     variant_id: i.variant_id || null,
                     quantity: i.quantity,
                     unit_price: i.unit_price,
-                    price_manually_edited: !!i.price_manually_edited
+                    price_manually_edited: !!i.price_manually_edited,
+                    customization_note: i.customization_note || ""
                 };
             });
             itemsHiddenInput.value = JSON.stringify(payload);
@@ -592,6 +594,12 @@
         itemsTbody.addEventListener("input", function (e) {
             const qtyEl = e.target.closest(".item-qty-input");
             const priceEl = e.target.closest(".item-price-input");
+            const noteEl = e.target.closest(".item-note-input");
+
+            if (noteEl) {
+                items[parseInt(noteEl.dataset.index)].customization_note = noteEl.value;
+                syncHiddenInput();
+            }
 
             if (qtyEl) {
                 const index = parseInt(qtyEl.dataset.index);
@@ -691,7 +699,8 @@
                     variant_label: it.variant_label,
                     quantity: it.quantity,
                     unit_price: parseFloat(it.unit_price) || 0,
-                    price_manually_edited: !!it.price_manually_edited
+                    price_manually_edited: !!it.price_manually_edited,
+                    customization_note: it.customization_note || ""
                 });
             });
         }

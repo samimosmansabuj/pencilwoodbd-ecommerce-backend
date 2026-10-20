@@ -2,7 +2,7 @@ from django.db import models
 from authentication.models import Customer
 from django.utils.text import slugify
 from pencilwoodbd.extra_module import previous_image_delete_os, image_delete_os
-from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS, PRODUCT_TYPE, PRODUCT_MEDIA_TYPE, PRODUCT_MEDIA_ROLE, PRODUCT_GIFT_TYPE, ATTRIBUTE_TYPE, INVENTORY_TYPE
+from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS, PRODUCT_TYPE, PRODUCT_MEDIA_TYPE, PRODUCT_MEDIA_ROLE, PRODUCT_GIFT_TYPE, ATTRIBUTE_TYPE, INVENTORY_TYPE, CUSTOMIZATION_FIELD_TYPES
 import random, string
 
 def generate_unique_slug(model_object, field_value, old_slug=None):
@@ -21,6 +21,52 @@ def generate_unique_slug(model_object, field_value, old_slug=None):
 
 def generate_product_sku():
     return ''.join(random.choices(string.digits, k=6))
+
+
+CUSTOMIZATION_NOTE_MAX_LENGTH = 1000
+CUSTOMIZATION_MAX_FIELDS = 15
+
+
+def clean_customization_fields(raw):
+    import json
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw or "[]")
+        except ValueError:
+            raw = []
+    if not isinstance(raw, list):
+        return []
+
+    cleaned = []
+    for item in raw[:CUSTOMIZATION_MAX_FIELDS]:
+        if not isinstance(item, dict):
+            continue
+        label = str(item.get("label") or "").strip()[:80]
+        if not label:
+            continue
+        ftype = item.get("type") if item.get("type") in CUSTOMIZATION_FIELD_TYPES.values else "text"
+        options = []
+        if ftype == "select":
+            raw_opts = item.get("options") or []
+            if isinstance(raw_opts, str):
+                raw_opts = raw_opts.split(",")
+            options = [str(o).strip()[:80] for o in raw_opts if str(o).strip()][:30]
+            if not options:
+                ftype = "text"
+        cleaned.append({
+            "label": label,
+            "type": ftype,
+            "required": bool(item.get("required")),
+            "placeholder": str(item.get("placeholder") or "").strip()[:200],
+            "options": options,
+        })
+    return cleaned
+
+
+def clean_customization_note(product, raw_note):
+    if not product or not getattr(product, "has_customization", False):
+        return ""
+    return str(raw_note or "").strip()[:CUSTOMIZATION_NOTE_MAX_LENGTH]
 
 
 
@@ -150,6 +196,10 @@ class Product(models.Model):
     is_gift_only = models.BooleanField(default=False)
     status = models.CharField(max_length=50, choices=CATEGORY_PRODUCT_STATUS.choices, default=CATEGORY_PRODUCT_STATUS.DRAFT)
     metadata = models.JSONField(default=dict, blank=True)
+    # ------------- Customization (Standard / Customized) -----------------
+    has_customization = models.BooleanField(default=False)
+    customization_placeholder = models.TextField(blank=True, null=True)
+    customization_fields = models.JSONField(default=list, blank=True)
     # ------------- Per product pixel -----------------
     enable_pixel_tracking = models.BooleanField(default=True, help_text="If unchecked, Facebook Pixel / GTM / GA4 events for THIS product will NOT fire on the e-commerce site, even if global tracking is ON.")
     facebook_pixel_id = models.CharField(max_length=100, blank=True, null=True)
@@ -189,14 +239,52 @@ class Product(models.Model):
         primary_image = self.images.filter(role=PRODUCT_MEDIA_ROLE.PRIMARY, variant__isnull=True).first()
         if primary_image:
             return primary_image.image.url
-        first_image = self.images.first()
-        if first_image:
+        first_image = self.images.filter(variant__isnull=True).first() or self.images.first()
+        if first_image and first_image.image:
             return first_image.image.url
         return None
+
+    @property
+    def product_level_images(self):
+        return self.images.filter(variant__isnull=True)
+
+    def variant_gallery(self, variant, variants=None):
+
+        if variant is None:
+            return []
+        own = [i for i in variant.images.all() if i.image]
+        if own:
+            return own
+        if variants is None:
+            variants = [v for v in self.variants.all() if v.is_active]
+        attrs = variant.attributes or {}
+        imaged = []
+        for other in variants:
+            if other.id == variant.id:
+                continue
+            imgs = [i for i in other.images.all() if i.image]
+            if imgs:
+                imaged.append((other.attributes or {}, imgs))
+        if len(imaged) < 2:
+            return []
+        keys = {k for a, _ in imaged for k in a}
+        driving = [k for k in keys if len({str(a.get(k)) for a, _ in imaged}) > 1]
+        if not driving:
+            return []
+        for other_attrs, imgs in imaged:
+            if all(other_attrs.get(k) == attrs.get(k) for k in driving):
+                return imgs
+        return []
+
+    def variant_image_url(self, variant):
+        gallery = self.variant_gallery(variant) if variant else []
+        if gallery:
+            return gallery[0].image.url
+        return self.primary_image
     
     @property
     def display_variant(self):
-        variants = list(self.variants.filter(is_active=True).order_by("-is_default", "id"))
+        variants = sorted((v for v in self.variants.all() if v.is_active), key=lambda v: (not v.is_default, v.id))
         if not variants:
             return None
         return next((v for v in variants if v.inventory_quantity > 0), variants[0])
@@ -391,6 +479,7 @@ class AddToCart(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     discount_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     total_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    customization_note = models.TextField(blank=True, default="")
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -399,6 +488,8 @@ class AddToCart(models.Model):
 
         if not self.product:
             raise ValueError("Product is required")
+
+        self.customization_note = clean_customization_note(self.product, self.customization_note)
 
         if self.product.has_variants:
 
