@@ -90,9 +90,11 @@
                                 <img src="https://placehold.co/110x110/png" class="rounded-circle" width="40"
                                     height="40">
                             </div>
-                            <p class="mb-0 customer-name fw-bold">
-                                {{ order.customer.name }}
-                            </p>
+                            <div>
+                                <p class="mb-0 customer-name fw-bold">
+                                    {{ order.customer.name }}
+                                </p>
+                                {% if order.customer.company %}<p class="mb-0 small fw-normal customer-name">({{ order.customer.company }})</p>{% endif %}                            </div>
                         </a>
                         <script>
                             function copyCustomerName(name, element) {

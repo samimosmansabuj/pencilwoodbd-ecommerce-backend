@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import CustomUser, Customer, Role
+from .models import CustomUser, Customer, GoogleIdentity, Role
 from .utils import normalize_bd_phone, phone_lookup_variants
 from pencilwoodbd.extra_module import safe_error_message
 from pencilwoodbd.throttles import OTPVerifyRateThrottle, GoogleAuthRateThrottle
@@ -291,7 +291,8 @@ class GoogleLoginAPIView(APIView):
         try:
             with transaction.atomic():
                 created = False
-                user = CustomUser.objects.filter(google_id=sub).first()
+                identity = GoogleIdentity.objects.select_related("user").filter(google_id=sub).first()
+                user = identity.user if identity else CustomUser.objects.filter(google_id=sub).first()
 
                 if not user:
                     user = CustomUser.objects.filter(email__iexact=email).first()
@@ -301,8 +302,9 @@ class GoogleLoginAPIView(APIView):
                                 {"status": False, "message": "This account cannot log in with Google."},
                                 status=403,
                             )
-                        user.google_id = sub
-                        user.save(update_fields=["google_id"])
+                        if not user.google_id:
+                            user.google_id = sub
+                            user.save(update_fields=["google_id"])
                     else:
                         user = CustomUser(
                             username=_unique_username(email),
@@ -323,6 +325,8 @@ class GoogleLoginAPIView(APIView):
                         {"status": False, "message": "This account cannot log in with Google."},
                         status=403,
                     )
+
+                GoogleIdentity.objects.get_or_create(google_id=sub, defaults={"user": user, "email": email})
 
                 customer = getattr(user, "customer_profile", None)
                 if not customer:

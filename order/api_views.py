@@ -1,10 +1,15 @@
 import json
+import traceback
 from datetime import timedelta
 from django.utils import timezone
 from django.views import View
 from rest_framework import permissions, status, views
 from rest_framework.response import Response
 from authentication.models import Customer
+from authentication.account_merge import (
+    REQUIRE_OTP_FOR_ACCOUNT_LINK, MergeConflict, customers_by_phone, merge_customer_accounts,
+    resolve_order_address, verify_phone_otp,
+)
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
 from product.models import Product, AddToCart
@@ -443,41 +448,78 @@ class PlaceOrderAPIView(APIView):
                         status=400
                     )
 
-                customer, created = Customer.objects.get_or_create(
-                    phone=phone,
-                    defaults={"name": name}
-                )
-                if not created:
-                    customer.name = name
-                    customer.save()
-
                 cart_ids_in_request = request.data.get("cart_ids", [])
                 items_in_request = request.data.get("items", [])
 
+                auth_customer = getattr(request.user, "customer_profile", None) if request.user.is_authenticated else None
+                if cart_ids_in_request and not auth_customer:
+                    return Response(
+                        {"status": False, "message": "Please log in to check out with your saved cart."},
+                        status=401,
+                    )
+
+                cart_owner = auth_customer
+                phone_accounts = list(customers_by_phone(phone))
+
+                if auth_customer:
+                    others = [c for c in phone_accounts if c.pk != auth_customer.pk]
+                    own_phone = normalize_bd_phone(auth_customer.phone or "")
+
+                    if others and (not own_phone or own_phone == phone):
+                        # This number already has an account: link both accounts into one.
+                        if REQUIRE_OTP_FOR_ACCOUNT_LINK and not (
+                            otp_override_verified or verify_phone_otp(phone, request.data.get("otp_code"))
+                        ):
+                            return Response(
+                                {
+                                    "status": False,
+                                    "otp_required": True,
+                                    "phone": phone,
+                                    "message": "This number already has an account. Verify it with the OTP to link it with your account.",
+                                },
+                                status=403,
+                            )
+                        customer = auth_customer
+                        try:
+                            for other in others:
+                                customer = merge_customer_accounts(
+                                    customer, other, login_user=request.user, protect_cart_ids=cart_ids_in_request
+                                )
+                            cart_owner = customer
+                        except MergeConflict:
+                            traceback.print_exc()
+                            customer = others[0]
+                    elif others:
+
+                        customer = others[0]
+                    else:
+                        customer = auth_customer
+
+                    if customer.pk == auth_customer.pk or cart_owner.pk == customer.pk:
+                        update_fields = []
+                        if customer.phone != phone:
+                            customer.phone = phone
+                            update_fields.append("phone")
+                        if name and not customer.name:
+                            customer.name = str(name)[:50]
+                            update_fields.append("name")
+                        if update_fields:
+                            customer.save(update_fields=update_fields)
+                else:
+                    if phone_accounts:
+                        customer = phone_accounts[0]
+                        customer.name = name
+                        customer.save()
+                    else:
+                        customer = Customer.objects.create(phone=phone, name=name)
+
                 if cart_ids_in_request:
-                    if not (request.user.is_authenticated and getattr(request.user, "customer_profile", None)):
-                        return Response(
-                            {"status": False, "message": "Please log in to check out with your saved cart."},
-                            status=401,
-                        )
-                    customer = request.user.customer_profile
-                    # Google-login customers have no phone on their profile; save the
-                    # phone entered at checkout so the order shows it in order details.
-                    profile_update_fields = []
-                    if phone and customer.phone != phone:
-                        customer.phone = phone
-                        profile_update_fields.append("phone")
-                    if name and not customer.name:
-                        customer.name = str(name)[:50]
-                        profile_update_fields.append("name")
-                    if profile_update_fields:
-                        customer.save(update_fields=profile_update_fields)
                     cart_ids = cart_ids_in_request
                     if not cart_ids:
                         return Response({"status": False, "message": "No cart items selected"}, status=400)
 
                     cart_items = AddToCart.objects.select_related("product", "variant").filter(
-                        customer=customer, id__in=cart_ids
+                        customer=cart_owner, id__in=cart_ids
                     )
                     if not cart_items.exists():
                         return Response({"status": False, "message": "Cart empty"}, status=400)
@@ -523,8 +565,8 @@ class PlaceOrderAPIView(APIView):
                         return Response({"status": False, "message": "Cart empty"}, status=400)
                     should_delete_cart = None
 
-                address = Address.objects.create(
-                    customer=customer, street_01=address_text, district=district, upazila=upazila
+                address = resolve_order_address(
+                    customer, request.data.get("address_id"), address_text, district, upazila
                 )
 
                 requested_signature = sorted(

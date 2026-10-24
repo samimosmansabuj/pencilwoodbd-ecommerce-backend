@@ -1,0 +1,109 @@
+{% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
+
+<div class="main-content" id="sitePagesContent">
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Dashboard</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Site Pages</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <p class="text-muted">These pages appear on the storefront. If a page is left empty, the storefront shows its default text.</p>
+
+    <div class="card">
+        <div class="card-body">
+                <ul class="nav nav-tabs mb-3">
+                    <li class="nav-item"><a class="nav-link {% if tab == 'about' %}active{% endif %}" href="?tab=about">About us</a></li>
+                    <li class="nav-item"><a class="nav-link {% if tab == 'contact' %}active{% endif %}" href="?tab=contact">Contact</a></li>
+                    <li class="nav-item"><a class="nav-link {% if tab == 'refund' %}active{% endif %}" href="?tab=refund">Return &amp; refund policy</a></li>
+                    <li class="nav-item"><a class="nav-link {% if tab == 'privacy' %}active{% endif %}" href="?tab=privacy">Privacy policy</a></li>
+                    <li class="nav-item"><a class="nav-link {% if tab == 'terms' %}active{% endif %}" href="?tab=terms">Terms &amp; conditions</a></li>
+                </ul>
+
+                {% if tab == 'about' %}
+                <form method="post" enctype="multipart/form-data" class="site-page-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="page" value="about">
+                    <div class="mb-3">
+                        <label class="form-label">Title</label>
+                        <input type="text" name="title" class="form-control" maxlength="255" required value="{{ about.title|default:'' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Banner image (optional)</label>
+                        {% if about.bg_image %}
+                        <div class="mb-2"><img src="{{ about.bg_image.url }}" alt="" style="max-height:120px;border-radius:8px"></div>
+                        <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="remove_bg_image" id="rm_bg"><label class="form-check-label" for="rm_bg">Remove current image</label></div>
+                        {% endif %}
+                        <input type="file" name="bg_image" accept="image/*" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Story</label>
+                        <div id="site-editor" style="min-height:320px;background:#fff">{{ about.description|default:''|safe }}</div>
+                        <input type="hidden" name="description" id="site-editor-value">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </form>
+
+                {% elif tab == 'contact' %}
+                <form method="post" class="site-page-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="page" value="contact">
+                    <div class="row">
+                        <div class="col-md-6 mb-3"><label class="form-label">Phone *</label><input type="text" name="phone" class="form-control" maxlength="14" required value="{{ contact.phone|default:'' }}"></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">Second phone</label><input type="text" name="secondary_phone" class="form-control" maxlength="14" value="{{ contact.secondary_phone|default:'' }}"></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">WhatsApp number</label><input type="text" name="whatsapp" class="form-control" maxlength="14" value="{{ contact.whatspp_number|default:'' }}"></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">Email *</label><input type="email" name="email" class="form-control" required value="{{ contact.email|default:'' }}"></div>
+                        <div class="col-12 mb-3"><label class="form-label">Address</label><input type="text" name="location" class="form-control" maxlength="255" value="{{ contact.location|default:'' }}"></div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </form>
+
+                {% else %}
+                <form method="post" class="site-page-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="page" value="{{ tab }}">
+                    <div class="mb-3">
+                        <label class="form-label">Short summary (shown under the page title)</label>
+                        <textarea name="short_description" class="form-control" rows="2">{% if tab == 'refund' %}{{ refund.short_description|default:'' }}{% elif tab == 'privacy' %}{{ privacy.short_description|default:'' }}{% else %}{{ terms.short_description|default:'' }}{% endif %}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Full text</label>
+                        <div id="site-editor" style="min-height:420px;background:#fff">{% if tab == 'refund' %}{{ refund.descriptin|default:''|safe }}{% elif tab == 'privacy' %}{{ privacy.descriptin|default:''|safe }}{% else %}{{ terms.descriptin|default:''|safe }}{% endif %}</div>
+                        <input type="hidden" name="description" id="site-editor-value">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </form>
+                {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var el = document.getElementById("site-editor");
+    if (!el || typeof Quill === "undefined") return;
+    var quill = new Quill(el, {
+        theme: "snow",
+        placeholder: "Write here. Use the toolbar for headings, bold, numbered points, bullet points, alignment and links.",
+        modules: {
+            toolbar: [
+                [{ header: [1, 2, 3, false] }],
+                ["bold", "italic", "underline", "strike"],
+                [{ list: "ordered" }, { list: "bullet" }, { indent: "-1" }, { indent: "+1" }],
+                [{ align: [] }],
+                ["link", "blockquote"],
+                ["clean"]
+            ]
+        }
+    });
+    document.querySelector(".site-page-form").addEventListener("submit", function () {
+        var empty = quill.getText().trim() === "" && quill.root.querySelectorAll("img").length === 0;
+        document.getElementById("site-editor-value").value = empty ? "" : quill.root.innerHTML;
+    });
+})();
+</script>

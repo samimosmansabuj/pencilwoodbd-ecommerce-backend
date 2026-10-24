@@ -86,6 +86,7 @@ urlpatterns = [
 
     # ----------------- Invoice Color -----------------
     path('settings/invoice-color/', InvoiceColorSettingsView.as_view(), name='invoice_color_settings'),
+    path('settings/site-pages/', SitePagesView.as_view(), name='site_pages'),
 
     # ----------------- Delivery Charge (site-wide) -----------------
     path('settings/delivery-charge/', DeliveryChargeSettingsView.as_view(), name='delivery_charge_settings'),
