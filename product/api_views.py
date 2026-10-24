@@ -2,6 +2,7 @@ from rest_framework import views, status, permissions, viewsets
 from rest_framework.response import Response
 from .serializers import ProductSerializer, CategorySerializer
 from site_app.models import LandingPageProduct, OTPVerification, HomeSlider, FooterTagLink, SocialLink, NavMenuLink, NewsFeed, SiteContent, ShowcaseMedia, HomeSection, About_WhyChooseUs
+from site_app.models import AboutUs, ContactInformation, RefundPolicy, TermsAndCondition, PrivacyPolicy
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from authentication.models import Customer
@@ -259,9 +260,24 @@ def site_content_api(request):
 
         return base
 
+    site = SiteContent.objects.first()
+    contact_info = ContactInformation.objects.first()
+    brand = None
+    if site:
+        brand = {
+            "name": site.brand_name or site.title or "",
+            "short_name": site.brand_short_name or "",
+            "logo": request.build_absolute_uri(site.logo.url) if site.logo else None,
+            "secondary_logo": request.build_absolute_uri(site.secondary_logo.url) if site.secondary_logo else None,
+            "website": site.brand_website or "",
+            "email": site.brand_email or (contact_info.email if contact_info else ""),
+            "phone": site.brand_phone or (contact_info.phone if contact_info else ""),
+        }
+
     return JsonResponse({
         "status": True,
         "data": {
+            "brand": brand,
             "nav_menu": [
                 {"id": n.id, "name": n.name, "url": n.url or "#", "open_new_tab": n.open_new_tab}
                 for n in nav_links
@@ -960,3 +976,37 @@ class MergeGuestCartWishlistAPIView(APIView):
             "merged_wishlist": merged_wishlist,
             "skipped_cart": skipped_cart,
         })
+
+def site_pages_api(request):
+    about = AboutUs.objects.first()
+    contact = ContactInformation.objects.first()
+    refund = RefundPolicy.objects.first()
+    terms = TermsAndCondition.objects.first()
+    privacy = PrivacyPolicy.objects.first()
+
+    def policy(obj):
+        if not obj:
+            return None
+        return {"short_description": obj.short_description or "", "description": obj.descriptin or ""}
+
+    return JsonResponse({
+        "status": True,
+        "data": {
+            "about": {
+                "title": about.title or "",
+                "description": about.description or "",
+                "bg_image": request.build_absolute_uri(about.bg_image.url) if about.bg_image else None,
+            } if about else None,
+            "contact": {
+                "phone": contact.phone or "",
+                "secondary_phone": contact.secondary_phone or "",
+                "whatsapp": contact.whatspp_number or "",
+                "email": contact.email or "",
+                "location": contact.location or "",
+            } if contact else None,
+            "refund": policy(refund),
+            "terms": policy(terms),
+            "privacy": policy(privacy),
+        },
+    })
+

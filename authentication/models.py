@@ -29,6 +29,16 @@ class CustomUser(AbstractUser):
         return self.email or self.phone or self.username
 
 
+class GoogleIdentity(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="google_identities")
+    google_id = models.CharField(max_length=64, unique=True)
+    email = models.EmailField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.email or self.google_id} -> {self.user_id}"
+
+
 class Customer(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.SET_NULL, blank=True, null=True, related_name='customer_profile')
     company = models.CharField(max_length=255, blank=True, null=True)

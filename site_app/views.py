@@ -23,6 +23,7 @@ from .bd_districts import BD_DISTRICTS, SYSTEM_DEFAULT_DELIVERY_CHARGE
 from .models import (
     HomeSlider, SiteDeliveryChargeConfig, FooterTagLink, SocialLink, NavMenuLink,
     NewsFeed, Todo, Reminder, MaintenanceCost, DailyProfit, InvoiceColorConfig,
+    AboutUs, ContactInformation, RefundPolicy, TermsAndCondition, PrivacyPolicy,
 )
 from authentication.models import CustomUser
 from order.models import Order, OrderRequest
@@ -1240,6 +1241,68 @@ class InvoiceColorSettingsView(LoginRequiredMixin, View):
         config.save()
         messages.success(request, "Invoice color settings updated.")
         return redirect('invoice_color_settings')
+
+class SitePagesView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+    template_name = "db_settings/site_pages.html"
+    TABS = ("about", "contact", "refund", "terms", "privacy")
+    POLICY_MODELS = {"refund": RefundPolicy, "terms": TermsAndCondition, "privacy": PrivacyPolicy}
+
+    def get(self, request):
+        tab = request.GET.get("tab", "about")
+        return render(request, self.template_name, {
+            "tab": tab if tab in self.TABS else "about",
+            "about": AboutUs.objects.first(),
+            "contact": ContactInformation.objects.first(),
+            "refund": RefundPolicy.objects.first(),
+            "terms": TermsAndCondition.objects.first(),
+            "privacy": PrivacyPolicy.objects.first(),
+        })
+
+    def post(self, request):
+        page = request.POST.get("page")
+        if page not in self.TABS:
+            messages.error(request, "Unknown page.")
+            return redirect("site_pages")
+
+        if page == "about":
+            title = (request.POST.get("title") or "").strip()
+            if not title:
+                messages.error(request, "About us title is required.")
+                return redirect(f"{request.path}?tab=about")
+            about = AboutUs.objects.first() or AboutUs()
+            about.title = title
+            about.description = request.POST.get("description", "")
+            if request.FILES.get("bg_image"):
+                about.bg_image = request.FILES["bg_image"]
+            elif request.POST.get("remove_bg_image") and about.pk:
+                about.bg_image = None
+            about.save()
+
+        elif page == "contact":
+            phone = (request.POST.get("phone") or "").strip()
+            email = (request.POST.get("email") or "").strip()
+            if not phone or not email:
+                messages.error(request, "Phone and email are required.")
+                return redirect(f"{request.path}?tab=contact")
+            contact = ContactInformation.objects.first() or ContactInformation()
+            contact.phone = phone[:14]
+            contact.email = email
+            contact.secondary_phone = (request.POST.get("secondary_phone") or "").strip()[:14] or None
+            contact.whatspp_number = (request.POST.get("whatsapp") or "").strip()[:14] or None
+            contact.location = (request.POST.get("location") or "").strip() or None
+            contact.save()
+
+        else:
+            model = self.POLICY_MODELS[page]
+            policy = model.objects.first() or model()
+            policy.short_description = request.POST.get("short_description", "").strip()
+            policy.descriptin = request.POST.get("description", "")
+            policy.save()
+
+        messages.success(request, "Saved.")
+        return redirect(f"{request.path}?tab={page}")
+
 
 
 

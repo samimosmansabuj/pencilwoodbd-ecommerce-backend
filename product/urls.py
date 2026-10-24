@@ -19,6 +19,7 @@ from .api_views import (
     home_slider_api,
     showcase_media_api,
     site_content_api,
+    site_pages_api,
     GuestCartRefreshAPIView,
     MergeGuestCartWishlistAPIView,
 )
@@ -41,6 +42,7 @@ urlpatterns = [
     path('api/ecom/home-slider/', home_slider_api, name='home_slider_api'),
     path('api/ecom/showcase-media/', showcase_media_api, name='showcase_media_api'),    
     path('api/ecom/site-content/', site_content_api, name='site_content_api'),    
+    path('api/ecom/pages/', site_pages_api, name='site_pages_api'),
     
     path("api/", include(global_api_router.urls)),
     # path("api/order/create/", GlobalOrderCreateApi.as_view(),name="global-order-create" ),

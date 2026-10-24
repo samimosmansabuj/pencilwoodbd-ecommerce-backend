@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Customer, CustomUser, Role, OrderTrackRecord, BlockedIdentity, TrackSettings
+from .models import Customer, CustomUser, Role, OrderTrackRecord, BlockedIdentity, TrackSettings, GoogleIdentity
 from django.contrib.sessions.models import Session
 from django.contrib.auth.admin import UserAdmin
 
@@ -67,3 +67,8 @@ class TrackSettingsAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+@admin.register(GoogleIdentity)
+class GoogleIdentityAdmin(admin.ModelAdmin):
+    list_display = ["id", "email", "user", "created_at"]
+    search_fields = ["email", "google_id"]
