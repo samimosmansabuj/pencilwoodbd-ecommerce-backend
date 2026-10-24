@@ -1,5 +1,5 @@
 from django.urls import path
-from .export_views import OrderExportCSVView, OrderProductRequirementView, OrderShortDetailView
+from .export_views import OrderExportCSVView, OrderProductRequirementView, OrderShortDetailView, BDCourierCheck, OrderRefreshView
 from .api_views import (
     DeliveryOptionListAPIView, 
      
@@ -87,4 +87,6 @@ urlpatterns = [
     path('orders/export/csv/', OrderExportCSVView.as_view(), name='order_export_csv'),
     path('orders/product-requirement/', OrderProductRequirementView.as_view(), name='order_product_requirement'),
     path('orders/<int:pk>/short-detail/', OrderShortDetailView.as_view(), name='order_short_detail'),
+    path("api/bd-courier-check/", BDCourierCheck, name="bd_courier_check",),
+    path("api/order/<int:order_id>/refresh/", OrderRefreshView.as_view(), name="order_refreshing",),
 ]

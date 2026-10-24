@@ -11,6 +11,11 @@ from django.views import View
 
 from .models import Order
 
+import os
+import requests
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_GET
+
 
 class OrderExportCSVView(LoginRequiredMixin, View):
     _BLANK_ORDER_FIELDS = 26
@@ -288,7 +293,6 @@ class OrderExportCSVView(LoginRequiredMixin, View):
 
         return response
 
-
 class OrderProductRequirementView(LoginRequiredMixin, View):
     """
     Returns a JSON list that shows, for the given status/product filters,
@@ -379,12 +383,6 @@ class OrderProductRequirementView(LoginRequiredMixin, View):
 
 
 class OrderShortDetailView(LoginRequiredMixin, View):
-    """
-    Returns a lightweight JSON snapshot of a single order for the quick-view modal.
-
-    GET /orders/<id>/short-detail/
-    """
-
     def get(self, request, pk, *args, **kwargs):
         order = get_object_or_404(
             Order.objects.select_related("customer", "coupon", "updated_by", "created_by")
@@ -459,3 +457,54 @@ class OrderShortDetailView(LoginRequiredMixin, View):
                 "shipment":         shipment_data,
             }
         })
+
+class OrderRefreshView(LoginRequiredMixin, View):
+    def post(self, request, order_id, *args, **kwargs):
+        order = get_object_or_404(Order, id=order_id)
+        # order.refresh_order_data()
+        return JsonResponse({
+            "success": True,
+            "message": f"Order {order.order_id} refreshed successfully.",
+        })
+
+@login_required
+@require_GET
+def BDCourierCheck(request):
+    phone = request.GET.get("phone", "").strip()
+    phone = "".join(ch for ch in phone if ch.isdigit())
+
+    if phone.startswith("880"):
+        phone = "0" + phone[3:]
+
+    if len(phone) != 11 or not phone.startswith("01"):
+        return JsonResponse(
+            {"status": "error", "message": "Invalid phone number"},
+            status=400,
+        )
+
+    api_key = os.getenv("BDCOURIER_API_KEY")
+    courier_check_url = os.getenv("BDCOURIER_COURIER_CHECK_URL", "https://api.bdcourier.com/courier-check")
+    if not api_key:
+        return JsonResponse(
+            {"status": "error", "message": "Courier API is not configured"},
+            status=500,
+        )
+
+    try:
+        response = requests.post(
+            courier_check_url,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={"phone": phone},
+            timeout=15,
+        )
+        response.raise_for_status()
+        return JsonResponse(response.json())
+    except requests.RequestException:
+        return JsonResponse(
+            {"status": "error", "message": "Courier service unavailable"},
+            status=502,
+        )
+

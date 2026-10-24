@@ -51,6 +51,8 @@
 
         // When open logistics modal, fetch delivery options from API and populate the modal with options
         deliveryOptionBtn.forEach(btn => {
+            if (btn.dataset.deliveryListenerAttached === "true") return;
+            btn.dataset.deliveryListenerAttached = "true";
             btn.addEventListener("click", function () {
                 const orderId = this.getAttribute("data-id");
 
@@ -75,16 +77,34 @@
                     </div>
                 `;
 
-                // Shipping Information Card Clears When Modal Opens
+                // Fetch Shipping Information for the selected order only
                 const resultContainer = document.getElementById("delivery-result");
-                resultContainer.innerHTML = "";
+                const modalEl = document.getElementById("deliveryOptionModal");
+                modalEl.dataset.currentOrderId = String(orderId);
+
+                // Immediately clear previous order results
+                resultContainer.innerHTML = `
+                    <div class="text-center py-3">
+                        <div class="spinner-border spinner-border-sm text-danger"></div>
+                        <div class="small text-muted mt-2">
+                            Loading shipment information...
+                        </div>
+                    </div>
+                `;
+
 
                 // Fetch Shipping Information with Cards
-                fetch(`/api/v1/shipment-info/${orderId}/`)
+                fetch(`/api/v1/shipment-info/${encodeURIComponent(orderId)}/`)
                     .then(response => response.json())
                     .then(data => {
                         if (data.success && data.data.length > 0) {
-                            const resultContainer = document.getElementById("delivery-result");
+                            if (modalEl.dataset.currentOrderId !== String(orderId)) {
+                                return;
+                            }
+                            
+                            // Always clear the loading state before rendering
+                            resultContainer.innerHTML = "";
+                            
                             data.data.forEach(shipment => {
                                 const order_shipped_data = createShippingCard(data.message, shipment);
                                 resultContainer.insertAdjacentHTML("beforeend", order_shipped_data);
@@ -106,6 +126,9 @@
                         console.error("Shipment Info API Error:", error);
                     });
 
+                
+                
+                
                 // Fetch Shipping Options from API
                 fetch("/api/v1/delivery-options/")
                     .then(response => response.json())

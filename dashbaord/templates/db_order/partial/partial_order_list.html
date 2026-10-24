@@ -482,7 +482,6 @@
 
 
                 function toggleBulkBar() {
-
                     const checked =
                         document.querySelectorAll(
                             '.order-checkbox:checked'
@@ -499,7 +498,6 @@
 
 
                 function getSelectedOrderIds() {
-
                     return Array.from(
                         document.querySelectorAll(
                             '.order-checkbox:checked'
@@ -507,17 +505,14 @@
                     ).map(function (cb) {
                         return parseInt(cb.value);
                     });
-
                 }
 
 
                 function submitBulkAction(action) {
-
                     const payload = {
                         order_ids: getSelectedOrderIds(),
                         action: action
                     };
-
 
                     if (action === 'delete') {
                         if (!payload.order_ids.length) {
@@ -708,18 +703,13 @@
                 // -------------------------------
                 // Bulk Parcel
                 // -------------------------------
-
                 function openBulkParcelModal() {
-
-                    const orderIds =
-                        getSelectedOrderIds();
+                    const orderIds = getSelectedOrderIds();
 
                     if (!orderIds.length) {
-
                         errorNotificationCustom(
                             "Please select at least one order."
                         );
-
                         return;
                     }
 
