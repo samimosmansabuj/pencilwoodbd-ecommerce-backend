@@ -210,6 +210,20 @@ class PathaoParcelAPI:
         response.raise_for_status()
         return response.json()
     
+    def get_tracking_info(self, consignment_id):
+        partner = self.get_pathao_credentials()
+        token = self.get_access_token()
+        url = f"{partner.api_url}/aladdin/api/v1/orders/{consignment_id}/info"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        }
+        response = requests.get(url, headers=headers, timeout=30)
+        if not response.ok:
+            print("Pathao Status:", response.status_code)
+            print("Pathao Response:", response.text)
+        response.raise_for_status()
+        return response.json()
 
 
 def _bill_money(value):

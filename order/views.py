@@ -25,7 +25,7 @@ from pencilwoodbd.choices import (
 )
 
 # Models
-from .models import Order, OrderRequest, OrderItem, OrderRequestItem, TelegramBotConfig, OrderAttempt, OrderActivityLog
+from .models import Order, OrderRequest, OrderItem, OrderRequestItem, Shipment, TelegramBotConfig, OrderAttempt, OrderActivityLog
 from product.models import Product, ProductVariant, Category
 from authentication.models import CustomUser, Customer, OrderTrackRecord
 from site_app.models import DeliveryOption
@@ -1708,6 +1708,49 @@ class OrderDeliveryOptionSubmitView(LoginRequiredMixin, View):
         except Exception as e:
             return self.return_response(False, f"{str(e)}", status=HTTPStatus.BAD_REQUEST)
 
+    def get(self, request, pk):
+        consignment_id = request.GET.get("consignment_id")
+
+        if not consignment_id:
+            return JsonResponse({
+                "success": False,
+                "message": "Consignment ID is required."
+            }, status=400)
+
+        shipment = (
+            Shipment.objects
+            .filter(
+                tracking_number=consignment_id,
+                order_id=pk
+            )
+            .select_related("courier")
+            .order_by("-created_at")
+            .first()
+        )
+
+        if not shipment:
+            return JsonResponse({
+                "success": False,
+                "message": "Shipment not found for this order."
+            }, status=404)
+
+        try:
+            pathao = PathaoParcelAPI(shipment.courier.id)
+
+            tracking_info = pathao.get_tracking_info(
+                shipment.tracking_number
+            )
+
+            return JsonResponse({
+                "success": True,
+                "tracking_info": tracking_info
+            })
+
+        except Exception:
+            return JsonResponse({
+                "success": False,
+                "message": "Unable to retrieve tracking information."
+            }, status=502)
 
 
 #------------------ Pixel Setup --------------
@@ -1814,6 +1857,52 @@ class OrderPathaoParcelSubmitView(LoginRequiredMixin, View):
                 return JsonResponse({"success": True, "message": "Pathao parcel created.", "tracking_number": shipment.tracking_number})
         except Exception as e:
             return JsonResponse({"success": False, "message": str(e)}, status=400)
+    
+    
+    def get(self, request, pk):
+        consignment_id = request.GET.get("consignment_id")
+
+        if not consignment_id:
+            return JsonResponse({
+                "success": False,
+                "message": "Consignment ID is required."
+            }, status=400)
+
+        shipment = (
+            Shipment.objects
+            .filter(
+                tracking_number=consignment_id,
+                order_id=pk
+            )
+            .select_related("courier")
+            .order_by("-created_at")
+            .first()
+        )
+
+        if not shipment:
+            return JsonResponse({
+                "success": False,
+                "message": "Shipment not found for this order."
+            }, status=404)
+
+        try:
+            pathao = PathaoParcelAPI(shipment.courier.id)
+
+            tracking_info = pathao.get_tracking_info(
+                shipment.tracking_number
+            )
+
+            return JsonResponse({
+                "success": True,
+                "tracking_info": tracking_info
+            })
+
+        except Exception:
+            return JsonResponse({
+                "success": False,
+                "message": "Unable to retrieve tracking information."
+            }, status=502)
+
 
 
 class OrderBulkActionView(LoginRequiredMixin, View):
