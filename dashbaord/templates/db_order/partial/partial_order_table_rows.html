@@ -210,10 +210,13 @@
                                 <i class="bi bi-pencil"></i>
                             </a>
 
-                            <button class="btn btn-sm btn-filter delivery-option-btn" data-id="{{ order.id }}"
-                                data-bs-toggle="modal" data-bs-target="#deliveryOptionModal">
+                            <button type="button" class="btn btn-sm btn-filter" onclick="deliveryOptionFun({{ order.id }})" title="Delivery Option">
                                 <i class="lni lni-delivery"></i>
                             </button>
+                            {% comment %} <button class="btn btn-sm btn-filter delivery-option-btn" data-id="{{ order.id }}"
+                                data-bs-toggle="modal" data-bs-target="#deliveryOptionModal">
+                                <i class="lni lni-delivery"></i>
+                            </button> {% endcomment %}
 
                             <button class="btn btn-sm btn-filter delete-order-btn" data-id="{{ order.id }}"
                                 data-bs-toggle="modal" data-bs-target="#deleteOrderModal">
@@ -464,6 +467,412 @@
                 }
             });
         };
+
+        window.deliveryOptionFun = async function (orderId) {
+            const modalEl = document.getElementById("deliveryOptionModal");
+            const form = document.getElementById("deliveryOptionForm");
+            const resultContainer = document.getElementById("delivery-result");
+            const logisticsContainer = document.getElementById("logistics-option");
+
+            if (!modalEl || !form || !resultContainer || !logisticsContainer) {
+                console.error("Delivery modal elements not found.");
+                return;
+            }
+
+            // Track the active order to prevent stale responses
+            const requestId = crypto.randomUUID();
+            modalEl.dataset.currentOrderId = String(orderId);
+            modalEl.dataset.deliveryRequestId = requestId;
+
+            // Open the existing modal
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+
+            // Set the selected order as the form target
+            const baseUrl = form.getAttribute("data-url");
+            form.action = baseUrl.replace(/0(?=\/?$)/, String(orderId));
+
+            // Reset bulk mode for a single-order request
+            form.dataset.bulkMode = "false";
+            form.dataset.bulkIds = "";
+
+            const submitBtn = form.querySelector('button[type="submit"]');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = "Submit";
+
+            // Clear previous order's data immediately
+            resultContainer.innerHTML = `
+                <div class="text-center py-3">
+                    <div class="spinner-border spinner-border-sm text-danger"></div>
+                    <div class="small text mt-2">Loading shipment information...</div>
+                </div>
+            `;
+
+            logisticsContainer.innerHTML = `
+                <div class="text-center py-3 w-100">
+                    <div class="spinner-border text-danger"></div>
+                    <div class="small text mt-2">Loading delivery options...</div>
+                </div>
+            `;
+
+            // Re-enable any previously disabled options
+            form.querySelectorAll('input[name="logistics_partner"]').forEach(input => {
+                input.disabled = false;
+            });
+
+            const isCurrentRequest = () =>
+                modalEl.dataset.deliveryRequestId === requestId &&
+                modalEl.dataset.currentOrderId === String(orderId);
+
+            // Fetch this order's shipment history
+            const shipmentRequest = fetch(`/api/v1/shipment-info/${encodeURIComponent(orderId)}/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!isCurrentRequest()) return;
+
+                    resultContainer.innerHTML = "";
+
+                    if (data.success && Array.isArray(data.data) && data.data.length) {
+                        data.data.forEach(shipment => {
+                            resultContainer.insertAdjacentHTML(
+                                "beforeend",
+                                createShippingCard(data.message, shipment, orderId)
+                            );
+                        });
+                    } else {
+                        resultContainer.innerHTML = `
+                            <div class="card mt-3 border-warning shadow-sm">
+                                <div class="card-body">
+                                    <h6 class="text-warning mb-0">
+                                        ⚠ ${escH(data.message || "No shipment information found for this order.")}
+                                    </h6>
+                                </div>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    if (!isCurrentRequest()) return;
+
+                    resultContainer.innerHTML = `
+                        <div class="alert alert-danger mt-3">
+                            ${escH(error.message)}
+                        </div>
+                    `;
+                });
+
+            
+            // Fetch active logistics partners
+            const optionsRequest = fetch("/api/v1/delivery-options/")
+                .then(response => {
+                    if (!response.ok) throw new Error("Failed to load delivery options.");
+                    return response.json();
+                })
+                .then(data => {
+                    if (!isCurrentRequest()) return;
+
+                    logisticsContainer.innerHTML = "";
+
+                    const options = (data.delivery_options || []).filter(
+                        option => option.is_active
+                    );
+
+                    if (data.success && options.length) {
+                        options.forEach(option => {
+                            const card = `
+                                <div class="col-md-6">
+                                    <label class="logistics-card w-100">
+                                        <input
+                                            type="radio"
+                                            name="logistics_partner"
+                                            value="${escH(option.id)}"
+                                            required
+                                        >
+                                        <div class="card-content">
+                                            ${option.logo
+                                                ? `<img src="${escH(option.logo)}" height="35" alt="">`
+                                                : ""}
+                                            <h6>
+                                                ${escH(option.name)}
+                                                ${option.type
+                                                    ? `<small style="color:#007bff;">(${escH(option.type)})</small>`
+                                                    : ""}
+                                            </h6>
+                                            <p>${escH(option.description || "No description available")}</p>
+                                        </div>
+                                    </label>
+                                </div>
+                            `;
+
+                            logisticsContainer.insertAdjacentHTML("beforeend", card);
+                        });
+                    } else {
+                        logisticsContainer.innerHTML = `
+                            <div class="col-12 text-center text-danger">
+                                No delivery options available.
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    if (!isCurrentRequest()) return;
+
+                    logisticsContainer.innerHTML = `
+                        <div class="col-12 text-center text-danger">
+                            ${escH(error.message)}
+                        </div>
+                    `;
+                });
+
+            await Promise.allSettled([shipmentRequest, optionsRequest]);
+        };
+
+        // Order Shipping Card Template Literal Function
+        function createShippingCard(message, data, orderId) {
+            const order_shipped_data = `
+            <div class="card mt-3 shadow border-0 rounded-3">
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h6 class="fw-bold text-success mb-1">
+                                <i class="lni lni-checkmark-circle"></i>
+                                ${message || "Consignment Created Successfully"} (ID#${data.id})
+                            </h6>
+                        </div>
+
+                        <span class="badge ${getStatusBadge(data.status)} px-3 py-2">
+                            ${data.status.replace("_", " ").toUpperCase()}
+                        </span>
+                    </div>
+
+                    <div class="row gy-3">
+                        <div class="col-6">
+                            <small class="d-block">Courier</small>
+                            <span class="fw-semibold">${data.courier}</span>
+                        </div>
+                        <div class="col-6">
+                            <small class="d-block">Tracking/Consignment Number</small>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fw-bold text-primary">
+                                    ${data.tracking_number}
+                                </span>
+                                <button type="button" class="btn btn-sm btn-light border copy-btn" onclick="copyToClipboard(this, '${data.tracking_number}')">
+                                    <i class="lni lni-clipboard"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <small class="d-block">Created At</small>
+                            <span>${formatDate(data.created_at)}</span>
+                        </div>
+
+                        <div class="col-6">
+                            <small class="d-block">Last Updated</small>
+                            <span>${formatDate(data.updated_at)}</span>
+                        </div>
+
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="trackParcel('${orderId}', '${data.tracking_number}')" style="margin-right: 5px;">
+                            <i class="lni lni-map-marker"></i> Track Parcel
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="trackParcel('${orderId}', '${data.tracking_number}')">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+            `;
+            return order_shipped_data;
+        };
+
+        // Order Shipping Card Status Badge Update Dynamic Class Function
+        function getStatusBadge(status) {
+            if (status === "in_review") return "bg-warning text-dark";
+            if (status === "approved") return "bg-success";
+            if (status === "cancelled") return "bg-danger";
+            return "bg-secondary";
+        };
+
+        // Data Format Function
+        function formatDate(dateString) {
+            if (!dateString) return "-";
+            const date = new Date(dateString);
+            return date.toLocaleString("en-BD", {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit"
+            });
+        };
+
+       
+        
+        window.trackParcel = async function (orderId, trackingNumber) {
+            const url = new URL(
+                `/orders/delivery-option-submit/${encodeURIComponent(orderId)}/`,
+                window.location.origin
+            );
+            url.searchParams.set("consignment_id", trackingNumber);
+            let container = document.getElementById("tracking-info-container");
+
+            if (!container) {
+                container = document.createElement("div");
+                container.id = "tracking-info-container";
+                container.className = "mt-3";
+
+                const resultContainer = document.getElementById("delivery-result");
+
+                if (resultContainer) {
+                    resultContainer.appendChild(container);
+                } else {
+                    console.error("Tracking information container not found.");
+                    return;
+                }
+            }
+
+            container.innerHTML = `
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center py-4">
+                        <div class="spinner-border spinner-border-sm text-primary"></div>
+                        <p class="small text mt-2 mb-0">Loading tracking information...</p>
+                    </div>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(url, {
+                    method: "GET",
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || "Unable to retrieve tracking information.");
+                }
+                const info = data.tracking_info.data || data;
+                console.log("Tracking info:", info);
+                const escapeHTML = value =>
+                    String(value ?? "N/A").replace(/[&<>"']/g, char => ({
+                        "&": "&amp;",
+                        "<": "&lt;",
+                        ">": "&gt;",
+                        '"': "&quot;",
+                        "'": "&#39;"
+                    })[char]);
+
+                const status = info.order_status || "Unknown";
+                const statusSlug = (info.order_status_slug || status).toLowerCase();
+
+                let badgeClass = "bg-secondary";
+
+                if (["delivered", "completed"].includes(statusSlug)) {
+                    badgeClass = "bg-success";
+                } else if (["pending", "processing", "picked"].includes(statusSlug)) {
+                    badgeClass = "bg-warning text-dark";
+                } else if (["cancelled", "canceled", "returned", "failed"].includes(statusSlug)) {
+                    badgeClass = "bg-danger";
+                }
+
+                container.innerHTML = `
+                    <div class="card border-0 shadow-sm rounded-3">
+                        <div class="card-header bg-black d-flex justify-content-between align-items-center py-3">
+                            <h6 class="mb-0 fw-bold">
+                                <i class="lni lni-map-marker text-primary me-1"></i>
+                                Tracking Information
+                            </h6>
+
+                            <span class="badge ${badgeClass} px-3 py-2">
+                                ${escapeHTML(status)}
+                            </span>
+                        </div>
+
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <small class="text d-block">Consignment ID</small>
+                                    <div class="fw-bold text-primary">
+                                        ${escapeHTML(info.consignment_id || trackingNumber)}
+                                    </div>
+                                </div>
+
+                                <div class="col-12">
+                                    <small class="text d-block">Merchant Order ID</small>
+                                    <div class="fw-semibold">
+                                        ${escapeHTML(info.merchant_order_id)}
+                                    </div>
+                                </div>
+
+                                <div class="col-6">
+                                    <small class="text d-block">Order Status</small>
+                                    <span class="fw-semibold">
+                                        ${escapeHTML(status)}
+                                    </span>
+                                </div>
+
+                                <div class="col-6">
+                                    <small class="text d-block">Payment Status</small>
+                                    <span class="fw-semibold">
+                                        ${escapeHTML(info.payment_status || "N/A")}
+                                    </span>
+                                </div>
+
+                                <div class="col-6">
+                                    <small class="text d-block">Invoice ID</small>
+                                    <span class="fw-semibold">
+                                        ${escapeHTML(info.invoice_id)}
+                                    </span>
+                                </div>
+
+                                <div class="col-6">
+                                    <small class="text d-block">Last Updated</small>
+                                    <span class="fw-semibold">
+                                        ${escapeHTML(info.updated_at)}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <hr>
+
+                            <div class="d-flex justify-content-end">
+                                <button type="button"
+                                        class="btn btn-outline-primary btn-sm"
+                                        onclick="trackParcel('${escapeHTML(orderId)}', '${escapeHTML(trackingNumber)}')">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>
+                                    Refresh Tracking
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+            } catch (error) {
+                console.error("Error tracking parcel:", error);
+
+                container.innerHTML = `
+                    <div class="alert alert-danger mb-0">
+                        ${String(error.message || "Unable to retrieve tracking information.")
+                            .replace(/[&<>"']/g, char => ({
+                                "&": "&amp;",
+                                "<": "&lt;",
+                                ">": "&gt;",
+                                '"': "&quot;",
+                                "'": "&#39;"
+                            })[char])}
+                    </div>
+                `;
+            }
+        };
+
+
+
 
         function copyText(text, btn) {
             navigator.clipboard.writeText(text).then(() => {

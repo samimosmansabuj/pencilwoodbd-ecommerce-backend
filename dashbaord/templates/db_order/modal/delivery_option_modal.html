@@ -49,175 +49,104 @@
         const baseUrl = deliveryOptionForm.getAttribute("data-url");
         const logisticsContainer = document.getElementById("logistics-option");
 
-        // When open logistics modal, fetch delivery options from API and populate the modal with options
-        deliveryOptionBtn.forEach(btn => {
-            if (btn.dataset.deliveryListenerAttached === "true") return;
-            btn.dataset.deliveryListenerAttached = "true";
-            btn.addEventListener("click", function () {
-                const orderId = this.getAttribute("data-id");
-
-                // Reset bulk mode whenever the single-order icon is used
-                deliveryOptionForm.dataset.bulkMode = "false";
-                deliveryOptionForm.dataset.bulkIds = "";
-
-                deliveryOptionForm.action = baseUrl.replace("0", orderId);
-
-                // Re-enable radios and reset submit button in case a previous bulk/single submit disabled them
-                document.querySelectorAll('input[name="logistics_partner"]').forEach(el => {
-                    el.disabled = false;
-                });
-                const resetSubmitBtn = deliveryOptionForm.querySelector("button[type='submit']");
-                resetSubmitBtn.disabled = false;
-                resetSubmitBtn.innerHTML = "Submit";
-
-                // Clear old cards
-                logisticsContainer.innerHTML = `
-                    <div class="text-center py-3 w-100">
-                        <div class="spinner-border text-danger"></div>
-                    </div>
-                `;
-
-                // Fetch Shipping Information for the selected order only
-                const resultContainer = document.getElementById("delivery-result");
-                const modalEl = document.getElementById("deliveryOptionModal");
-                modalEl.dataset.currentOrderId = String(orderId);
-
-                // Immediately clear previous order results
-                resultContainer.innerHTML = `
-                    <div class="text-center py-3">
-                        <div class="spinner-border spinner-border-sm text-danger"></div>
-                        <div class="small text-muted mt-2">
-                            Loading shipment information...
-                        </div>
-                    </div>
-                `;
-
-
-                // Fetch Shipping Information with Cards
-                fetch(`/api/v1/shipment-info/${encodeURIComponent(orderId)}/`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success && data.data.length > 0) {
-                            if (modalEl.dataset.currentOrderId !== String(orderId)) {
-                                return;
-                            }
-                            
-                            // Always clear the loading state before rendering
-                            resultContainer.innerHTML = "";
-                            
-                            data.data.forEach(shipment => {
-                                const order_shipped_data = createShippingCard(data.message, shipment);
-                                resultContainer.insertAdjacentHTML("beforeend", order_shipped_data);
-                            });
-                        } else {
-                            const resultContainer = document.getElementById("delivery-result");
-                            resultContainer.innerHTML = `
-                                <div class="card mt-3 border-warning shadow-sm" id="no-shipment-card">
-                                    <div class="card-body">
-                                        <h6 class="text-warning mb-0">
-                                            ⚠ ${data.message || "No shipment information found for this order."}
-                                        </h6>
-                                    </div>
-                                </div>
-                            `;
-                        }
-                    })
-                    .catch(error => {
-                        console.error("Shipment Info API Error:", error);
-                    });
-
-                
-                
-                
-                // Fetch Shipping Options from API
-                fetch("/api/v1/delivery-options/")
-                    .then(response => response.json())
-                    .then(data => {
-                        logisticsContainer.innerHTML = "";
-                        if (data.success && data.delivery_options.length > 0) {
-                            data.delivery_options.forEach(option => {
-                                if (!option.is_active) return;
-                                const card = `
-                                    <div class="col-md-6">
-                                        <label class="logistics-card w-100">
-                                            <input type="radio"  name="logistics_partner"  value="${option.id}" required>
-                                            <div class="card-content">
-                                                ${option.logo ? `<img src="${option.logo}" height="35">` : ''}
-                                                <h6>${option.name} 
-                                                    ${option.type ? `<small style="color: #007bff;">(${option.type})</small>` : ''}
-                                                </h6>
-                                                <p>${option.description || 'No description available'}</p>
-                                            </div>
-                                        </label>
-                                    </div>
-                                `;
-                                logisticsContainer.insertAdjacentHTML("beforeend", card);
-                            });
-                        } else {
-                            logisticsContainer.innerHTML = `
-                            <div class="col-12 text-center text-danger">
-                                No delivery options available.
-                            </div>
-                            `;
-                        }
-                    })
-                    .catch(error => {
-                        logisticsContainer.innerHTML = `
-                            <div class="col-12 text-center text-danger">
-                                Failed to load delivery options.
-                            </div>
-                        `;
-                        console.error("Delivery API Error:", error);
-                    });
-            });
-        });
-
         // =============================
         // AJAX FORM SUBMIT
         // =============================
-        deliveryOptionForm.addEventListener("submit", function (e) {
-            e.preventDefault();
+        if (deliveryOptionForm.dataset.submitListenerAttached !== "true") {
+            deliveryOptionForm.dataset.submitListenerAttached = "true";
+            
+            deliveryOptionForm.addEventListener("submit", function (e) {
+                e.preventDefault();
 
-            const selectedOption = document.querySelector('input[name="logistics_partner"]:checked');
+                const selectedOption = document.querySelector('input[name="logistics_partner"]:checked');
 
-            if (!selectedOption) {
-                alert("Please select a delivery option.");
-                return;
-            }
-
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-
-            const submitBtn = deliveryOptionForm.querySelector("button[type='submit']");
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = "Processing...";
-
-            const isBulk = deliveryOptionForm.dataset.bulkMode === "true";
-
-            // ---- BULK MODE: multiple orders -> hit order_bulk_action ----
-            if (isBulk) {
-                let orderIds = [];
-                try {
-                    orderIds = JSON.parse(deliveryOptionForm.dataset.bulkIds || "[]");
-                } catch (err) {
-                    orderIds = [];
-                }
-
-                if (!orderIds.length) {
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = "Submit";
-                    alert("No orders selected.");
+                if (!selectedOption) {
+                    alert("Please select a delivery option.");
                     return;
                 }
 
-                fetch("{% url 'order_bulk_action' %}", {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+                const submitBtn = deliveryOptionForm.querySelector("button[type='submit']");
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = "Processing...";
+
+                const isBulk = deliveryOptionForm.dataset.bulkMode === "true";
+
+                // ---- BULK MODE: multiple orders -> hit order_bulk_action ----
+                if (isBulk) {
+                    let orderIds = [];
+                    try {
+                        orderIds = JSON.parse(deliveryOptionForm.dataset.bulkIds || "[]");
+                    } catch (err) {
+                        orderIds = [];
+                    }
+
+                    if (!orderIds.length) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = "Submit";
+                        alert("No orders selected.");
+                        return;
+                    }
+
+                    fetch("{% url 'order_bulk_action' %}", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-CSRFToken": csrfToken
+                        },
+                        body: JSON.stringify({
+                            order_ids: orderIds,
+                            action: "create_parcel",
+                            logistics_partner: selectedOption.value
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = "Submit";
+
+                        if (typeof successNotificationCustom === "function" && typeof errorNotificationCustom === "function") {
+                            if (data.success) {
+                                successNotificationCustom(data.message);
+                            } else {
+                                errorNotificationCustom(data.message || "Something went wrong.");
+                            }
+                        } else {
+                            alert(data.message || "Done.");
+                        }
+
+                        deliveryOptionForm.dataset.bulkMode = "false";
+                        deliveryOptionForm.dataset.bulkIds = "";
+
+                        const modalEl = document.getElementById('deliveryOptionModal');
+                        const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+                        modalInstance.hide();
+
+                        if (window.htmx) {
+                            htmx.ajax('GET', window.location.href, { target: '#content-area', swap: 'innerHTML' });
+                        }
+                    })
+                    .catch(error => {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = "Submit";
+                        alert("Server error occurred.");
+                        console.error(error);
+                    });
+
+                    return;
+                }
+
+                // ---- SINGLE ORDER MODE: existing behavior unchanged ----
+                const formAction = deliveryOptionForm.action;
+
+                fetch(formAction, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
                         "X-CSRFToken": csrfToken
                     },
                     body: JSON.stringify({
-                        order_ids: orderIds,
-                        action: "create_parcel",
                         logistics_partner: selectedOption.value
                     })
                 })
@@ -225,79 +154,31 @@
                 .then(data => {
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = "Submit";
+                    if (data.success) {
+                        // Clear No Shipment Card When Shipment Created Successfully
+                        const noShipmentCard = document.getElementById("no-shipment-card");
+                        if (noShipmentCard) noShipmentCard.remove();
 
-                    if (typeof successNotificationCustom === "function" && typeof errorNotificationCustom === "function") {
-                        if (data.success) {
-                            successNotificationCustom(data.message);
-                        } else {
-                            errorNotificationCustom(data.message || "Something went wrong.");
-                        }
+                        const resultContainer = document.getElementById("delivery-result");
+                        const order_shipped_data = createShippingCard(data.message, data.data);
+                        resultContainer.insertAdjacentHTML("beforeend", order_shipped_data);
+
+                        // Optional: disable logistics selection after success
+                        document.querySelectorAll('input[name="logistics_partner"]').forEach(el => {
+                            el.disabled = true;
+                        });
+                        // submitBtn.style.display = "none";
                     } else {
-                        alert(data.message || "Done.");
-                    }
-
-                    deliveryOptionForm.dataset.bulkMode = "false";
-                    deliveryOptionForm.dataset.bulkIds = "";
-
-                    const modalEl = document.getElementById('deliveryOptionModal');
-                    const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
-                    modalInstance.hide();
-
-                    if (window.htmx) {
-                        htmx.ajax('GET', window.location.href, { target: '#content-area', swap: 'innerHTML' });
+                        alert(data.message || "Something went wrong.");
                     }
                 })
                 .catch(error => {
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = "Submit";
-                    alert("Server error occurred.");
-                    console.error(error);
+                    alert("Server error occurred.", error);
                 });
-
-                return;
-            }
-
-            // ---- SINGLE ORDER MODE: existing behavior unchanged ----
-            const formAction = deliveryOptionForm.action;
-
-            fetch(formAction, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRFToken": csrfToken
-                },
-                body: JSON.stringify({
-                    logistics_partner: selectedOption.value
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = "Submit";
-                if (data.success) {
-                    // Clear No Shipment Card When Shipment Created Successfully
-                    const noShipmentCard = document.getElementById("no-shipment-card");
-                    if (noShipmentCard) noShipmentCard.remove();
-
-                    const resultContainer = document.getElementById("delivery-result");
-                    const order_shipped_data = createShippingCard(data.message, data.data);
-                    resultContainer.insertAdjacentHTML("beforeend", order_shipped_data);
-
-                    // Optional: disable logistics selection after success
-                    document.querySelectorAll('input[name="logistics_partner"]').forEach(el => {
-                        el.disabled = true;
-                    });
-                    // submitBtn.style.display = "none";
-                } else {
-                    alert(data.message || "Something went wrong.");
-                }
-            })
-            .catch(error => {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = "Submit";
-                alert("Server error occurred.", error);
             });
-        });
+        }
 
         // Order Shipping Card Template Literal Function
         function createShippingCard(message, data) {
