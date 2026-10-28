@@ -3,17 +3,28 @@
 <div class="d-flex justify-content-between mb-3">
     <input type="search" name="search" placeholder="Search todo..." class="form-control w-25"
            hx-get="{% url 'todo_list' %}" hx-trigger="keyup changed delay:400ms" hx-target="#todo-table-wrapper">
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#todoAddModal">+ Add Todo</button>
+    <button class="btn btn-primary" type="button" onclick="openTodoModal()">+ Add Todo</button>
 </div>
 <table class="table">
-    <thead><tr><th>Title</th><th>Priority</th><th>Assigned To</th><th>Due Date</th><th>Status</th><th>Actions</th></tr></thead>
+    <thead>
+        <tr>
+            <th>#</th><th>Title</th><th>Priority</th><th>Assigned To</th>
+            <th>Created</th><th>Due Date</th><th>Status</th><th>Actions</th>
+        </tr>
+    </thead>
     <tbody>
     {% for todo in todos %}
         <tr>
+            <td>{{ forloop.counter }}</td>
             <td>{{ todo.title }}</td>
             <td>{{ todo.get_priority_display }}</td>
             <td>{{ todo.assigned_to.get_full_name|default:"-" }}</td>
-            <td>{{ todo.due_date|default:"-" }}</td>
+            <td>{{ todo.created_at|date:"d M Y, h:i A" }}</td>
+            <td>
+                {% if todo.due_date %}
+                    {{ todo.due_date|date:"d M Y" }}{% if todo.due_time %}, {{ todo.due_time|time:"h:i A" }}{% endif %}
+                {% else %}-{% endif %}
+            </td>
             <td>
                 <button class="btn btn-sm {% if todo.is_complete %}btn-success{% else %}btn-warning{% endif %}"
                         hx-post="{% url 'todo_toggle' todo.pk %}" hx-target="#todo-table-wrapper">
@@ -21,20 +32,34 @@
                 </button>
             </td>
             <td>
+                <button type="button" class="btn btn-sm btn-info me-1" title="Edit"
+                        data-url="{% url 'todo_edit' todo.pk %}"
+                        data-title="{{ todo.title }}"
+                        data-description="{{ todo.description|default:'' }}"
+                        data-priority="{{ todo.priority }}"
+                        data-assigned="{{ todo.assigned_to_id|default:'' }}"
+                        data-due-date="{{ todo.due_date|date:'Y-m-d' }}"
+                        data-due-time="{{ todo.due_time|time:'H:i' }}"
+                        onclick="openTodoModal(this)">
+                    <i class="bi bi-pencil-square"></i>
+                </button>
                 <button class="btn btn-sm btn-danger" hx-post="{% url 'todo_delete' todo.pk %}"
                         hx-target="#todo-table-wrapper" hx-confirm="Delete this todo?">Delete</button>
             </td>
         </tr>
     {% empty %}
-        <tr><td colspan="6" class="text-center">No todos found.</td></tr>
+        <tr><td colspan="8" class="text-center">No todos found.</td></tr>
     {% endfor %}
     </tbody>
 </table>
 
-<div class="modal fade" id="todoAddModal">
+<div class="modal fade" id="todoModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
-        <form class="modal-content" hx-post="{% url 'todo_add' %}" hx-target="#todo-table-wrapper">
-            <div class="modal-header"><h5>Add Todo</h5></div>
+        <form class="modal-content" id="todoForm" hx-post="{% url 'todo_add' %}" hx-target="#todo-table-wrapper">
+            <div class="modal-header">
+                <h5 class="modal-title" id="todoModalTitle">Add Todo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
             <div class="modal-body">
                 <input type="text" name="title" class="form-control mb-2" placeholder="Title" required>
                 <textarea name="description" class="form-control mb-2" placeholder="Description"></textarea>
@@ -49,7 +74,16 @@
                     <option value="{{ staff.id }}">{{ staff.get_full_name }}</option>
                     {% endfor %}
                 </select>
-                <input type="date" name="due_date" class="form-control">
+                <div class="row g-2">
+                    <div class="col-7">
+                        <label class="form-label small mb-1">Due date</label>
+                        <input type="date" name="due_date" class="form-control">
+                    </div>
+                    <div class="col-5">
+                        <label class="form-label small mb-1">Time (optional)</label>
+                        <input type="time" name="due_time" class="form-control">
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="submit" class="btn btn-primary">Save</button>
@@ -57,3 +91,53 @@
         </form>
     </div>
 </div>
+
+<script>
+(function () {
+    var ADD_URL = "{% url 'todo_add' %}";
+
+    function cleanupBackdrop() {
+        document.querySelectorAll('.modal-backdrop').forEach(function (b) { b.remove(); });
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+    }
+
+    window.openTodoModal = function (btn) {
+        var modalEl = document.getElementById('todoModal');
+        var form = document.getElementById('todoForm');
+        form.reset();
+        if (btn) {
+            var d = btn.dataset;
+            document.getElementById('todoModalTitle').textContent = 'Edit Todo';
+            form.elements['title'].value = d.title || '';
+            form.elements['description'].value = d.description || '';
+            form.elements['priority'].value = d.priority || 'medium';
+            form.elements['assigned_to'].value = d.assigned || '';
+            form.elements['due_date'].value = d.dueDate || '';
+            form.elements['due_time'].value = d.dueTime || '';
+            form.setAttribute('hx-post', d.url);
+        } else {
+            document.getElementById('todoModalTitle').textContent = 'Add Todo';
+            form.setAttribute('hx-post', ADD_URL);
+        }
+        if (window.htmx) htmx.process(form);
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    };
+
+    if (!window.__todoModalInit) {
+        window.__todoModalInit = true;
+        document.body.addEventListener('htmx:beforeSwap', function (e) {
+            if (!e.detail.target || e.detail.target.id !== 'todo-table-wrapper') return;
+            var modalEl = document.getElementById('todoModal');
+            if (modalEl) {
+                var inst = bootstrap.Modal.getInstance(modalEl);
+                if (inst) inst.dispose();
+                modalEl.classList.remove('show');
+                modalEl.style.display = 'none';
+            }
+            cleanupBackdrop();
+        });
+    }
+})();
+</script>

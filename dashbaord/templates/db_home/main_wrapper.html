@@ -100,6 +100,13 @@
                                 <h2 class="mb-0 text-danger">{{ urgent_count }}</h2>
                             </div>
                         </div>
+                        <div class="d-flex align-items-center gap-4" hx-get="{% url 'order_list' %}?status=confirmed"
+                            hx-target="#content-area" style="cursor:pointer;">
+                            <div>
+                                <p class="mb-1 fs-6 fw-bold">Today Confirmed</p>
+                                <h2 class="mb-0 text-success">{{ today_confirmed_count }}</h2>
+                            </div>
+                        </div>
                         <div class="d-flex align-items-center gap-4" data-bs-toggle="modal"
                             data-bs-target="#stockAlertModal" hx-get="{% url 'stock_alert_list' %}?view=short"
                             hx-target="#stockAlertModalBody" hx-trigger="click" style="cursor:pointer;">

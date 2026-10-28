@@ -129,6 +129,27 @@
             </select>
         </div>
 
+        <!-- Work Status Filter -->
+        <div class="col-auto">
+            <select
+                class="form-control"
+                name="work_status"
+                hx-get="{% url 'order_request_list' %}?status={{ current_status }}&q={{ current_search }}&updated_by={{ current_updated_by }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                hx-target="#content-area"
+                hx-push-url="true">
+                <option value="">All Work Status</option>
+                <option value="none" {% if current_work_status == "none" %}selected{% endif %}>None</option>
+                <option value="design" {% if current_work_status == "design" %}selected{% endif %}>Design</option>
+                <option value="correction" {% if current_work_status == "correction" %}selected{% endif %}>Correction</option>
+                <option value="call" {% if current_work_status == "call" %}selected{% endif %}>Call</option>
+                <option value="knock" {% if current_work_status == "knock" %}selected{% endif %}>Knock</option>
+                <option value="other" {% if current_work_status == "other" %}selected{% endif %}>Other</option>
+                <option value="done" {% if current_work_status == "done" %}selected{% endif %}>Done</option>
+                <option value="hold" {% if current_work_status == "hold" %}selected{% endif %}>Hold</option>
+                <option value="cancel" {% if current_work_status == "cancel" %}selected{% endif %}>Cancel</option>
+            </select>
+        </div>
+
         <!-- Date Filter -->
         <div class="col-auto ms-auto d-flex gap-2 align-items-end">
 
@@ -285,6 +306,7 @@
                                 <td>
 
                                     {{ request.customer.name }}
+                                    {% if request.customer.company %}<div class="small text">({{ request.customer.company }})</div>{% endif %}
 
                                 </td>
 
@@ -430,7 +452,7 @@ style="z-index:1050;margin:auto 22px 45px 0!important;padding:0!important;">
 
 <li class="page-item {% if not requests.has_previous %}disabled{% endif %}">
 <a class="page-link"
-hx-get="{% if requests.has_previous %}{% url 'order_request_list' %}?page={{ requests.previous_page_number }}&status={{ current_status }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% endif %}"
+hx-get="{% if requests.has_previous %}{% url 'order_request_list' %}?page={{ requests.previous_page_number }}&status={{ current_status }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}&work_status={{ current_work_status }}{% endif %}"
 hx-target="#content-area"
 hx-push-url="true">
 «
@@ -441,7 +463,7 @@ hx-push-url="true">
 {% if num >= requests.number|add:-2 and num <= requests.number|add:2 %}
 <li class="page-item {% if requests.number == num %}active{% endif %}">
 <a class="page-link"
-hx-get="{% url 'order_request_list' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+hx-get="{% url 'order_request_list' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}&work_status={{ current_work_status }}"
 hx-target="#content-area"
 hx-push-url="true">
 {{ num }}
@@ -452,7 +474,7 @@ hx-push-url="true">
 
 <li class="page-item {% if not requests.has_next %}disabled{% endif %}">
 <a class="page-link"
-hx-get="{% if requests.has_next %}{% url 'order_request_list' %}?page={{ requests.next_page_number }}&status={{ current_status }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% endif %}"
+hx-get="{% if requests.has_next %}{% url 'order_request_list' %}?page={{ requests.next_page_number }}&status={{ current_status }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}&work_status={{ current_work_status }}{% endif %}"
 hx-target="#content-area"
 hx-push-url="true">
 »

@@ -34,6 +34,12 @@ class DashboardView(LoginRequiredMixin, View):
     def new_orders_count(self, orders):
         return orders.filter(status=STATUS.NEW).count()
 
+    def get_today_confirmed_count(self, orders):
+        return orders.filter(
+            status=STATUS.CONFIRMED,
+            order_created_date=timezone.localdate(),
+        ).count()
+
     def new_order_request_count(self):
         return OrderRequest.objects.filter(
             status=ORDER_REQUEST_STATUS.PENDING
@@ -118,6 +124,7 @@ class DashboardView(LoginRequiredMixin, View):
             "orders": orders[:10],
             "today_order_count": self.get_today_order_count(orders),
             "new_orders_count": self.new_orders_count(orders),
+            "today_confirmed_count": self.get_today_confirmed_count(orders),
             "status_amounts": self.get_status_amounts(orders),
             "status_counts": self.get_status_counts(orders),
             "total_orders": orders.count(),

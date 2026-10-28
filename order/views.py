@@ -347,6 +347,7 @@ class OrderView(LoginRequiredMixin, View):
         if search:            orders = orders.filter(
                 Q(order_id__icontains=search)
                 | Q(customer__name__icontains=search)
+                | Q(customer__company__icontains=search)
                 | Q(customer__phone__icontains=search)
                 | Q(shipping_address__icontains=search)
                 | Q(status__iexact=search)
@@ -741,9 +742,13 @@ class OrderStatusUpdateView(LoginRequiredMixin, View):
             if new_status not in valid_statuses:
                 return JsonResponse({"success": False, "message": "Invalid status selected"})
             else:
+                previous_status = order.status
                 order.status = new_status
                 update_fields = ["status", "updated_by"]
                 order.updated_by = request.user
+                if new_status == STATUS.CONFIRMED and previous_status != STATUS.CONFIRMED:
+                    order.order_created_date = timezone.localdate()
+                    update_fields.append("order_created_date")
                 if new_status == STATUS.DELIVERED and not order.delivered_at:
                     order.delivered_at = timezone.now()
                     update_fields.append("delivered_at")
@@ -1099,9 +1104,16 @@ class OrderRequestListView(LoginRequiredMixin, View):
         if updated_by_id:
             requests = requests.filter(updated_by_id=updated_by_id)
 
+        work_status = request.GET.get("work_status")
+        if work_status and work_status in [
+            x[0] for x in ORDER_REQUEST_WORK_STATUS.choices
+        ]:
+            requests = requests.filter(work_status=work_status)
+
         if search:
             requests = requests.filter(
                 Q(customer__name__icontains=search)
+                | Q(customer__company__icontains=search)
                 | Q(customer__phone__icontains=search)
                 | Q(shipping_address__icontains=search)
                 | Q(status__icontains=search)
@@ -1173,6 +1185,7 @@ class OrderRequestListView(LoginRequiredMixin, View):
                 "end_date",
                 "",
             ),
+            "current_work_status": request.GET.get("work_status", ""),
             "current_updated_by": request.GET.get("updated_by", ""),
             "staff_list": get_assignable_users(),
 
@@ -1577,13 +1590,27 @@ class OrderDeliveryOptionSubmitView(LoginRequiredMixin, View):
     def get_order_data(self, order):
         email = (order.customer.email or order.customer.user.email if order.customer.user else None) or None
         whatsapp = order.customer.whatsapp if order.customer.whatsapp else None
+        items = order.order_items.all()
+        def _line(i):
+            name = i.product_name or (i.product.name if i.product else "Item")
+            attrs = (i.variant.attributes if i.variant and i.variant.attributes else {}) or {}
+            variant = ", ".join(str(v) for v in attrs.values() if v)
+            if variant:
+                name = f"{name} ({variant})"
+            return f"{name} x{i.quantity}"
+        item_description = ", ".join(_line(i) for i in items)
+        note_parts = [order.note or ""] + [
+            f"{i.product_name or 'Item'}: {i.customization_note}" for i in items if i.customization_note
+        ]
+        note = " | ".join(p.strip() for p in note_parts if p and p.strip())
         data = {
             "invoice": order.order_id,
             "recipient_name": order.customer.name,
             "recipient_phone": order.customer.phone,
             "recipient_address": order.shipping_address,
             "cod_amount": float(order.total_cost),
-            "note": order.note,
+            "item_description": item_description[:255],
+            "note": note[:500],
             "total_lot": order.order_items.count(),
             "delivery_type": 1 if order.delivery_type == DELIVERY_TYPE.PICKUP else 0,
         }

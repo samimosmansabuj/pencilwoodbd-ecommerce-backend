@@ -13,7 +13,8 @@
                     <th>Status</th>
                     <th>Urgent</th>
                     <th>Delivery Type</th>
-                    <th>Delivery Date</th>
+                     <th>Delivery Date</th>
+                    <th>Confirmed Date</th>
                     <th>Date</th>
                     <th>Updated By</th>
                     <th>Actions</th>
@@ -179,9 +180,17 @@
 
                     <td>{{ order.delivery_type|upper }}</td>
 
+                    
                     <td>
                         {% if order.delivery_date %}
                         {{ order.delivery_date|date:"M d, Y" }}
+                        {% else %}
+                        Not Set
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if order.order_created_date %}
+                        {{ order.order_created_date|date:"M d, Y" }}
                         {% else %}
                         Not Set
                         {% endif %}
@@ -992,6 +1001,8 @@
                                 <strong>${escH(o.customer_name)}</strong>
                                 ${copyBtn(o.customer_name)}
                             </div>
+                            ${o.customer_company ? `<div class="small mb-1">(${escH(o.customer_company)})
+                                ${copyBtn(o.customer_company)}</div>` : ''}
                             ${customer_phone ? `<div class="small mb-1">
                                 <i class="bi bi-telephone me-1"></i>${escH(customer_phone)}
                                 ${copyBtn(customer_phone)}

@@ -940,6 +940,7 @@ class TodoCreateUpdateView(LoginRequiredMixin, View):
         todo.description = request.POST.get('description')
         todo.priority = request.POST.get('priority', Todo.Priority.MEDIUM)
         todo.due_date = request.POST.get('due_date') or None
+        todo.due_time = (request.POST.get('due_time') or None) if todo.due_date else None
         todo.assigned_to_id = request.POST.get('assigned_to') or None
         if not pk:
             todo.created_by = request.user
