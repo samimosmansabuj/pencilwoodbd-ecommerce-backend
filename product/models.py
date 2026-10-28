@@ -5,6 +5,8 @@ from pencilwoodbd.extra_module import previous_image_delete_os, image_delete_os
 from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS, PRODUCT_TYPE, PRODUCT_MEDIA_TYPE, PRODUCT_MEDIA_ROLE, PRODUCT_GIFT_TYPE, ATTRIBUTE_TYPE, INVENTORY_TYPE, CUSTOMIZATION_FIELD_TYPES
 import random, string
 
+UNLIMITED_STOCK = 999999
+
 def generate_unique_slug(model_object, field_value, old_slug=None):
     slug = slugify(field_value)
     if slug != old_slug:
@@ -308,16 +310,18 @@ class Product(models.Model):
 
     @property
     def available_stock(self):
-        """Returns a large number for unlimited so quantity checks never fail."""
         if self.inventory_type == INVENTORY_TYPE.UNLIMITED:
-            return 999999
+            return UNLIMITED_STOCK
         if self.inventory_type == INVENTORY_TYPE.OUT_OF_STOCK:
             return 0
         return self.inventory_quantity
 
 
     def save(self, *args, **kwargs):
-        is_new = self.pk is None  # NEW
+        is_new = self.pk is None
+
+        if self.inventory_type == INVENTORY_TYPE.UNLIMITED:
+            self.inventory_quantity = UNLIMITED_STOCK
 
         old_slug = Product.objects.get(pk=self.pk) if self.pk else None
         self.slug = generate_unique_slug(Product, self.name, old_slug.slug if old_slug else None)
@@ -372,13 +376,15 @@ class ProductVariant(models.Model):  # New model
     @property
     def available_stock(self):
         if self.inventory_type == INVENTORY_TYPE.UNLIMITED:
-            return 999999
+            return UNLIMITED_STOCK
         if self.inventory_type == INVENTORY_TYPE.OUT_OF_STOCK:
             return 0
         return self.inventory_quantity
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
+        if self.inventory_type == INVENTORY_TYPE.UNLIMITED:
+            self.inventory_quantity = UNLIMITED_STOCK
         if not self.sku:
             self.get_product_sku()
 
