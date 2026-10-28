@@ -938,6 +938,12 @@ class OrderDetailAPIView(APIView):
                     else ""
                 ),
 
+                "customer_company": (
+                    customer.company
+                    if customer and customer.company
+                    else ""
+                ),
+
                 "customer_phone": (
                     customer.phone
                     if customer

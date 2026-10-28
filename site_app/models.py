@@ -490,6 +490,7 @@ class Todo(models.Model):
         related_name='created_todos'
     )
     due_date = models.DateField(blank=True, null=True)
+    due_time = models.TimeField(blank=True, null=True)
     is_complete = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

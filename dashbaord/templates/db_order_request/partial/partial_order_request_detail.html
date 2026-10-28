@@ -539,7 +539,7 @@
 
                         <div class="fw-bold mt-1">
 
-                            {{ order_request.customer.name }}
+                            {{ order_request.customer.name }}{% if order_request.customer.company %} ({{ order_request.customer.company }}){% endif %}
 
                         </div>
 
