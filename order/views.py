@@ -1608,7 +1608,7 @@ class OrderDeliveryOptionSubmitView(LoginRequiredMixin, View):
             "recipient_name": order.customer.name,
             "recipient_phone": order.customer.phone,
             "recipient_address": order.shipping_address,
-            "cod_amount": float(order.total_cost),
+            "cod_amount": float(order.get_due_amount),  # total (delivery charge soho) - advance
             "item_description": item_description[:255],
             "note": note[:500],
             "total_lot": order.order_items.count(),
@@ -1671,7 +1671,7 @@ class OrderDeliveryOptionSubmitView(LoginRequiredMixin, View):
             "item_quantity": order.order_items.count(),
             "item_weight": "0.5",
             "item_description": item_description,
-            "amount_to_collect": int(order.total_cost)
+            "amount_to_collect": int(order.get_due_amount)  # total (delivery charge soho) - advance
         }
         pathao = PathaoParcelAPI(logistics_partner.id)
         return pathao.create_order(order_data)
