@@ -5,5 +5,9 @@
 {% endblock page_title %}
 
 {% block dashboard_body_content %}
+{% if active_tab == 'source' %}
+{% include './partial/partial_source_list.html' %}
+{% else %}
 {% include './partial/partial_category_list.html' %}
+{% endif %}
 {% endblock dashboard_body_content %}

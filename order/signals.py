@@ -81,3 +81,11 @@ def _run_cancel_block_check(order_id):
     phone = order.customer.phone if order and order.customer else None
 
     evaluate_cancel_block(record.ip_address, record.device_hash, phone=phone)
+
+# ============ DEFAULT ASSIGNEE (Order List > Default Assignee) ==============
+@receiver(post_save, sender=Order)
+def order_default_assignee(sender, instance, created, **kwargs):
+    if not created and getattr(instance, "_previous_status", None) == instance.status:
+        return
+    from .utils import apply_default_assignee
+    apply_default_assignee(instance)

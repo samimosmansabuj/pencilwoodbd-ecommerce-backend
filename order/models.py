@@ -611,7 +611,20 @@ class OrderAttempt(models.Model):
         return f"Attempt - {self.phone} ({len(self.products or [])} items)"
     
 
-# Activity Log (who did what, and when) — for Order and OrderRequest
+class OrderAutoAssignSetting(models.Model):
+    default_assignee = models.ForeignKey(
+        'authentication.CustomUser', on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+    statuses = models.JSONField(default=list, blank=True)
+    updated_by = models.ForeignKey(
+        'authentication.CustomUser', on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Default assignee: {self.default_assignee or 'not set'}"
+
+
 class OrderActivityLog(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, null=True, blank=True, related_name='activity_logs')
     order_request = models.ForeignKey(OrderRequest, on_delete=models.CASCADE, null=True, blank=True, related_name='activity_logs')

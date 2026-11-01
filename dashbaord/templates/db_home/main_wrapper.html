@@ -100,7 +100,7 @@
                                 <h2 class="mb-0 text-danger">{{ urgent_count }}</h2>
                             </div>
                         </div>
-                        <div class="d-flex align-items-center gap-4" hx-get="{% url 'order_list' %}?status=confirmed"
+                        <div class="d-flex align-items-center gap-4" hx-get="{% url 'order_list' %}?status=all&confirmed_today=1"
                             hx-target="#content-area" style="cursor:pointer;">
                             <div>
                                 <p class="mb-1 fs-6 fw-bold">Today Confirmed</p>

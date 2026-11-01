@@ -25,13 +25,13 @@ from pencilwoodbd.choices import (
 )
 
 # Models
-from .models import Order, OrderRequest, OrderItem, OrderRequestItem, Shipment, TelegramBotConfig, OrderAttempt, OrderActivityLog
+from .models import Order, OrderRequest, OrderItem, OrderRequestItem, Shipment, TelegramBotConfig, OrderAttempt, OrderActivityLog, OrderAutoAssignSetting
 from product.models import Product, ProductVariant, Category
 from authentication.models import CustomUser, Customer, OrderTrackRecord
 from site_app.models import DeliveryOption
 
 # Utilities
-from .utils import PathaoParcelAPI, SteadFastParcelAPI
+from .utils import PathaoParcelAPI, SteadFastParcelAPI, confirmed_today_filter, apply_default_assignee
 
 from dashbaord.views import DashboardView
 
@@ -358,6 +358,9 @@ class OrderView(LoginRequiredMixin, View):
         if request.GET.get("urgent") == "1":
             orders = orders.filter(is_urgent=True)
 
+        if request.GET.get("confirmed_today") == "1":
+            orders = orders.filter(confirmed_today_filter())
+
         try:
             per_page = int(request.GET.get("per_page", 10))
         except (TypeError, ValueError):
@@ -387,6 +390,11 @@ class OrderView(LoginRequiredMixin, View):
             products,
         ) = self.get_order_queryset(request)
 
+        default_assign_cfg = OrderAutoAssignSetting.objects.select_related("default_assignee").first()
+        status_values = [value for value, _ in STATUS.choices]
+        saved_statuses = [s for s in (default_assign_cfg.statuses if default_assign_cfg else []) if s in status_values]
+        default_assign_from_status = min(saved_statuses, key=status_values.index) if saved_statuses else STATUS.NEW
+
         context = {
             "orders": orders,
             "paginator": paginator,
@@ -394,6 +402,7 @@ class OrderView(LoginRequiredMixin, View):
             "page_number": page_number,
             "order_count": self.status_wise_order_count(),
             "current_status": request.GET.get("status", "all"),
+            "confirmed_today": request.GET.get("confirmed_today") == "1",
             "current_search": request.GET.get("q", ""),
             "current_product_slug": request.GET.get("product", ""),
             "start_date": request.GET.get("start_date", ""),
@@ -404,6 +413,9 @@ class OrderView(LoginRequiredMixin, View):
             "delivery_types": DELIVERY_TYPE.choices,
             "payment_types": PAYMENT_TYPE.choices,
             "staff_list": get_assignable_users(),
+            "default_assign_cfg": default_assign_cfg,
+            "default_assign_from_status": default_assign_from_status,
+            "can_manage_default_assignee": request.user.user_type in [USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN],
         }
 
         if request.htmx:
@@ -1971,7 +1983,12 @@ class OrderBulkActionView(LoginRequiredMixin, View):
                         "message": "Invalid status selected."
                     }, status=400)
 
+                previous_statuses = dict(orders.values_list("id", "status"))
                 orders.update(status=new_status, updated_by=request.user)
+
+                for changed_order in Order.objects.filter(id__in=order_ids):
+                    if previous_statuses.get(changed_order.id) != new_status:
+                        apply_default_assignee(changed_order)
 
                 OrderActivityLog.objects.bulk_create([
                     OrderActivityLog(
@@ -2210,3 +2227,37 @@ class OrderAttemptDeleteView(LoginRequiredMixin, DeleteView):
         except Exception:
             messages.error(request, "Order attempt does not exist.")
         return redirect(request.META["HTTP_REFERER"])
+
+class OrderDefaultAssigneeView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request):
+        if request.user.user_type not in [USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN]:
+            return JsonResponse({"success": False, "message": "Only admin can change the default assignee."}, status=403)
+        try:
+            assignee_id = request.POST.get("assignee_id") or None
+            valid_statuses = [value for value, _ in STATUS.choices]
+            from_status = request.POST.get("from_status")
+            statuses = valid_statuses[valid_statuses.index(from_status):] if from_status in valid_statuses else []
+
+            user = None
+            if assignee_id:
+                user = get_assignable_users().filter(id=assignee_id, is_active=True).first()
+                if not user:
+                    return JsonResponse({"success": False, "message": "Selected user is not available for assignment."}, status=400)
+                if not statuses:
+                    return JsonResponse({"success": False, "message": "Select the status to start auto-assigning from."}, status=400)
+
+            cfg = OrderAutoAssignSetting.objects.first() or OrderAutoAssignSetting()
+            cfg.default_assignee = user
+            cfg.statuses = statuses
+            cfg.updated_by = request.user
+            cfg.save()
+
+            if user:
+                message = f"Default assignee set to {user.username}."
+            else:
+                message = "Default assignee removed. Orders will not be auto-assigned."
+            return JsonResponse({"success": True, "message": message})
+        except Exception as e:
+            return JsonResponse({"success": False, "message": str(e)}, status=400)

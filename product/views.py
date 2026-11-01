@@ -13,6 +13,7 @@ from django.core.paginator import Paginator
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import Q, F, Count
+from django.urls import reverse
 from django.conf import settings
 
 from pencilwoodbd.extra_module import resize_to_fixed, parse_decimal, parse_int, parse_bool, parse_delivery_charge_payload
@@ -23,7 +24,7 @@ from site_app.models import SiteDeliveryChargeConfig, HomeSlider
 
 # Models
 from .models import (
-    Product, Category, ProductImage, ProductVideo, Attribute, AttributeValue,
+    Product, Category, ProductSource, ProductImage, ProductVideo, Attribute, AttributeValue,
     ProductVariant, ProductDeliveryCharge, ProductFeature, ProductFAQ, ReviewSettings,
 )
 from order.models import Review
@@ -83,6 +84,7 @@ class ProductListView(LoginRequiredMixin, View):
                 | Q(sku__icontains=search)
                 | Q(short_description__icontains=search)
                 | Q(category__name__icontains=search)
+                | Q(source__name__icontains=search)
             ).distinct()
 
         if category_id:
@@ -158,6 +160,11 @@ def add_product(request):
 
                 if category_id:
                     category = Category.objects.filter(id=category_id).first()
+
+                source = None
+                source_id = request.POST.get("source")
+                if source_id:
+                    source = ProductSource.objects.filter(id=source_id).first()
 
                 try:
                     tag_ids = json.loads(request.POST.get("tags") or "[]")
@@ -238,6 +245,7 @@ def add_product(request):
                 product = Product.objects.create(
                     name=request.POST.get("name", "").strip(),
                     category=category,
+                    source=source,
                     short_description=request.POST.get("short_description", ""),
                     details=request.POST.get("details", ""),
                     price=product_price,
@@ -374,6 +382,7 @@ def add_product(request):
         "db_product/add_product.html",
         {
             "categories": Category.objects.all(),
+            "sources": ProductSource.objects.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE).order_by("name"),
             "attributes": attributes,
             "attributes_data": pyjson.dumps(attributes_data),
             "existing_variants_data": "[]",
@@ -426,6 +435,8 @@ def product_update(request, pk):
 
                 product.name = request.POST.get("name", product.name).strip()
                 product.category = category
+                source_id = request.POST.get("source")
+                product.source = ProductSource.objects.filter(id=source_id).first() if source_id else None
                 product.short_description = request.POST.get("short_description", product.short_description)
                 product.details = request.POST.get("details", product.details)
 
@@ -653,6 +664,7 @@ def product_update(request, pk):
             "product_level_images": product.product_level_images,
             "variants": product.variants.all(),
             "categories": Category.objects.all(),
+            "sources": ProductSource.objects.filter(Q(status=CATEGORY_PRODUCT_STATUS.ACTIVE) | Q(id=product.source_id)).order_by("name"),
             "attributes": attributes,
             "attributes_data": attributes_data_json,
             "existing_variants_data": existing_variants_data_json,
@@ -1153,6 +1165,7 @@ class CategoryView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
     def get(self, request):
+        active_tab = "source" if request.GET.get("tab") == "source" else "category"
         parent_id = request.GET.get("parent")
         parent_category = None
 
@@ -1167,7 +1180,14 @@ class CategoryView(LoginRequiredMixin, View):
             "parent_category": parent_category,
             "all_categories": Category.objects.all().order_by("name"),
             "status_choices": CATEGORY_PRODUCT_STATUS.choices,
+            "active_tab": active_tab,
         }
+
+        if active_tab == "source":
+            context["sources"] = ProductSource.objects.annotate(product_count=Count("products")).order_by("name")
+            if request.htmx:
+                return render(request, "db_category/partial/partial_source_list.html", context)
+            return render(request, "db_category/category_list.html", context)
 
         if request.htmx:
             return render(request, "db_category/partial/partial_category_list.html", context)
@@ -1489,3 +1509,82 @@ class StockAlertListView(LoginRequiredMixin, View):
         return render(request, "db_home/partial/stock_alert_list.html", context)
 
 
+
+
+# ------------------Product Source (Category / Source page)--------
+class SourceView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        return redirect(f"{reverse('category_list')}?tab=source")
+
+    def post(self, request):
+        try:
+            data = request.POST
+            name = data.get("name", "").strip()
+            phone = data.get("phone", "").strip()
+            address = data.get("address", "").strip()
+            note = data.get("note", "").strip()
+            status = data.get("status", CATEGORY_PRODUCT_STATUS.ACTIVE)
+            source_id = data.get("source_id")
+
+            if not name:
+                return JsonResponse({"status": False, "message": "Source name is required"}, status=HTTPStatus.BAD_REQUEST)
+
+            if status not in [c[0] for c in CATEGORY_PRODUCT_STATUS.choices]:
+                status = CATEGORY_PRODUCT_STATUS.ACTIVE
+
+            duplicate = ProductSource.objects.filter(name__iexact=name)
+            if source_id:
+                duplicate = duplicate.exclude(id=source_id)
+            if duplicate.exists():
+                return JsonResponse({"status": False, "message": "A source with this name already exists."}, status=HTTPStatus.BAD_REQUEST)
+
+            if source_id:
+                source = get_object_or_404(ProductSource, id=source_id)
+                source.name = name
+                source.phone = phone or None
+                source.address = address or None
+                source.note = note or None
+                source.status = status
+                source.save()
+                return JsonResponse({"status": True, "message": "Source updated successfully"}, status=HTTPStatus.OK)
+
+            ProductSource.objects.create(
+                name=name, phone=phone or None, address=address or None,
+                note=note or None, status=status,
+            )
+            return JsonResponse({"status": True, "message": "Source added successfully"}, status=HTTPStatus.CREATED)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def get_source(request, id):
+    try:
+        source = get_object_or_404(ProductSource, id=id)
+        return JsonResponse({
+            "status": True,
+            "source": {
+                "id": source.id,
+                "name": source.name,
+                "phone": source.phone,
+                "address": source.address,
+                "note": source.note,
+                "status": source.status,
+            },
+        }, status=HTTPStatus.OK)
+    except Exception as e:
+        return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+
+
+@login_required(login_url="admin_login")
+def delete_source(request, id):
+    if request.method == "DELETE":
+        try:
+            source = get_object_or_404(ProductSource, id=id)
+            source.delete()
+            return JsonResponse({"status": True, "message": "Source deleted successfully"}, status=HTTPStatus.OK)
+        except Exception as e:
+            return JsonResponse({"status": False, "message": str(e)}, status=HTTPStatus.BAD_REQUEST)
+    return JsonResponse({"status": False, "message": "Invalid request"}, status=HTTPStatus.BAD_REQUEST)

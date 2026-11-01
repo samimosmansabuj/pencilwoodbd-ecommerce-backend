@@ -20,6 +20,8 @@
     </div>
     <!--end breadcrumb-->
 
+    {% include 'db_category/partial/category_tabs.html' %}
+
     <div class="row g-3">
         <div class="col-auto">
             <div class="position-relative">
@@ -42,7 +44,10 @@
                     <i class="bi bi-plus-lg me-2"></i>
                     {% if parent_category %}Add Sub-Category{% else %}Add Category{% endif %}
                 </button>
-                {% include 'db_category/partial/add_category_modal.html' %}
+                <button class="btn btn-outline-primary px-4" data-bs-toggle="modal" data-bs-target="#SourceModal">
+                    <i class="bi bi-plus-lg me-2"></i>Add Source
+                </button>
+                {% include 'db_category/partial/category_source_modals.html' %}
             </div>
         </div>
     </div>

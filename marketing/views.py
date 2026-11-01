@@ -100,7 +100,8 @@ class TrackingSettingsView(APIView):
 
             # ---- Per-landing-page  ----
             landing_code = request.GET.get("landing_code")
-            if landing_code:
+            landing_source = (request.GET.get("landing_source") or "").strip().lower()
+            if landing_code and landing_source != "ecom":
                 landing = LandingPageProduct.objects.filter(code=landing_code).only(
                     "id", "enable_pixel_tracking", "facebook_pixel_id",
                     "gtm_container_id", "ga4_measurement_id"

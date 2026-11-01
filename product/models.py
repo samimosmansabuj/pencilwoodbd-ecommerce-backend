@@ -127,6 +127,21 @@ class Brand(models.Model):
     def __str__(self):
         return self.name
 
+class ProductSource(models.Model):
+    name = models.CharField(max_length=255)
+    phone = models.CharField(max_length=30, blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    note = models.TextField(blank=True, null=True)
+    status = models.CharField(max_length=50, choices=CATEGORY_PRODUCT_STATUS.choices, default=CATEGORY_PRODUCT_STATUS.ACTIVE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
 class Attribute(models.Model):
     name = models.CharField(max_length=255)
     slug = models.SlugField(max_length=255, unique=True, blank=True, null=True)
@@ -178,6 +193,7 @@ class Product(models.Model):
     product_type = models.CharField(max_length=50, choices=PRODUCT_TYPE.choices, default=PRODUCT_TYPE.SIMPLE)
 
     category = models.ForeignKey(Category, null=True, blank=True, on_delete=models.SET_NULL)
+    source = models.ForeignKey(ProductSource, null=True, blank=True, on_delete=models.SET_NULL, related_name="products")
     short_description = models.TextField(blank=True, null=True)
     details = models.TextField(blank=True, null=True)
     description_json = models.JSONField(default=list, blank=True)

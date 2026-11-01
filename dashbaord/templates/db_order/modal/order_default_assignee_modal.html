@@ -1,0 +1,126 @@
+     <button
+     class="btn btn-filter px-4"
+     data-bs-toggle="modal"
+     data-bs-target="#defaultAssigneeModal"
+     type="button"
+     title="New orders are assigned to this person automatically">
+     <i class="bi bi-person-check me-2"></i>
+     Default Assignee:
+     <span class="fw-semibold">{% if default_assign_cfg and default_assign_cfg.default_assignee %}{{ default_assign_cfg.default_assignee.username }}{% else %}Not set{% endif %}</span>
+ </button>
+ 
+ <div class="modal fade" id="defaultAssigneeModal" tabindex="-1" aria-labelledby="defaultAssigneeModalLabel" aria-hidden="true">
+     <div class="modal-dialog modal-dialog-centered">
+         <div class="modal-content border-0 shadow-lg">
+ 
+             <div class="modal-header border-0 pb-0">
+                 <div>
+                     <h5 class="modal-title fw-semibold mb-0" id="defaultAssigneeModalLabel">Default Assignee</h5>
+                     <p class="small mb-0">Orders with no assignee are given to this person automatically.</p>
+                 </div>
+                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+             </div>
+ 
+             <div class="modal-body">
+                 <div class="mb-3">
+                     <label class="form-label fw-semibold" for="defaultAssigneeSelect">Assign to</label>
+                     <select class="form-select" id="defaultAssigneeSelect">
+                         <option value="">None (turn off auto-assign)</option>
+                         {% for staff in staff_list %}
+                         <option value="{{ staff.id }}"
+                             {% if default_assign_cfg and default_assign_cfg.default_assignee_id == staff.id %}selected{% endif %}>
+                             {{ staff.username }}
+                         </option>
+                         {% endfor %}
+                     </select>
+                 </div>
+ 
+                 <div class="mb-2">
+                     <label class="form-label fw-semibold" for="defaultAssigneeFromStatus">Auto-assign from status</label>
+                     <select class="form-select" id="defaultAssigneeFromStatus">
+                         {% for value, label in status_choices %}
+                         <option value="{{ value }}" {% if value == default_assign_from_status %}selected{% endif %}>{{ label }}</option>
+                         {% endfor %}
+                     </select>
+                     <div class="small mt-2" id="defaultAssigneeCovers"></div>
+                 </div>
+ 
+                 <p class="small text-muted mb-0 mt-3">
+                     Any order that comes in with this status, or later moves into it or any status after it
+                     (in the order shown in this list), and has no assignee yet, goes to the person above.
+                     Orders that already have an assignee are never changed, and you can still change any
+                     order's assignee manually.
+                 </p>
+             </div>
+ 
+             <div class="modal-footer border-0">
+                 <button type="button" class="btn btn-grd-danger" data-bs-dismiss="modal">Cancel</button>
+                 <button type="button" class="btn btn-grd-info" id="defaultAssigneeSaveBtn">Save</button>
+             </div>
+         </div>
+     </div>
+ </div>
+ 
+ <script>
+     (function () {
+         if (window.__defaultAssigneeBound) return;
+         window.__defaultAssigneeBound = true;
+ 
+         function daCookie(name) {
+             const m = document.cookie.split(";").map(c => c.trim()).find(c => c.startsWith(name + "="));
+             return m ? decodeURIComponent(m.substring(name.length + 1)) : null;
+         }
+         function daNotify(type, msg) {
+             if (window.Lobibox) {
+                 Lobibox.notify(type, {
+                     title: type === "success" ? "Success" : "Error", size: "mini", rounded: true, delayIndicator: false,
+                     position: "top right", icon: type === "success" ? "bi bi-check2-circle" : "bi bi-x-circle", msg: msg
+                 });
+             } else { alert(msg); }
+         }
+ 
+         function daShowCovered() {
+             const sel = document.getElementById("defaultAssigneeFromStatus");
+             const out = document.getElementById("defaultAssigneeCovers");
+             if (!sel || !out) return;
+             const labels = Array.from(sel.options).slice(sel.selectedIndex).map(function (o) { return o.text; });
+             out.textContent = "Covers: " + labels.join(", ");
+         }
+         document.addEventListener("change", function (e) {
+             if (e.target.id === "defaultAssigneeFromStatus") daShowCovered();
+         });
+         document.addEventListener("shown.bs.modal", function (e) {
+             if (e.target.id === "defaultAssigneeModal") daShowCovered();
+         });
+ 
+         document.addEventListener("click", function (e) {
+             const btn = e.target.closest("#defaultAssigneeSaveBtn");
+             if (!btn) return;
+ 
+             const csrf = daCookie("csrftoken");
+             if (!csrf) { daNotify("error", "Session expired. Please refresh the page and try again."); return; }
+ 
+             const fd = new FormData();
+             fd.append("assignee_id", document.getElementById("defaultAssigneeSelect").value);
+             fd.append("from_status", document.getElementById("defaultAssigneeFromStatus").value);
+ 
+             btn.disabled = true;
+             fetch("{% url 'order_default_assignee' %}", {
+                 method: "POST",
+                 body: fd,
+                 headers: { "X-CSRFToken": csrf, "X-Requested-With": "XMLHttpRequest" },
+             })
+                 .then(function (r) { return r.json(); })
+                 .then(function (data) {
+                     btn.disabled = false;
+                     if (data.success) {
+                         daNotify("success", data.message);
+                         setTimeout(function () { window.location.reload(); }, 600);
+                     } else {
+                         daNotify("error", data.message);
+                     }
+                 })
+                 .catch(function (err) { btn.disabled = false; daNotify("error", err.message); });
+         });
+     })();
+ </script>
