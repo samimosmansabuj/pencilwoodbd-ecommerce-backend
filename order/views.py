@@ -83,6 +83,8 @@ class AddOrderView(LoginRequiredMixin, View):
             "existing_items_json": "[]",
             "is_update": False,
             "bd_districts": BD_DISTRICTS,
+            "delivery_types": DELIVERY_TYPE.choices,
+            "payment_types": PAYMENT_TYPE.choices,
         }
         return render(request, self.template_name, context)
 
