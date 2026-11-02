@@ -2,6 +2,7 @@ from django.urls import path
 from .views import (
     ProductListView, add_product, product_update, ProductDeleteView, ProductDuplicateView,
     CategoryView, get_category, delete_category,
+    SourceView, get_source, delete_source,
     ProductFeatureView, delete_product_feature,
     FAQManagementView, delete_faq,
     ReviewManagementView, delete_review, ReviewSettingsView,
@@ -20,6 +21,11 @@ urlpatterns = [
     path('category-list/', CategoryView.as_view(), name='category_list'),
     path('get-category/<int:id>/', get_category, name='get_category'),
     path('delete-category/<int:id>/', delete_category, name='delete_category'),
+
+    # ----------------- Product Source ---------------------
+    path('source-list/', SourceView.as_view(), name='source_list'),
+    path('get-source/<int:id>/', get_source, name='get_source'),
+    path('delete-source/<int:id>/', delete_source, name='delete_source'),
 
     # ----------------- Product Features ---------------------
     path('product/<int:product_id>/features/', ProductFeatureView.as_view(), name='product_features'),

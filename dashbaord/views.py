@@ -15,16 +15,18 @@ from authentication.models import CustomUser
 # Reuse the stock-alert threshold defined alongside the product stock views
 from product.views import STOCK_ALERT_THRESHOLD
 
+from order.utils import confirmed_today_filter
+
 
 class DashboardView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
     def get_today_order_count(self, orders):
-        today = timezone.now().date()
+        today = timezone.localdate()
         return orders.filter(created_at__date=today).count()
 
     def get_today_sales_amount(self, orders):
-        today = timezone.now().date()
+        today = timezone.localdate()
         return orders.filter(created_at__date=today).aggregate(
             total=Coalesce(Sum(
                 F("order_items__discount_price") * F("order_items__quantity") + F("shipping_total")
@@ -35,10 +37,7 @@ class DashboardView(LoginRequiredMixin, View):
         return orders.filter(status=STATUS.NEW).count()
 
     def get_today_confirmed_count(self, orders):
-        return orders.filter(
-            status=STATUS.CONFIRMED,
-            order_created_date=timezone.localdate(),
-        ).count()
+        return orders.filter(confirmed_today_filter()).count()
 
     def new_order_request_count(self):
         return OrderRequest.objects.filter(
@@ -202,6 +201,4 @@ class TodayWorkListView(LoginRequiredMixin, View):
             "product_wise_today": product_wise_today,
             "inventory_comparison": inventory_comparison,
         }
-        return render(request, "db_home/partial/today_work_list.html", context)   
-
-
+        return render(request, "db_home/partial/today_work_list.html", context)

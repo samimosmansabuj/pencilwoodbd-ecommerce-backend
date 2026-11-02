@@ -18,6 +18,7 @@ from .views import (
     AddOrderView, OrderView, OrderDetailView, OrderUpdateView, OrderDeleteView,
     OrderDeliveryOptionSubmitView, OrderInvoiceView, OrderBillView, update_order, OrderStatusUpdateView,
     OrderBulkActionView,
+    OrderDefaultAssigneeView,
     AddOrderRequestView, OrderRequestListView, OrderRequestDetailView,
     ApproveOrderRequestView, RejectOrderRequestView, UpdateOrderRequestWorkStatusView,
     OrderRequestStatusUpdateView,
@@ -53,6 +54,7 @@ urlpatterns = [
     path('orders/<int:id>/bill/', OrderBillView.as_view(), name='order_bill'),    path('order-detail/<int:order_id>/update/', update_order, name='order_update'),
     path('orders/<int:pk>/update-status/', OrderStatusUpdateView.as_view(), name='order_status_update'),
     path('orders/bulk-action/', OrderBulkActionView.as_view(), name='order_bulk_action'),
+    path('order-default-assignee/', OrderDefaultAssigneeView.as_view(), name='order_default_assignee'),
 
     # ----------------- Dashboard: Order Requests -----------------
     path("order-requests/add/", AddOrderRequestView.as_view(), name="add_order_request"),

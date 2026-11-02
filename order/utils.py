@@ -310,3 +310,48 @@ def safe_order_bill(order, request=None):
     except Exception:
         return None
     
+
+def confirmed_today_filter():
+    from django.db.models import Q
+    from django.utils import timezone
+    from order.models import OrderActivityLog
+
+    today = timezone.localdate()
+    confirmed_today_ids = OrderActivityLog.objects.filter(
+        order__isnull=False,
+        action__startswith="Status changed to Confirmed",
+        created_at__date=today,
+    ).values("order_id")
+    return Q(id__in=confirmed_today_ids) | Q(status=STATUS.CONFIRMED, order_created_date=today)
+
+
+
+def apply_default_assignee(order):
+    from django.db.models import Q
+    from pencilwoodbd.choices import USER_TYPE
+    from .models import Order, OrderActivityLog, OrderAutoAssignSetting
+
+    if order.work_assign:
+        return False
+
+    cfg = OrderAutoAssignSetting.objects.select_related("default_assignee").first()
+    if not cfg or not cfg.default_assignee_id:
+        return False
+    if order.status not in (cfg.statuses or []):
+        return False
+
+    user = cfg.default_assignee
+    if not user.is_active or user.user_type not in (USER_TYPE.STAFF, USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN):
+        return False
+
+    updated = Order.objects.filter(pk=order.pk).filter(
+        Q(work_assign__isnull=True) | Q(work_assign="")
+    ).update(work_assign=user.username)
+
+    if updated:
+        order.work_assign = user.username
+        OrderActivityLog.log(
+            action=f"Auto-assigned to {user.username} (default assignee)",
+            order=order,
+        )
+    return bool(updated)

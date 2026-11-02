@@ -35,6 +35,13 @@
     {% endif %}
 
 
+    {% if confirmed_today %}
+    <div class="alert alert-info py-2 d-flex align-items-center justify-content-between">
+        <span><i class="bi bi-funnel me-1"></i> Showing only orders <b>confirmed today</b></span>
+        <a href="{% url 'order_list' %}?status=all" hx-get="{% url 'order_list' %}?status=all" hx-target="#content-area" hx-push-url="true">Clear filter</a>
+    </div>
+    {% endif %}
+
     <!-- =========================
          ORDER STATUS TABS
     ========================== -->
@@ -204,7 +211,7 @@
                     name="q"
                     placeholder="Search Orders"
                     value="{{ current_search }}"
-                    hx-get="{% url 'order_list' %}?status={{ current_status }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                    hx-get="{% url 'order_list' %}?status={{ current_status }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}"
                     hx-trigger="keyup changed delay:400ms"
                     hx-target="#content-area"
                     hx-push-url="true">
@@ -224,7 +231,7 @@
                     class="form-control"
                     name="product"
                     id="product_slug"
-                    hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                    hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}"
                     hx-target="#content-area"
                     hx-push-url="true">
 
@@ -251,7 +258,7 @@
                     class="form-control"
                     name="updated_by"
                     id="updated_by_filter"
-                    hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                    hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}"
                     hx-target="#content-area"
                     hx-push-url="true">
 
@@ -273,6 +280,10 @@
             <div class="d-flex align-items-center gap-2 justify-content-lg-end">
 
                 {% include 'db_order/modal/order_export_modal.html' %}
+
+                {% if can_manage_default_assignee %}
+                {% include 'db_order/modal/order_default_assignee_modal.html' %}
+                {% endif %}
 
                 {% comment %} {% include 'db_order/modal/order_form_modal.html' %} {% endcomment %}
 
@@ -302,7 +313,7 @@
                     name="start_date"
                     class="form-control"
                     value="{{ request.GET.start_date }}"
-                    hx-get="{% url 'order_list' %}?status={{ current_status }}&per_page={{ per_page }}"
+                    hx-get="{% url 'order_list' %}?status={{ current_status }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}"
                     hx-trigger="change"
                     hx-target="#content-area"
                     hx-include="[name='end_date'],[name='q'],[name='product']"
@@ -323,7 +334,7 @@
                     name="end_date"
                     class="form-control"
                     value="{{ request.GET.end_date }}"
-                    hx-get="{% url 'order_list' %}?status={{ current_status }}&per_page={{ per_page }}"
+                    hx-get="{% url 'order_list' %}?status={{ current_status }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}"
                     hx-trigger="change"
                     hx-target="#content-area"
                     hx-include="[name='start_date'],[name='q'],[name='product']"
@@ -897,8 +908,8 @@
 
                         <a
                             class="page-link"
-                            href="{% url 'order_list' %}?page={{ orders.previous_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-                            hx-get="{% url 'order_list' %}?page={{ orders.previous_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                            href="{% url 'order_list' %}?page={{ orders.previous_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}"
+                            hx-get="{% url 'order_list' %}?page={{ orders.previous_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}"
                             hx-target="#content-area"
                             hx-push-url="true">
                             «
@@ -924,8 +935,8 @@
 
                             <a
                                 class="page-link"
-                                href="{% url 'order_list' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-                                hx-get="{% url 'order_list' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                                href="{% url 'order_list' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}"
+                                hx-get="{% url 'order_list' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}"
                                 hx-target="#content-area"
                                 hx-push-url="true">
                                 {{ num }}
@@ -945,8 +956,8 @@
 
                         <a
                             class="page-link"
-                            href="{% url 'order_list' %}?page={{ orders.next_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-                            hx-get="{% url 'order_list' %}?page={{ orders.next_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                            href="{% url 'order_list' %}?page={{ orders.next_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}"
+                            hx-get="{% url 'order_list' %}?page={{ orders.next_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}"
                             hx-target="#content-area"
                             hx-push-url="true">
                             »
@@ -974,7 +985,7 @@
 
         <select
             class="form-select"
-            hx-get="{% url 'order_list' %}?page={{ page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&per_page={{ per_page }}"
+            hx-get="{% url 'order_list' %}?page={{ page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}"
             hx-trigger="change"
             hx-target="#content-area"
             hx-push-url="true"
@@ -1048,4 +1059,3 @@
     }
 
 </script>
-

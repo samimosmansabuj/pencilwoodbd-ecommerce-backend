@@ -1,0 +1,193 @@
+<!-- Add / Edit Source Modal -->
+<form method="post" id="add_source_form" hx-ignore="true" autocomplete="off">
+    <input type="hidden" name="source_id" id="source_id">
+
+    <div class="modal fade" id="SourceModal">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header border-bottom-0 bg-grd-primary py-2">
+                    <h5 class="modal-title" id="source_modal_title">Add Source</h5>
+                    <a href="javascript:;" class="primaery-menu-close" data-bs-dismiss="modal" id="close_add_source_modal">
+                        <i class="material-icons-outlined">close</i>
+                    </a>
+                </div>
+
+                <div class="modal-body">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">Source Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" name="name" placeholder="e.g. Supplier / Market / Vendor name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Phone</label>
+                                <input type="text" class="form-control" name="phone" placeholder="Contact number (optional)">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Address</label>
+                                <textarea class="form-control" rows="2" name="address" placeholder="Address / location (optional)"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Note</label>
+                                <textarea class="form-control" rows="3" name="note" placeholder="Any record / note about this source (optional)"></textarea>
+                            </div>
+                            <div class="mb-1">
+                                <label class="form-label">Status</label>
+                                <select class="form-select" name="status">
+                                    {% for value, label in status_choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer border-top-0">
+                    <button type="button" class="btn btn-grd-danger" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-grd-info">Save changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Delete Source Modal -->
+<div class="modal fade" id="deleteSourceModal">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-bottom-0 py-2">
+                <h5 class="modal-title">Delete Source</h5>
+                <a href="javascript:;" class="primaery-menu-close" data-bs-dismiss="modal" id="close_delete_source_modal">
+                    <i class="material-icons-outlined">close</i>
+                </a>
+            </div>
+            <div class="modal-body delete-source-modal-body">Are you sure you want to delete this source?</div>
+            <div class="modal-footer border-top-0">
+                <button type="button" class="btn btn-grd-danger" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-grd-info" id="confirmDeleteSourceBtn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function sourceGetCookie(name) {
+        const match = document.cookie.split(";").map(c => c.trim()).find(c => c.startsWith(name + "="));
+        return match ? decodeURIComponent(match.substring(name.length + 1)) : null;
+    }
+    function sourceNotify(type, message) {
+        Lobibox.notify(type, {
+            title: type === "success" ? "Success" : "Error", pauseDelayOnHover: true, size: 'mini', rounded: true,
+            icon: type === "success" ? 'bi bi-check2-circle' : 'bi bi-x-circle', delayIndicator: false,
+            continueDelayOnInactiveTab: false, position: 'top right', msg: message
+        });
+    }
+    function sourceResetForm() {
+        const form = document.getElementById("add_source_form");
+        form.reset();
+        document.getElementById("source_id").value = "";
+        document.getElementById("source_modal_title").textContent = "Add Source";
+    }
+
+    document.addEventListener("submit", async function (e) {
+        if (e.target.id !== "add_source_form") return;
+        e.preventDefault();
+
+        const csrftoken = sourceGetCookie("csrftoken");
+        if (!csrftoken) {
+            sourceNotify("error", "Session expired. Please refresh the page and try again.");
+            return;
+        }
+        const form = e.target;
+        const nameInput = form.querySelector("input[name='name']");
+        if (!nameInput.value.trim()) {
+            sourceNotify("error", "Source name is required");
+            nameInput.focus();
+            return;
+        }
+        try {
+            const formData = new FormData(form);
+            formData.set("csrfmiddlewaretoken", csrftoken);
+            const response = await fetch("{% url 'source_list' %}", {
+                method: "POST",
+                body: formData,
+                headers: { "X-CSRFToken": csrftoken, "X-Requested-With": "XMLHttpRequest" },
+            });
+            const contentType = response.headers.get("content-type") || "";
+            if (!contentType.includes("application/json")) {
+                sourceNotify("error", "Unexpected server response (status " + response.status + "). Please refresh and try again.");
+                return;
+            }
+            const data = await response.json();
+            if (data.status) {
+                document.getElementById("close_add_source_modal").click();
+                sourceResetForm();
+                sourceNotify("success", data.message);
+                // stay on / open the Source tab after saving
+                setTimeout(function () { window.location.href = "{% url 'category_list' %}?tab=source"; }, 600);
+            } else {
+                sourceNotify("error", data.message);
+            }
+        } catch (error) {
+            sourceNotify("error", error.message);
+        }
+    });
+
+    document.addEventListener("click", function (e) {
+        const btn = e.target.closest(".edit-source-btn");
+        if (!btn) return;
+        const sourceId = btn.dataset.id;
+        document.getElementById("source_modal_title").textContent = "Update Source";
+        document.getElementById("source_id").value = sourceId;
+        const form = document.getElementById("add_source_form");
+        form.querySelector("input[name='name']").value = "Loading...";
+
+        fetch("/get-source/" + sourceId + "/", { headers: { "X-Requested-With": "XMLHttpRequest" } })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.status) { sourceNotify("error", data.message); return; }
+                const s = data.source;
+                form.querySelector("input[name='name']").value = s.name || "";
+                form.querySelector("input[name='phone']").value = s.phone || "";
+                form.querySelector("textarea[name='address']").value = s.address || "";
+                form.querySelector("textarea[name='note']").value = s.note || "";
+                form.querySelector("select[name='status']").value = s.status;
+            })
+            .catch(error => sourceNotify("error", error.message));
+    });
+
+    document.getElementById("SourceModal")?.addEventListener("hidden.bs.modal", sourceResetForm);
+
+    let deleteSourceId = null;
+    document.addEventListener("click", function (e) {
+        const btn = e.target.closest(".delete-source-btn");
+        if (btn) {
+            deleteSourceId = btn.dataset.id;
+            document.querySelector(".delete-source-modal-body").textContent =
+                "Are you sure you want to delete the source '" + btn.dataset.name + "'? Products using it will just have no source.";
+        }
+    });
+
+    document.addEventListener("click", function (e) {
+        if (!e.target.closest("#confirmDeleteSourceBtn")) return;
+        if (!deleteSourceId) { sourceNotify("error", "Source ID is not found"); return; }
+        const csrftoken = sourceGetCookie("csrftoken");
+        if (!csrftoken) { sourceNotify("error", "Session expired. Please refresh the page and try again."); return; }
+        fetch("/delete-source/" + deleteSourceId + "/", {
+            method: "DELETE",
+            headers: { "X-CSRFToken": csrftoken, "X-Requested-With": "XMLHttpRequest" },
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status) {
+                    document.getElementById("close_delete_source_modal").click();
+                    sourceNotify("success", data.message);
+                    setTimeout(function () { window.location.href = "{% url 'category_list' %}?tab=source"; }, 600);
+                } else {
+                    sourceNotify("error", data.message);
+                }
+            })
+            .catch(error => sourceNotify("error", error.message));
+    });
+</script>

@@ -378,6 +378,18 @@
                                 {% endfor %}
                             </select>
                         </div>
+                        <div class="col-12">
+                            <label for="pw_source" class="form-label">Source</label>
+                            <select class="form-select" id="pw_source" name="source">
+                                <option value="">Select Source</option>
+                                {% for src in sources %}
+                                <option value="{{ src.id }}"
+                                    {% if product and product.source_id == src.id %}selected{% endif %}>
+                                    {{ src.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
                         <div class="col-12" id="pw_subcategory_wrap" style="display:none;">
                             <label for="pw_subcategory" class="form-label">Sub Category</label>
                             <select class="form-select" id="pw_subcategory">

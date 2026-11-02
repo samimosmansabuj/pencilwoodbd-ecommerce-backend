@@ -1,0 +1,15 @@
+<!-- Category / Source tabs -->
+<ul class="nav nav-tabs mb-4" id="categorySourceTabs">
+    <li class="nav-item">
+        <a class="nav-link {% if active_tab != 'source' %}active{% endif %}" href="{% url 'category_list' %}">
+            <i class="material-icons-outlined align-middle me-1" style="font-size:18px;">shopping_bag</i>
+            Category
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if active_tab == 'source' %}active{% endif %}" href="{% url 'category_list' %}?tab=source">
+            <i class="material-icons-outlined align-middle me-1" style="font-size:18px;">storefront</i>
+            Source
+        </a>
+    </li>
+</ul>
