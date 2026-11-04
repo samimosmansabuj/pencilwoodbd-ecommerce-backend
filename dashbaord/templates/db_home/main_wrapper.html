@@ -25,6 +25,12 @@
         hx-get="{% url 'stock_alert_list' %}?view=short" hx-target="#stockAlertModalBody" hx-trigger="click">
         <i class="bi bi-exclamation-triangle me-1"></i> Stock Alerts
     </button>
+    <a href="{% url 'add_order' %}" class="btn btn-primary px-4 mb-3 ms-2">
+        <i class="bi bi-plus-lg me-2"></i>Add Order
+    </a>
+    <a href="{% url 'add_order_request' %}" class="btn btn-outline-primary px-4 mb-3 ms-2">
+        <i class="bi bi-plus-lg me-2"></i>Add Order Request
+    </a>
 
     <div class="modal fade" id="stockAlertModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -48,6 +54,30 @@
                 <div class="modal-body" id="todayWorkListModalBody">
                     <!-- content loads here when button is clicked -->
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="todayOrderModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Today Order - Product wise</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="todayOrderModalBody"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="pendingProductsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Pending Products (not booked yet)</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="pendingProductsModalBody"></div>
             </div>
         </div>
     </div>
@@ -79,6 +109,27 @@
                             </div>
                         </div> {% endcomment %}
                         {% comment %} <div class="vr"></div> {% endcomment %}
+                        <div class="d-flex align-items-center gap-4" data-bs-toggle="modal"
+                            data-bs-target="#todayOrderModal" hx-get="{% url 'today_order_products' %}"
+                            hx-target="#todayOrderModalBody" hx-trigger="click" style="cursor:pointer;">
+                            <div>
+                                <p class="mb-1 fs-6 fw-bold">Today Order</p>
+                                <h2 class="mb-0 text-primary">{{ today_order_count }}</h2>
+                            </div>
+                        </div>
+                        <div class="vr"></div>
+                        <div class="d-flex align-items-center gap-4" data-bs-toggle="modal"
+                            data-bs-target="#pendingProductsModal" hx-get="{% url 'pending_products' %}"
+                            hx-target="#pendingProductsModalBody" hx-trigger="click" style="cursor:pointer;">
+                            <div>
+                                <p class="mb-1 fs-6 fw-bold">Pending Products</p>
+                                <h2 class="mb-0 text-warning">
+                                    {{ pending_product_qty }}
+                                    <span class="fs-6 fw-normal text-secondary">pcs ({{ pending_order_count }} order{{ pending_order_count|pluralize }})</span>
+                                </h2>
+                            </div>
+                        </div>
+                        <div class="vr"></div>
                         <div class="d-flex align-items-center gap-4">
                             <div>
                                 <p class="mb-0 data-attributes">

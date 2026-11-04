@@ -117,7 +117,14 @@ class AddOrderView(LoginRequiredMixin, View):
                     messages.error(request, "Phone number is required.")
                     return redirect("add_order")
 
-                phone = normalize_bd_phone(phone) or phone
+                normalized_phone = normalize_bd_phone(phone)
+                if not normalized_phone:
+                    msg = "Invalid phone number. Must be 11 digits starting with 01 (or 8801 + 9 digits)."
+                    if is_ajax:
+                        return JsonResponse({"status": False, "message": msg}, status=400)
+                    messages.error(request, msg)
+                    return redirect("add_order")
+                phone = normalized_phone
 
                 customer, created = Customer.objects.get_or_create(
                     phone=phone,
@@ -278,6 +285,26 @@ class AddOrderView(LoginRequiredMixin, View):
             return redirect("add_order")
 
 
+def mark_parcel_requested(order, user=None):
+    before_booking = [
+        STATUS.NEW, STATUS.FOLLOW_UP, STATUS.CONFIRMED,
+        STATUS.HOLD, STATUS.TOKEN_PRINT, STATUS.READY_TO_SHIP,
+    ]
+    if order.status not in before_booking:
+        return
+    order.status = STATUS.PARCEL_REQUESTED
+    fields = ["status"]
+    if user is not None and getattr(user, "is_authenticated", False):
+        order.updated_by = user
+        fields.append("updated_by")
+    order.save(update_fields=fields)
+    OrderActivityLog.log(
+        action=f"Status changed to {order.get_status_display()} (courier parcel requested)",
+        order=order,
+        user=user if getattr(user, "is_authenticated", False) else None,
+    )
+
+
 class OrderView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
@@ -363,6 +390,11 @@ class OrderView(LoginRequiredMixin, View):
         if request.GET.get("confirmed_today") == "1":
             orders = orders.filter(confirmed_today_filter())
 
+        # Dashboard "Pending Orders": orders not booked with a courier yet
+        if request.GET.get("pending") == "1":
+            from dashbaord.reports import pending_orders
+            orders = orders.filter(id__in=pending_orders().values("id"))
+
         try:
             per_page = int(request.GET.get("per_page", 10))
         except (TypeError, ValueError):
@@ -405,6 +437,7 @@ class OrderView(LoginRequiredMixin, View):
             "order_count": self.status_wise_order_count(),
             "current_status": request.GET.get("status", "all"),
             "confirmed_today": request.GET.get("confirmed_today") == "1",
+            "pending_booking": request.GET.get("pending") == "1",
             "current_search": request.GET.get("q", ""),
             "current_product_slug": request.GET.get("product", ""),
             "start_date": request.GET.get("start_date", ""),
@@ -921,7 +954,11 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                     messages.error(request, "Phone number is required.")
                     return redirect("add_order_request") if not pk else redirect("edit_order_request", pk=pk)
 
-                phone = normalize_bd_phone(phone) or phone
+                normalized_phone = normalize_bd_phone(phone)
+                if not normalized_phone:
+                    messages.error(request, "Invalid phone number. Must be 11 digits starting with 01 (or 8801 + 9 digits).")
+                    return redirect("add_order_request") if not pk else redirect("edit_order_request", pk=pk)
+                phone = normalized_phone
 
                 if customer:
                     customer.company = company or None
@@ -1601,6 +1638,40 @@ class OrderDeliveryOptionSubmitView(LoginRequiredMixin, View):
         except Exception as e:
             raise Exception(str(e))
     
+    @staticmethod
+    def steadfast_error_message(resp):
+        if not isinstance(resp, dict):
+            return "SteadFast returned an unexpected response."
+        if resp.get("message"):
+            return str(resp["message"])
+        errors = resp.get("errors")
+        if isinstance(errors, dict) and errors:
+            parts = []
+            for field, msgs in errors.items():
+                if isinstance(msgs, (list, tuple)):
+                    msgs = ", ".join(str(m) for m in msgs)
+                parts.append(f"{field}: {msgs}")
+            return "SteadFast error - " + " | ".join(parts)
+        return f"SteadFast rejected the parcel (status {resp.get('status')}): {resp}"
+
+    def readable_error(self, e):
+        import requests
+        if isinstance(e, requests.exceptions.HTTPError) and e.response is not None:
+            code = e.response.status_code
+            try:
+                detail = self.steadfast_error_message(e.response.json())
+            except Exception:
+                detail = (e.response.text or "").strip()[:300]
+            hint = {
+                401: "API Key / Secret Key vul ba change hoyeche.",
+                403: "Access blocked - API key permission ba server IP whitelist check korun.",
+                429: "Onek beshi request - kichukkhon pore try korun.",
+            }.get(code, "")
+            return f"Courier API error ({code}): {detail} {hint}".strip()
+        if isinstance(e, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)):
+            return "Courier server e connect kora jacche na. Internet / courier server check korun."
+        return str(e)
+
     def get_order_data(self, order):
         email = (order.customer.email or order.customer.user.email if order.customer.user else None) or None
         whatsapp = order.customer.whatsapp if order.customer.whatsapp else None
@@ -1732,6 +1803,7 @@ class OrderDeliveryOptionSubmitView(LoginRequiredMixin, View):
                             tracking_number=response_data.get("consignment_id"),
                             status=response_data.get("order_status", "pending")
                         )
+                        mark_parcel_requested(order, request.user)
                         return self.return_response(True, pathao_response.get("message"), data=order_shipped_data, status=HTTPStatus.OK)
                     else:
                         return self.return_response(False, pathao_response.get("message"), status=HTTPStatus.BAD_REQUEST)
@@ -1743,11 +1815,12 @@ class OrderDeliveryOptionSubmitView(LoginRequiredMixin, View):
                             tracking_number=steadfast_response["consignment"]["consignment_id"],
                             status=steadfast_response["consignment"]["status"],
                         )
+                        mark_parcel_requested(order, request.user)
                         return self.return_response(True, steadfast_response.get("message"), data=order_shipped_data, status=HTTPStatus.OK)
                     else:
-                        return self.return_response(False, steadfast_response.get("message"), status=HTTPStatus.BAD_REQUEST)
+                        return self.return_response(False, self.steadfast_error_message(steadfast_response), status=HTTPStatus.BAD_REQUEST)
         except Exception as e:
-            return self.return_response(False, f"{str(e)}", status=HTTPStatus.BAD_REQUEST)
+            return self.return_response(False, self.readable_error(e), status=HTTPStatus.BAD_REQUEST)
 
     def get(self, request, pk):
         consignment_id = request.GET.get("consignment_id")

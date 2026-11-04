@@ -513,8 +513,8 @@
             renderItems();
         });
 
-        shippingInput.addEventListener("input", updateTotals);
-        advanceInput.addEventListener("input", updateTotals);
+        if (shippingInput) shippingInput.addEventListener("input", updateTotals);
+        if (advanceInput) advanceInput.addEventListener("input", updateTotals);
 
         document.getElementById("order-request-form").addEventListener("submit", function (e) {
             if (items.length === 0) {

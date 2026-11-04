@@ -1,0 +1,122 @@
+{% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
+{% if not report_allowed %}
+<div class="main-content"><div class="alert alert-warning">Reports are only available for admin.</div></div>
+{% else %}
+<div class="main-content">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h5 class="mb-0">Sales Report
+            <small class="text-secondary">{{ report.start }} &rarr; {{ report.end }} ({{ report.days }} day{{ report.days|pluralize }})</small>
+        </h5>
+        <div class="d-flex gap-2">
+            <a class="btn btn-success" href="{% url 'sales_report_export_xlsx' %}?range={{ range_key }}&start_date={{ start_date }}&end_date={{ end_date }}">
+                <i class="bi bi-file-earmark-excel me-1"></i> Download Excel
+            </a>
+            <a class="btn btn-outline-success" href="{% url 'sales_report_export' %}?range={{ range_key }}&start_date={{ start_date }}&end_date={{ end_date }}">
+                <i class="bi bi-download me-1"></i> CSV
+            </a>
+        </div>
+    </div>
+
+    <div class="card mb-3"><div class="card-body">
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            <a class="btn btn-sm {% if range_key == 'week' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?range=week">Weekly (last 7 days)</a>
+            <a class="btn btn-sm {% if range_key == 'month' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?range=month">This Month</a>
+            <a class="btn btn-sm {% if range_key == 'last_month' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?range=last_month">Last Month</a>
+            <a class="btn btn-sm {% if range_key == '2m' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?range=2m">2 Months</a>
+            <a class="btn btn-sm {% if range_key == '4m' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?range=4m">4 Months</a>
+        </div>
+        <form method="get" class="row g-2 align-items-end">
+            <input type="hidden" name="range" value="custom">
+            <div class="col-auto"><label class="form-label mb-0 small">From</label>
+                <input type="date" name="start_date" class="form-control" value="{{ start_date }}" required></div>
+            <div class="col-auto"><label class="form-label mb-0 small">To</label>
+                <input type="date" name="end_date" class="form-control" value="{{ end_date }}" required></div>
+            <div class="col-auto"><button class="btn btn-secondary">Custom Filter</button></div>
+        </form>
+        <p class="text-secondary small mt-3 mb-0">
+            Sales = final order amount (shipping included, coupon/extra discount deducted) of orders placed in this period,
+            excluding cancelled / returned / refunded orders. Product cost uses the cost price saved on the product / variant.
+        </p>
+    </div></div>
+
+    {% if report.missing_cost_items or report.total_cost_missing_orders or report.delivered_no_date %}
+    <div class="alert alert-warning">
+        <strong>Check your data:</strong>
+        <ul class="mb-0">
+            {% if report.missing_cost_items %}
+            <li>{{ report.missing_cost_items }} order item{{ report.missing_cost_items|pluralize }} ({{ report.products_missing_cost }} product line{{ report.products_missing_cost|pluralize }}) have no cost price, so their cost is counted as 0 and profit is shown higher than real. Set the cost price on the product / variant.</li>
+            {% endif %}
+            {% if report.total_cost_missing_orders %}
+            <li>{{ report.total_cost_missing_orders }} order{{ report.total_cost_missing_orders|pluralize }} had no saved total; the total was rebuilt from items + shipping - discounts.</li>
+            {% endif %}
+            {% if report.delivered_no_date %}
+            <li>{{ report.delivered_no_date }} delivered order{{ report.delivered_no_date|pluralize }} have no delivery date, so they are not in "Delivered" / "Realized profit".</li>
+            {% endif %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body"><p class="mb-1 text-secondary">Total Sales</p><h4 class="mb-0">৳{{ report.total_sales|floatformat:2 }}</h4><small>{{ report.sales_orders }} orders &middot; {{ report.total_qty }} pcs</small></div></div></div>
+        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body"><p class="mb-1 text-secondary">Advance Received</p><h4 class="mb-0 text-info">৳{{ report.advance_total|floatformat:2 }}</h4><small>Due to collect ৳{{ report.due_to_collect|floatformat:2 }}</small></div></div></div>
+        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body"><p class="mb-1 text-secondary">Product Cost</p><h4 class="mb-0">৳{{ report.product_cost|floatformat:2 }}</h4><small>Gross profit ৳{{ report.gross_profit|floatformat:2 }}</small></div></div></div>
+        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body"><p class="mb-1 text-secondary">Total Expense</p><h4 class="mb-0 text-danger">৳{{ report.expense_total|floatformat:2 }}</h4></div></div></div>
+    </div>
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body"><p class="mb-1 text-secondary">Estimated Profit</p><h4 class="mb-0 {% if report.profit >= 0 %}text-success{% else %}text-danger{% endif %}">৳{{ report.profit|floatformat:2 }}</h4><small>Sales - product cost - expense</small></div></div></div>
+        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body"><p class="mb-1 text-secondary">Delivered</p><h4 class="mb-0 text-success">৳{{ report.delivered_total|floatformat:2 }}</h4><small>{{ report.delivered_count }} orders delivered in period</small></div></div></div>
+        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body"><p class="mb-1 text-secondary">Realized Profit</p><h4 class="mb-0 {% if report.realized_profit >= 0 %}text-success{% else %}text-danger{% endif %}">৳{{ report.realized_profit|floatformat:2 }}</h4><small>Delivered - its cost - expense</small></div></div></div>
+        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body"><p class="mb-1 text-secondary">Cancelled / Returned</p><h4 class="mb-0 text-secondary">{{ report.lost_orders }}</h4><small>৳{{ report.lost_total|floatformat:2 }} not counted in sales{% if report.lost_advance %} &middot; ৳{{ report.lost_advance|floatformat:2 }} advance on them{% endif %}</small></div></div></div>
+    </div>
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body"><p class="mb-1 text-secondary">Products Total</p><h5 class="mb-0">৳{{ report.items_total|floatformat:2 }}</h5></div></div></div>
+        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body"><p class="mb-1 text-secondary">Shipping Charged</p><h5 class="mb-0">৳{{ report.shipping_total|floatformat:2 }}</h5></div></div></div>
+        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body"><p class="mb-1 text-secondary">Discount (coupon + extra)</p><h5 class="mb-0">- ৳{{ report.discount_total|floatformat:2 }}</h5></div></div></div>
+        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body"><p class="mb-1 text-secondary">All Orders Placed</p><h5 class="mb-0">{{ report.total_orders }}</h5></div></div></div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-6"><div class="card h-100"><div class="card-body">
+            <h6>Expense by Category</h6>
+            <table class="table table-sm align-middle"><thead class="table-light"><tr><th>Category</th><th class="text-end">Entries</th><th class="text-end">Amount</th></tr></thead><tbody>
+            {% for e in report.expense_rows %}<tr><td>{{ e.category }}</td><td class="text-end">{{ e.count }}</td><td class="text-end">৳{{ e.total|floatformat:2 }}</td></tr>
+            {% empty %}<tr><td colspan="3" class="text-center">No expense in this period.</td></tr>{% endfor %}
+            </tbody>{% if report.expense_rows %}<tfoot><tr class="fw-bold"><td colspan="2">Total</td><td class="text-end">৳{{ report.expense_total|floatformat:2 }}</td></tr></tfoot>{% endif %}</table>
+        </div></div></div>
+        <div class="col-lg-6"><div class="card h-100"><div class="card-body">
+            <h6>Status wise <small class="text-secondary">(all orders placed)</small></h6>
+            <table class="table table-sm align-middle"><thead class="table-light"><tr><th>Status</th><th class="text-end">Orders</th><th class="text-end">Amount</th></tr></thead><tbody>
+            {% for s in report.status_rows %}<tr><td>{{ s.status }}</td><td class="text-end">{{ s.count }}</td><td class="text-end">৳{{ s.amount|floatformat:2 }}</td></tr>
+            {% empty %}<tr><td colspan="3" class="text-center">No orders.</td></tr>{% endfor %}
+            </tbody></table>
+        </div></div></div>
+        <div class="col-12"><div class="card"><div class="card-body">
+            <h6>Product wise</h6>
+            <div class="table-responsive" style="max-height:420px;overflow:auto;">
+            <table class="table table-sm align-middle"><thead class="table-light"><tr><th>Product</th><th>Variant</th><th class="text-end">Pieces</th><th class="text-end">Sales</th><th class="text-end">Cost</th><th class="text-end">Profit</th></tr></thead><tbody>
+            {% for p in report.product_rows %}<tr><td>{{ p.product|default:"-" }}</td><td>{{ p.variant|default:"-" }}</td><td class="text-end">{{ p.qty }}</td><td class="text-end">৳{{ p.amount|floatformat:2 }}</td>
+                <td class="text-end">৳{{ p.cogs|floatformat:2 }}{% if p.missing_cost %} <span class="text-warning" title="Cost price missing">*</span>{% endif %}</td>
+                <td class="text-end">৳{{ p.profit|floatformat:2 }}</td></tr>
+            {% empty %}<tr><td colspan="6" class="text-center">No sales.</td></tr>{% endfor %}
+            </tbody></table></div>
+            <small class="text-secondary">Product profit = sales of the item - its cost, before order-level discount and expenses. * = cost price missing.</small>
+        </div></div></div>
+        <div class="col-12"><div class="card"><div class="card-body">
+            <h6>Day wise</h6>
+            <div class="table-responsive" style="max-height:420px;overflow:auto;">
+            <table class="table table-sm align-middle"><thead class="table-light"><tr><th>Date</th><th class="text-end">Orders</th><th class="text-end">Sales</th><th class="text-end">Advance</th><th class="text-end">Cost</th><th class="text-end">Expense</th><th class="text-end">Profit</th></tr></thead><tbody>
+            {% for d in report.day_rows %}<tr><td>{{ d.date }}</td><td class="text-end">{{ d.orders }}</td><td class="text-end">৳{{ d.sales|floatformat:2 }}</td><td class="text-end">৳{{ d.advance|floatformat:2 }}</td><td class="text-end">৳{{ d.cogs|floatformat:2 }}</td><td class="text-end">৳{{ d.expense|floatformat:2 }}</td><td class="text-end {% if d.profit >= 0 %}text-success{% else %}text-danger{% endif %}">৳{{ d.profit|floatformat:2 }}</td></tr>
+            {% empty %}<tr><td colspan="7" class="text-center">No data.</td></tr>{% endfor %}
+            </tbody></table></div>
+        </div></div></div>
+        <div class="col-12"><div class="card"><div class="card-body">
+            <h6>Expense entries</h6>
+            <div class="table-responsive" style="max-height:320px;overflow:auto;">
+            <table class="table table-sm align-middle"><thead class="table-light"><tr><th>Date</th><th>Name</th><th>Category</th><th>Vendor</th><th class="text-end">Amount</th></tr></thead><tbody>
+            {% for e in report.expense_items %}<tr><td>{{ e.date }}</td><td>{{ e.name }}</td><td>{{ e.category }}</td><td>{{ e.vendor|default:"-" }}</td><td class="text-end">৳{{ e.amount|floatformat:2 }}</td></tr>
+            {% empty %}<tr><td colspan="5" class="text-center">No expense entries.</td></tr>{% endfor %}
+            </tbody></table></div>
+        </div></div></div>
+    </div>
+</div>
+{% endif %}

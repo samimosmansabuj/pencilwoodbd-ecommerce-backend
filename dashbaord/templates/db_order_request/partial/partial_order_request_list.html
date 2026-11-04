@@ -229,6 +229,13 @@
 
         </div>
 
+        <!-- Add Order Request -->
+        <div class="col-auto">
+            <a href="{% url 'add_order_request' %}" class="btn btn-primary px-4">
+                <i class="bi bi-plus-lg me-2"></i>Add Order Request
+            </a>
+        </div>
+
     </div>
 
     <!-- Table -->
@@ -433,13 +440,8 @@
 
     </div>
 
-</table>
-
 </div>
-</div>
-</div>
-</div>
-</div>
+<!-- /main-content -->
 
 <!-- Floating Pagination -->
 <div class="btn btn-grd position-fixed bottom-0 end-0 m-3 d-flex align-items-center gap-2 shadow-lg"
@@ -490,7 +492,7 @@ hx-push-url="true">
 
 <select class="form-select"
 name="per_page"
-hx-get="{% url 'order_request_list' %}?status={{ current_status }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}"
+hx-get="{% url 'order_request_list' %}?status={{ current_status }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&work_status={{ current_work_status }}&updated_by={{ current_updated_by }}"
 hx-trigger="change"
 hx-target="#content-area"
 hx-push-url="true">
