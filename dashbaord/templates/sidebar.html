@@ -326,12 +326,12 @@
               Maintenance Cost
             </a>
           </li>
-          <li>
+          {% comment %} <li>
             <a href="{% url 'daily_profit_list' %}">
               <i class="material-icons-outlined">arrow_right</i>
               Daily Profit
             </a>
-          </li>
+          </li> {% endcomment %}
           {% if request.user.user_type != 'staff' %}
           <li>
             <a href="{% url 'sales_report' %}">

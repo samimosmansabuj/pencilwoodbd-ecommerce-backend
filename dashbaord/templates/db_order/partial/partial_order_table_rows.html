@@ -765,15 +765,19 @@
                 const response = await fetch(url, {
                     method: "GET",
                     headers: {
-                        "X-Requested-With": "XMLHttpRequest"
+                        "X-Requested-With": "XMLHttpRequest",
+                        "Content-Type": "application/json",
                     }
                 });
                 const data = await response.json();
-                if (!response.ok || !data.success) {
+                if (!data.success) {
                     throw new Error(data.message || "Unable to retrieve tracking information.");
+                    {% comment %} console.error(data.message);
+                    return; {% endcomment %}
                 }
-                const info = data.tracking_info.data || data;
-                console.log("Tracking info:", info);
+
+                const tracking_info = data.tracking_info;
+
                 const escapeHTML = value =>
                     String(value ?? "N/A").replace(/[&<>"']/g, char => ({
                         "&": "&amp;",
@@ -783,8 +787,8 @@
                         "'": "&#39;"
                     })[char]);
 
-                const status = info.order_status || "Unknown";
-                const statusSlug = (info.order_status_slug || status).toLowerCase();
+                const status = tracking_info.status || "Unknown";
+                const statusSlug = (tracking_info.status_slug || status).toLowerCase();
 
                 let badgeClass = "bg-secondary";
 
@@ -814,14 +818,14 @@
                                 <div class="col-12">
                                     <small class="text d-block">Consignment ID</small>
                                     <div class="fw-bold text-primary">
-                                        ${escapeHTML(info.consignment_id || trackingNumber)}
+                                        ${escapeHTML(tracking_info.tracking_number || trackingNumber)}
                                     </div>
                                 </div>
 
                                 <div class="col-12">
                                     <small class="text d-block">Merchant Order ID</small>
                                     <div class="fw-semibold">
-                                        ${escapeHTML(info.merchant_order_id)}
+                                        ${escapeHTML(tracking_info.merchant_order_id)}
                                     </div>
                                 </div>
 
@@ -835,21 +839,21 @@
                                 <div class="col-6">
                                     <small class="text d-block">Payment Status</small>
                                     <span class="fw-semibold">
-                                        ${escapeHTML(info.payment_status || "N/A")}
+                                        ${escapeHTML(tracking_info.payment_status || "N/A")}
                                     </span>
                                 </div>
 
                                 <div class="col-6">
                                     <small class="text d-block">Invoice ID</small>
                                     <span class="fw-semibold">
-                                        ${escapeHTML(info.invoice_id)}
+                                        ${escapeHTML(tracking_info.invoice_id || "N/A")}
                                     </span>
                                 </div>
 
                                 <div class="col-6">
                                     <small class="text d-block">Last Updated</small>
                                     <span class="fw-semibold">
-                                        ${escapeHTML(info.updated_at)}
+                                        ${escapeHTML(tracking_info.updated_at)}
                                     </span>
                                 </div>
                             </div>
