@@ -1991,7 +1991,6 @@ class OrderDeliveryOptionSubmitView(LoginRequiredMixin, View):
 
     def get(self, request, pk):
         consignment_id = request.GET.get("consignment_id")
-
         if not consignment_id:
             return JsonResponse({
                 "success": False,
@@ -2008,31 +2007,103 @@ class OrderDeliveryOptionSubmitView(LoginRequiredMixin, View):
             .order_by("-created_at")
             .first()
         )
-
+        
         if not shipment:
             return JsonResponse({
                 "success": False,
                 "message": "Shipment not found for this order."
             }, status=404)
 
+        courier = shipment.courier
+        merchant_order_id = shipment.order.order_id
         try:
-            pathao = PathaoParcelAPI(shipment.courier.id)
+            if courier.name == "SteadFast":
+                steadfast = SteadFastParcelAPI(courier.id)
+                response = steadfast.delivery_status_checking(
+                    shipment.tracking_number
+                )
 
-            tracking_info = pathao.get_tracking_info(
-                shipment.tracking_number
-            )
+                is_success = (
+                    response.get("status") == 200
+                    and bool(response.get("delivery_status"))
+                )
 
+                tracking_info = {
+                    "tracking_number": shipment.tracking_number,
+                    "status": response.get("delivery_status"),
+                    "status_slug": (
+                        str(response.get("delivery_status", "")).lower()
+                    ),
+                    "payment_status": None,
+                    "updated_at": None,
+                    "merchant_order_id": merchant_order_id
+                }
+            elif courier.name == "Pathao":
+                pathao = PathaoParcelAPI(courier.id)
+                response = pathao.get_tracking_info(
+                    shipment.tracking_number
+                )
+                data = response.get("data") or {}
+
+                is_success = (
+                    response.get("type") == "success"
+                    and response.get("code") == 200
+                    and bool(data)
+                )
+
+                tracking_info = {
+                    "tracking_number": data.get("consignment_id") or shipment.tracking_number,
+                    "status": data.get("order_status"),
+                    "status_slug": data.get("order_status_slug"),
+                    "payment_status": data.get("payment_status"),
+                    "updated_at": data.get("updated_at"),
+                    "merchant_order_id": merchant_order_id
+                }
+            else:
+                return JsonResponse({
+                    "success": False,
+                    "courier": courier.name,
+                    "message": "Unsupported courier.",
+                    "tracking_info": None,
+                    "raw_response": None,
+                }, status=400)
+            self.scan_order_status_update(shipment.order, tracking_info.get("status"))
             return JsonResponse({
-                "success": True,
-                "tracking_info": tracking_info
+                "success": is_success,
+                "courier": courier.name,
+                "message": (
+                    "Tracking information retrieved successfully."
+                    if is_success
+                    else "Unable to retrieve tracking information."
+                ),
+                "tracking_info": tracking_info if is_success else None,
+                "raw_response": response,
             })
-
-        except Exception:
+        except Exception as e:
             return JsonResponse({
                 "success": False,
-                "message": "Unable to retrieve tracking information."
-            }, status=502)
-
+                "courier": courier.name,
+                "message": "An error occurred while retrieving tracking information.",
+                "tracking_info": None,
+                "raw_response": None,
+            }, status=500)
+    
+    def scan_order_status_update(self, order, new_status):
+        print("Order: ", order.order_id, "Current Status: ", order.status, "New Status: ", new_status)
+        if new_status in [STATUS.DELIVERED]:
+            if order.status != STATUS.DELIVERED:
+                order.status = new_status
+        elif new_status in ["pending"]:
+            if order.status != STATUS.SHIPPED:
+                order.status = STATUS.SHIPPED
+        
+        # order.status = new_status
+        order.save(update_fields=["status"])
+        OrderActivityLog.log(
+            action=f"Order status updated to {new_status}",
+            order=order,
+            user=None,
+        )
 
 #------------------ Pixel Setup --------------
 
