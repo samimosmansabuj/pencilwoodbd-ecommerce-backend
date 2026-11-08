@@ -24,7 +24,7 @@ from rest_framework.views import APIView
 from django.conf import settings
 from rest_framework.permissions import AllowAny
 from rest_framework.permissions import IsAuthenticated
-from .models import Wishlist, ProductFeature, ProductFAQ, ReviewSettings, clean_customization_note
+from .models import Wishlist, ProductFeature, ProductFAQ, ReviewSettings, clean_customization_note, resolve_is_customized, customization_extra
 
 from django.http import JsonResponse
 from pencilwoodbd.extra_module import safe_error_message
@@ -610,6 +610,8 @@ class ProductDetailAPIView(APIView):
                     "description": p.details,
                     "images": [i.image.url for i in product_images],
                     "has_customization": p.has_customization,
+                    "customization_mode": p.customization_mode,
+                    "customization_price": p.customization_price,
                     "customization_placeholder": p.customization_placeholder or "",
                     "customization_fields": p.customization_fields or [],
                     "default_variant_id": (p.display_variant.id if p.has_variants and p.display_variant else None),
@@ -620,6 +622,7 @@ class ProductDetailAPIView(APIView):
                             "attributes": v.attributes,
                             "price": v.price,
                             "discount_price": v.discount_price,
+                            "customization_price": v.customization_price,
                             "stock": v.inventory_quantity,
 
                             "images": [
@@ -686,7 +689,8 @@ class AddToCartAPIView(APIView):
                 ).first()
                 if not product:
                     return Response({"status": False, "message": "Product not available"}, status=404)
-                customization_note = clean_customization_note(product, request.data.get("customization_note"))
+                is_customized = resolve_is_customized(product, request.data.get("is_customized"))
+                customization_note = clean_customization_note(product, request.data.get("customization_note"), is_customized)
                 variant = None
 
                 if product.has_variants:
@@ -702,15 +706,22 @@ class AddToCartAPIView(APIView):
                         return Response({"status": False, "message": "Product out of stock"}, status=400)
 
                 if customer:
-                    cart_item, created = AddToCart.objects.get_or_create(
+                    cart_item = AddToCart.objects.filter(
                         customer=customer, product=product, variant=variant,
-                        customization_note=customization_note,
-                        defaults={"quantity": quantity}
-                    )
-                    if not created:
+                        is_customized=is_customized,
+                    ).first()
+                    if cart_item:
                         cart_item.quantity += quantity
+                        if customization_note:
+                            cart_item.customization_note = customization_note
                         cart_item.save()
-                    return Response({"status": True, "message": "Added to cart"})
+                    else:
+                        cart_item = AddToCart.objects.create(
+                            customer=customer, product=product, variant=variant,
+                            is_customized=is_customized, customization_note=customization_note,
+                            quantity=quantity,
+                        )
+                    return Response({"status": True, "message": "Added to cart", "cart_id": cart_item.id})
                 else:
                     return Response({"status": True, "message": "Added to cart", "guest": True})
 
@@ -744,6 +755,9 @@ class CartListAPIView(APIView):
                 "price": item.price,
                 "total": item.total_price,
                 "customization_note": item.customization_note or "",
+                "is_customized": item.is_customized,
+                "customization_price": item.customization_price,
+                "customization_mode": item.product.customization_mode,
             })
             total += item.total_price
 
@@ -871,11 +885,14 @@ class GuestCartRefreshAPIView(APIView):
                 "stock": stock,
                 "has_variants": p.has_variants,
                 "has_customization": p.has_customization,
+                "customization_mode": p.customization_mode,
+                "customization_price": p.customization_price,
                 "variants": [
                     {
                         "id": v.id,
                         "price": v.price,
                         "discount_price": v.discount_price,
+                        "customization_price": v.customization_price,
                         "stock": v.inventory_quantity,
                         "image": next(
                             (i.image.url for i in p.variant_gallery(v, active_variants)),
@@ -935,16 +952,24 @@ class MergeGuestCartWishlistAPIView(APIView):
                     skipped_cart += 1
                     continue
 
-                customization_note = clean_customization_note(product, item.get("customization_note"))
-                cart_item, created = AddToCart.objects.get_or_create(
+                is_customized = resolve_is_customized(product, item.get("is_customized"))
+                customization_note = clean_customization_note(product, item.get("customization_note"), is_customized)
+                cart_item = AddToCart.objects.filter(
                     customer=customer, product=product, variant=variant,
-                    customization_note=customization_note,
-                    defaults={"quantity": min(quantity, available_stock)}
-                )
-                if not created:
+                    is_customized=is_customized,
+                ).first()
+                if cart_item:
                     new_qty = cart_item.quantity + quantity
                     cart_item.quantity = min(new_qty, available_stock)
+                    if customization_note:
+                        cart_item.customization_note = customization_note
                     cart_item.save()
+                else:
+                    AddToCart.objects.create(
+                        customer=customer, product=product, variant=variant,
+                        is_customized=is_customized, customization_note=customization_note,
+                        quantity=min(quantity, available_stock),
+                    )
 
                 merged_cart += 1
 

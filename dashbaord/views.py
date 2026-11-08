@@ -1,3 +1,4 @@
+from django.contrib import messages
 from django.shortcuts import render
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -16,7 +17,7 @@ from authentication.models import CustomUser
 from product.views import STOCK_ALERT_THRESHOLD
 
 from order.utils import confirmed_today_filter
-
+from .reports import today_orders, pending_orders, product_wise_quantity, build_report, resolve_range
 
 class DashboardView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -31,6 +32,11 @@ class DashboardView(LoginRequiredMixin, View):
             total=Coalesce(Sum(
                 F("order_items__discount_price") * F("order_items__quantity") + F("shipping_total")
             ), Value(0), output_field=DecimalField(max_digits=12, decimal_places=2))
+        )["total"]
+
+    def get_pending_product_qty(self):
+        return OrderItem.objects.filter(order__in=pending_orders()).aggregate(
+            total=Coalesce(Sum("quantity"), Value(0))
         )["total"]
 
     def new_orders_count(self, orders):
@@ -122,6 +128,8 @@ class DashboardView(LoginRequiredMixin, View):
         context = {
             "orders": orders[:10],
             "today_order_count": self.get_today_order_count(orders),
+            "pending_order_count": pending_orders().count(),
+            "pending_product_qty": self.get_pending_product_qty(),
             "new_orders_count": self.new_orders_count(orders),
             "today_confirmed_count": self.get_today_confirmed_count(orders),
             "status_amounts": self.get_status_amounts(orders),
@@ -202,3 +210,278 @@ class TodayWorkListView(LoginRequiredMixin, View):
             "inventory_comparison": inventory_comparison,
         }
         return render(request, "db_home/partial/today_work_list.html", context)
+
+
+class TodayOrderProductsView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        qs = today_orders()
+        rows = product_wise_quantity(qs)
+        return render(request, "db_home/partial/today_order_products.html", {
+            "rows": rows,
+            "order_count": qs.count(),
+            "total_qty": sum(r["qty"] for r in rows),
+            "today": timezone.localdate(),
+        })
+
+
+class PendingProductsView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        qs = pending_orders()
+        rows = product_wise_quantity(qs)
+        return render(request, "db_home/partial/pending_products.html", {
+            "rows": rows,
+            "order_count": qs.count(),
+            "total_qty": sum(r["qty"] for r in rows),
+        })
+
+
+class SalesReportView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    @staticmethod
+    def is_allowed(user):
+        return user.user_type in [USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN]
+
+    def get(self, request):
+        context = {"report_allowed": self.is_allowed(request.user)}
+
+        if context["report_allowed"]:
+            start, end, key, error = resolve_range(request.GET)
+            if error:
+                messages.error(request, error)
+            context.update({
+                "report": build_report(start, end),
+                "range_key": key,
+                "start_date": start.isoformat(),
+                "end_date": end.isoformat(),
+            })
+
+        if request.htmx:
+            return render(request, "db_report/partial/partial_sales_report.html", context)
+
+        status = 200 if context["report_allowed"] else 403
+        return render(request, "db_report/sales_report.html", context, status=status)
+
+
+def _csv_safe(value):
+    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
+
+
+class SalesReportExportView(SalesReportView):
+    def get(self, request):
+        import csv
+        from django.http import HttpResponse, HttpResponseForbidden
+
+        if not self.is_allowed(request.user):
+            return HttpResponseForbidden("Reports are only available for admin.")
+
+        start, end, key, _error = resolve_range(request.GET)
+        r = build_report(start, end)
+        resp = HttpResponse(content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = f'attachment; filename="report_{start}_{end}.csv"'
+        resp.write("\ufeff")
+        w = csv.writer(resp)
+        w.writerow(["Report", f"{start} to {end}"])
+        w.writerow([])
+        w.writerow(["Summary"])
+        for label, val in [
+            ("All orders placed", r["total_orders"]),
+            ("Valid orders (not cancelled/returned)", r["sales_orders"]),
+            ("Cancelled/returned orders", r["lost_orders"]),
+            ("Pieces sold", r["total_qty"]),
+            ("Products total", r["items_total"]),
+            ("Shipping total", r["shipping_total"]),
+            ("Discount (coupon + extra)", r["discount_total"]),
+            ("Total sales", r["total_sales"]),
+            ("Advance received", r["advance_total"]),
+            ("Due to collect (not delivered yet)", r["due_to_collect"]),
+            ("Product cost", r["product_cost"]),
+            ("Gross profit (sales - product cost)", r["gross_profit"]),
+            ("Total expense", r["expense_total"]),
+            ("Estimated profit", r["profit"]),
+            ("Delivered orders", r["delivered_count"]),
+            ("Delivered amount", r["delivered_total"]),
+            ("Delivered product cost", r["delivered_cost"]),
+            ("Realized profit (delivered - cost - expense)", r["realized_profit"]),
+            ("Items with unknown cost price", r["missing_cost_items"]),
+        ]:
+            w.writerow([label, val])
+        w.writerow([])
+        w.writerow(["Expense by category"])
+        w.writerow(["Category", "Entries", "Amount"])
+        for e in r["expense_rows"]:
+            w.writerow([e["category"], e["count"], e["total"]])
+        w.writerow([])
+        w.writerow(["Expense entries"])
+        w.writerow(["Date", "Name", "Category", "Vendor", "Amount"])
+        for e in r["expense_items"]:
+            w.writerow([e["date"], _csv_safe(e["name"]), e["category"], _csv_safe(e["vendor"]), e["amount"]])
+        w.writerow([])
+        w.writerow(["Product wise"])
+        w.writerow(["Product", "Variant", "Pieces", "Sales", "Product cost", "Profit", "Cost missing"])
+        for p in r["product_rows"]:
+            w.writerow([_csv_safe(p["product"]), _csv_safe(p["variant"]), p["qty"], p["amount"],
+                        p["cogs"], p["profit"], "yes" if p["missing_cost"] else ""])
+        w.writerow([])
+        w.writerow(["Status wise (all orders placed)"])
+        w.writerow(["Status", "Orders", "Amount"])
+        for s_ in r["status_rows"]:
+            w.writerow([s_["status"], s_["count"], s_["amount"]])
+        w.writerow([])
+        w.writerow(["Day wise"])
+        w.writerow(["Date", "Orders", "Sales", "Advance", "Product cost", "Expense", "Profit"])
+        for d in r["day_rows"]:
+            w.writerow([d["date"], d["orders"], d["sales"], d["advance"], d["cogs"], d["expense"], d["profit"]])
+        return resp
+
+
+class SalesReportExcelView(SalesReportView):
+
+    MONEY = '#,##0.00'
+    DATE = 'dd mmm yyyy'
+
+    def get(self, request):
+        from io import BytesIO
+        from decimal import Decimal
+        from django.http import HttpResponse, HttpResponseForbidden
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+        from openpyxl.utils import get_column_letter
+
+        if not self.is_allowed(request.user):
+            return HttpResponseForbidden("Reports are only available for admin.")
+
+        start, end, key, _error = resolve_range(request.GET)
+        r = build_report(start, end)
+
+        head_font = Font(bold=True, color="FFFFFF")
+        head_fill = PatternFill("solid", fgColor="1F4E78")
+        title_font = Font(bold=True, size=14)
+        thin = Side(style="thin", color="BFBFBF")
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+        def put(ws, row, col, value, fmt=None, bold=False):
+            if isinstance(value, Decimal):
+                value = float(value)
+            cell = ws.cell(row=row, column=col, value=value)
+            if isinstance(value, str):
+                cell.data_type = "s"
+            if fmt:
+                cell.number_format = fmt
+            if bold:
+                cell.font = Font(bold=True)
+            cell.border = border
+            return cell
+
+        def table(ws, first_row, headers, rows, formats=None):
+            """headers: list[str]; rows: list[list]; formats: {col_index: number_format}"""
+            formats = formats or {}
+            for ci, h in enumerate(headers, start=1):
+                c = ws.cell(row=first_row, column=ci, value=h)
+                c.font, c.fill, c.border = head_font, head_fill, border
+                c.alignment = Alignment(horizontal="center", vertical="center")
+            for ri, row in enumerate(rows, start=first_row + 1):
+                for ci, v in enumerate(row, start=1):
+                    put(ws, ri, ci, v, formats.get(ci))
+            return first_row + len(rows) + 1
+
+        def fit(ws, min_w=10, max_w=55):
+            widths = {}
+            for row in ws.iter_rows():
+                for c in row:
+                    if c.value is None:
+                        continue
+                    n = len(str(c.value)) + 2
+                    if isinstance(c.value, float):
+                        n = len(f"{c.value:,.2f}") + 2
+                    widths[c.column] = max(widths.get(c.column, 0), n)
+            for col, w in widths.items():
+                ws.column_dimensions[get_column_letter(col)].width = max(min_w, min(w, max_w))
+
+        wb = Workbook()
+
+        # ---------------- Summary ----------------
+        ws = wb.active
+        ws.title = "Summary"
+        ws["A1"] = "Sales Report"
+        ws["A1"].font = title_font
+        ws["A2"] = f"{start:%d %b %Y} to {end:%d %b %Y}  ({r['days']} day{'s' if r['days'] != 1 else ''})"
+        money_rows = [
+            ("Products total", r["items_total"]),
+            ("Shipping total", r["shipping_total"]),
+            ("Discount (coupon + extra)", r["discount_total"]),
+            ("Total sales", r["total_sales"]),
+            ("Advance received", r["advance_total"]),
+            ("Due to collect (not delivered yet)", r["due_to_collect"]),
+            ("Product cost", r["product_cost"]),
+            ("Gross profit (sales - product cost)", r["gross_profit"]),
+            ("Total expense", r["expense_total"]),
+            ("Estimated profit", r["profit"]),
+            ("Delivered amount", r["delivered_total"]),
+            ("Delivered product cost", r["delivered_cost"]),
+            ("Realized profit (delivered - cost - expense)", r["realized_profit"]),
+        ]
+        count_rows = [
+            ("All orders placed", r["total_orders"]),
+            ("Valid orders (not cancelled/returned)", r["sales_orders"]),
+            ("Cancelled / returned orders", r["lost_orders"]),
+            ("Pieces sold", r["total_qty"]),
+            ("Delivered orders", r["delivered_count"]),
+            ("Items with unknown cost price", r["missing_cost_items"]),
+        ]
+        row = 4
+        row = table(ws, row, ["Orders & pieces", "Count"], [[a, b] for a, b in count_rows], {2: "0"})
+        row += 1
+        table(ws, row, ["Money", "Amount (BDT)"], [[a, b] for a, b in money_rows], {2: self.MONEY})
+        fit(ws, min_w=14)
+        ws.column_dimensions["A"].width = 46
+
+        # ---------------- Product wise ----------------
+        ws = wb.create_sheet("Product wise")
+        table(ws, 1, ["Product", "Variant", "Pieces", "Sales", "Product cost", "Profit", "Cost missing"],
+              [[p["product"], p["variant"] or "-", p["qty"], p["amount"], p["cogs"], p["profit"],
+                "yes" if p["missing_cost"] else ""] for p in r["product_rows"]],
+              {3: "0", 4: self.MONEY, 5: self.MONEY, 6: self.MONEY})
+        ws.freeze_panes = "A2"
+        fit(ws)
+
+        # ---------------- Day wise ----------------
+        ws = wb.create_sheet("Day wise")
+        table(ws, 1, ["Date", "Orders", "Sales", "Advance", "Product cost", "Expense", "Profit"],
+              [[d["date"], d["orders"], d["sales"], d["advance"], d["cogs"], d["expense"], d["profit"]]
+               for d in r["day_rows"]],
+              {1: self.DATE, 2: "0", 3: self.MONEY, 4: self.MONEY, 5: self.MONEY, 6: self.MONEY, 7: self.MONEY})
+        ws.freeze_panes = "A2"
+        fit(ws, min_w=14)
+
+        # ---------------- Status wise ----------------
+        ws = wb.create_sheet("Status wise")
+        table(ws, 1, ["Status (all orders placed)", "Orders", "Amount"],
+              [[s_["status"], s_["count"], s_["amount"]] for s_ in r["status_rows"]],
+              {2: "0", 3: self.MONEY})
+        fit(ws, min_w=14)
+
+        # ---------------- Expenses ----------------
+        ws = wb.create_sheet("Expenses")
+        nxt = table(ws, 1, ["Category", "Entries", "Amount"],
+                    [[e["category"], e["count"], e["total"]] for e in r["expense_rows"]],
+                    {2: "0", 3: self.MONEY})
+        table(ws, nxt + 1, ["Date", "Name", "Category", "Vendor", "Amount"],
+              [[e["date"], e["name"], e["category"], e["vendor"], e["amount"]] for e in r["expense_items"]],
+              {1: self.DATE, 5: self.MONEY})
+        fit(ws, min_w=14)
+
+        buf = BytesIO()
+        wb.save(buf)
+        resp = HttpResponse(
+            buf.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        resp["Content-Disposition"] = f'attachment; filename="sales_report_{start}_{end}.xlsx"'
+        return resp

@@ -3,6 +3,7 @@
 <form method="POST" id="order-request-form" enctype="multipart/form-data"
     action="{% if is_update %}{% url 'edit_order_request' order_request.pk %}{% else %}{% url 'add_order_request' %}{% endif %}">
     {% csrf_token %}
+    {% if submit_token %}<input type="hidden" name="submit_token" value="{{ submit_token }}">{% endif %}
 
     <div class="row">
         <div class="col-12 col-lg-8">
@@ -513,8 +514,8 @@
             renderItems();
         });
 
-        shippingInput.addEventListener("input", updateTotals);
-        advanceInput.addEventListener("input", updateTotals);
+        if (shippingInput) shippingInput.addEventListener("input", updateTotals);
+        if (advanceInput) advanceInput.addEventListener("input", updateTotals);
 
         document.getElementById("order-request-form").addEventListener("submit", function (e) {
             if (items.length === 0) {

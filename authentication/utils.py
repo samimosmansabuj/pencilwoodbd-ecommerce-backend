@@ -4,25 +4,28 @@ from pencilwoodbd.choices import STATUS
 
 def normalize_bd_phone(phone: str) -> str:
     """
-    Always returns 13-digit form: 8801XXXXXXXXX
-    Accepts only real BD mobile numbers in these input shapes:
-      - 01XXXXXXXXX          (11 digits)
-      - 8801XXXXXXXXX        (13 digits)
-      - +8801XXXXXXXXX       (with +, dashes, spaces allowed)
-    Returns "" if the input doesn't reduce to a valid BD mobile number.
+    Always returns 13-digit form: 8801XXXXXXXXX  (DB te '+' rakha hoy na)
+    STRICT - only real BD mobile numbers, exactly these shapes:
+      - 01XXXXXXXXX          (01 + 9 digits   = 11 digits)
+      - 8801XXXXXXXXX        (8801 + 9 digits = 13 digits)
+      - +8801XXXXXXXXX       (leading +, spaces, dashes, brackets allowed)
+    Operator digit (3rd digit) must be 3-9. Extra / missing digits => invalid.
+    Returns "" if the input is not a valid BD mobile number.
     """
     if not phone:
         return ""
 
-    digits = re.sub(r"\D", "", str(phone))  # strip everything except digits
+    cleaned = re.sub(r"[\s\-().]", "", str(phone))
+    if cleaned.startswith("+"):
+        cleaned = cleaned[1:]
 
-    if len(digits) < 11:
+    if not cleaned.isdigit():
         return ""
 
-    local = digits[-11:]  # last 11 digits = 01XXXXXXXXX
-
-    if re.match(r"^01[3-9]\d{8}$", local):
-        return "88" + local
+    if re.fullmatch(r"01[3-9]\d{8}", cleaned):
+        return "88" + cleaned
+    if re.fullmatch(r"8801[3-9]\d{8}", cleaned):
+        return cleaned
 
     return ""
 

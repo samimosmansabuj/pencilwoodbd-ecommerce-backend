@@ -3,6 +3,7 @@
 <form method="POST" id="order-form" enctype="multipart/form-data"
     action="{% if is_update %}{% url 'order_update_full' order.pk %}{% else %}{% url 'add_order' %}{% endif %}">
     {% csrf_token %}
+    {% if submit_token and not is_update %}<input type="hidden" name="submit_token" value="{{ submit_token }}">{% endif %}
 
     {% if is_modal %}
     <input type="hidden" name="is_modal" value="1">
@@ -507,6 +508,7 @@
                     const tr = document.createElement("tr");
                     tr.innerHTML =
                     "<td>" + item.product_name + (item.is_gift ? ' <span class="badge bg-success">Gift</span>' : '') +
+                        (parseFloat(item.customization_price) > 0 ? '<div class="small text-muted">Includes customization ৳' + parseFloat(item.customization_price).toFixed(2) + ' each</div>' : '') +
                         (item.is_gift ? '' : '<textarea rows="2" maxlength="1000" class="form-control form-control-sm item-note-input mt-1" data-index="' + index + '" placeholder="Customization details (optional)">' + String(item.customization_note || "").replace(/&/g, "&amp;").replace(/</g, "&lt;") + '</textarea>') + "</td>" +
                         "<td>" + (item.variant_label || "-") + "</td>" +
                         '<td><input type="number" min="1" step="1" class="form-control form-control-sm item-qty-input" data-index="' + index + '" value="' + item.quantity + '" style="width:80px;"></td>' +
@@ -700,7 +702,8 @@
                     quantity: it.quantity,
                     unit_price: parseFloat(it.unit_price) || 0,
                     price_manually_edited: !!it.price_manually_edited,
-                    customization_note: it.customization_note || ""
+                    customization_note: it.customization_note || "",
+                    customization_price: it.customization_price || 0
                 });
             });
         }

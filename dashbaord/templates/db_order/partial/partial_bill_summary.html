@@ -18,6 +18,9 @@
                     {% if item.variant_label %}
                         <span style="color: #555;"> ({{ item.variant_label }})</span>
                     {% endif %}
+                    {% if item.customization_unit_price %}
+                        <div style="font-size: 11px; color: #000; margin-top: 2px;">Base ৳{{ item.base_unit_price|floatformat:2 }} + Customization ৳{{ item.customization_unit_price|floatformat:2 }}{% if item.quantity > 1 %} (each){% endif %}</div>
+                    {% endif %}
                     {% if item.customization_note %}
                         <div style="font-size: 11px; color: #000; margin-top: 2px;"><b>Custom:</b> {{ item.customization_note|linebreaksbr }}</div>
                     {% endif %}

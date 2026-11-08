@@ -29,6 +29,7 @@ class STATUS(models.TextChoices):
     HOLD = "hold"
     TOKEN_PRINT = "token_print"
     READY_TO_SHIP = "ready_to_ship"
+    PARCEL_REQUESTED = "parcel_requested"
     PARCEL_CREATED = "parcel_created"
     SHIPPED = "shipped"
     DELIVERED = "delivered"
@@ -219,3 +220,8 @@ class CUSTOMIZATION_FIELD_TYPES(models.TextChoices):
     TEXTAREA = "textarea", "Long text"
     SELECT = "select", "Dropdown"
     NUMBER = "number", "Number"
+
+class CUSTOMIZATION_MODE(models.TextChoices):
+    OFF = "off", "Off"
+    OPTIONAL = "optional", "Optional (customer picks Standard / Customized)"
+    MANDATORY = "mandatory", "Mandatory (always customized, asked at checkout)"

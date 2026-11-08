@@ -404,7 +404,11 @@ class OrderShortDetailView(LoginRequiredMixin, View):
                 "unit_price":     float(item.price or 0),
                 "discount_price": float(item.discount_price or 0),
                 "item_total":     float(item.discount_total_price or item.current_total or 0),
+                "customization_price": float(item.customization_unit_price),
+                "customization_total": float(item.customization_total_price),
                 "is_gift":        item.is_gift,
+                "is_customized":  item.is_customized,
+                "customization_note": (item.customization_note or "").strip(),
             })
 
         # ── Shipment ──────────────────────────────────────────────────────

@@ -23,6 +23,14 @@ class TelegramBotService:
             items_lines.append(
                 f"• {item.product_name}{variante} × {item.quantity} — ৳{item_total:,.0f}"
             )
+            if item.customization_unit_price:
+                items_lines.append(
+                    f"   ✏️ Customized: Base ৳{item.base_unit_price:,.0f} + Custom ৳{item.customization_unit_price:,.0f}"
+                    + (" each" if item.quantity > 1 else "")
+                )
+            if item.customization_note:
+                import html as _html
+                items_lines.append(f"   📝 {_html.escape(item.customization_note)}")
         items_text = "\n".join(items_lines) if items_lines else "N/A"
 
         customer_name = str(order.customer) if order.customer else "N/A"

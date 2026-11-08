@@ -1,0 +1,25 @@
+<div class="d-flex gap-3 mb-3 flex-wrap">
+    <div class="card p-3 flex-fill" role="button" style="cursor:pointer;" title="Click to see these orders"
+         data-bs-dismiss="modal"
+         hx-get="{% url 'order_list' %}?status=all&pending=1" hx-target="#content-area" hx-push-url="true">
+        <h6 class="mb-1">Pending Orders <i class="bi bi-box-arrow-up-right small"></i></h6>
+        <h3 class="mb-0">{{ order_count }}</h3>
+    </div>
+    <div class="card p-3 flex-fill"><h6 class="mb-1">Pending Pieces</h6><h3 class="mb-0 text-warning">{{ total_qty }}</h3></div>
+</div>
+<p class="text-secondary small">Pending Orders e click korle sudhu ei pending order gular list dekhabe. Courier booking hoye gele order ta ekhan theke sore jabe.</p>
+<table class="table align-middle">
+    <thead class="table-light"><tr><th>#</th><th>Product</th><th>Variant</th><th class="text-end">Pieces</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ r.product }}</td>
+            <td>{{ r.variant|default:"-" }}</td>
+            <td class="text-end fw-bold">{{ r.qty }}</td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="4" class="text-center">No pending product.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>

@@ -19,7 +19,7 @@ from order.models import Order, OrderItem, Shipment, Address, Payment, PaymentMe
 from .utils import OrderConfirmatinoEmailSend, safe_order_bill
 from site_app.models import DeliveryOption, OTPVerification, WebhookLog, LandingPageProduct
 from .serializers import DeliveryOptionSerializer, ShipmentSerializer
-from product.models import Product, ProductVariant, clean_customization_note
+from product.models import Product, ProductVariant, clean_customization_note, resolve_is_customized, customization_extra
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from decimal import Decimal
 from rest_framework.views import APIView
@@ -290,6 +290,16 @@ def build_gift_line_items(product, quantity, district=None):
 
     return gift_lines
 
+def customization_payload(product, is_customized, variant=None):
+    return {
+        "is_customized": bool(is_customized),
+        "customization_mode": product.customization_mode,
+        "customization_price": float(customization_extra(product, is_customized, variant)),
+        "customization_fields": (product.customization_fields or []) if is_customized else [],
+        "customization_placeholder": (product.customization_placeholder or "") if is_customized else "",
+    }
+
+
 class CheckoutSummaryAPIView(APIView):
     permission_classes = [AllowAny]
 
@@ -324,6 +334,7 @@ class CheckoutSummaryAPIView(APIView):
                         "product": product.name,
                         "variant": item.variant.attributes if item.variant else None,
                         "customization_note": item.customization_note or "",
+                        **customization_payload(product, item.is_customized, item.variant),
                         "quantity": item.quantity,
                         "price": item.price,
                         "total": item.total_price,
@@ -345,7 +356,7 @@ class CheckoutSummaryAPIView(APIView):
                     return Response({"status": False, "message": "Cart empty"}, status=400)
 
                 charged_product_ids = set()
-                for row in guest_items:
+                for line_index, row in enumerate(guest_items):
                     product = Product.objects.filter(id=row.get("product_id")).first()
                     if not product:
                         continue
@@ -354,8 +365,10 @@ class CheckoutSummaryAPIView(APIView):
                         variant = ProductVariant.objects.filter(id=row["variant_id"], product=product).first()
 
                     quantity = int(row.get("quantity", 1))
+                    row_is_customized = resolve_is_customized(product, row.get("is_customized"))
+                    extra = customization_extra(product, row_is_customized, variant)
                     price = variant.price if variant else product.price
-                    discount_price = (variant.discount_price if variant else product.discount_price) or price
+                    discount_price = ((variant.discount_price if variant else product.discount_price) or price) + extra
                     line_total = discount_price * quantity
 
                     product_delivery_charge = DeliveryChargeResolver.get_charge(product, selected_district)
@@ -369,7 +382,9 @@ class CheckoutSummaryAPIView(APIView):
                         "variant_id": variant.id if variant else None,
                         "product": product.name,
                         "variant": variant.attributes if variant else None,
-                        "customization_note": clean_customization_note(product, row.get("customization_note")),
+                        "customization_note": clean_customization_note(product, row.get("customization_note"), row_is_customized),
+                        **customization_payload(product, row_is_customized, variant),
+                        "line_index": line_index,
                         "quantity": quantity,
                         "price": discount_price,
                         "total": line_total,
@@ -450,6 +465,9 @@ class PlaceOrderAPIView(APIView):
 
                 cart_ids_in_request = request.data.get("cart_ids", [])
                 items_in_request = request.data.get("items", [])
+                customization_notes = request.data.get("customization_notes") or {}
+                if not isinstance(customization_notes, dict):
+                    customization_notes = {}
 
                 auth_customer = getattr(request.user, "customer_profile", None) if request.user.is_authenticated else None
                 if cart_ids_in_request and not auth_customer:
@@ -530,13 +548,18 @@ class PlaceOrderAPIView(APIView):
                     if not active_cart_items:
                         return Response({"status": False, "message": "Cart items are no longer available"}, status=400)
 
-                    line_items = [
-                        {
+                    line_items = []
+                    for ci in active_cart_items:
+                        override = customization_notes.get(str(ci.id))
+                        line_items.append({
                             "product": ci.product, "variant": ci.variant, "quantity": ci.quantity,
-                            "customization_note": clean_customization_note(ci.product, ci.customization_note),
-                        }
-                        for ci in active_cart_items
-                    ]
+                            "is_customized": resolve_is_customized(ci.product, ci.is_customized),
+                            "customization_note": clean_customization_note(
+                                ci.product,
+                                override if override is not None else ci.customization_note,
+                                resolve_is_customized(ci.product, ci.is_customized),
+                            ),
+                        })
                     should_delete_cart = cart_items
                 else:
                     raw_items = items_in_request
@@ -544,7 +567,7 @@ class PlaceOrderAPIView(APIView):
                         return Response({"status": False, "message": "No cart items"}, status=400)
 
                     line_items = []
-                    for row in raw_items:
+                    for row_index, row in enumerate(raw_items):
                         product = Product.objects.filter(
                             id=row.get("product_id"), status=CATEGORY_PRODUCT_STATUS.ACTIVE
                         ).first()
@@ -555,15 +578,29 @@ class PlaceOrderAPIView(APIView):
                             variant = ProductVariant.objects.filter(
                                 id=row["variant_id"], product=product, is_active=True
                             ).first()
+                        row_is_customized = resolve_is_customized(product, row.get("is_customized"))
+                        override = customization_notes.get(str(row_index))
                         line_items.append({
                             "product": product, "variant": variant,
                             "quantity": int(row.get("quantity", 1)),
-                            "customization_note": clean_customization_note(product, row.get("customization_note")),
+                            "is_customized": row_is_customized,
+                            "customization_note": clean_customization_note(
+                                product,
+                                override if override is not None else row.get("customization_note"),
+                                row_is_customized,
+                            ),
                         })
 
                     if not line_items:
                         return Response({"status": False, "message": "Cart empty"}, status=400)
                     should_delete_cart = None
+
+                for line in line_items:
+                    if line.get("is_customized") and not (line.get("customization_note") or "").strip():
+                        return Response(
+                            {"status": False, "message": f"Please write the customization for {line['product'].name}"},
+                            status=400,
+                        )
 
                 address = resolve_order_address(
                     customer, request.data.get("address_id"), address_text, district, upazila
@@ -611,7 +648,8 @@ class PlaceOrderAPIView(APIView):
                     _product = line["product"]
                     _variant = line["variant"]
                     _price = (_variant.discount_price or _variant.price) if _variant else (_product.discount_price or _product.price)
-                    cart_subtotal += Decimal(str(_price)) * line["quantity"]
+                    _price = Decimal(str(_price)) + customization_extra(_product, line.get("is_customized"), _variant)
+                    cart_subtotal += _price * line["quantity"]
 
                 if coupon_code:
                     applied_coupon = Coupon.objects.select_for_update().filter(
@@ -698,11 +736,19 @@ class PlaceOrderAPIView(APIView):
                         discount_price = product.discount_price or product.price
 
                     item_note = line.get("customization_note") or ""
+                    line_is_customized = bool(line.get("is_customized"))
+                    extra = customization_extra(product, line_is_customized, variant)
+                    price = price + extra
+                    discount_price = discount_price + extra
                     OrderItem.objects.create(
                         order=order, product=product, variant=variant, product_name=product.name,
                         quantity=quantity, price=price, discount_price=discount_price,
                         customization_note=item_note or None,
-                        snapshot={"is_gift": False, "customized": bool(item_note)},
+                        snapshot={
+                            "is_gift": False,
+                            "customized": line_is_customized,
+                            "customization_price": float(extra),
+                        },
                     )
                     total += discount_price * quantity
 
@@ -831,6 +877,7 @@ class OrderListAPIView(APIView):
                     "image": image,
                     "variant": item.variant.attributes if item.variant else None,
                     "customization_note": item.customization_note or "",
+                    "customization_price": float(item.customization_unit_price),
                 })
 
             data.append({
@@ -915,7 +962,10 @@ class OrderDetailAPIView(APIView):
                         else None
                     ),
 
-                    "customization_note": item.customization_note or ""
+                    "customization_note": item.customization_note or "",
+                    "base_price": float(item.base_unit_price),
+                    "customization_price": float(item.customization_unit_price),
+                    "customization_total": float(item.customization_total_price),
                 })
 
             data = {
