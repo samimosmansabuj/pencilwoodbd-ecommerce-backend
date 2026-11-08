@@ -137,14 +137,24 @@
             <div class="card">
                 <div class="card-body">
                     <h5 class="mb-3">Customization</h5>
-                    <div class="form-check form-switch mb-2">
-                        <input class="form-check-input" type="checkbox" role="switch" name="has_customization"
-                            id="pw_has_customization" {% if product and product.has_customization %}checked{% endif %}>
-                        <label class="form-check-label" for="pw_has_customization">This product can be customized</label>
+                    <div class="row g-2 align-items-end mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label" for="pw_customization_mode">Customization</label>
+                            <select class="form-select" name="customization_mode" id="pw_customization_mode">
+                                <option value="off" {% if not product or product.customization_mode == "off" %}selected{% endif %}>Off - no customization</option>
+                                <option value="optional" {% if product and product.customization_mode == "optional" %}selected{% endif %}>Optional - customer picks Standard / Customized</option>
+                                <option value="mandatory" {% if product and product.customization_mode == "mandatory" %}selected{% endif %}>Mandatory - always customized (asked at checkout only)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6" id="pw_customization_price_wrap">
+                            <label class="form-label" for="pw_customization_price">Extra price for customization (per unit)</label>
+                            <input type="number" min="0" step="0.01" class="form-control" name="customization_price"
+                                id="pw_customization_price" value="{% if product %}{{ product.customization_price|stringformat:'s' }}{% else %}0{% endif %}">
+                        </div>
                     </div>
-                    <p class="small text mb-2">On the product page customers get two options: <b>Standard</b> (no changes) and <b>Customized</b>. When they pick Customized, the form you build below opens. Whatever they fill in is saved with the cart item and goes to the order.</p>
+                    <p class="small text mb-2"><b>Optional:</b> the product page shows <b>Standard</b> / <b>Customized</b>. Picking Customized adds the extra price instantly, and the customer writes the customization on the checkout page. <b>Mandatory:</b> the Standard / Customized choice is hidden, the extra price is always added, and the customization form is shown at checkout for every order. Each customized product in a cart gets its own form at checkout.</p>
                     <div id="pw_customization_box" style="display:none;">
-                        <h6 class="mb-2">Customization form fields</h6>
+                        <h6 class="mb-2">Checkout customization form fields</h6>
                         <div id="pw_cf_list" class="d-flex flex-column gap-2 mb-2"></div>
                         <button type="button" class="btn btn-sm btn-outline-dark mb-3" id="pw_cf_add"><i class="bi bi-plus-lg"></i> Add field</button>
                         <input type="hidden" name="customization_fields_json" id="pw_cf_json" value="[]">
@@ -213,6 +223,7 @@
                                         <th>Cost</th>
                                         <th>Price</th>
                                         <th>Discount</th>
+                                        <th title="Extra price when customized. Leave empty to use the product's customization price">Custom +</th>
                                         <th>Active</th>
                                         <th>Default</th>
                                         <th>Images</th>
@@ -221,7 +232,7 @@
                                 </thead>
                                 <tbody id="pw_variant_table_body">
                                     <tr id="pw_variant_empty_row">
-                                        <td colspan="8" class="text-center">No variants yet — select an
+                                        <td colspan="9" class="text-center">No variants yet — select an
                                             attribute and values above, then click Add.</td>
                                     </tr>
                                 </tbody>
@@ -1166,11 +1177,16 @@
 
         // Customization box toggle
         (function initCustomizationToggle() {
-            var cb = document.getElementById("pw_has_customization");
+            var sel = document.getElementById("pw_customization_mode");
             var box = document.getElementById("pw_customization_box");
-            if (!cb || !box) return;
-            function sync() { box.style.display = cb.checked ? "block" : "none"; }
-            cb.addEventListener("change", sync);
+            var priceWrap = document.getElementById("pw_customization_price_wrap");
+            if (!sel || !box) return;
+            function sync() {
+                var on = sel.value !== "off";
+                box.style.display = on ? "block" : "none";
+                if (priceWrap) priceWrap.style.display = on ? "block" : "none";
+            }
+            sel.addEventListener("change", sync);
             sync();
         })();
 
@@ -1185,6 +1201,7 @@
             var priceVal = existing ? existing.price : "";
             var discountVal = existing ? existing.discount_price : "";
             var costVal = existing ? existing.cost_price : "";
+            var customPriceVal = existing && existing.customization_price != null ? existing.customization_price : "";
             var activeChecked = existing ? (existing.is_active ? "checked" : "") : "checked";
             var variantId = existing ? existing.id : "";
             var isDefaultChecked = existing ? !!existing.is_default : !!forceDefault;
@@ -1192,7 +1209,8 @@
             cells += '<td><input type="number" class="form-control pw-stock" value="' + stockVal + '"></td>' +
                 '<td><input type="number" step="0.01" class="form-control pw-cost" value="' + costVal + '"></td>' +
                 '<td><input type="number" step="0.01" class="form-control pw-price" value="' + priceVal + '"></td>' +
-                '<td><input type="number" step="0.01" class="form-control pw-discount" value="' + discountVal + '"></td>' +
+                '<td><input type="number" step="0.01" min="0" class="form-control pw-discount" value="' + discountVal + '"></td>' +
+                '<td><input type="number" step="0.01" min="0" class="form-control pw-custom-price" placeholder="Product default" value="' + customPriceVal + '"></td>' +
                 '<td><div class="form-check form-switch"><input class="form-check-input pw-active-toggle" type="checkbox" ' + activeChecked + '></div></td>' +
                 '<td class="text-center"><input type="radio" class="form-check-input pw-default-radio" name="default_variant_group" ' + (isDefaultChecked ? "checked" : "") + ' title="Show this variant by default"></td>' +
                 '<td class="pw-var-img-cell" style="min-width:150px"><div class="d-flex flex-wrap gap-1 pw-var-img-list"></div>' +
@@ -1213,6 +1231,7 @@
                     price: tr.querySelector(".pw-price").value || 0,
                     discount_price: tr.querySelector(".pw-discount").value || "",
                     cost_price: tr.querySelector(".pw-cost").value || "",
+                    customization_price: tr.querySelector(".pw-custom-price").value,
                     is_active: tr.querySelector(".pw-active-toggle").checked,
                     is_default: tr.querySelector(".pw-default-radio").checked,
                     image_key: "vimg_" + imageUid
@@ -1222,7 +1241,7 @@
             };
             tr.__syncRow = syncRow;
 
-            tr.querySelectorAll(".pw-stock, .pw-cost, .pw-price, .pw-discount, .pw-active-toggle").forEach(function (el) {
+            tr.querySelectorAll(".pw-stock, .pw-cost, .pw-price, .pw-discount, .pw-custom-price, .pw-active-toggle").forEach(function (el) {
                 el.addEventListener("input", syncRow);
                 el.addEventListener("change", syncRow);
             });
@@ -1237,7 +1256,7 @@
                 if (!tbody.querySelector("tr")) {
                     var empty = document.createElement("tr");
                     empty.id = "pw_variant_empty_row";
-                    empty.innerHTML = '<td colspan="8" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>';
+                    empty.innerHTML = '<td colspan="9" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>';
                     tbody.appendChild(empty);
                 } else if (wasDefault) {
                     var firstRadio = tbody.querySelector(".pw-default-radio");
@@ -1302,7 +1321,7 @@
                 th.textContent = state.attributes[key] ? state.attributes[key].displayName : key;
                 thead.appendChild(th);
             });
-            ["Stock", "Cost", "Price", "Discount", "Active", "Default", "Images", "Actions"].forEach(function (label) {
+            ["Stock", "Cost", "Price", "Discount", "Custom +", "Active", "Default", "Images", "Actions"].forEach(function (label) {
                 var th = document.createElement("th");
                 th.textContent = label;
                 thead.appendChild(th);
@@ -1315,7 +1334,7 @@
                 bulkBox.style.display = "none";
                 var empty = document.createElement("tr");
                 empty.id = "pw_variant_empty_row";
-                empty.innerHTML = '<td colspan="8" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>';
+                empty.innerHTML = '<td colspan="9" class="text-center text-muted">No variants yet — select an attribute and values above, then click Add.</td>';
                 tbody.appendChild(empty);
                 toggleInventorySection();
                 return;

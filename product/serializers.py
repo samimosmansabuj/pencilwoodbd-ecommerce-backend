@@ -110,7 +110,7 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = [
             "id", "name", "slug", "sku", "product_type",
             "category", "short_description", "details", "description_json",
-            "has_variants", "has_customization", "customization_placeholder", "customization_fields", "price", "discount_price",
+            "has_variants", "has_customization", "customization_mode", "customization_price", "customization_placeholder", "customization_fields", "price", "discount_price",
             "inventory_quantity", "inventory_type",
             "weight", "dimensions",
             "tags", "sold_count", "is_bestseller", "is_gift_only", "status",

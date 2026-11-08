@@ -1,8 +1,9 @@
+from decimal import Decimal
 from django.db import models
 from authentication.models import Customer
 from django.utils.text import slugify
 from pencilwoodbd.extra_module import previous_image_delete_os, image_delete_os
-from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS, PRODUCT_TYPE, PRODUCT_MEDIA_TYPE, PRODUCT_MEDIA_ROLE, PRODUCT_GIFT_TYPE, ATTRIBUTE_TYPE, INVENTORY_TYPE, CUSTOMIZATION_FIELD_TYPES
+from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS, PRODUCT_TYPE, PRODUCT_MEDIA_TYPE, PRODUCT_MEDIA_ROLE, PRODUCT_GIFT_TYPE, ATTRIBUTE_TYPE, INVENTORY_TYPE, CUSTOMIZATION_FIELD_TYPES, CUSTOMIZATION_MODE
 import random, string
 
 UNLIMITED_STOCK = 999999
@@ -65,10 +66,30 @@ def clean_customization_fields(raw):
     return cleaned
 
 
-def clean_customization_note(product, raw_note):
-    if not product or not getattr(product, "has_customization", False):
+def clean_customization_note(product, raw_note, is_customized=True):
+    if not product or not is_customized or not getattr(product, "has_customization", False):
         return ""
     return str(raw_note or "").strip()[:CUSTOMIZATION_NOTE_MAX_LENGTH]
+
+
+# ---- Customization mode: off / optional / mandatory ---------------------
+def resolve_is_customized(product, requested):
+    mode = getattr(product, "customization_mode", CUSTOMIZATION_MODE.OFF)
+    if mode == CUSTOMIZATION_MODE.MANDATORY:
+        return True
+    if mode == CUSTOMIZATION_MODE.OPTIONAL:
+        if isinstance(requested, str):
+            return requested.strip().lower() in ("1", "true", "yes", "on")
+        return bool(requested)
+    return False
+
+
+def customization_extra(product, is_customized, variant=None):
+    if not product or not is_customized:
+        return Decimal("0")
+    if variant is not None and getattr(variant, "customization_price", None) is not None:
+        return Decimal(str(variant.customization_price))
+    return Decimal(str(getattr(product, "customization_price", 0) or 0))
 
 
 
@@ -216,6 +237,8 @@ class Product(models.Model):
     metadata = models.JSONField(default=dict, blank=True)
     # ------------- Customization (Standard / Customized) -----------------
     has_customization = models.BooleanField(default=False)
+    customization_mode = models.CharField(max_length=20, choices=CUSTOMIZATION_MODE.choices, default=CUSTOMIZATION_MODE.OFF)
+    customization_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     customization_placeholder = models.TextField(blank=True, null=True)
     customization_fields = models.JSONField(default=list, blank=True)
     # ------------- Per product pixel -----------------
@@ -344,6 +367,8 @@ class Product(models.Model):
         if not self.sku:
             self.sku = generate_product_sku()
 
+        self.has_customization = self.customization_mode != CUSTOMIZATION_MODE.OFF
+
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -357,6 +382,7 @@ class ProductVariant(models.Model):  # New model
     discount_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)  
     compare_at_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)  
     cost_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)  
+    customization_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     inventory_quantity = models.IntegerField(default=0)  
     inventory_type = models.CharField(max_length=20, default=INVENTORY_TYPE.IN_STOCK, choices=INVENTORY_TYPE.choices)
     weight = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)  
@@ -502,6 +528,8 @@ class AddToCart(models.Model):
     discount_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     total_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     customization_note = models.TextField(blank=True, default="")
+    is_customized = models.BooleanField(default=False)
+    customization_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -511,7 +539,10 @@ class AddToCart(models.Model):
         if not self.product:
             raise ValueError("Product is required")
 
-        self.customization_note = clean_customization_note(self.product, self.customization_note)
+        self.is_customized = resolve_is_customized(self.product, self.is_customized)
+        self.customization_note = clean_customization_note(self.product, self.customization_note, self.is_customized)
+        extra = customization_extra(self.product, self.is_customized, self.variant)
+        self.customization_price = extra
 
         if self.product.has_variants:
 
@@ -521,19 +552,19 @@ class AddToCart(models.Model):
             if self.variant.product_id != self.product.id:
                 raise ValueError("Variant does not belong to this product")
 
-            self.price = self.variant.price
-            self.discount_price = self.variant.discount_price
+            self.price = self.variant.price + extra
+            self.discount_price = (self.variant.discount_price + extra) if self.variant.discount_price else self.variant.discount_price
             self.total_price = self.quantity * (
-                self.variant.discount_price or self.variant.price
+                (self.variant.discount_price or self.variant.price) + extra
             )
 
         else:
 
             self.variant = None
-            self.price = self.product.price
-            self.discount_price = self.product.discount_price
+            self.price = self.product.price + extra
+            self.discount_price = (self.product.discount_price + extra) if self.product.discount_price else self.product.discount_price
             self.total_price = self.quantity * (
-                self.product.discount_price or self.product.price
+                (self.product.discount_price or self.product.price) + extra
             )
 
         super().save(*args, **kwargs)

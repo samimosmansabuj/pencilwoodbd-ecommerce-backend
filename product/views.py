@@ -17,7 +17,7 @@ from django.urls import reverse
 from django.conf import settings
 
 from pencilwoodbd.extra_module import resize_to_fixed, parse_decimal, parse_int, parse_bool, parse_delivery_charge_payload
-from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS, ATTRIBUTE_TYPE, PRODUCT_TYPE, REVIEW_STATUS, INVENTORY_TYPE
+from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS, ATTRIBUTE_TYPE, PRODUCT_TYPE, REVIEW_STATUS, INVENTORY_TYPE, CUSTOMIZATION_MODE
 
 from site_app.bd_districts import BD_DISTRICTS, SYSTEM_DEFAULT_DELIVERY_CHARGE
 from site_app.models import SiteDeliveryChargeConfig, HomeSlider
@@ -30,6 +30,33 @@ from .models import (
 from order.models import Review
 from authentication.models import Customer
 from .models import clean_customization_fields
+
+def _customization_mode_from_post(post):
+    mode = (post.get("customization_mode") or CUSTOMIZATION_MODE.OFF).strip().lower()
+    if mode not in CUSTOMIZATION_MODE.values:
+        mode = CUSTOMIZATION_MODE.OFF
+    return mode
+
+
+def _variant_customization_price(data):
+    from decimal import Decimal, InvalidOperation
+    raw = data.get("customization_price")
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        value = Decimal(str(raw).strip())
+    except (InvalidOperation, ValueError):
+        return None
+    return value if value >= 0 else None
+
+
+def _customization_price_from_post(post):
+    from decimal import Decimal, InvalidOperation
+    try:
+        value = Decimal(str(post.get("customization_price") or "0").strip() or "0")
+    except (InvalidOperation, ValueError):
+        value = Decimal("0")
+    return value if value > 0 else Decimal("0")
 
 def _custom_fields_json(fields):
     return pyjson.dumps(fields or []).replace("<", "\\u003c")
@@ -255,7 +282,8 @@ def add_product(request):
                     inventory_type=inventory_type,
                     status=status_value,
                     product_type=product_type,
-                    has_customization=request.POST.get("has_customization") == "on",
+                    customization_mode=_customization_mode_from_post(request.POST),
+                    customization_price=_customization_price_from_post(request.POST),
                     customization_placeholder=request.POST.get("customization_placeholder", "").strip() or None,
                     customization_fields=clean_customization_fields(request.POST.get("customization_fields_json")),
                     enable_pixel_tracking=request.POST.get("enable_pixel_tracking") == "on",
@@ -336,6 +364,7 @@ def add_product(request):
                         cost_price=parse_decimal(
                             data.get("cost_price"), default=product.cost_price
                         ),
+                        customization_price=_variant_customization_price(data),
                         inventory_quantity=parse_int(data.get("inventory_quantity")),
                         is_active=data.get("is_active", True),
                         is_default=is_default_flag,
@@ -412,6 +441,7 @@ def product_update(request, pk):
             "price": str(v.price),
             "discount_price": str(v.discount_price),
             "cost_price": str(v.cost_price) if v.cost_price is not None else "",
+            "customization_price": str(v.customization_price) if v.customization_price is not None else "",
             "inventory_quantity": v.inventory_quantity,
             "is_active": v.is_active,
             "is_default": v.is_default,
@@ -451,7 +481,8 @@ def product_update(request, pk):
                     status_value = product.status
 
                 product.status = status_value
-                product.has_customization = request.POST.get("has_customization") == "on"
+                product.customization_mode = _customization_mode_from_post(request.POST)
+                product.customization_price = _customization_price_from_post(request.POST)
                 product.customization_placeholder = request.POST.get("customization_placeholder", "").strip() or None
                 product.customization_fields = clean_customization_fields(request.POST.get("customization_fields_json"))
                 product.enable_pixel_tracking = request.POST.get("enable_pixel_tracking") == "on"
@@ -586,6 +617,7 @@ def product_update(request, pk):
                         variant.price = parse_decimal(data.get("price"), default=variant.price)
                         variant.discount_price = parse_decimal(data.get("discount_price"), default=variant.discount_price)
                         variant.cost_price = parse_decimal(data.get("cost_price"), default=variant.cost_price or Decimal("0"))
+                        variant.customization_price = _variant_customization_price(data)
                         variant.inventory_quantity = parse_int(data.get("inventory_quantity"), default=variant.inventory_quantity)
                         variant.is_active = data.get("is_active", variant.is_active)
                         variant.is_default = is_default_flag
@@ -599,6 +631,7 @@ def product_update(request, pk):
                             price=parse_decimal(data.get("price"), default=product.price),
                             discount_price=parse_decimal(data.get("discount_price"), default=product.discount_price),
                             cost_price=parse_decimal(data.get("cost_price"), default=product.cost_price or Decimal("0")),
+                            customization_price=_variant_customization_price(data),
                             inventory_quantity=parse_int(data.get("inventory_quantity")),
                             is_active=data.get("is_active", True),
                             is_default=is_default_flag,

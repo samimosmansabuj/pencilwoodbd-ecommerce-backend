@@ -46,6 +46,8 @@ class Address(models.Model):
 # Order Model
 class Order(models.Model):
     order_id = models.CharField(max_length=255, unique=True, blank=True, null=True)
+    # One-time token created when the add-order form is opened (see OrderRequest.submit_token).
+    submit_token = models.UUIDField(null=True, blank=True, unique=True, editable=False)
     customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, related_name='orders', null=True, blank=True)
 
     shipping_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -151,6 +153,10 @@ class Order(models.Model):
             self.order_id = self.generate_order_id()
         super().save(*args, **kwargs)
 
+    @property
+    def has_customization(self):
+        return any(item.is_customized for item in self.order_items.all())
+
     def __str__(self):
         return f'{self.customer} - Order {self.order_id}'
 
@@ -204,6 +210,36 @@ class OrderItem(models.Model):
     @property
     def is_gift(self):
         return bool((self.snapshot or {}).get("is_gift"))
+
+    @property
+    def is_customized(self):
+        return bool((self.snapshot or {}).get("customized")) or bool((self.customization_note or "").strip())
+
+    # ---- Customization price breakdown -------------------------------------
+    @property
+    def customization_unit_price(self):
+        from decimal import Decimal
+        snap = self.snapshot or {}
+        if self.price_manually_edited or not snap.get("customized"):
+            return Decimal("0")
+        try:
+            extra = Decimal(str(snap.get("customization_price") or 0))
+        except Exception:
+            return Decimal("0")
+        unit = Decimal(str(self.discount_price if self.discount_price is not None else (self.price or 0)))
+        if extra <= 0 or extra > unit:
+            return Decimal("0")
+        return extra
+
+    @property
+    def customization_total_price(self):
+        return self.customization_unit_price * self.quantity
+
+    @property
+    def base_unit_price(self):
+        from decimal import Decimal
+        unit = Decimal(str(self.discount_price if self.discount_price is not None else (self.price or 0)))
+        return unit - self.customization_unit_price
 
     @property
     def variant_label(self):
@@ -337,6 +373,8 @@ class OrderRequest(models.Model):
     converted_at = models.DateTimeField(null=True, blank=True)
 
     metadata = models.JSONField(default=dict, blank=True)
+
+    submit_token = models.UUIDField(null=True, blank=True, unique=True, editable=False)
 
     created_by = models.ForeignKey('authentication.CustomUser', on_delete=models.SET_NULL, null=True, blank=True, related_name='order_requests_created')
     updated_by = models.ForeignKey('authentication.CustomUser', on_delete=models.SET_NULL, null=True, blank=True, related_name='order_requests_updated')

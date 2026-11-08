@@ -220,3 +220,8 @@ class CUSTOMIZATION_FIELD_TYPES(models.TextChoices):
     TEXTAREA = "textarea", "Long text"
     SELECT = "select", "Dropdown"
     NUMBER = "number", "Number"
+
+class CUSTOMIZATION_MODE(models.TextChoices):
+    OFF = "off", "Off"
+    OPTIONAL = "optional", "Optional (customer picks Standard / Customized)"
+    MANDATORY = "mandatory", "Mandatory (always customized, asked at checkout)"

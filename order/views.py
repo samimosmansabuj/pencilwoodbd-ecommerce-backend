@@ -1,7 +1,10 @@
 from http import HTTPStatus
 import json
 import json as pyjson
+import logging
+import uuid
 from decimal import Decimal
+from datetime import timedelta
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse, HttpResponse
@@ -11,7 +14,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.text import slugify
@@ -66,6 +69,72 @@ def get_assignable_users():
     ).order_by("username")
 
 
+DUPLICATE_SUBMIT_WINDOW_SECONDS = 120
+
+
+def _items_signature(items):
+    sig = set()
+    for it in items:
+        sig.add((int(it["product_id"]), int(it["variant_id"]) if it.get("variant_id") else None, int(it.get("quantity", 1))))
+    return sig
+
+
+logger = logging.getLogger("order.duplicate")
+
+
+def _clean_submit_token(raw):
+    """Return the form's one-time token as a UUID, or None if missing / malformed."""
+    try:
+        return uuid.UUID(str(raw or "").strip())
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+
+def _log_blocked_duplicate(request, reason, existing, token=None, label="order request"):
+    logger.warning(
+        "Duplicate %s blocked (%s): user=%s existing=#%s token=%s ip=%s ua=%s",
+        label,
+        reason,
+        getattr(request.user, "pk", None),
+        getattr(existing, "pk", None),
+        token,
+        request.META.get("HTTP_X_FORWARDED_FOR") or request.META.get("REMOTE_ADDR"),
+        (request.META.get("HTTP_USER_AGENT") or "")[:120],
+    )
+
+
+def find_recent_duplicate_request(user, customer, shipping_address, items):
+    since = timezone.now() - timedelta(seconds=DUPLICATE_SUBMIT_WINDOW_SECONDS)
+    try:
+        wanted = _items_signature(items)
+    except (KeyError, TypeError, ValueError):
+        return None
+    qs = OrderRequest.objects.filter(
+        created_by=user, customer=customer, shipping_address=shipping_address, created_at__gte=since,
+    ).order_by("-created_at")
+    for obj in qs:
+        saved = {(i.product_id, i.variant_id, i.quantity) for i in obj.request_items.all()}
+        if saved == wanted:
+            return obj
+    return None
+
+
+def find_recent_duplicate_order(user, customer, shipping_address, items):
+    since = timezone.now() - timedelta(seconds=DUPLICATE_SUBMIT_WINDOW_SECONDS)
+    try:
+        wanted = _items_signature(items)
+    except (KeyError, TypeError, ValueError):
+        return None
+    qs = Order.objects.filter(
+        created_by=user, customer=customer, shipping_address=shipping_address, created_at__gte=since,
+    ).order_by("-created_at")
+    for obj in qs:
+        saved = {(i.product_id, i.variant_id, i.quantity) for i in obj.order_items.all()}
+        if saved == wanted:
+            return obj
+    return None
+
+
 class AddOrderView(LoginRequiredMixin, View):
     login_url = "admin_login"
     template_name = "db_order/add_order.html"
@@ -85,11 +154,13 @@ class AddOrderView(LoginRequiredMixin, View):
             "bd_districts": BD_DISTRICTS,
             "delivery_types": DELIVERY_TYPE.choices,
             "payment_types": PAYMENT_TYPE.choices,
+            "submit_token": str(uuid.uuid4()),
         }
         return render(request, self.template_name, context)
 
     def post(self, request):
         is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        submit_token = _clean_submit_token(request.POST.get("submit_token"))
         try:
             with transaction.atomic():
                 data = request.POST
@@ -186,7 +257,27 @@ class AddOrderView(LoginRequiredMixin, View):
                     messages.error(request, "Please add at least one product.")
                     return redirect("add_order")
 
+                if submit_token:
+                    already = Order.objects.filter(submit_token=submit_token).first()
+                    if already:
+                        _log_blocked_duplicate(request, "same token", already, submit_token, label="order")
+                        dup_msg = f"This order was already created ({already.order_id}). Duplicate submit ignored."
+                        if is_ajax:
+                            return JsonResponse({"status": False, "message": dup_msg, "redirect_url": reverse("order_list")}, status=409)
+                        messages.warning(request, dup_msg)
+                        return redirect("order_list")
+
+                duplicate = find_recent_duplicate_order(request.user, customer, shipping_address, items)
+                if duplicate:
+                    _log_blocked_duplicate(request, "same content", duplicate, submit_token, label="order")
+                    dup_msg = f"This order was already created just now ({duplicate.order_id}). Duplicate submit ignored."
+                    if is_ajax:
+                        return JsonResponse({"status": False, "message": dup_msg, "redirect_url": reverse("order_list")}, status=409)
+                    messages.warning(request, dup_msg)
+                    return redirect("order_list")
+
                 order = Order.objects.create(
+                    submit_token=submit_token,
                     customer=customer,
                     shipping_address=shipping_address,
                     district=district,
@@ -278,6 +369,19 @@ class AddOrderView(LoginRequiredMixin, View):
                 else:
                     messages.success(request, f"Order {order.order_id} created successfully. Redirecting…")
                     return redirect("order_list")
+        except IntegrityError as e:
+            already = Order.objects.filter(submit_token=submit_token).first() if submit_token else None
+            if already:
+                _log_blocked_duplicate(request, "db unique", already, submit_token, label="order")
+                dup_msg = f"This order was already created ({already.order_id}). Duplicate submit ignored."
+                if is_ajax:
+                    return JsonResponse({"status": False, "message": dup_msg, "redirect_url": reverse("order_list")}, status=409)
+                messages.warning(request, dup_msg)
+                return redirect("order_list")
+            if is_ajax:
+                return JsonResponse({"status": False, "message": str(e)}, status=400)
+            messages.error(request, str(e))
+            return redirect("add_order")
         except Exception as e:
             if is_ajax:
                 return JsonResponse({"status": False, "message": str(e)}, status=400)
@@ -332,30 +436,12 @@ class OrderView(LoginRequiredMixin, View):
         ).count()
         return order_count
 
-    def get_order_queryset(self, request):
-        order_status = request.GET.get("status")
+    def apply_common_filters(self, orders, request):
         search = request.GET.get("q", "").strip()
-
         product_slug = request.GET.get("product")
         start_date = request.GET.get("start_date")
         end_date = request.GET.get("end_date")
         updated_by_id = request.GET.get("updated_by")
-
-        orders = (
-            Order.objects
-            .select_related("customer", "created_by", "updated_by")
-            .prefetch_related(
-                "order_items",
-                "order_items__product",
-                "order_items__variant",
-            )
-            .order_by("-created_at")
-        )
-
-        valid_status = {status for status, _ in STATUS.choices}
-
-        if order_status in valid_status:
-            orders = orders.filter(status=order_status)
 
         if product_slug:
             orders = orders.filter(
@@ -373,7 +459,8 @@ class OrderView(LoginRequiredMixin, View):
         if updated_by_id:
             orders = orders.filter(updated_by_id=updated_by_id)
 
-        if search:            orders = orders.filter(
+        if search:
+            orders = orders.filter(
                 Q(order_id__icontains=search)
                 | Q(customer__name__icontains=search)
                 | Q(customer__company__icontains=search)
@@ -383,6 +470,55 @@ class OrderView(LoginRequiredMixin, View):
                 | Q(payment_status__iexact=search)
                 | Q(delivery_type__iexact=search)
             ).distinct()
+        return orders
+
+    PREFERRED_TAB_ORDER = [
+        "new", "follow_up", "confirmed", "hold", "ready_to_ship", "parcel_requested",
+        "parcel_created", "shipped", "delivered", "cancelled", "token_print",
+        "return_processing", "returned", "refunded",
+    ]
+
+    def build_status_tabs(self, request):
+        base = self.apply_common_filters(Order.objects.all(), request).order_by()
+        counts = {
+            row["status"]: row["total"]
+            for row in base.values("status").annotate(total=Count("id", distinct=True))
+        }
+        labels = {value: label for value, label in STATUS.choices}
+        ordered = [s for s in self.PREFERRED_TAB_ORDER if s in labels]
+        ordered += [s for s in labels if s not in ordered]
+
+        tabs = [{"value": "all", "label": "All", "count": sum(counts.values())}]
+        for value in ordered:
+            tabs.append({"value": value, "label": str(labels[value]), "count": counts.get(value, 0)})
+
+        urgent_count = (
+            base.filter(is_urgent=True)
+            .exclude(status__in=[STATUS.DELIVERED, STATUS.CANCELLED, STATUS.RETURNED, STATUS.REFUNDED])
+            .values("id").distinct().count()
+        )
+        return tabs, urgent_count
+
+    def get_order_queryset(self, request):
+        order_status = request.GET.get("status")
+
+        orders = (
+            Order.objects
+            .select_related("customer", "created_by", "updated_by")
+            .prefetch_related(
+                "order_items",
+                "order_items__product",
+                "order_items__variant",
+            )
+            .order_by("-created_at")
+        )
+
+        valid_status = {status for status, _ in STATUS.choices}
+
+        if order_status in valid_status:
+            orders = orders.filter(status=order_status)
+
+        orders = self.apply_common_filters(orders, request)
 
         if request.GET.get("urgent") == "1":
             orders = orders.filter(is_urgent=True)
@@ -428,6 +564,7 @@ class OrderView(LoginRequiredMixin, View):
         status_values = [value for value, _ in STATUS.choices]
         saved_statuses = [s for s in (default_assign_cfg.statuses if default_assign_cfg else []) if s in status_values]
         default_assign_from_status = min(saved_statuses, key=status_values.index) if saved_statuses else STATUS.NEW
+        status_tabs, urgent_tab_count = self.build_status_tabs(request)
 
         context = {
             "orders": orders,
@@ -435,6 +572,8 @@ class OrderView(LoginRequiredMixin, View):
             "per_page": per_page,
             "page_number": page_number,
             "order_count": self.status_wise_order_count(),
+            "status_tabs": status_tabs,
+            "urgent_tab_count": urgent_tab_count,
             "current_status": request.GET.get("status", "all"),
             "confirmed_today": request.GET.get("confirmed_today") == "1",
             "pending_booking": request.GET.get("pending") == "1",
@@ -514,6 +653,7 @@ class OrderDetailView(LoginRequiredMixin, View):
                 "is_gift": bool((item.snapshot or {}).get("is_gift")),
                 "price_manually_edited": item.price_manually_edited,
                 "customization_note": item.customization_note or "",
+                "customization_price": str(item.customization_unit_price),
             })
 
         orders = Order.objects.all().order_by("-created_at")
@@ -921,10 +1061,13 @@ class AddOrderRequestView(LoginRequiredMixin, View):
             "assignable_users": assignable_users,
             "existing_items_json": pyjson.dumps(existing_items_data),
             "source_choices": ORDER_SOURCE.choices,
+            # new token on every load of the add form (not used when editing)
+            "submit_token": "" if order_request else str(uuid.uuid4()),
         }
         return render(request, self.template_name, context)
 
     def post(self, request, pk=None):
+        submit_token = None if pk else _clean_submit_token(request.POST.get("submit_token"))
         try:
             with transaction.atomic():
                 data = request.POST
@@ -1042,7 +1185,22 @@ class AddOrderRequestView(LoginRequiredMixin, View):
 
                     order_request.request_items.all().delete()
                 else:
+                    # Same form load already saved? (double click, retry, back button, slow server)
+                    if submit_token:
+                        already = OrderRequest.objects.filter(submit_token=submit_token).first()
+                        if already:
+                            _log_blocked_duplicate(request, "same token", already, submit_token)
+                            messages.warning(request, f"This request was already created (#{already.pk}). Duplicate submit ignored.")
+                            return redirect("order_request_detail", id=already.pk)
+
+                    duplicate = find_recent_duplicate_request(request.user, customer, shipping_address, items)
+                    if duplicate:
+                        _log_blocked_duplicate(request, "same content", duplicate, submit_token)
+                        messages.warning(request, f"This request was already created just now (#{duplicate.pk}). Duplicate submit ignored.")
+                        return redirect("order_request_detail", id=duplicate.pk)
+
                     order_request = OrderRequest.objects.create(
+                        submit_token=submit_token,
                         customer=customer,
                         shipping_address=shipping_address,
                         district=district,
@@ -1101,6 +1259,15 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                 else:
                     messages.success(request, f"Order Request #{order_request.id} created successfully.")
                 return redirect("order_request_detail", id=order_request.pk)
+
+        except IntegrityError as e:
+            already = OrderRequest.objects.filter(submit_token=submit_token).first() if submit_token else None
+            if already:
+                _log_blocked_duplicate(request, "db unique", already, submit_token)
+                messages.warning(request, f"This request was already created (#{already.pk}). Duplicate submit ignored.")
+                return redirect("order_request_detail", id=already.pk)
+            messages.error(request, str(e))
+            return redirect("add_order_request") if not pk else redirect("edit_order_request", pk=pk)
 
         except Exception as e:
             messages.error(request, str(e))

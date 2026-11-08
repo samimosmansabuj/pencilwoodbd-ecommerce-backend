@@ -215,6 +215,8 @@
 
                     class="btn btn-outline-secondary mt-4"
 
+                    data-no-merge="start_date,end_date"
+
                     hx-get="{% url 'order_request_list' %}?status={{ current_status }}"
 
                     hx-target="#content-area"

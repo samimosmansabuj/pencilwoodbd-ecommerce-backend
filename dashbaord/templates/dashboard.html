@@ -59,6 +59,32 @@
 
   {% htmx_script %}
 
+  <script>
+    document.addEventListener("htmx:configRequest", function (evt) {
+      try {
+        var d = evt.detail;
+        if (!d || String(d.verb).toLowerCase() !== "get") return;
+        if (!d.target || d.target.id !== "content-area") return;
+        var url = new URL(d.path, window.location.origin);
+        if (url.pathname !== window.location.pathname) return;
+
+        var skip = { page: true };
+        var holder = d.elt && d.elt.closest ? d.elt.closest("[data-no-merge]") : null;
+        var rule = holder ? (holder.getAttribute("data-no-merge") || "").trim() : "";
+        if (rule === "*") return;
+        rule.split(",").forEach(function (k) { k = k.trim(); if (k) skip[k] = true; });
+
+        var current = new URLSearchParams(window.location.search);
+        current.forEach(function (value, key) {
+          if (skip[key] || value === "") return;
+          if (url.searchParams.has(key)) return;
+          if (d.parameters && Object.prototype.hasOwnProperty.call(d.parameters, key)) return;
+          d.parameters[key] = value;
+        });
+      } catch (err) {  }
+    });
+  </script>
+
 </head>
 
 {% block for_invoice %}
@@ -166,7 +192,7 @@ hx-headers='{"x-csrftoken": "{{ csrf_token }}"}'>
   <script src="{% static 'dashboard_assets/plugins/notifications/js/notification-custom-script.js' %}"></script>
 
   <script src="{% static 'dashboard_assets/js/custom.js' %}"></script>
-
+  <script src="{% static 'dashboard_assets/js/form-guard.js' %}?v=1"></script>
   
   <script>
     function successNotificationCustom(message) {

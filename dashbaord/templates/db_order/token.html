@@ -170,6 +170,9 @@
                             {% if item.variant_label %}
                                 <small style="display:block; font-size:9px; font-weight:600;">{{ item.variant_label }}</small>
                             {% endif %}
+                            {% if item.customization_unit_price %}
+                                <small style="display:block; font-size:9px; font-weight:600;">Base {{ item.base_unit_price|floatformat:2 }} + Custom {{ item.customization_unit_price|floatformat:2 }}</small>
+                            {% endif %}
                             {% if item.customization_note %}
                                 <small style="display:block; font-size:9px; font-weight:700; white-space:pre-line;">Custom: {{ item.customization_note }}</small>
                             {% endif %}

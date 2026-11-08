@@ -38,166 +38,34 @@
     {% if confirmed_today %}
     <div class="alert alert-info py-2 d-flex align-items-center justify-content-between">
         <span><i class="bi bi-funnel me-1"></i> Showing only orders <b>confirmed today</b></span>
-        <a href="{% url 'order_list' %}?status=all" hx-get="{% url 'order_list' %}?status=all" hx-target="#content-area" hx-push-url="true">Clear filter</a>
+        <a data-no-merge="*" href="{% url 'order_list' %}?status=all" hx-get="{% url 'order_list' %}?status=all" hx-target="#content-area" hx-push-url="true">Clear filter</a>
     </div>
     {% endif %}
 
     {% if pending_booking %}
     <div class="alert alert-warning py-2 d-flex align-items-center justify-content-between">
         <span><i class="bi bi-funnel me-1"></i> Showing only <b>pending orders</b> (courier booking / parcel request not done yet)</span>
-        <a href="{% url 'order_list' %}?status=all" hx-get="{% url 'order_list' %}?status=all" hx-target="#content-area" hx-push-url="true">Clear filter</a>
+        <a data-no-merge="*" href="{% url 'order_list' %}?status=all" hx-get="{% url 'order_list' %}?status=all" hx-target="#content-area" hx-push-url="true">Clear filter</a>
     </div>
     {% endif %}
 
     <!-- =========================
          ORDER STATUS TABS
     ========================== -->
-    <div class="product-count d-flex align-items-center gap-3 gap-lg-4 mb-4 fw-medium flex-wrap font-text1">
+    <div data-no-merge="urgent,confirmed_today,pending" class="product-count d-flex align-items-center gap-3 gap-lg-4 mb-4 fw-medium flex-wrap font-text1">
 
-        <a href="{% url 'order_list' %}?status=all&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-get="{% url 'order_list' %}?status=all&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+        {% comment %} Tabs come from the view (status_tabs): one tab per STATUS choice, with counts that
+        follow the current search / product / date / user filters. A new status shows up here by itself. {% endcomment %}
+        {% for tab in status_tabs %}
+        <a href="{% url 'order_list' %}?status={{ tab.value }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-get="{% url 'order_list' %}?status={{ tab.value }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
            hx-target="#content-area"
            hx-push-url="true"
-           class="{% if current_status == 'all' %}active{% endif %}">
-            <span class="me-1">All</span>
-            <span class="text-secondary">({{ order_count.all }})</span>
+           class="{% if current_status == tab.value and request.GET.urgent != '1' %}active{% endif %}">
+            <span class="me-1">{{ tab.label|upper }}</span>
+            <span class="text-secondary">({{ tab.count }})</span>
         </a>
-
-
-        <a href="{% url 'order_list' %}?status=new&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-get="{% url 'order_list' %}?status=new&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-target="#content-area"
-           hx-push-url="true"
-           class="{% if current_status == 'new' %}active{% endif %}">
-            <span class="me-1">NEW</span>
-            <span class="text-secondary">({{ order_count.new }})</span>
-        </a>
-
-
-        <a href="{% url 'order_list' %}?status=follow_up&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-get="{% url 'order_list' %}?status=follow_up&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-target="#content-area"
-           hx-push-url="true"
-           class="{% if current_status == 'follow_up' %}active{% endif %}">
-            <span class="me-1">FOLLOW UP</span>
-            <span class="text-secondary">({{ order_count.follow_up }})</span>
-        </a>
-
-
-        <a href="{% url 'order_list' %}?status=confirmed&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-get="{% url 'order_list' %}?status=confirmed&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-target="#content-area"
-           hx-push-url="true"
-           class="{% if current_status == 'confirmed' %}active{% endif %}">
-            <span class="me-1">CONFIRMED</span>
-            <span class="text-secondary">({{ order_count.confirmed }})</span>
-        </a>
-        
-        <a href="{% url 'order_list' %}?status=hold&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-get="{% url 'order_list' %}?status=hold&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-target="#content-area"
-           hx-push-url="true"
-           class="{% if current_status == 'hold' %}active{% endif %}">
-            <span class="me-1">HOLD</span>
-            <span class="text-secondary">({{ order_count.hold }})</span>
-        </a>
-
-        <a href="{% url 'order_list' %}?status=ready_to_ship&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-get="{% url 'order_list' %}?status=ready_to_ship&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-target="#content-area"
-           hx-push-url="true"
-           class="{% if current_status == 'ready_to_ship' %}active{% endif %}">
-            <span class="me-1">READY TO SHIP</span>
-            <span class="text-secondary">({{ order_count.ready_to_ship }})</span>
-        </a>
-
-        <a href="{% url 'order_list' %}?status=parcel_requested&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-get="{% url 'order_list' %}?status=parcel_requested&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-target="#content-area"
-           hx-push-url="true"
-           class="{% if current_status == 'parcel_requested' %}active{% endif %}">
-            <span class="me-1">PARCEL REQUESTED</span>
-            <span class="text-secondary">({{ order_count.parcel_requested }})</span>
-        </a>
-
-        <a href="{% url 'order_list' %}?status=parcel_created&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-get="{% url 'order_list' %}?status=parcel_created&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-target="#content-area"
-           hx-push-url="true"
-           class="{% if current_status == 'parcel_created' %}active{% endif %}">
-            <span class="me-1">PARCEL CREATED</span>
-            <span class="text-secondary">({{ order_count.parcel_created }})</span>
-        </a>
-
-
-        <a href="{% url 'order_list' %}?status=shipped&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-get="{% url 'order_list' %}?status=shipped&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-target="#content-area"
-           hx-push-url="true"
-           class="{% if current_status == 'shipped' %}active{% endif %}">
-            <span class="me-1">SHIPPED</span>
-            <span class="text-secondary">({{ order_count.shipped }})</span>
-        </a>
-
-
-        <a href="{% url 'order_list' %}?status=delivered&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-get="{% url 'order_list' %}?status=delivered&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-target="#content-area"
-           hx-push-url="true"
-           class="{% if current_status == 'delivered' %}active{% endif %}">
-            <span class="me-1">DELIVERED</span>
-            <span class="text-secondary">({{ order_count.delivered }})</span>
-        </a>
-
-
-        <a href="{% url 'order_list' %}?status=cancelled&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-get="{% url 'order_list' %}?status=cancelled&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-target="#content-area"
-           hx-push-url="true"
-           class="{% if current_status == 'cancelled' %}active{% endif %}">
-            <span class="me-1">CANCELLED</span>
-            <span class="text-secondary">({{ order_count.cancelled }})</span>
-        </a>
-
-
-        <a href="{% url 'order_list' %}?status=token_print&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-get="{% url 'order_list' %}?status=token_print&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-target="#content-area"
-           hx-push-url="true"
-           class="{% if current_status == 'token_print' %}active{% endif %}">
-            <span class="me-1">TOKEN PRINT</span>
-            <span class="text-secondary">({{ order_count.token_print }})</span>
-        </a>
-
-        <a href="{% url 'order_list' %}?status=return_processing&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-get="{% url 'order_list' %}?status=return_processing&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-target="#content-area"
-           hx-push-url="true"
-           class="{% if current_status == 'return_processing' %}active{% endif %}">
-            <span class="me-1">RETURN PROCESSING</span>
-            <span class="text-secondary">({{ order_count.return_processing }})</span>
-        </a>
-
-
-        <a href="{% url 'order_list' %}?status=returned&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-get="{% url 'order_list' %}?status=returned&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-target="#content-area"
-           hx-push-url="true"
-           class="{% if current_status == 'returned' %}active{% endif %}">
-            <span class="me-1">RETURNED</span>
-            <span class="text-secondary">({{ order_count.returned }})</span>
-        </a>
-
-
-        <a href="{% url 'order_list' %}?status=refunded&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-get="{% url 'order_list' %}?status=refunded&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-target="#content-area"
-           hx-push-url="true"
-           class="{% if current_status == 'refunded' %}active{% endif %}">
-            <span class="me-1">REFUNDED</span>
-            <span class="text-secondary">({{ order_count.refunded }})</span>
-        </a>
-
+        {% endfor %}
 
         <!-- Urgent -->
         <a href="{% url 'order_list' %}?status=all&urgent=1&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
@@ -206,7 +74,7 @@
            hx-push-url="true"
            class="{% if request.GET.urgent == '1' %}active{% endif %} text-danger">
             <span class="me-1">URGENT</span>
-            <span class="text-danger">({{ order_count.urgent }})</span>
+            <span class="text-danger">({{ urgent_tab_count }})</span>
         </a>
 
     </div>
@@ -363,6 +231,7 @@
                 <button
                     type="button"
                     class="btn btn-outline-secondary mt-4"
+                    data-no-merge="start_date,end_date"
                     hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}"
                     hx-target="#content-area"
                     hx-push-url="true"

@@ -109,15 +109,8 @@
                             </div>
                         </div> {% endcomment %}
                         {% comment %} <div class="vr"></div> {% endcomment %}
-                        <div class="d-flex align-items-center gap-4" data-bs-toggle="modal"
-                            data-bs-target="#todayOrderModal" hx-get="{% url 'today_order_products' %}"
-                            hx-target="#todayOrderModalBody" hx-trigger="click" style="cursor:pointer;">
-                            <div>
-                                <p class="mb-1 fs-6 fw-bold">Today Order</p>
-                                <h2 class="mb-0 text-primary">{{ today_order_count }}</h2>
-                            </div>
-                        </div>
-                        <div class="vr"></div>
+                        {% comment %} "Today Order" block removed: the same product-wise popup now opens
+                        from the "Today's Sales" box below (click the box or its order count). {% endcomment %}
                         <div class="d-flex align-items-center gap-4" data-bs-toggle="modal"
                             data-bs-target="#pendingProductsModal" hx-get="{% url 'pending_products' %}"
                             hx-target="#pendingProductsModalBody" hx-trigger="click" style="cursor:pointer;">
@@ -253,15 +246,18 @@
 
         <div class="col-12 col-lg d-flex">
             <div class="card rounded-4 w-100">
-                <div class="card-body text-center">
+                <div class="card-body text-center" role="button" title="Click to see today's orders product wise"
+                    data-bs-toggle="modal" data-bs-target="#todayOrderModal"
+                    hx-get="{% url 'today_order_products' %}" hx-target="#todayOrderModalBody" hx-trigger="click"
+                    style="cursor:pointer;">
                     <div class="mb-2">
                         <span class="material-icons-outlined fs-3 text-primary">today</span>
                     </div>
                     {% if today_sales_amount is not None %}
                         <h4 class="mb-0">৳{{ today_sales_amount|default:0 }}</h4>
                         <p class="mb-0 fs-6 fw-bold">Today's Sales</p>
-                        <small class="text-secondary">
-                            {{ today_order_count }} order{{ today_order_count|pluralize }}
+                        <small class="text-primary">
+                            {{ today_order_count }} order{{ today_order_count|pluralize }} &rsaquo;
                         </small>
                     {% else %}
                         <h6 class="mb-0">Not available for staff</h6>
