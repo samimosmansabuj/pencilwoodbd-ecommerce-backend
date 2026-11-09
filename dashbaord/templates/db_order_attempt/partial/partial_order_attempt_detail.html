@@ -75,7 +75,7 @@
                     <thead class="table-light"><tr><th>Product</th><th>Price</th><th>Quantity</th></tr></thead>
                     <tbody>
                     {% for p in display_products %}
-                        <tr><td>{{ p.name }}</td><td>৳{{ p.price }}</td><td>{{ p.quantity }}</td></tr>
+                        <tr><td>{{ p.name }}{% if p.variant %}<div class="small text">{{ p.variant }}</div>{% endif %}</td><td>৳{{ p.price }}</td><td>{{ p.quantity }}</td></tr>
                     {% empty %}
                         <tr><td colspan="3" class="text-center py-4">No products found</td></tr>
                     {% endfor %}
