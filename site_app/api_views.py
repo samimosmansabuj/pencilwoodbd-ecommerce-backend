@@ -725,7 +725,14 @@ class OrderAttemptAPIView(APIView):
                     pid = int(p.get("id"))
                 except (TypeError, ValueError):
                     continue
-                products_snapshot.append({"id": pid, "quantity": int(p.get("quantity", 1))})
+                line = {"id": pid, "quantity": int(p.get("quantity", 1))}
+                try:
+                    variant_id = int(p.get("variant_id")) if p.get("variant_id") else None
+                except (TypeError, ValueError):
+                    variant_id = None
+                if variant_id:
+                    line["variant_id"] = variant_id
+                products_snapshot.append(line)
 
             if not products_snapshot:
                 return Response(

@@ -618,20 +618,50 @@ class OrderAttempt(models.Model):
         return ids
 
     def get_display_products(self):
-        qty_by_id = {}
+        lines = []
         for p in (self.products or []):
             try:
-                qty_by_id[int(p.get("id"))] = int(p.get("quantity", 1))
+                pid = int(p.get("id"))
             except (TypeError, ValueError):
                 continue
+            try:
+                qty = int(p.get("quantity", 1))
+            except (TypeError, ValueError):
+                qty = 1
+            try:
+                vid = int(p.get("variant_id")) if p.get("variant_id") else None
+            except (TypeError, ValueError):
+                vid = None
+            lines.append((pid, vid, qty))
+
+        products = {x.id: x for x in Product.objects.filter(id__in={l[0] for l in lines})}
+        variants = {
+            v.id: v for v in ProductVariant.objects.filter(id__in={l[1] for l in lines if l[1]})
+        }
 
         result = []
-        for prod in Product.objects.filter(id__in=qty_by_id.keys()):
+        for pid, vid, qty in lines:
+            prod = products.get(pid)
+            if not prod:
+                continue
+            variant = variants.get(vid)
+            if variant and variant.product_id != prod.id:
+                variant = None
+
+            if variant:
+                price = variant.discount_price or variant.price or prod.discount_price or prod.price
+                attrs = variant.attributes or {}
+                variant_label = " / ".join(f"{k}: {attrs[k]}" for k in sorted(attrs))
+            else:
+                price = prod.discount_price if prod.discount_price else prod.price
+                variant_label = ""
+
             result.append({
                 "id": prod.id,
                 "name": prod.name,
-                "price": prod.discount_price if prod.discount_price else prod.price,
-                "quantity": qty_by_id.get(prod.id, 1),
+                "variant": variant_label,
+                "price": price,
+                "quantity": qty,
             })
         return result
 
