@@ -260,7 +260,9 @@
                 </div>
             </div>
 
-            <div class="card">
+            {% include "db_order/partial/floating_actions_style.html" %}
+
+            <div class="card pw-sticky-bar pw-sticky-right">
                 <div class="card-body d-flex gap-2">
                     <a href="{% url 'order_request_list' %}" class="btn btn-outline-danger flex-fill">Discard</a>
                     <button type="submit" class="btn btn-outline-primary flex-fill">

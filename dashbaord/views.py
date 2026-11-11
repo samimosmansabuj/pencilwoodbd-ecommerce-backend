@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib import messages
 from django.shortcuts import render
 from django.views import View
@@ -17,7 +19,11 @@ from authentication.models import CustomUser
 from product.views import STOCK_ALERT_THRESHOLD
 
 from order.utils import confirmed_today_filter
-from .reports import today_orders, pending_orders, product_wise_quantity, build_report, resolve_range
+from .reports import (
+    today_orders, pending_orders, product_wise_quantity, build_report, resolve_range,
+    today_orders_by_kind, price_breakdown, grand_total_sum, order_figures,
+    TODAY_KINDS, TODAY_KIND_LABELS,
+)
 
 class DashboardView(LoginRequiredMixin, View):
     login_url = "admin_login"
@@ -27,12 +33,11 @@ class DashboardView(LoginRequiredMixin, View):
         return orders.filter(created_at__date=today).count()
 
     def get_today_sales_amount(self, orders):
+        # Same figure as the "Grand Total" of each order (total_cost): delivery counted once per order,
+        # coupon / extra discount already taken off, cancelled orders left out.
         today = timezone.localdate()
-        return orders.filter(created_at__date=today).aggregate(
-            total=Coalesce(Sum(
-                F("order_items__discount_price") * F("order_items__quantity") + F("shipping_total")
-            ), Value(0), output_field=DecimalField(max_digits=12, decimal_places=2))
-        )["total"]
+        qs = orders.filter(created_at__date=today).exclude(status=STATUS.CANCELLED)
+        return grand_total_sum(qs)
 
     def get_pending_product_qty(self):
         return OrderItem.objects.filter(order__in=pending_orders()).aggregate(
@@ -70,25 +75,11 @@ class DashboardView(LoginRequiredMixin, View):
         return final_total
 
     def get_status_amounts(self, orders):
-        """Return a dict with total Tk per status"""
+        """Total Tk per status, using each order's Grand Total (delivery once per order)."""
         amounts = {}
         for status_key, _ in STATUS.choices:
-            amounts[status_key] = orders.filter(status=status_key).aggregate(
-                total=Coalesce(
-                    Sum(F("order_items__discount_price") * F("order_items__quantity") + F("shipping_total")),
-                    Value(0),
-                    output_field=DecimalField(max_digits=12, decimal_places=2)
-                )
-            )["total"]
-
-        amounts["returned_refund"] = orders.filter(status__in=["returned", "refund"]).aggregate(
-            total=Coalesce(
-                Sum(F("order_items__discount_price") * F("order_items__quantity") + F("shipping_total")),
-                Value(0),
-                output_field=DecimalField(max_digits=12, decimal_places=2)
-            )
-        )["total"]
-
+            amounts[status_key] = grand_total_sum(orders.filter(status=status_key))
+        amounts["returned_refund"] = grand_total_sum(orders.filter(status__in=["returned", "refund"]))
         return amounts
 
     def get_status_counts(self, orders):
@@ -213,15 +204,76 @@ class TodayWorkListView(LoginRequiredMixin, View):
 
 
 class TodayOrderProductsView(LoginRequiredMixin, View):
+    """
+    Today popup.
+    - ?type=received|orders|cancel|confirm  -> which table to look at (just viewing)
+    - ?set_default=orders|cancel|confirm    -> remember this box as the user's default (saved in session)
+    - ?set_default=none                     -> remove the saved default
+    - no type given                         -> the saved default, or All Received when nothing is saved
+    """
     login_url = "admin_login"
+    SESSION_KEY = "today_popup_default"
+    DEFAULT_CHOICES = ("orders", "cancel", "confirm")
 
     def get(self, request):
-        qs = today_orders()
+        default = request.session.get(self.SESSION_KEY, "")
+        if default not in self.DEFAULT_CHOICES:
+            default = ""
+
+        set_default = request.GET.get("set_default")
+        if set_default in self.DEFAULT_CHOICES:
+            default = set_default
+            request.session[self.SESSION_KEY] = default
+        elif set_default == "none":
+            default = ""
+            request.session.pop(self.SESSION_KEY, None)
+
+        kind = request.GET.get("type")
+        if kind not in TODAY_KINDS:
+            kind = default or "received"
+
+        show_money = request.user.user_type != USER_TYPE.STAFF
+        view_mode = "breakdown" if (request.GET.get("view") == "breakdown" and show_money) else "list"
+
+        qs = today_orders_by_kind(kind).distinct()
         rows = product_wise_quantity(qs)
+        pieces = sum(r["qty"] for r in rows)
+
+        product_lines = []
+        if show_money:
+            summary = price_breakdown(qs)
+            grouped = {}
+            for l in summary["lines"]:
+                key = (l["product"], l["variant"], l["is_gift"])
+                g = grouped.setdefault(key, {
+                    "product": l["product"], "variant": l["variant"], "is_gift": l["is_gift"],
+                    "qty": 0, "cost": Decimal("0"), "regular": Decimal("0"), "selling": Decimal("0"),
+                    "has_cost": False,
+                })
+                g["qty"] += l["qty"]
+                g["regular"] += l["regular"] * l["qty"]
+                g["selling"] += l["selling"] * l["qty"]
+                if l["cost"] is not None:
+                    g["has_cost"] = True
+                    g["cost"] += Decimal(l["cost"]) * l["qty"]
+            product_lines = sorted(grouped.values(), key=lambda g: (-g["qty"], g["product"]))
+        else:
+            summary = {"pieces": pieces}
+
+        counts = {k: today_orders_by_kind(k).distinct().count() for k in TODAY_KINDS}
+
         return render(request, "db_home/partial/today_order_products.html", {
+            "kind": kind,
+            "kind_label": TODAY_KIND_LABELS[kind],
+            "default_kind": default,
+            "default_label": TODAY_KIND_LABELS.get(default, TODAY_KIND_LABELS["received"]),
+            "counts": counts,
             "rows": rows,
-            "order_count": qs.count(),
-            "total_qty": sum(r["qty"] for r in rows),
+            "product_lines": product_lines,
+            "summary": summary,
+            "order_count": counts[kind],
+            "show_money": show_money,
+            "view_mode": view_mode,
             "today": timezone.localdate(),
         })
 

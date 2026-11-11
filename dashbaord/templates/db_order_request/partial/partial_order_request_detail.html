@@ -85,14 +85,134 @@
 
             <hr>
 
-
-            <div class="d-flex flex-wrap gap-2">
+            <div id="pwReqBarSlot">
+            <div id="pwReqBar" class="d-flex flex-wrap gap-2 pw-req-bar">
 
                 <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#requestActivityLogModal">
                     <i class="bi bi-clock-history me-2"></i> Activity Log
                 </button>
             
-                <div class="modal fade" id="requestActivityLogModal" tabindex="-1" aria-hidden="true">
+                
+
+    {% if order_request.status == "pending" or order_request.status == "approved" %}
+    <a href="{% url 'edit_order_request' order_request.pk %}" class="btn btn-outline-primary"
+        hx-get="{% url 'edit_order_request' order_request.pk %}" hx-target="#content-area" hx-push-url="true">
+        <i class="bi bi-pencil-square me-2"></i>
+        Edit Request
+    </a>
+
+    {% if order_request.status == "pending" %}
+<form method="post" action="{% url 'approve_order_request' order_request.id %}">
+    {% csrf_token %}
+    <button class="btn btn-success" onclick="return confirm('Approve this Order Request?')">
+        <i class="bi bi-check-circle me-2"></i> Approve Request
+    </button>
+</form>
+{% endif %}
+    {% if order_request.status == "approved" %}
+<button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#confirmOrderModal">
+    <i class="bi bi-check2-circle me-1"></i> Confirm Order
+</button>
+
+
+{% endif %}
+
+    <form method="post" action="{% url 'reject_order_request' order_request.id %}">
+        {% csrf_token %}
+        <button class="btn btn-danger" onclick="return confirm('Reject this Order Request?')">
+            <i class="bi bi-x-circle me-2"></i>
+            Reject Request
+        </button>
+    </form>
+
+    <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#reminderAddModalRequest">
+        <i class="bi bi-alarm me-1"></i> Add Reminder
+    </button>
+
+    {% endif %}
+
+
+    {% if order_request.converted_order %}
+
+    <a href="{% url 'order_detail' order_request.converted_order.id %}" class="btn btn-primary"
+        hx-get="{% url 'order_detail' order_request.converted_order.id %}" hx-target="#content-area"
+        hx-push-url="true">
+
+        <i class="bi bi-box-arrow-up-right me-2"></i>
+
+        View Converted Order
+
+    </a>
+
+    {% endif %}
+
+</div>
+            </div>
+
+            <style>
+                /* Stays here at the top of the page. When you scroll down it sticks to the top of the screen (under the header). */
+                #pwReqBar.pw-req-floating {
+                    position: fixed; top: var(--pw-req-top, 70px); left: var(--pw-req-left, 16px); z-index: 1020;
+                    max-width: calc(100vw - var(--pw-req-left, 16px) - 16px);
+                    padding: 10px 12px; border-radius: 14px;
+                    background: #0f1736; border: 1px solid rgba(138, 180, 255, .45);
+                    box-shadow: 0 10px 30px rgba(0, 0, 0, .55);
+                }
+                #pwReqBar form { margin: 0; }
+                #pwReqBar .btn { white-space: nowrap; }
+            </style>
+            <script>
+                (function () {
+                    var slot = document.getElementById('pwReqBarSlot');
+                    var bar = document.getElementById('pwReqBar');
+                    if (!slot || !bar) return;
+                    if (window.__pwReqBarHandler) {
+                        document.removeEventListener('scroll', window.__pwReqBarHandler, true);
+                        window.removeEventListener('resize', window.__pwReqBarHandler);
+                    }
+                    function headerBottom() {
+                        var list = document.querySelectorAll('header, .top-header, .navbar');
+                        var best = 0;
+                        for (var i = 0; i < list.length; i++) {
+                            var pos = getComputedStyle(list[i]).position;
+                            if (pos === 'fixed' || pos === 'sticky') {
+                                var b = list[i].getBoundingClientRect().bottom;
+                                if (b > best && b < 200) best = b;
+                            }
+                        }
+                        return best || 60;
+                    }
+                    function update() {
+                        if (!document.body.contains(slot)) return;
+                        var floating = bar.classList.contains('pw-req-floating');
+                        if (!floating) slot.style.minHeight = bar.offsetHeight + 'px';
+                        var top = headerBottom() + 8;
+                        var r = slot.getBoundingClientRect();
+                        if (r.top < top) {
+                            if (!bar.classList.contains('pw-req-floating')) {
+                                slot.dataset.left = r.left;   // where the buttons were before floating
+                            }
+                            var want = parseFloat(slot.dataset.left || r.left) - 13;  // 12px padding + 1px border
+                            bar.style.setProperty('--pw-req-top', top + 'px');
+                            bar.style.setProperty('--pw-req-left', want + 'px');
+                            bar.classList.add('pw-req-floating');
+                            // if some parent shifts fixed elements, correct the difference
+                            var got = bar.getBoundingClientRect();
+                            var dx = want - got.left, dy = top - got.top;
+                            if (Math.abs(dx) > 1) bar.style.setProperty('--pw-req-left', (want + dx) + 'px');
+                            if (Math.abs(dy) > 1) bar.style.setProperty('--pw-req-top', (top + dy) + 'px');
+                        } else {
+                            bar.classList.remove('pw-req-floating');
+                        }
+                    }
+                    window.__pwReqBarHandler = update;
+                    document.addEventListener('scroll', update, true);
+                    window.addEventListener('resize', update);
+                    update();
+                })();
+            </script>
+
+            <div class="modal fade" id="requestActivityLogModal" tabindex="-1" aria-hidden="true">
                     <div class="modal-dialog">
                         <div class="modal-content">
                             <div class="modal-header">
@@ -128,27 +248,8 @@
                     </div>
                 </div>
 
-    {% if order_request.status == "pending" or order_request.status == "approved" %}
-    <a href="{% url 'edit_order_request' order_request.pk %}" class="btn btn-outline-primary"
-        hx-get="{% url 'edit_order_request' order_request.pk %}" hx-target="#content-area" hx-push-url="true">
-        <i class="bi bi-pencil-square me-2"></i>
-        Edit Request
-    </a>
-
-    {% if order_request.status == "pending" %}
-<form method="post" action="{% url 'approve_order_request' order_request.id %}">
-    {% csrf_token %}
-    <button class="btn btn-success" onclick="return confirm('Approve this Order Request?')">
-        <i class="bi bi-check-circle me-2"></i> Approve Request
-    </button>
-</form>
-{% endif %}
-    {% if order_request.status == "approved" %}
-<button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#confirmOrderModal">
-    <i class="bi bi-check2-circle me-1"></i> Confirm Order
-</button>
-
-<div class="modal fade" id="confirmOrderModal" tabindex="-1">
+            {% if order_request.status == "approved" %}
+            <div class="modal fade" id="confirmOrderModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
       <form method="POST" action="{% url 'confirm_order_request' order_request.pk %}">
@@ -195,38 +296,7 @@
     </div>
   </div>
 </div>
-{% endif %}
-
-    <form method="post" action="{% url 'reject_order_request' order_request.id %}">
-        {% csrf_token %}
-        <button class="btn btn-danger" onclick="return confirm('Reject this Order Request?')">
-            <i class="bi bi-x-circle me-2"></i>
-            Reject Request
-        </button>
-    </form>
-
-    <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#reminderAddModalRequest">
-        <i class="bi bi-alarm me-1"></i> Add Reminder
-    </button>
-
-    {% endif %}
-
-
-    {% if order_request.converted_order %}
-
-    <a href="{% url 'order_detail' order_request.converted_order.id %}" class="btn btn-primary"
-        hx-get="{% url 'order_detail' order_request.converted_order.id %}" hx-target="#content-area"
-        hx-push-url="true">
-
-        <i class="bi bi-box-arrow-up-right me-2"></i>
-
-        View Converted Order
-
-    </a>
-
-    {% endif %}
-
-</div>
+            {% endif %}
 
         </div>
 
@@ -892,6 +962,8 @@
 
     {% endif %}
 
+
+    
 
     <!-- Footer Buttons -->
 
