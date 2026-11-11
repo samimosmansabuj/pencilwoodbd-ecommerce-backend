@@ -51,6 +51,95 @@ def today_orders():
     return Order.objects.filter(created_at__date=today).exclude(status=STATUS.CANCELLED)
 
 
+TODAY_KINDS = ("received", "orders", "cancel", "confirm")
+TODAY_KIND_LABELS = {
+    "received": "All Received",
+    "orders": "Today Orders",
+    "cancel": "Today Cancel",
+    "confirm": "Today Confirm",
+}
+
+
+def today_orders_by_kind(kind):
+    from order.utils import confirmed_today_filter
+
+    today = timezone.localdate()
+    if kind == "received":
+        return Order.objects.filter(created_at__date=today)
+    if kind == "cancel":
+        return Order.objects.filter(created_at__date=today, status=STATUS.CANCELLED)
+    if kind == "confirm":
+        return Order.objects.filter(confirmed_today_filter())
+    return today_orders()
+
+
+def grand_total_sum(order_qs):
+    orders = order_qs.order_by().prefetch_related("order_items__product", "order_items__variant")
+    return _q(sum((order_figures(o)["total"] for o in orders), ZERO))
+
+
+def price_breakdown(order_qs):
+    orders = (
+        order_qs.order_by("created_at", "id")
+        .prefetch_related("order_items__product", "order_items__variant")
+    )
+    lines = []
+    pieces = 0
+    order_count = 0
+    cost_total = ZERO
+    regular_total = ZERO
+    selling_total = ZERO
+    shipping_total = ZERO
+    extra_discount_total = ZERO
+    grand_total = ZERO
+    advance_total = ZERO
+    missing_cost_lines = 0
+    for order in orders:
+        order_count += 1
+        fig = order_figures(order)
+        shipping_total += fig["shipping"]
+        extra_discount_total += fig["discount"]
+        grand_total += fig["total"]
+        advance_total += fig["advance"]
+        for item in order.order_items.all():
+            qty = item.quantity or 0
+            regular = _d(item.price)
+            selling = _d(item.discount_price) if item.discount_price is not None else regular
+            cost = _unit_cost(item)
+            if cost is None:
+                missing_cost_lines += 1
+            pieces += qty
+            regular_total += regular * qty
+            selling_total += selling * qty
+            cost_total += _d(cost) * qty
+            lines.append({
+                "order_id": order.order_id,
+                "product": item.display_name,
+                "variant": item.variant_label,
+                "qty": qty,
+                "cost": cost,
+                "regular": regular,
+                "selling": selling,
+                "line_total": selling * qty,
+                "is_gift": item.is_gift,
+            })
+    return {
+        "lines": lines,
+        "orders": order_count,
+        "pieces": pieces,
+        "cost_total": _q(cost_total),
+        "regular_total": _q(regular_total),
+        "selling_total": _q(selling_total),
+        "discount_total": _q(regular_total - selling_total),
+        "shipping_total": _q(shipping_total),
+        "extra_discount_total": _q(extra_discount_total),
+        "order_total": _q(grand_total),
+        "advance_total": _q(advance_total),
+        "margin": _q(grand_total - shipping_total - cost_total),
+        "missing_cost_lines": missing_cost_lines,
+    }
+
+
 ZERO = Decimal("0")
 TWO = Decimal("0.01")
 
@@ -73,15 +162,6 @@ def _unit_cost(item):
 
 
 def order_figures(order):
-    """All money figures of one order (items must be prefetched).
-
-    items_total : sum(discount_price * qty)   - product value actually charged
-    total       : what the customer owes = order.total_cost
-                  (items + shipping - coupon - extra discount). If total_cost is
-                  empty it is rebuilt from the parts.
-    cogs        : sum(cost_price * qty); items with unknown cost are counted in
-                  missing_cost_items and add 0 to cogs.
-    """
     items_total = ZERO
     cogs = ZERO
     qty = 0

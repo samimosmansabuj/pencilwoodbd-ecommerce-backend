@@ -160,7 +160,7 @@
                         if (noShipmentCard) noShipmentCard.remove();
 
                         const resultContainer = document.getElementById("delivery-result");
-                        const order_shipped_data = createShippingCard(data.message, data.data);
+                        const order_shipped_data = window.createShippingCard(data.message, data.data, (document.getElementById('deliveryOptionModal').dataset.currentOrderId || ''));
                         resultContainer.insertAdjacentHTML("beforeend", order_shipped_data);
 
                         // Optional: disable logistics selection after success
@@ -180,89 +180,6 @@
             });
         }
 
-        // Order Shipping Card Template Literal Function
-        function createShippingCard(message, data) {
-            const order_shipped_data = `
-            <div class="card mt-3 shadow border-0 rounded-3">
-                <div class="card-body">
-
-                    <div class="d-flex justify-content-between align-items-start mb-3">
-                        <div>
-                            <h6 class="fw-bold text-success mb-1">
-                                <i class="lni lni-checkmark-circle"></i>
-                                ${message || "Consignment Created Successfully"} (ID#${data.id})
-                            </h6>
-                        </div>
-
-                        <span class="badge ${getStatusBadge(data.status)} px-3 py-2">
-                            ${data.status.replace("_", " ").toUpperCase()}
-                        </span>
-                    </div>
-
-                    <div class="row gy-3">
-                        <div class="col-6">
-                            <small class="d-block">Courier</small>
-                            <span class="fw-semibold">${data.courier}</span>
-                        </div>
-                        <div class="col-6">
-                            <small class="d-block">Tracking/Consignment Number</small>
-                            <div class="d-flex align-items-center gap-2">
-                                <span class="fw-bold text-primary">
-                                    ${data.tracking_number}
-                                </span>
-                                <button type="button" class="btn btn-sm btn-light border copy-btn" onclick="copyToClipboard(this, '${data.tracking_number}')">
-                                    <i class="lni lni-clipboard"></i>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="col-6">
-                            <small class="d-block">Created At</small>
-                            <span>${formatDate(data.created_at)}</span>
-                        </div>
-
-                        <div class="col-6">
-                            <small class="d-block">Last Updated</small>
-                            <span>${formatDate(data.updated_at)}</span>
-                        </div>
-
-                    </div>
-
-                    <hr>
-
-                    <div class="d-flex justify-content-end">
-                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="trackParcel('${data.tracking_number}')">
-                            <i class="lni lni-map-marker"></i> Track Parcel
-                        </button>
-                    </div>
-
-                </div>
-            </div>
-            `;
-            return order_shipped_data;
-        };
-
-        // Order Shipping Card Status Badge Update Dynamic Class Function
-        function getStatusBadge(status) {
-            if (status === "in_review") return "bg-warning text-dark";
-            if (status === "approved") return "bg-success";
-            if (status === "cancelled") return "bg-danger";
-            return "bg-secondary";
-        };
-        
-        // Data Format Function
-        function formatDate(dateString) {
-            if (!dateString) return "-";
-            const date = new Date(dateString);
-            return date.toLocaleString("en-BD", {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit"
-            });
-        };
-        
         // TODO: Tracking Number Copy Function
         window.copyToClipboard = function(button, text) {
             navigator.clipboard.writeText(text).then(() => {
@@ -278,11 +195,6 @@
             });
         };
 
-        // TODO: Track Parcel Function
-        function trackParcel(trackingNumber) {
-            window.open(`/track/${trackingNumber}/`, "_blank");
-        };
-
     };
 
 
@@ -293,3 +205,5 @@
         }
     });
 </script>
+
+{% include "db_order/modal/delivery_booking_scripts.html" %}

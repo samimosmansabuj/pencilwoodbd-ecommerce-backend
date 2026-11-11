@@ -1,8 +1,179 @@
-<div class="d-flex gap-3 mb-3 flex-wrap">
-    <div class="card p-3 flex-fill"><h6 class="mb-1">Today Orders</h6><h3 class="mb-0">{{ order_count }}</h3></div>
-    <div class="card p-3 flex-fill"><h6 class="mb-1">Total Pieces</h6><h3 class="mb-0 text-primary">{{ total_qty }}</h3></div>
-    <div class="card p-3 flex-fill"><h6 class="mb-1">Date</h6><h5 class="mb-0">{{ today }}</h5></div>
+{% url 'today_order_products' as base_url %}
+
+<style>
+    /* Deep navy dashboard: keep every text in this popup light enough to read */
+    #todayOrderModalBody .tp-note { color: #cfd9f1; }
+    #todayOrderModalBody .tp-cost  { color: #ffc65c; }   /* amber  */
+    #todayOrderModalBody .tp-price { color: #5fd3f3; }   /* cyan   */
+    #todayOrderModalBody .tp-disc  { color: #4fe3a1; }   /* green  */
+    #todayOrderModalBody .tp-total { color: #8ab4ff; }   /* blue   */
+    #todayOrderModalBody .tp-bad   { color: #ff7a8a; }   /* red    */
+    #todayOrderModalBody .tp-box { cursor: pointer; border: 2px solid transparent; transition: border-color .15s; }
+    #todayOrderModalBody .tp-box:hover { border-color: rgba(255,255,255,.25); }
+    #todayOrderModalBody .tp-box.tp-view-orders  { border-color: #3d8bfd; }
+    #todayOrderModalBody .tp-box.tp-view-cancel  { border-color: #ff4d6d; }
+    #todayOrderModalBody .tp-box.tp-view-confirm { border-color: #2ecc8f; }
+    #todayOrderModalBody .tp-dot {
+        position: absolute; left: 14px; top: 16px; z-index: 2;
+        width: 22px; height: 22px; border-radius: 50%;
+        border: 2px solid #cfd9f1; background: transparent; cursor: pointer;
+    }
+    #todayOrderModalBody .tp-dot:hover { border-color: #fff; }
+    #todayOrderModalBody .tp-dot.on-orders  { background: #3d8bfd; border-color: #3d8bfd; }
+    #todayOrderModalBody .tp-dot.on-cancel  { background: #ff4d6d; border-color: #ff4d6d; }
+    #todayOrderModalBody .tp-dot.on-confirm { background: #2ecc8f; border-color: #2ecc8f; }
+    #todayOrderModalBody table td, #todayOrderModalBody table th { color: inherit; }
+</style>
+
+{# The modal title lives outside this body, so it is swapped in "out of band". #}
+<h5 class="modal-title" id="todayOrderModalTitle" hx-swap-oob="true">
+    Today Received Orders
+    (<a href="#" class="fw-bold text-decoration-underline {% if kind == 'received' %}tp-total{% endif %}"
+        title="Show the product list of all received orders"
+        hx-get="{{ base_url }}?type=received" hx-target="#todayOrderModalBody" hx-swap="innerHTML">{{ counts.received }}</a>)
+</h5>
+
+<div class="tp-note small mb-2">
+    Date: {{ today }} &middot; Showing: <b class="text-white">{{ kind_label }}</b> &middot; Default on open: <b class="text-white">{{ default_label }}</b>
+    <br>Click a box to see its table. Click the round sign to make it the default (click the round sign again to remove the default).
 </div>
+
+<div class="d-flex gap-3 mb-3 flex-wrap">
+    {# ---- Today Orders ---- #}
+    <div class="position-relative flex-fill d-flex">
+        <span class="tp-dot {% if default_kind == 'orders' %}on-orders{% endif %}" role="button"
+              title="{% if default_kind == 'orders' %}Remove as default{% else %}Set as default{% endif %}"
+              hx-get="{{ base_url }}?{% if default_kind == 'orders' %}type=received&set_default=none{% else %}type=orders&set_default=orders{% endif %}"
+              hx-target="#todayOrderModalBody" hx-swap="innerHTML"></span>
+        <div class="card p-3 flex-fill tp-box {% if kind == 'orders' %}tp-view-orders{% endif %}" role="button"
+             title="Today's orders, cancelled ones left out"
+             hx-get="{{ base_url }}?type=orders" hx-target="#todayOrderModalBody" hx-swap="innerHTML">
+            <h6 class="mb-1" style="padding-left:30px;">Today Orders</h6>
+            <h3 class="mb-0 tp-total">{{ counts.orders }}</h3>
+        </div>
+    </div>
+    {# ---- Today Cancel ---- #}
+    <div class="position-relative flex-fill d-flex">
+        <span class="tp-dot {% if default_kind == 'cancel' %}on-cancel{% endif %}" role="button"
+              title="{% if default_kind == 'cancel' %}Remove as default{% else %}Set as default{% endif %}"
+              hx-get="{{ base_url }}?{% if default_kind == 'cancel' %}type=received&set_default=none{% else %}type=cancel&set_default=cancel{% endif %}"
+              hx-target="#todayOrderModalBody" hx-swap="innerHTML"></span>
+        <div class="card p-3 flex-fill tp-box {% if kind == 'cancel' %}tp-view-cancel{% endif %}" role="button"
+             title="Orders received today that are cancelled"
+             hx-get="{{ base_url }}?type=cancel" hx-target="#todayOrderModalBody" hx-swap="innerHTML">
+            <h6 class="mb-1" style="padding-left:30px;">Today Cancel</h6>
+            <h3 class="mb-0 tp-bad">{{ counts.cancel }}</h3>
+        </div>
+    </div>
+    {# ---- Today Confirm ---- #}
+    <div class="position-relative flex-fill d-flex">
+        <span class="tp-dot {% if default_kind == 'confirm' %}on-confirm{% endif %}" role="button"
+              title="{% if default_kind == 'confirm' %}Remove as default{% else %}Set as default{% endif %}"
+              hx-get="{{ base_url }}?{% if default_kind == 'confirm' %}type=received&set_default=none{% else %}type=confirm&set_default=confirm{% endif %}"
+              hx-target="#todayOrderModalBody" hx-swap="innerHTML"></span>
+        <div class="card p-3 flex-fill tp-box {% if kind == 'confirm' %}tp-view-confirm{% endif %}" role="button"
+             title="Orders confirmed today"
+             hx-get="{{ base_url }}?type=confirm" hx-target="#todayOrderModalBody" hx-swap="innerHTML">
+            <h6 class="mb-1" style="padding-left:30px;">Today Confirm</h6>
+            <h3 class="mb-0 tp-disc">{{ counts.confirm }}</h3>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex gap-3 mb-3 flex-wrap">
+    <div class="card p-3 flex-fill">
+        <h6 class="mb-1">Total Pieces <span class="tp-note fw-normal">&middot; {{ kind_label }}</span></h6>
+        <h3 class="mb-0 tp-total">{{ summary.pieces }}</h3>
+    </div>
+    {% if show_money %}
+    <div class="card p-3 flex-fill tp-box {% if view_mode == 'breakdown' %}tp-view-orders{% endif %}" role="button"
+         title="Click for the price breakdown"
+         hx-get="{{ base_url }}?type={{ kind }}&view=breakdown" hx-target="#todayOrderModalBody" hx-swap="innerHTML">
+        <h6 class="mb-1">Total Amount <span class="tp-note fw-normal">&middot; {{ kind_label }}</span></h6>
+        <h3 class="mb-0 tp-disc">৳{{ summary.order_total|floatformat:2 }}</h3>
+        <small class="tp-total">price breakdown &rsaquo;</small>
+    </div>
+    {% endif %}
+</div>
+
+<h6 class="mb-2">
+    {{ kind_label }}: {{ order_count }} order{{ order_count|pluralize }}, {{ summary.pieces }} piece{{ summary.pieces|pluralize }}
+    {% if view_mode == 'breakdown' %}
+        <a href="#" class="ms-2 small tp-total" hx-get="{{ base_url }}?type={{ kind }}" hx-target="#todayOrderModalBody" hx-swap="innerHTML">&lsaquo; back to product list</a>
+    {% endif %}
+</h6>
+
+{% if view_mode == 'breakdown' %}
+
+{% if summary.missing_cost_lines %}
+<div class="small tp-cost mb-2">Cost price is not set for {{ summary.missing_cost_lines }} line{{ summary.missing_cost_lines|pluralize }} (shown as "-"), so cost and margin are lower than the real figures.</div>
+{% endif %}
+
+<div class="table-responsive">
+<table class="table table-sm align-middle">
+    <thead class="table-light">
+        <tr>
+            <th>Product</th><th>Variant</th>
+            <th class="text-end">Qty</th>
+            <th class="text-end">Cost</th>
+            <th class="text-end">Price</th>
+            <th class="text-end">Discount Price</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for p in product_lines %}
+        <tr>
+            <td>{{ p.product }}{% if p.is_gift %} <span class="badge bg-warning text-dark">Gift</span>{% endif %}</td>
+            <td>{{ p.variant|default:"-" }}</td>
+            <td class="text-end fw-bold tp-total">{{ p.qty }}</td>
+            <td class="text-end tp-cost">{% if p.has_cost %}৳{{ p.cost|floatformat:2 }}{% else %}-{% endif %}</td>
+            <td class="text-end tp-price">৳{{ p.regular|floatformat:2 }}</td>
+            <td class="text-end fw-bold tp-disc">৳{{ p.selling|floatformat:2 }}</td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="6" class="text-center">No order lines.</td></tr>
+    {% endfor %}
+    </tbody>
+    {% if product_lines %}
+    <tfoot>
+        <tr class="fw-bold">
+            <td colspan="2" class="text-end">Total</td>
+            <td class="text-end tp-total">{{ summary.pieces }}</td>
+            <td class="text-end tp-cost">৳{{ summary.cost_total|floatformat:2 }}</td>
+            <td class="text-end tp-price">৳{{ summary.regular_total|floatformat:2 }}</td>
+            <td class="text-end tp-disc">৳{{ summary.selling_total|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td colspan="5" class="text-end">Discount (Price &minus; Discount Price)</td>
+            <td class="text-end tp-bad">৳{{ summary.discount_total|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td colspan="5" class="text-end">+ Delivery charge (once per order)</td>
+            <td class="text-end tp-price">৳{{ summary.shipping_total|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td colspan="5" class="text-end">&minus; Coupon / Extra discount</td>
+            <td class="text-end tp-bad">৳{{ summary.extra_discount_total|floatformat:2 }}</td>
+        </tr>
+        <tr class="fw-bold">
+            <td colspan="5" class="text-end">Grand Total (Total Amount)</td>
+            <td class="text-end tp-disc">৳{{ summary.order_total|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td colspan="5" class="text-end">Advance received (already inside Grand Total)</td>
+            <td class="text-end tp-cost">৳{{ summary.advance_total|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td colspan="5" class="text-end">Est. Margin (Grand Total &minus; delivery &minus; cost)</td>
+            <td class="text-end fw-bold {% if summary.margin < 0 %}tp-bad{% else %}tp-disc{% endif %}">৳{{ summary.margin|floatformat:2 }}</td>
+        </tr>
+    </tfoot>
+    {% endif %}
+</table>
+</div>
+<div class="small tp-note">Cost, Price and Discount Price are totals over the quantity. Discount Price is the final selling price in the order (customization extra included).</div>
+
+{% else %}
 <table class="table align-middle">
     <thead class="table-light"><tr><th>#</th><th>Product</th><th>Variant</th><th class="text-end">Pieces</th></tr></thead>
     <tbody>
@@ -11,10 +182,11 @@
             <td>{{ forloop.counter }}</td>
             <td>{{ r.product }}</td>
             <td>{{ r.variant|default:"-" }}</td>
-            <td class="text-end fw-bold">{{ r.qty }}</td>
+            <td class="text-end fw-bold tp-total">{{ r.qty }}</td>
         </tr>
     {% empty %}
-        <tr><td colspan="4" class="text-center">No order today.</td></tr>
+        <tr><td colspan="4" class="text-center">No order in this list today.</td></tr>
     {% endfor %}
     </tbody>
 </table>
+{% endif %}

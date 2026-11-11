@@ -26,19 +26,7 @@
     </div>
     {% endif %}
 
-    {% include "db_order/partial/order_form_body.html" %}
-
-    <button class="btn btn-sm {% if identity_blocked %}btn-danger{% else %}btn-warning{% endif %}" data-bs-toggle="modal" data-bs-target="#trackIdentityModal">
-        <i class="bi bi-shield-lock me-1"></i> {% if identity_blocked %}Blocked — View{% else %}View IP/Device{% endif %}
-    </button>
-
-    <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#reminderAddModal">
-        <i class="bi bi-alarm me-1"></i> Add Reminder
-    </button>
-
-    <button class="btn btn-sm btn-secondary" data-bs-toggle="modal" data-bs-target="#activityLogModal">
-        <i class="bi bi-clock-history me-1"></i> Activity Log
-    </button>
+    {% include "db_order/partial/order_form_body.html" with show_detail_actions=True %}
 
     <div class="modal fade" id="activityLogModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
@@ -77,6 +65,7 @@
     </div>    
 
     {% include "db_order/modal/track_identity_modal.html" %}
+    {% include "db_order/modal/delivery_option_modal.html" %}
 
     <div class="modal fade" id="reminderAddModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">

@@ -1,0 +1,14 @@
+{# Sticky bars. They sit in their normal place on the page (docked) and float at the bottom of the screen only while that place is still below the screen. Keep modals OUTSIDE the bars. #}
+<style>
+    .pw-sticky-bar { position: sticky; bottom: 16px; z-index: 30; }
+    .pw-sticky-right { background-color: #0f1736; box-shadow: 0 10px 30px rgba(0, 0, 0, .55); }
+    .pw-sticky-left {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+        width: fit-content; max-width: 100%; margin-top: 16px;
+        padding: 10px 12px; border-radius: 14px;
+        background: #0f1736; border: 1px solid rgba(138, 180, 255, .45);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, .55);
+    }
+    .pw-sticky-left form { margin: 0; }
+    .pw-sticky-left .btn { white-space: nowrap; }
+</style>
