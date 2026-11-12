@@ -1,4 +1,32 @@
 {% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
+<style>
+    /* Dropdown keeps the normal look; the selected value is shown as a colored oval on top */
+    .pill-select { position: relative; min-width: 120px; }
+    /* hide only the closed select text; the open list keeps the theme colors */
+    .pill-select select.pill-sel { -webkit-text-fill-color: transparent; cursor: pointer; }
+    .pill-select select.pill-sel option { -webkit-text-fill-color: currentColor; }
+    .pill-select .pill-badge {
+        position: absolute; left: 0.5rem; top: 50%; transform: translateY(-50%);
+        pointer-events: none; border-radius: 50rem; border: 1px solid transparent;
+        padding: 0.15rem 0.7rem; font-size: 0.72rem; font-weight: 600; line-height: 1.3;
+        white-space: nowrap;
+    }
+    /* Work status colors */
+    .ws-none       { background-color: #f8f9fa !important; color: #495057 !important; border-color: #ced4da !important; }
+    .ws-design     { background-color: #0d6efd !important; color: #fff !important; border-color: #0d6efd !important; }
+    .ws-correction { background-color: #ffc107 !important; color: #212529 !important; border-color: #ffc107 !important; }
+    .ws-call       { background-color: #0dcaf0 !important; color: #212529 !important; border-color: #0dcaf0 !important; }
+    .ws-knock      { background-color: #6c757d !important; color: #fff !important; border-color: #6c757d !important; }
+    .ws-other      { background-color: #e9ecef !important; color: #212529 !important; border-color: #adb5bd !important; }
+    .ws-done       { background-color: #198754 !important; color: #fff !important; border-color: #198754 !important; }
+    .ws-hold       { background-color: #212529 !important; color: #fff !important; border-color: #212529 !important; }
+    .ws-cancel     { background-color: #dc3545 !important; color: #fff !important; border-color: #dc3545 !important; }
+    /* Request status colors */
+    .st-pending    { background-color: #ffc107 !important; color: #212529 !important; border-color: #ffc107 !important; }
+    .st-approved   { background-color: #0d6efd !important; color: #fff !important; border-color: #0d6efd !important; }
+    .st-cancelled  { background-color: #dc3545 !important; color: #fff !important; border-color: #dc3545 !important; }
+    .st-converted  { background-color: #198754 !important; color: #fff !important; border-color: #198754 !important; }
+</style>
 
 <div class="main-content">
 
@@ -340,25 +368,19 @@
                                 </td>
 
                                 <td>
-                                    {% if request.work_status == "design" %}
-                                        <span class="badge bg-primary"><i class="bi bi-pencil-square me-1"></i>Design</span>
-                                    {% elif request.work_status == "correction" %}
-                                        <span class="badge bg-warning text-dark"><i class="bi bi-arrow-repeat me-1"></i>Correction</span>
-                                    {% elif request.work_status == "call" %}
-                                        <span class="badge bg-info text-dark"><i class="bi bi-telephone me-1"></i>Call</span>
-                                    {% elif request.work_status == "knock" %}
-                                        <span class="badge bg-secondary"><i class="bi bi-bell me-1"></i>Knock</span>
-                                    {% elif request.work_status == "done" %}
-                                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Done</span>
-                                    {% elif request.work_status == "hold" %}
-                                        <span class="badge bg-dark"><i class="bi bi-pause-circle me-1"></i>Hold</span>
-                                    {% elif request.work_status == "cancel" %}
-                                        <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Cancel</span>
-                                    {% elif request.work_status == "other" %}
-                                        <span class="badge bg-light text-dark border"><i class="bi bi-three-dots me-1"></i>Other</span>
-                                    {% else %}
-                                        <span class="badge bg-light text border">None</span>
-                                    {% endif %}
+                                    <form hx-post="{% url 'update_order_request_work_status' request.id %}"
+                                          hx-target="#content-area"
+                                          hx-trigger="change">
+                                        {% csrf_token %}
+                                        <div class="pill-select">
+                                        <select name="work_status" class="form-select form-select-sm pill-sel">
+                                            {% for value, label in work_status_choices %}
+                                            <option value="{{ value }}" {% if request.work_status == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <span class="pill-badge ws-{{ request.work_status }}">{{ request.get_work_status_display }}</span>
+                                        </div>
+                                    </form>
                                 </td>
                         
 
@@ -370,11 +392,15 @@
                                           hx-target="#content-area"
                                           hx-trigger="change">
                                         {% csrf_token %}
-                                        <select name="status" class="form-select form-select-sm" style="min-width:120px;">
+                                        <div class="pill-select">
+                                        <select name="status" class="form-select form-select-sm pill-sel">
                                             <option value="pending" {% if request.status == "pending" %}selected{% endif %}>Pending</option>
+                                            <option value="approved" {% if request.status == "approved" %}selected{% endif %}>Approved</option>
                                             <option value="cancelled" {% if request.status == "cancelled" %}selected{% endif %}>Cancelled</option>
                                             <option value="converted">Convert to Order</option>
                                         </select>
+                                        <span class="pill-badge st-{{ request.status }}">{{ request.get_status_display }}</span>
+                                        </div>
                                     </form>
                                     {% endif %}
                                 </td>

@@ -1408,6 +1408,7 @@ class OrderRequestListView(LoginRequiredMixin, View):
             "staff_list": get_assignable_users(),
 
             "status_choices": ORDER_REQUEST_STATUS.choices,
+            "work_status_choices": ORDER_REQUEST_WORK_STATUS.choices,
         }
 
         if request.htmx:
@@ -1553,24 +1554,58 @@ class UpdateOrderRequestWorkStatusView(LoginRequiredMixin, View):
     def post(self, request, pk):
         order_request = get_object_or_404(OrderRequest, pk=pk)
         work_status = request.POST.get("work_status")
+        is_htmx = bool(getattr(request, "htmx", False))
 
         valid = [x[0] for x in ORDER_REQUEST_WORK_STATUS.choices]
         if work_status not in valid:
             messages.error(request, "Invalid work status.")
-            return redirect("order_request_detail", id=pk)
+        else:
+            order_request.work_status = work_status
+            order_request.updated_by = request.user
+            order_request.save()
 
-        order_request.work_status = work_status
-        order_request.updated_by = request.user
-        order_request.save()
+            OrderActivityLog.log(
+                action=f"Work status changed to {dict(ORDER_REQUEST_WORK_STATUS.choices).get(work_status, work_status)}",
+                order_request=order_request,
+                user=request.user,
+            )
 
-        OrderActivityLog.log(
-            action=f"Work status changed to {dict(ORDER_REQUEST_WORK_STATUS.choices).get(work_status, work_status)}",
-            order_request=order_request,
-            user=request.user,
-        )
+            messages.success(request, "Work status updated.")
 
-        messages.success(request, "Work status updated.")
-        return redirect("order_request_detail", id=pk)  
+        if is_htmx:
+            from urllib.parse import urlparse
+            from django.http import QueryDict
+
+            current_url = request.headers.get("HX-Current-URL", "")
+            request.GET = QueryDict(urlparse(current_url).query)
+
+            list_view = OrderRequestListView()
+            (
+                requests_qs,
+                paginator,
+                per_page,
+                page_number,
+            ) = list_view.get_request_queryset(request)
+
+            context = {
+                "requests": requests_qs,
+                "paginator": paginator,
+                "per_page": per_page,
+                "page_number": page_number,
+                "request_count": list_view.status_wise_request_count(),
+                "current_status": request.GET.get("status", "all"),
+                "current_search": request.GET.get("q", ""),
+                "start_date": request.GET.get("start_date", ""),
+                "end_date": request.GET.get("end_date", ""),
+                "current_work_status": request.GET.get("work_status", ""),
+                "current_updated_by": request.GET.get("updated_by", ""),
+                "staff_list": get_assignable_users(),
+                "status_choices": ORDER_REQUEST_STATUS.choices,
+                "work_status_choices": ORDER_REQUEST_WORK_STATUS.choices,
+            }
+            return render(request, "db_order_request/partial/partial_order_request_list.html", context)
+
+        return redirect("order_request_detail", id=pk)
 
 
 class OrderRequestStatusUpdateView(LoginRequiredMixin, View):
