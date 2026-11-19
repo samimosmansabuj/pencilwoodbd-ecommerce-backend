@@ -15,6 +15,7 @@ from .api_views import (
 
 from .webhook_views import SteadfastWebhookAPIView
 from .views import (
+    OrderRequestDeleteView,
     AddOrderView, OrderView, OrderDetailView, OrderUpdateView, OrderDeleteView,
     OrderDeliveryOptionSubmitView, OrderInvoiceView, OrderBillView, update_order, OrderStatusUpdateView,
     OrderBulkActionView,
@@ -61,6 +62,7 @@ urlpatterns = [
     path("order-requests/<int:pk>/edit/", AddOrderRequestView.as_view(), name="edit_order_request"),
     path("order-request/", OrderRequestListView.as_view(), name="order_request_list"),
     path("order-request/<int:id>/", OrderRequestDetailView.as_view(), name="order_request_detail"),
+    path("order-request/<int:pk>/delete/", OrderRequestDeleteView.as_view(), name="order_request_delete"),
     path("order-request/<int:pk>/approve/", ApproveOrderRequestView.as_view(), name="approve_order_request"),
     path("order-request/<int:pk>/confirm/", ConfirmOrderRequestView.as_view(), name="confirm_order_request"),
     path("order-request/<int:pk>/reject/", RejectOrderRequestView.as_view(), name="reject_order_request"),

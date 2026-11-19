@@ -1,0 +1,48 @@
+{# Offer editor look (same style as the original offer page): numbered sections, option cards, image-grid picker, chips #}
+<style>
+  .ofx-help { font-size: .9rem; line-height: 1.55; padding-left: 10px; border-left: 3px solid #34d399; color: inherit; }
+  .ofx-sub, .ofx-count { color: inherit; font-size: .85rem; }
+  .ofx-modal { --g: #34d399; --gt: rgba(52,211,153,.16); --gb: rgba(52,211,153,.6); --panel: rgba(255,255,255,.045); --panel2: rgba(255,255,255,.09);
+               --line: var(--bs-border-color, rgba(255,255,255,.2)); --warn: #fbbf24; }
+  #offerModal .modal-dialog { max-width: min(1100px, 96vw); }
+  .ofx-modal .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
+  .ofx-section { border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 14px; background: var(--panel); }
+  .ofx-h { display: flex; align-items: center; gap: 8px; font-weight: 700; margin-bottom: 10px; }
+  .ofx-h .num { background: var(--g); color: #062b1c; width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
+  /* option cards (counting rule / free item mode) */
+  .ofx-card { display: block; height: 100%; border: 2px solid var(--line); border-radius: 12px; padding: 12px; cursor: pointer; background: var(--panel); }
+  .ofx-card:hover { background: var(--panel2); }
+  .ofx-card input { position: absolute; opacity: 0; pointer-events: none; }
+  .ofx-card.on { border-color: var(--gb); background: var(--gt); }
+  .ofx-card-title { display: block; font-weight: 700; margin-bottom: 4px; }
+  .ofx-card-text { display: block; font-size: .88rem; line-height: 1.5; color: inherit; }
+  /* rules */
+  .ofx-tier { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--panel2); border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+  .ofx-tier .form-control { width: 76px; text-align: center; font-weight: 700; font-size: 18px; }
+  /* chips (categories) */
+  .ofx-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ofx-chip { border: 1.5px solid var(--line); border-radius: 999px; padding: 4px 12px; cursor: pointer; font-size: 13px; background: var(--panel); user-select: none; }
+  .ofx-chip:hover { background: var(--panel2); }
+  .ofx-chip.on { border-color: var(--gb); background: var(--gt); font-weight: 700; }
+  /* product picker: click an image to select */
+  .pk { border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: var(--panel); }
+  .pk-top { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  .pk-top input { flex: 1; min-width: 160px; }
+  .pk-count { font-size: 13px; font-weight: 700; }
+  .pk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; max-height: 300px; overflow: auto; padding: 2px; }
+  .pk-item { position: relative; border: 2px solid var(--line); border-radius: 10px; padding: 4px; text-align: center; cursor: pointer; background: var(--panel); }
+  .pk-item:hover { background: var(--panel2); }
+  .pk-item img, .pk-item .noimg { width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 8px; background: var(--panel2); display: block; }
+  .pk-item .nm { font-size: 11px; line-height: 1.25; margin-top: 3px; height: 28px; overflow: hidden; }
+  .pk-item.on { border-color: var(--g); box-shadow: 0 0 0 2px var(--gt); background: var(--gt); }
+  .pk-item.on::after { content: "\2713"; position: absolute; top: 4px; right: 4px; background: var(--g); color: #062b1c; border-radius: 50%; width: 20px; height: 20px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .pk-item .go { position: absolute; top: 4px; left: 4px; background: rgba(251,191,36,.9); color: #1f1500; border-radius: 6px; font-size: 10px; padding: 0 4px; z-index: 1; }
+  .pk-empty { padding: 12px; grid-column: 1 / -1; }
+  /* chosen free products */
+  .ofx-gift { background: var(--panel2); border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+  .ofx-gift .thumb { width: 42px; height: 42px; border-radius: 8px; object-fit: cover; flex: none; }
+  .ofx-gift-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+  .ofx-empty { padding: 10px; font-size: .9rem; }
+  .ofx-summary { font-weight: 600; max-width: 60%; border: 2px solid rgba(251,191,36,.5); border-radius: 12px; padding: 8px 12px; }
+  .ofx-toast { position: fixed; top: 20px; right: 20px; z-index: 2000; }
+</style>

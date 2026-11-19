@@ -30,16 +30,18 @@
 </div>
 
 <script>
-    document.addEventListener("DOMContentLoaded", function () {
-        const deleteButtons = document.querySelectorAll(".delete-order-btn");
-        const deleteForm = document.getElementById("deleteOrderForm");
-        const baseUrl = deleteForm.getAttribute("data-url");
-
-        deleteButtons.forEach(btn => {
-            btn.addEventListener("click", function () {
-                const orderId = this.getAttribute("data-id");
-                deleteForm.action = baseUrl.replace("0", orderId);
-            });
+    // Event delegation: works for rows added later by filters / HTMX swaps,
+    // and is safe even if this partial is injected more than once.
+    (function () {
+        if (window.__deleteOrderBound) return;
+        window.__deleteOrderBound = true;
+        document.addEventListener("click", function (e) {
+            const btn = e.target.closest(".delete-order-btn");
+            if (!btn) return;
+            const form = document.getElementById("deleteOrderForm");
+            if (!form) return;
+            const baseUrl = form.getAttribute("data-url");
+            form.action = baseUrl.replace(/\/0\/?$/, "/" + btn.getAttribute("data-id") + "/");
         });
-    });
+    })();
 </script>

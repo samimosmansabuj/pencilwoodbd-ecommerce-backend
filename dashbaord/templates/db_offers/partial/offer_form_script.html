@@ -1,0 +1,389 @@
+{% verbatim %}
+<script>
+(function () {
+  if (window.OfferUI && window.OfferUI._bound) return;   // page re-entered through htmx: keep a single instance
+
+  var CFG = document.getElementById('ofx-config');
+  var CATALOG = JSON.parse(document.getElementById('ofx-catalog').textContent);
+  var CATS = JSON.parse(document.getElementById('ofx-categories').textContent);
+  var byId = {}; CATALOG.forEach(function (p) { byId[p.id] = p; });
+
+  /* ------------------------------------------------------------------ language
+     Basic labels (Create Offer, Edit, Delete, Save...) are plain English in the HTML.
+     Only hints / instructions use data-i18n and follow the language button. */
+  var I18N = {
+    en: {
+      list_help: 'Create offers so customers get free items when they buy selected products. Use the Active switch to turn an offer on or off.',
+      ph_desc: 'Short line shown to customers (optional)',
+      help_basic: 'Priority: when two offers match the same items, the higher number runs first. Leave Start / End empty to run all the time.',
+      help_apply: 'Choose the products (or whole categories) a customer must buy to get the free item. Selecting a category also includes its sub-categories.',
+      help_count: 'Decide what is counted together when a customer buys more than one item. Each group is checked against the rules on its own.',
+      count_all_d: 'Every selected product counts together. Example: 1 Frame A + 1 Frame B = 2 bought.',
+      count_product_d: 'Different variants of the SAME product count together. Example: 1 Black + 1 White of Frame A = 2 bought.',
+      count_variant_d: 'Only the exact same variant counts. Example: 2 x Black of Frame A = 2 bought, but 1 Black + 1 White = 0.',
+      help_rules: 'Example: Buy 2 get 1 free, Buy 3 get 3 free. The biggest rule the customer reaches is used.',
+      help_repeat: 'ON: buy 4 with a "Buy 2 get 1" rule gives 2 free. OFF: gives 1 free.',
+      help_max: 'Optional. The most free items one order can receive from this offer.',
+      mode_choose_d: 'Customer picks the free item at checkout. If the product has variants (colour, size...), the customer also picks the variant.',
+      mode_auto_d: 'The free item is added to the order by itself. You can fix an exact variant, or leave it empty to use the first variant in stock.',
+      help_gift_only: 'Tip: mark a product as "Gift Only" in its product page if it must never be sold on its own. It can still be given free here.',
+      gift_choose_variants: function (n) { return 'Customer will choose from ' + n + ' variant' + (n === 1 ? '' : 's') + ' (out-of-stock ones are hidden automatically).'; },
+      gift_no_variants: 'This product has no variants.',
+      auto_variant_any: 'First variant in stock',
+      tier_any: 'Every rule',
+      no_gifts: 'No free product added yet. Search above and click Add.',
+      no_tiers: 'No rule yet.',
+      results_empty: 'No product found.',
+            gift_only_badge: 'Gift only',
+      v_name: 'Please enter the offer name.',
+      v_apply: 'Choose the products or categories, or turn on All Products.',
+      v_tier: 'Add at least one rule with buy and free quantity of 1 or more.',
+      v_dup: 'The same "Buy" quantity is used twice.',
+      v_gift: 'Add at least one free product.',
+      v_dates: 'End time must be after the start time.',
+      saved: 'Offer saved',
+      deleted: 'Offer deleted',
+      confirm_delete: 'Delete this offer? This cannot be undone.',
+      failed: 'Something went wrong. Please try again.',
+      s_count_all: 'any of the selected products', s_count_product: 'of the same product (any variant)', s_count_variant: 'of the exact same variant',
+      s_buy: function (b, c) { return 'Buy ' + b + ' ' + c; },
+      s_free: function (f) { return 'get ' + f + ' free'; },
+      s_choose: 'customer chooses', s_auto: 'added automatically',
+      s_repeat: 'repeats for every full set', s_empty: 'Fill in the rules to see a summary here.'
+    },
+    bn: {
+      list_help: 'নির্দিষ্ট product কিনলে customer ফ্রি item পাবে - এমন অফার এখান থেকে বানান। অফার চালু/বন্ধ করতে Active সুইচ ব্যবহার করুন।',
+      ph_desc: 'Customer কে দেখানো ছোট একটা লাইন (ঐচ্ছিক)',
+      help_basic: 'Priority: দুটো অফার একই item এ মিলে গেলে যেটার সংখ্যা বড় সেটা আগে চলবে। Start / End ফাঁকা রাখলে অফার সবসময় চলবে।',
+      help_apply: 'কোন product (বা পুরো category) কিনলে ফ্রি item পাবে সেটা বাছুন। Category বাছলে তার sub-category ও ধরা হবে।',
+      help_count: 'Customer একাধিক item কিনলে কী কী একসাথে গোনা হবে তা ঠিক করুন। প্রতিটি গ্রুপ আলাদাভাবে rule এর সাথে মেলানো হয়।',
+      count_all_d: 'বাছাই করা সব product একসাথে গোনা হবে। যেমন: Frame A ১টা + Frame B ১টা = ২টা কেনা।',
+      count_product_d: 'একই product এর আলাদা variant একসাথে গোনা হবে। যেমন: Frame A এর Black ১টা + White ১টা = ২টা কেনা।',
+      count_variant_d: 'শুধু হুবহু একই variant গোনা হবে। যেমন: Frame A এর Black ২টা = ২টা কেনা, কিন্তু Black ১টা + White ১টা = ০।',
+      help_rules: 'যেমন: ২টা কিনলে ১টা ফ্রি, ৩টা কিনলে ৩টা ফ্রি। Customer যে বড় rule টা ছুঁয়েছে সেটাই কাজ করবে।',
+      help_repeat: 'ON: "২টা কিনলে ১টা ফ্রি" rule এ ৪টা কিনলে ২টা ফ্রি। OFF: ১টাই ফ্রি।',
+      help_max: 'ঐচ্ছিক। এই অফার থেকে এক অর্ডারে সর্বোচ্চ কয়টা ফ্রি item পাওয়া যাবে।',
+      mode_choose_d: 'Checkout এ customer নিজে ফ্রি item বাছবে। Product এ variant (রং, সাইজ...) থাকলে variant ও customer ই বাছবে।',
+      mode_auto_d: 'ফ্রি item অর্ডারে নিজে থেকে যোগ হবে। চাইলে নির্দিষ্ট variant ঠিক করে দিন, ফাঁকা রাখলে stock এ থাকা প্রথম variant যাবে।',
+      help_gift_only: 'টিপ: কোনো product কখনও একা বিক্রি না করতে চাইলে product পেজে সেটাকে "Gift Only" করুন। তবুও এখানে ফ্রি হিসেবে দেওয়া যাবে।',
+      gift_choose_variants: function (n) { return 'Customer ' + n + 'টি variant থেকে বাছবে (stock শেষ হওয়া গুলো নিজে থেকে লুকানো থাকবে)।'; },
+      gift_no_variants: 'এই product এ কোনো variant নেই।',
+      auto_variant_any: 'Stock এ থাকা প্রথম variant',
+      tier_any: 'সব rule এ',
+      no_gifts: 'এখনো কোনো ফ্রি product যোগ হয়নি। উপরে সার্চ করে Add চাপুন।',
+      no_tiers: 'এখনো কোনো rule নেই।',
+      results_empty: 'কোনো product পাওয়া যায়নি।',
+      gift_only_badge: 'Gift only',
+      v_name: 'অফারের নাম দিন।',
+      v_apply: 'Product বা category বাছুন, অথবা All Products অন করুন।',
+      v_tier: 'কমপক্ষে একটি rule দিন, যেখানে কেনা ও ফ্রি দুটোই ১ বা তার বেশি।',
+      v_dup: 'একই "Buy" সংখ্যা দুইবার দেওয়া হয়েছে।',
+      v_gift: 'কমপক্ষে একটি ফ্রি product যোগ করুন।',
+      v_dates: 'End সময় অবশ্যই Start এর পরে হতে হবে।',
+      saved: 'অফার সেভ হয়েছে',
+      deleted: 'অফার মুছে ফেলা হয়েছে',
+      confirm_delete: 'এই অফার মুছে ফেলবেন? এটা আর ফেরানো যাবে না।',
+      failed: 'কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।',
+      s_count_all: 'বাছাই করা যেকোনো product', s_count_product: 'একই product এর (যেকোনো variant)', s_count_variant: 'হুবহু একই variant',
+      s_buy: function (b, c) { return c + ' ' + b + 'টি কিনলে'; },
+      s_free: function (f) { return f + 'টি ফ্রি'; },
+      s_choose: 'customer বাছবে', s_auto: 'নিজে থেকে যোগ হবে',
+      s_repeat: 'প্রতি পূর্ণ সেটে আবার পাবে', s_empty: 'Rule গুলো দিলে এখানে সারাংশ দেখা যাবে।'
+    }
+  };
+  var lang = 'bn';
+  try { lang = localStorage.getItem('ofx_lang') || 'bn'; } catch (e) {}
+  function t(k) {
+    var v = (I18N[lang] && I18N[lang][k] !== undefined) ? I18N[lang][k] : I18N.en[k];
+    if (typeof v === 'function') return v.apply(null, Array.prototype.slice.call(arguments, 1));
+    return v === undefined ? k : v;
+  }
+  function applyLang(root) {
+    root = root || document;
+    root.querySelectorAll('[data-i18n]').forEach(function (el) { el.textContent = t(el.getAttribute('data-i18n')); });
+    root.querySelectorAll('[data-i18n-ph]').forEach(function (el) { el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph'))); });
+    document.querySelectorAll('.ofx-lang-btn').forEach(function (b) {
+      b.classList.toggle('btn-primary', b.getAttribute('data-lang') === lang);
+      b.classList.toggle('btn-filter', b.getAttribute('data-lang') !== lang);
+    });
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('.ofx-lang-btn');
+    if (!b) return;
+    lang = b.getAttribute('data-lang');
+    try { localStorage.setItem('ofx_lang', lang); } catch (err) {}
+    applyLang();
+    if (isOpen()) renderAll();
+  });
+  document.body.addEventListener('htmx:afterSwap', function (e) { applyLang(e.target); });
+
+  /* ------------------------------------------------------------------ helpers */
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
+  function thumb(p) { return p && p.image ? '<img src="' + esc(p.image) + '" class="ofx-thumb" alt="">' : '<span class="ofx-thumb ofx-thumb-empty"></span>'; }
+  function isOpen() { return $('offerModal') && $('offerModal').classList.contains('show'); }
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CFG.dataset.csrf },
+      body: body === undefined ? '{}' : JSON.stringify(body)
+    }).then(function (r) { return r.json().catch(function () { return { status: false, message: t('failed') }; }); });
+  }
+  function toast(msg, ok) {
+    var d = document.createElement('div');
+    d.className = 'alert ' + (ok === false ? 'alert-danger' : 'alert-success') + ' shadow ofx-toast';
+    d.textContent = msg;
+    document.body.appendChild(d);
+    setTimeout(function () { d.remove(); }, 2600);
+  }
+  function refresh() {
+    if (window.htmx) {
+      htmx.ajax('GET', location.pathname + location.search, { target: '#offer-table-wrapper', swap: 'innerHTML' });
+    } else { location.reload(); }
+  }
+
+  /* ------------------------------------------------------------------ state */
+  var S;
+  function blank() {
+    return { id: null, name: '', description: '', is_active: true, start_at: '', end_at: '', priority: 0,
+      count_mode: 'all', gift_mode: 'choose', require_selection: true, repeat: false, max_free: '',
+      apply_to_all: false, products: [], categories: [], tiers: [{ buy_qty: 2, free_qty: 1 }], gifts: [] };
+  }
+
+  /* ------------------------------------------------------------------ renderers */
+  /* product picker: a grid of pictures, click one to select / unselect it */
+  function gridHtml(term, selected, act) {
+    term = (term || '').trim().toLowerCase();
+    var hits = CATALOG.filter(function (p) { return !term || p.name.toLowerCase().indexOf(term) !== -1; });
+    if (!hits.length) return '<div class="pk-empty">' + esc(t('results_empty')) + '</div>';
+    return hits.map(function (p) {
+      var img = p.image ? '<img src="' + esc(p.image) + '" alt="" loading="lazy">' : '<div class="noimg"></div>';
+      return '<div class="pk-item ' + (selected.indexOf(p.id) !== -1 ? 'on' : '') + '" data-act="' + act + '" data-id="' + p.id + '" title="' + esc(p.name) + '">' +
+        (p.gift_only ? '<span class="go">' + esc(t('gift_only_badge')) + '</span>' : '') + img + '<div class="nm">' + esc(p.name) + '</div></div>';
+    }).join('');
+  }
+
+  function renderProducts() {
+    $('p-grid').innerHTML = gridHtml($('p-search').value, S.products, 'toggle-prod');
+    $('p-count').textContent = S.products.length ? S.products.length + ' selected' : '';
+    $('c-list').innerHTML = CATS.map(function (c) {
+      return '<span class="ofx-chip ' + (S.categories.indexOf(c.id) !== -1 ? 'on' : '') + '" data-act="toggle-cat" data-id="' + c.id + '">' + esc(c.name) + '</span>';
+    }).join('');
+    $('ofx-apply-pickers').style.display = S.apply_to_all ? 'none' : '';
+  }
+
+  function renderTiers() {
+    var box = $('t-rows');
+    if (!S.tiers.length) { box.innerHTML = '<div class="ofx-empty">' + esc(t('no_tiers')) + '</div>'; return; }
+    box.innerHTML = S.tiers.map(function (r, i) {
+      return '<div class="ofx-tier"><span>Buy</span>' +
+        '<input type="number" min="1" class="form-control" data-act="tier" data-i="' + i + '" data-k="buy_qty" value="' + esc(r.buy_qty) + '">' +
+        '<span>&rarr; Free</span>' +
+        '<input type="number" min="1" class="form-control" data-act="tier" data-i="' + i + '" data-k="free_qty" value="' + esc(r.free_qty) + '">' +
+        '<button type="button" class="btn btn-sm btn-danger ms-auto" title="Remove" aria-label="Remove rule" data-act="rm-tier" data-i="' + i + '"><i class="bi bi-trash"></i></button></div>';
+    }).join('');
+  }
+
+  function renderGifts() {
+    $('ofx-require-wrap').style.display = S.gift_mode === 'choose' ? '' : 'none';
+    var ids = S.gifts.map(function (g) { return g.product; });
+    $('g-grid').innerHTML = gridHtml($('g-search').value, ids, 'toggle-gift');
+    $('g-count').textContent = ids.length ? ids.length + ' selected' : '';
+    var box = $('g-rows');
+    if (!S.gifts.length) { box.innerHTML = '<div class="ofx-empty">' + esc(t('no_gifts')) + '</div>'; return; }
+    box.innerHTML = S.gifts.map(function (g, i) {
+      var p = byId[g.product] || { name: '#' + g.product, variants: [], image: '' };
+      var extra = '';
+      if (S.gift_mode === 'auto') {
+        var vopts = '<option value="">' + esc(t('auto_variant_any')) + '</option>' + p.variants.map(function (v) {
+          return '<option value="' + v.id + '"' + (g.variant === v.id ? ' selected' : '') + '>' + esc(v.label) + (v.stock === 0 ? ' (out of stock)' : '') + '</option>';
+        }).join('');
+        var topts = '<option value="">' + esc(t('tier_any')) + '</option>' + S.tiers.filter(function (x) { return x.buy_qty; }).map(function (x) {
+          return '<option value="' + x.buy_qty + '"' + (String(g.tier) === String(x.buy_qty) ? ' selected' : '') + '>Buy ' + x.buy_qty + '</option>';
+        }).join('');
+        extra = '<div class="ofx-gift-fields">' +
+          (p.variants.length ? '<div><label class="form-label">Variant</label><select class="form-select" data-act="gift" data-i="' + i + '" data-k="variant">' + vopts + '</select></div>' : '') +
+          '<div><label class="form-label">Quantity</label><input type="number" min="1" class="form-control" data-act="gift" data-i="' + i + '" data-k="quantity" value="' + esc(g.quantity || 1) + '"></div>' +
+          '<div><label class="form-label">Given On</label><select class="form-select" data-act="gift" data-i="' + i + '" data-k="tier">' + topts + '</select></div></div>';
+      } else {
+        extra = '<div class="ofx-help mb-0">' + esc(p.variants.length ? t('gift_choose_variants', p.variants.length) : t('gift_no_variants')) + '</div>';
+      }
+      return '<div class="ofx-gift"><div class="d-flex align-items-center gap-2 mb-2">' +
+        (p.image ? '<img class="thumb" src="' + esc(p.image) + '" alt="">' : '<span class="thumb"></span>') +
+        '<div class="flex-grow-1"><div class="fw-semibold">' + esc(p.name) + '</div>' +
+        '<div class="ofx-sub">' + (p.variants.length ? p.variants.map(function (v) { return esc(v.label); }).join(', ') : '') + '</div></div>' +
+        (S.gift_mode === 'auto' ? '<button type="button" class="btn btn-sm btn-primary" title="Add another line (other variant / rule)" aria-label="Duplicate" data-act="dup-gift" data-i="' + i + '"><i class="bi bi-plus-lg"></i></button>' : '') +
+        '<button type="button" class="btn btn-sm btn-danger ms-1" title="Remove" aria-label="Remove" data-act="rm-gift" data-i="' + i + '"><i class="bi bi-trash"></i></button></div>' + extra + '</div>';
+    }).join('');
+  }
+
+  function renderSummary() {
+    var tiers = S.tiers.filter(function (x) { return x.buy_qty && x.free_qty; });
+    if (!tiers.length) { $('ofx-summary').textContent = t('s_empty'); return; }
+    var c = t('s_count_' + S.count_mode);
+    var parts = tiers.map(function (x) {
+      return lang === 'bn' ? (t('s_buy', x.buy_qty, c) + ' ' + t('s_free', x.free_qty)) : (t('s_buy', x.buy_qty, c) + ' and ' + t('s_free', x.free_qty));
+    });
+    var txt = parts.join('; ') + ' (' + t(S.gift_mode === 'auto' ? 's_auto' : 's_choose') + (S.repeat ? ', ' + t('s_repeat') : '') + ')';
+    $('ofx-summary').textContent = txt;
+  }
+
+  function renderCards() {
+    document.querySelectorAll('#ofx-count-cards .ofx-card').forEach(function (el) {
+      var on = el.getAttribute('data-count') === S.count_mode;
+      el.classList.toggle('on', on); el.querySelector('input').checked = on;
+    });
+    document.querySelectorAll('#ofx-mode-cards .ofx-card').forEach(function (el) {
+      var on = el.getAttribute('data-mode') === S.gift_mode;
+      el.classList.toggle('on', on); el.querySelector('input').checked = on;
+    });
+  }
+
+  function renderAll() { applyLang($('offerModal')); renderCards(); renderProducts(); renderTiers(); renderGifts(); renderSummary(); }
+
+  function fillForm() {
+    $('f-name').value = S.name; $('f-desc').value = S.description; $('f-start').value = S.start_at; $('f-end').value = S.end_at;
+    $('f-priority').value = S.priority; $('f-active').checked = !!S.is_active; $('f-all').checked = !!S.apply_to_all;
+    $('f-repeat').checked = !!S.repeat; $('f-max').value = S.max_free || ''; $('f-require').checked = !!S.require_selection;
+    $('p-search').value = ''; $('g-search').value = '';
+    $('ofx-error').classList.add('d-none');
+    renderAll();
+  }
+
+  /* ------------------------------------------------------------------ events */
+  function readForm() {
+    S.name = $('f-name').value.trim(); S.description = $('f-desc').value.trim();
+    S.start_at = $('f-start').value; S.end_at = $('f-end').value; S.priority = parseInt($('f-priority').value || '0', 10) || 0;
+    S.is_active = $('f-active').checked; S.apply_to_all = $('f-all').checked; S.repeat = $('f-repeat').checked;
+    S.max_free = $('f-max').value; S.require_selection = $('f-require').checked;
+  }
+
+  document.addEventListener('input', function (e) {
+    if (!e.target.closest || !e.target.closest('#offerModal')) return;
+    var el = e.target, act = el.getAttribute('data-act');
+    if (el.id === 'p-search') { renderProducts(); return; }
+    if (el.id === 'g-search') { renderGifts(); return; }
+    if (act === 'tier') { S.tiers[+el.dataset.i][el.dataset.k] = parseInt(el.value, 10) || ''; renderSummary(); return; }
+    if (act === 'gift' && el.dataset.k === 'quantity') { S.gifts[+el.dataset.i].quantity = parseInt(el.value, 10) || 1; return; }
+    readForm(); renderSummary();
+  });
+
+  document.addEventListener('change', function (e) {
+    if (!e.target.closest || !e.target.closest('#offerModal')) return;
+    var el = e.target, act = el.getAttribute('data-act');
+    if (act === 'tier') { renderGifts(); renderSummary(); return; }
+    if (act === 'gift') {
+      var g = S.gifts[+el.dataset.i], k = el.dataset.k;
+      g[k] = (k === 'variant') ? (el.value ? parseInt(el.value, 10) : null) : el.value;
+      return;
+    }
+    if (el.name === 'f-count') { S.count_mode = el.value; renderCards(); renderSummary(); return; }
+    if (el.name === 'f-mode') { S.gift_mode = el.value; renderCards(); renderGifts(); renderSummary(); return; }
+    readForm();
+    if (el.id === 'f-all') renderProducts();
+    renderSummary();
+  });
+
+  function toggle(list, id) { var ix = list.indexOf(id); if (ix === -1) list.push(id); else list.splice(ix, 1); }
+
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest ? e.target.closest('#offerModal [data-act], #t-add, #ofx-save') : null;
+    if (!el) return;
+    var act = el.getAttribute('data-act'), id = el.dataset.id ? +el.dataset.id : null, i = el.dataset.i ? +el.dataset.i : null;
+    if (el.id === 't-add') { S.tiers.push({ buy_qty: '', free_qty: 1 }); renderTiers(); renderGifts(); return; }
+    if (el.id === 'ofx-save') { save(); return; }
+    if (act === 'toggle-prod') { toggle(S.products, id); renderProducts(); }
+    else if (act === 'toggle-cat') { toggle(S.categories, id); renderProducts(); }
+    else if (act === 'prod-all') {
+      var term = ($('p-search').value || '').trim().toLowerCase();
+      CATALOG.forEach(function (p) { if ((!term || p.name.toLowerCase().indexOf(term) !== -1) && S.products.indexOf(p.id) === -1) S.products.push(p.id); });
+      renderProducts();
+    }
+    else if (act === 'prod-none') { S.products = []; renderProducts(); }
+    else if (act === 'rm-tier') { S.tiers.splice(i, 1); renderTiers(); renderGifts(); renderSummary(); }
+    else if (act === 'toggle-gift') {
+      if (S.gifts.some(function (g) { return g.product === id; })) S.gifts = S.gifts.filter(function (g) { return g.product !== id; });
+      else S.gifts.push({ product: id, variant: null, tier: '', quantity: 1 });
+      renderGifts();
+    }
+    else if (act === 'dup-gift') { var c = S.gifts[i]; S.gifts.splice(i + 1, 0, { product: c.product, variant: null, tier: c.tier, quantity: c.quantity }); renderGifts(); }
+    else if (act === 'rm-gift') { S.gifts.splice(i, 1); renderGifts(); }
+  });
+
+  /* ------------------------------------------------------------------ save */
+  function validate() {
+    readForm();
+    if (!S.name) return t('v_name');
+    if (!S.apply_to_all && !S.products.length && !S.categories.length) return t('v_apply');
+    var seen = {};
+    if (!S.tiers.length) return t('v_tier');
+    for (var k = 0; k < S.tiers.length; k++) {
+      var r = S.tiers[k];
+      if (!(r.buy_qty >= 1) || !(r.free_qty >= 1)) return t('v_tier');
+      if (seen[r.buy_qty]) return t('v_dup');
+      seen[r.buy_qty] = 1;
+    }
+    if (!S.gifts.length) return t('v_gift');
+    if (S.start_at && S.end_at && S.end_at <= S.start_at) return t('v_dates');
+    return '';
+  }
+  function showError(msg) { var b = $('ofx-error'); b.textContent = msg; b.classList.remove('d-none'); b.scrollIntoView({ block: 'nearest' }); }
+
+  function save() {
+    var err = validate();
+    if (err) { showError(err); return; }
+    var btn = $('ofx-save'); btn.disabled = true;
+    post(CFG.dataset.saveUrl, {
+      id: S.id, name: S.name, description: S.description, is_active: S.is_active, start_at: S.start_at, end_at: S.end_at,
+      priority: S.priority, count_mode: S.count_mode, gift_mode: S.gift_mode, require_selection: S.require_selection,
+      repeat: S.repeat, max_free_per_order: S.max_free, apply_to_all: S.apply_to_all,
+      products: S.products, categories: S.categories,
+      tiers: S.tiers.map(function (r) { return { buy_qty: r.buy_qty, free_qty: r.free_qty }; }),
+      gifts: S.gifts.map(function (g) { return { product: g.product, variant: S.gift_mode === 'auto' ? g.variant : null, tier: S.gift_mode === 'auto' ? g.tier : '', quantity: g.quantity || 1 }; })
+    }).then(function (res) {
+      btn.disabled = false;
+      if (!res.status) { showError(res.message || t('failed')); return; }
+      bootstrap.Modal.getOrCreateInstance($('offerModal')).hide();
+      toast(t('saved')); refresh();
+    }).catch(function () { btn.disabled = false; showError(t('failed')); });
+  }
+
+  /* ------------------------------------------------------------------ public */
+  function open(title) {
+    $('ofx-title').textContent = title;
+    fillForm();
+    bootstrap.Modal.getOrCreateInstance($('offerModal')).show();
+  }
+  window.OfferUI = {
+    _bound: true,
+    create: function () { S = blank(); open('Create Offer'); },
+    edit: function (id) {
+      fetch(CFG.dataset.dataUrl.replace('/0/', '/' + id + '/'), { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (!res.status) { toast(t('failed'), false); return; }
+          var o = res.offer;
+          S = { id: o.id, name: o.name, description: o.description, is_active: o.is_active, start_at: o.start_at, end_at: o.end_at,
+            priority: o.priority, count_mode: o.count_mode, gift_mode: o.gift_mode, require_selection: o.require_selection,
+            repeat: o.repeat, max_free: o.max_free_per_order, apply_to_all: o.apply_to_all,
+            products: o.products, categories: o.categories,
+            tiers: o.tiers.map(function (x) { return { buy_qty: x.buy_qty, free_qty: x.free_qty }; }),
+            gifts: o.gifts.map(function (g) { return { product: g.product, variant: g.variant || null, tier: g.tier || '', quantity: g.quantity }; }) };
+          open('Edit Offer');
+        }).catch(function () { toast(t('failed'), false); });
+    },
+    toggle: function (id) {
+      post(CFG.dataset.toggleUrl.replace('/0/', '/' + id + '/')).then(function () { refresh(); });
+    },
+    remove: function (id) {
+      if (!confirm(t('confirm_delete'))) return;
+      post(CFG.dataset.deleteUrl.replace('/0/', '/' + id + '/')).then(function (res) {
+        if (res.status) { toast(t('deleted')); refresh(); } else { toast(res.message || t('failed'), false); }
+      });
+    }
+  };
+
+  applyLang();
+})();
+</script>
+{% endverbatim %}

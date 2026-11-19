@@ -559,7 +559,7 @@ class ProductDetailAPIView(APIView):
                 "variants",
                 "variants__images",
                 "features",
-            ).filter(slug=slug, status=CATEGORY_PRODUCT_STATUS.ACTIVE).first()
+            ).filter(slug=slug, status=CATEGORY_PRODUCT_STATUS.ACTIVE, is_gift_only=False).first()
 
             if not p:
                 return Response({"status": False}, status=404)
@@ -689,6 +689,8 @@ class AddToCartAPIView(APIView):
                 ).first()
                 if not product:
                     return Response({"status": False, "message": "Product not available"}, status=404)
+                if product.is_gift_only:
+                    return Response({"status": False, "message": "This item is a gift and cannot be bought on its own"}, status=400)
                 is_customized = resolve_is_customized(product, request.data.get("is_customized"))
                 customization_note = clean_customization_note(product, request.data.get("customization_note"), is_customized)
                 variant = None
@@ -866,7 +868,7 @@ class GuestCartRefreshAPIView(APIView):
             return Response({"status": True, "data": []})
 
         products = Product.objects.filter(
-            id__in=ids, status=CATEGORY_PRODUCT_STATUS.ACTIVE
+            id__in=ids, status=CATEGORY_PRODUCT_STATUS.ACTIVE, is_gift_only=False
         ).prefetch_related("variants", "variants__images")
 
         data = []
@@ -930,7 +932,7 @@ class MergeGuestCartWishlistAPIView(APIView):
                 quantity = int(item.get("quantity", 1))
 
                 try:
-                    product = Product.objects.get(id=product_id, status=CATEGORY_PRODUCT_STATUS.ACTIVE)
+                    product = Product.objects.get(id=product_id, status=CATEGORY_PRODUCT_STATUS.ACTIVE, is_gift_only=False)
                 except Product.DoesNotExist:
                     skipped_cart += 1
                     continue

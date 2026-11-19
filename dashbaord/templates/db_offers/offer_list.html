@@ -1,0 +1,15 @@
+{% extends 'dashboard.html' %}
+{% load static %}
+
+{% block page_title %}
+<title>Offers | {{ brand_name }}</title>
+{% endblock page_title %}
+
+{% block dashboard_body_content %}
+<div class="container-fluid">
+    <div id="offer-table-wrapper">
+        {% include './partial/partial_offer_list.html' %}
+    </div>
+</div>
+{% include './partial/offer_editor.html' %}
+{% endblock dashboard_body_content %}

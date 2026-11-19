@@ -1,0 +1,149 @@
+<button class="btn btn-filter px-4" data-bs-toggle="modal" data-bs-target="#orderOtpModal" type="button"
+    title="Customer order dewar age OTP verify korte hobe kina">
+    <i class="bi bi-shield-lock me-2"></i>Order OTP
+    <span class="badge ms-1 bg-secondary" id="orderOtpBadge">...</span>
+</button>
+
+<div class="modal fade" id="orderOtpModal" tabindex="-1" aria-labelledby="orderOtpModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <h5 class="modal-title fw-semibold mb-0" id="orderOtpModalLabel">Order OTP</h5>
+                    <p class="small mb-0 text">ON thakle customer ke order dewar age OTP verify korte hobe.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body">
+                <div class="d-flex align-items-center justify-content-between border rounded-3 p-3 mb-3">
+                    <div>
+                        <div class="fw-semibold">All</div>
+                        <div class="small text">E-com + Landing + External ek sathe</div>
+                    </div>
+                    <div class="form-check form-switch m-0 p-0">
+                        <input class="form-check-input m-0" type="checkbox" role="switch" id="otpAll" data-key="otp_all"
+                            style="width:2.6em;height:1.4em;">
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between border rounded-3 p-3 mb-2">
+                    <div>
+                        <div class="fw-semibold">E-com</div>
+                        <div class="small text">Main site checkout</div>
+                    </div>
+                    <div class="form-check form-switch m-0 p-0">
+                        <input class="form-check-input m-0 otp-sub" type="checkbox" role="switch" id="otpEcom" data-key="otp_ecom"
+                            style="width:2.6em;height:1.4em;">
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between border rounded-3 p-3 mb-2">
+                    <div>
+                        <div class="fw-semibold">E-com Landing</div>
+                        <div class="small text">Site er vitor landing (e-com/lan/...)</div>
+                    </div>
+                    <div class="form-check form-switch m-0 p-0">
+                        <input class="form-check-input m-0 otp-sub" type="checkbox" role="switch" id="otpLanding" data-key="otp_landing"
+                            style="width:2.6em;height:1.4em;">
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between border rounded-3 p-3 mb-3">
+                    <div>
+                        <div class="fw-semibold">External Single Landing</div>
+                        <div class="small text">Onno domain er landing</div>
+                    </div>
+                    <div class="form-check form-switch m-0 p-0">
+                        <input class="form-check-input m-0 otp-sub" type="checkbox" role="switch" id="otpExternal" data-key="otp_external"
+                            style="width:2.6em;height:1.4em;">
+                    </div>
+                </div>
+
+                <a class="small text-decoration-none" data-bs-toggle="collapse" href="#otpHostsBox" role="button">
+                    <i class="bi bi-gear me-1"></i>E-com frontend domain
+                </a>
+                <div class="collapse mt-2" id="otpHostsBox">
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control" id="otpHostsInput" placeholder="pencilwoodbd.com,www.pencilwoodbd.com">
+                        <button class="btn btn-grd-info" type="button" id="otpHostsSaveBtn">Save</button>
+                    </div>
+                    <div class="small text mt-1">Shudhu apnar e-com site er domain (comma diye, www thakle alada). Ei domain theke asha landing = "E-com Landing", baki shob domain "External".</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        if (window.__orderOtpBound) return;
+        window.__orderOtpBound = true;
+
+        var URL_ = "{% url 'order_otp_settings' %}";
+        var modalEl = document.getElementById("orderOtpModal");
+        var allEl = document.getElementById("otpAll");
+        var subs = modalEl.querySelectorAll(".otp-sub");
+
+        function cookie(name) {
+            var m = document.cookie.split(";").map(function (c) { return c.trim(); }).find(function (c) { return c.indexOf(name + "=") === 0; });
+            return m ? decodeURIComponent(m.substring(name.length + 1)) : null;
+        }
+        function notify(type, msg) {
+            if (window.Lobibox) {
+                Lobibox.notify(type, { title: type === "success" ? "Success" : "Error", size: "mini", rounded: true, delayIndicator: false,
+                    position: "top right", icon: type === "success" ? "bi bi-check2-circle" : "bi bi-x-circle", msg: msg });
+            } else { alert(msg); }
+        }
+        function apply(d) {
+            allEl.checked = !!d.otp_all;
+            document.getElementById("otpEcom").checked = !!d.otp_ecom;
+            document.getElementById("otpLanding").checked = !!d.otp_landing;
+            document.getElementById("otpExternal").checked = !!d.otp_external;
+            document.getElementById("otpHostsInput").value = d.internal_hosts || "";
+            subs.forEach(function (c) { c.disabled = allEl.checked; });
+            var n = [d.otp_ecom, d.otp_landing, d.otp_external].filter(Boolean).length;
+            var b = document.getElementById("orderOtpBadge");
+            b.textContent = d.otp_all ? "ALL" : (n ? n + "/3" : "OFF");
+            b.className = "badge ms-1 " + (n ? "bg-success" : "bg-secondary");
+        }
+        function load() {
+            fetch(URL_, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+                .then(function (r) { return r.json(); })
+                .then(function (d) { if (d.success) apply(d); })
+                .catch(function () {});
+        }
+        function save(fd, revertEl) {
+            var csrf = cookie("csrftoken");
+            if (!csrf) { notify("error", "Session expired. Please refresh the page."); return; }
+            fetch(URL_, { method: "POST", body: fd, headers: { "X-CSRFToken": csrf, "X-Requested-With": "XMLHttpRequest" } })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (d.success) { apply(d); notify("success", d.message); }
+                    else { notify("error", d.message || "Failed"); load(); }
+                })
+                .catch(function (e) { notify("error", e.message); load(); });
+        }
+
+        modalEl.addEventListener("change", function (e) {
+            var key = e.target.getAttribute("data-key");
+            if (!key) return;
+            var fd = new FormData();
+            fd.append(key, e.target.checked ? "1" : "0");
+            if (key === "otp_all" && e.target.checked) {
+                subs.forEach(function (c) { c.checked = true; c.disabled = true; });
+            } else if (key === "otp_all") {
+                subs.forEach(function (c) { c.disabled = false; });
+            }
+            save(fd);
+        });
+        document.getElementById("otpHostsSaveBtn").addEventListener("click", function () {
+            var fd = new FormData();
+            fd.append("internal_hosts", document.getElementById("otpHostsInput").value);
+            save(fd);
+        });
+
+        modalEl.addEventListener("show.bs.modal", load);
+        load();
+    })();
+</script>

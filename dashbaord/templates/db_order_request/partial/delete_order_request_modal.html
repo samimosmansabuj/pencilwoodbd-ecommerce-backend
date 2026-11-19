@@ -1,0 +1,44 @@
+<div class="modal fade" id="deleteOrderRequestModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" id="deleteOrderRequestForm" data-url="{% url 'order_request_delete' 0 %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" id="deleteOrderRequestNext" value="">
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger">Delete Order Request</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">
+                        Delete <strong id="deleteOrderRequestLabel">this request</strong>?<br>
+                        <strong class="text-danger">This action cannot be undone.</strong>
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Yes, Delete</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Delegated, so it keeps working after HTMX swaps / filters.
+    (function () {
+        if (window.__deleteOrderRequestBound) return;
+        window.__deleteOrderRequestBound = true;
+        document.addEventListener("click", function (e) {
+            const btn = e.target.closest(".delete-order-request-btn");
+            if (!btn) return;
+            const form = document.getElementById("deleteOrderRequestForm");
+            if (!form) return;
+            form.action = form.getAttribute("data-url").replace("/0/", "/" + btn.getAttribute("data-id") + "/");
+            // on the list page: come back to the same page + filters after deleting (not on the detail page)
+            const next = document.getElementById("deleteOrderRequestNext");
+            if (next) next.value = /^\/order-request\/?$/.test(location.pathname) ? location.pathname + location.search : "";
+            const label = document.getElementById("deleteOrderRequestLabel");
+            if (label) label.textContent = "request #" + btn.getAttribute("data-id");
+        });
+    })();
+</script>

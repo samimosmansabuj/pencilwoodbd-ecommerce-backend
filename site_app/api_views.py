@@ -22,6 +22,7 @@ from pencilwoodbd.choices import (
 from order.models import Order, OrderItem, OrderAttempt, OrderActivityLog
 from authentication.models import Customer
 from site_app.models import OTPVerification
+from site_app.order_otp import order_otp_gate
 from order.utils import OrderConfirmatinoEmailSend, safe_order_bill
 from authentication.utils import normalize_bd_phone, get_client_identity, check_is_blocked, record_order_track, get_or_verify_otp_override, get_blocked_order_policy
 from django.views.decorators.csrf import csrf_exempt
@@ -213,6 +214,10 @@ class LandingPageOrderAPI(APIView):
                             {"status": False, "otp_required": True, "phone": phone, "message": "Please Verify Your OTP First."},
                             status=status.HTTP_403_FORBIDDEN,
                         )
+
+            _otp_resp = order_otp_gate(request, phone, "auto", "status")
+            if _otp_resp is not None:
+                return _otp_resp
 
             with transaction.atomic():
                 print("data: ", data)
@@ -506,6 +511,10 @@ class OrderCreateAPIView(APIView):
                             {"success": False, "otp_required": True, "phone": phone_preview, "message": "Please Verify Your OTP First."},
                             status=status.HTTP_403_FORBIDDEN,
                         )
+
+            _otp_resp = order_otp_gate(request, phone_preview, "auto", "success")
+            if _otp_resp is not None:
+                return _otp_resp
 
             with transaction.atomic():
 
