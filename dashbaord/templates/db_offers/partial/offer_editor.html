@@ -1,0 +1,14 @@
+{# Everything the Create / Edit modal needs. The table itself lives in partial_offer_list.html #}
+{% include './offer_style.html' %}
+
+<span id="ofx-config" class="d-none"
+      data-csrf="{{ csrf_token }}"
+      data-save-url="{% url 'offer_save' %}"
+      data-data-url="{% url 'offer_data' 0 %}"
+      data-toggle-url="{% url 'offer_toggle' 0 %}"
+      data-delete-url="{% url 'offer_delete' 0 %}"></span>
+{{ catalog|json_script:"ofx-catalog" }}
+{{ categories_data|json_script:"ofx-categories" }}
+
+{% include './offer_form_modal.html' %}
+{% include './offer_form_script.html' %}

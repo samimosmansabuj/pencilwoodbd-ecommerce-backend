@@ -46,9 +46,9 @@ class OrderConfirmatinoEmailSend:
         for item in self.order.order_items.all():
             order_items_html += f"""
                 <tr>
-                    <td style='padding:10px;'>{item.product.name}</td>
+                    <td style='padding:10px;'>{item.product.name}{" 🎁" if item.is_gift else ""}</td>
                     <td style='padding:10px;'>{item.quantity}</td>
-                    <td style='padding:10px;'>৳{item.discount_price}</td>
+                    <td style='padding:10px;'>{"FREE" if item.is_gift else "৳" + str(item.discount_price)}</td>
                 </tr>
             """
         return order_items_html
@@ -267,6 +267,7 @@ def build_order_bill(order, request=None):
             "unit_price": _bill_money(unit),
             "line_total": _bill_money(line_total),
             "is_free": line_total == 0,
+            "is_gift": item.is_gift,
         })
 
     discount = Decimal(str(order.coupon_discount or 0)) + Decimal(str(order.extra_discount or 0))

@@ -107,7 +107,7 @@ def _product_wise_cancel_count(orders, mode):
 
     if mode == "consecutive":
         for o in orders:
-            product_ids = list(o.order_items.values_list("product_id", flat=True))
+            product_ids = list(o.order_items.exclude(snapshot__is_gift=True).values_list("product_id", flat=True))
             if o.status == STATUS.CANCELLED:
                 for pid in product_ids:
                     if pid:
@@ -119,7 +119,7 @@ def _product_wise_cancel_count(orders, mode):
     else:
         cancelled_orders = orders.filter(status=STATUS.CANCELLED)
         for o in cancelled_orders:
-            product_ids = o.order_items.values_list("product_id", flat=True)
+            product_ids = o.order_items.exclude(snapshot__is_gift=True).values_list("product_id", flat=True)
             for pid in product_ids:
                 if pid:
                     counts[pid] += 1

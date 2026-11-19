@@ -211,7 +211,10 @@
                         </div>
 
                         <div class="col-md-2">
-                            <label class="form-label d-block">&nbsp;</label>
+                            <div class="form-check mb-1" title="Adds this product as a free gift (price ৳0)">
+                                <input class="form-check-input" type="checkbox" id="gift_checkbox">
+                                <label class="form-check-label small" for="gift_checkbox">🎁 Free gift</label>
+                            </div>
                             <button type="button" id="add_item_btn" class="btn btn-outline-primary w-100">
                                 <i class="bi bi-plus-lg"></i>
                             </button>
@@ -396,6 +399,7 @@
         const productSelect = document.getElementById("product_select");
         const qtyInput = document.getElementById("qty_input");
         const addItemBtn = document.getElementById("add_item_btn");
+        const giftCheckbox = document.getElementById("gift_checkbox");
         const itemsTbody = document.getElementById("items_tbody");
         const itemsEmptyRow = document.getElementById("items_empty_row");
         const itemsHiddenInput = document.getElementById("items_hidden_input");
@@ -563,6 +567,7 @@
                 return {
                     product_id: i.product_id,
                     item_id: i.item_id || null,
+                    is_gift: !!i.is_gift,
                     variant_id: i.variant_id || null,
                     quantity: i.quantity,
                     unit_price: i.unit_price,
@@ -587,6 +592,7 @@
             }
 
             const qty = parseInt(qtyInput.value) || 1;
+            const asGift = !!(giftCheckbox && giftCheckbox.checked);
 
             items.push({
                 product_id: productSelect.value,
@@ -594,11 +600,13 @@
                 variant_id: matchedVariant ? matchedVariant.id : null,
                 variant_label: currentVariantLabel(),
                 quantity: qty,
-                unit_price: currentUnitPrice()
+                is_gift: asGift,
+                unit_price: asGift ? 0 : currentUnitPrice()
             });
 
             renderItems();
             qtyInput.value = 1;
+            if (giftCheckbox) giftCheckbox.checked = false;
 
             variantAttrsWrapper.querySelectorAll(".variant-attr-select").forEach(function (s) { s.selectedIndex = 0; });
             currentAttrSelections = {};

@@ -1,0 +1,172 @@
+{# Create / Edit offer. Basic labels are always English; hints use data-i18n and follow the Bangla/English button. #}
+<div class="modal fade ofx-modal" id="offerModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="ofx-title">Create Offer</h5>
+        <div class="btn-group ms-auto me-3" role="group" aria-label="Language">
+          <button type="button" class="btn btn-sm btn-filter ofx-lang-btn" data-lang="bn">বাংলা</button>
+          <button type="button" class="btn btn-sm btn-filter ofx-lang-btn" data-lang="en">English</button>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <div id="ofx-error" class="alert alert-danger d-none" role="alert"></div>
+
+        {# 1. Basic #}
+        <div class="ofx-section">
+          <h6 class="ofx-h"><span class="num">1</span> Basic Details</h6>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="f-name">Offer Name</label>
+              <input type="text" id="f-name" class="form-control" maxlength="150">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="f-desc">Description</label>
+              <input type="text" id="f-desc" class="form-control" maxlength="255" data-i18n-ph="ph_desc">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="f-start">Start</label>
+              <input type="datetime-local" id="f-start" class="form-control">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="f-end">End</label>
+              <input type="datetime-local" id="f-end" class="form-control">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="f-priority">Priority</label>
+              <input type="number" id="f-priority" class="form-control" value="0">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" role="switch" id="f-active" checked>
+                <label class="form-check-label" for="f-active">Active</label>
+              </div>
+            </div>
+          </div>
+          <p class="ofx-help mt-2 mb-0" data-i18n="help_basic"></p>
+        </div>
+
+        {# 2. Applies to #}
+        <div class="ofx-section">
+          <h6 class="ofx-h"><span class="num">2</span> Applies To</h6>
+          <p class="ofx-help" data-i18n="help_apply"></p>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" role="switch" id="f-all">
+            <label class="form-check-label" for="f-all">All Products</label>
+          </div>
+          <div id="ofx-apply-pickers">
+            <label class="form-label">Products</label>
+            <div class="pk">
+              <div class="pk-top">
+                <input type="search" id="p-search" class="form-control" placeholder="Search Products" autocomplete="off">
+                <span class="pk-count" id="p-count"></span>
+                <button type="button" class="btn btn-sm btn-filter" data-act="prod-all">Select all shown</button>
+                <button type="button" class="btn btn-sm btn-filter" data-act="prod-none">Clear</button>
+              </div>
+              <div class="pk-grid" id="p-grid"></div>
+            </div>
+            <label class="form-label mt-3">Categories</label>
+            <div class="ofx-chips" id="c-list"></div>
+          </div>
+        </div>
+
+        {# 3. Counting rule - the variant part #}
+        <div class="ofx-section">
+          <h6 class="ofx-h"><span class="num">3</span> Counting Rule</h6>
+          <p class="ofx-help" data-i18n="help_count"></p>
+          <div class="row g-3" id="ofx-count-cards">
+            <div class="col-lg-4">
+              <label class="ofx-card" data-count="all">
+                <input type="radio" name="f-count" value="all">
+                <span class="ofx-card-title">Any Product</span>
+                <span class="ofx-card-text" data-i18n="count_all_d"></span>
+              </label>
+            </div>
+            <div class="col-lg-4">
+              <label class="ofx-card" data-count="product">
+                <input type="radio" name="f-count" value="product">
+                <span class="ofx-card-title">Same Product, Any Variant</span>
+                <span class="ofx-card-text" data-i18n="count_product_d"></span>
+              </label>
+            </div>
+            <div class="col-lg-4">
+              <label class="ofx-card" data-count="variant">
+                <input type="radio" name="f-count" value="variant">
+                <span class="ofx-card-title">Exact Same Variant</span>
+                <span class="ofx-card-text" data-i18n="count_variant_d"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {# 4. Rules #}
+        <div class="ofx-section">
+          <h6 class="ofx-h"><span class="num">4</span> Rules</h6>
+          <p class="ofx-help" data-i18n="help_rules"></p>
+          <div id="t-rows"></div>
+          <button type="button" class="btn btn-sm btn-filter mt-2" id="t-add"><i class="bi bi-plus-lg me-1"></i>Add Rule</button>
+          <div class="row g-3 mt-1">
+            <div class="col-md-6">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="f-repeat">
+                <label class="form-check-label" for="f-repeat">Repeat for every full set</label>
+              </div>
+              <p class="ofx-help mt-1 mb-0" data-i18n="help_repeat"></p>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="f-max">Max Free Items Per Order</label>
+              <input type="number" min="1" id="f-max" class="form-control" style="max-width:180px">
+              <p class="ofx-help mt-1 mb-0" data-i18n="help_max"></p>
+            </div>
+          </div>
+        </div>
+
+        {# 5. Free items #}
+        <div class="ofx-section">
+          <h6 class="ofx-h"><span class="num">5</span> Free Items</h6>
+          <div class="row g-3 mb-2" id="ofx-mode-cards">
+            <div class="col-lg-6">
+              <label class="ofx-card" data-mode="choose">
+                <input type="radio" name="f-mode" value="choose">
+                <span class="ofx-card-title">Customer Chooses</span>
+                <span class="ofx-card-text" data-i18n="mode_choose_d"></span>
+              </label>
+            </div>
+            <div class="col-lg-6">
+              <label class="ofx-card" data-mode="auto">
+                <input type="radio" name="f-mode" value="auto">
+                <span class="ofx-card-title">Added Automatically</span>
+                <span class="ofx-card-text" data-i18n="mode_auto_d"></span>
+              </label>
+            </div>
+          </div>
+          <div class="form-check mb-3" id="ofx-require-wrap">
+            <input class="form-check-input" type="checkbox" id="f-require" checked>
+            <label class="form-check-label" for="f-require">Customer must choose before ordering</label>
+          </div>
+
+          <label class="form-label">Free Products</label>
+          <div class="pk">
+            <div class="pk-top">
+              <input type="search" id="g-search" class="form-control" placeholder="Search Products" autocomplete="off">
+              <span class="pk-count" id="g-count"></span>
+            </div>
+            <div class="pk-grid" id="g-grid"></div>
+          </div>
+          <div id="g-rows" class="mt-3"></div>
+          <p class="ofx-help mt-2 mb-0" data-i18n="help_gift_only"></p>
+        </div>
+      </div>
+
+      <div class="modal-footer justify-content-between">
+        <div class="ofx-summary" id="ofx-summary"></div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-filter px-4" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary px-4" id="ofx-save">Save Offer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

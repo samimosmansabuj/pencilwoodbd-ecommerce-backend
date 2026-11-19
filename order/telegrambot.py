@@ -20,9 +20,12 @@ class TelegramBotService:
         for item in order.order_items.all():
             item_total = item.discount_total_price or 0
             variante = f" ({item.variant})" if item.variant else ""
-            items_lines.append(
-                f"• {item.product_name}{variante} × {item.quantity} — ৳{item_total:,.0f}"
-            )
+            if item.is_gift:
+                items_lines.append(f"🎁 {item.product_name}{variante} × {item.quantity} — FREE GIFT")
+            else:
+                items_lines.append(
+                    f"• {item.product_name}{variante} × {item.quantity} — ৳{item_total:,.0f}"
+                )
             if item.customization_unit_price:
                 items_lines.append(
                     f"   ✏️ Customized: Base ৳{item.base_unit_price:,.0f} + Custom ৳{item.customization_unit_price:,.0f}"

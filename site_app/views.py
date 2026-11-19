@@ -1358,3 +1358,41 @@ def google_fonts_list(request):
 
     cache.set(cache_key, {"source": source, "fonts": fonts}, 60 * 60 * 12)
     return JsonResponse({"status": True, "source": source, "fonts": fonts})
+
+# ----------------- ORDER OTP SETTINGS (modal JSON endpoint) -----------------
+class OrderOTPSettingsView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    @staticmethod
+    def _payload(cfg):
+        return {
+            "success": True,
+            "otp_all": cfg.otp_all, "otp_ecom": cfg.otp_ecom,
+            "otp_landing": cfg.otp_landing, "otp_external": cfg.otp_external,
+            "internal_hosts": cfg.internal_hosts,
+        }
+
+    def _allowed(self, request):
+        return request.user.user_type in [USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN]
+
+    def get(self, request):
+        from .models import OrderOTPSetting
+        if not self._allowed(request):
+            return JsonResponse({"success": False, "message": "Only admin can view this."}, status=403)
+        return JsonResponse(self._payload(OrderOTPSetting.get_solo()))
+
+    def post(self, request):
+        from .models import OrderOTPSetting
+        if not self._allowed(request):
+            return JsonResponse({"success": False, "message": "Only admin can change Order OTP."}, status=403)
+        cfg = OrderOTPSetting.get_solo()
+        truthy = lambda k: request.POST.get(k) in ("1", "true", "on")
+        for key in ("otp_all", "otp_ecom", "otp_landing", "otp_external"):
+            if key in request.POST:
+                setattr(cfg, key, truthy(key))
+        if "internal_hosts" in request.POST:
+            cfg.internal_hosts = request.POST.get("internal_hosts", "").strip()
+        cfg.save()
+        data = self._payload(cfg)
+        data["message"] = "Order OTP settings saved."
+        return JsonResponse(data)

@@ -1,11 +1,14 @@
 from http import HTTPStatus
 import json
 import json as pyjson
+import hashlib
 import logging
+import time
 import uuid
 from decimal import Decimal
 from datetime import timedelta
 
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse, HttpResponse
 from django.views import View
@@ -100,6 +103,69 @@ def _log_blocked_duplicate(request, reason, existing, token=None, label="order r
         token,
         request.META.get("HTTP_X_FORWARDED_FOR") or request.META.get("REMOTE_ADDR"),
         (request.META.get("HTTP_USER_AGENT") or "")[:120],
+    )
+
+
+def _client_ip(request):
+    xff = request.META.get("HTTP_X_FORWARDED_FOR")
+    return (xff.split(",")[0].strip() if xff else request.META.get("REMOTE_ADDR")) or "-"
+
+
+def _short_device(ua):
+    ua = ua or ""
+    if "Edg/" in ua: browser = "Edge"
+    elif "OPR/" in ua or "Opera" in ua: browser = "Opera"
+    elif "Firefox/" in ua: browser = "Firefox"
+    elif "Chrome/" in ua: browser = "Chrome"
+    elif "Safari/" in ua: browser = "Safari"
+    else: browser = "Unknown browser"
+    if "Windows" in ua: os_name = "Windows"
+    elif "Android" in ua: os_name = "Android"
+    elif "iPhone" in ua or "iPad" in ua: os_name = "iOS"
+    elif "Mac OS" in ua: os_name = "Mac"
+    elif "Linux" in ua: os_name = "Linux"
+    else: os_name = "Unknown OS"
+    return f"{browser} on {os_name}"
+
+
+def _fmt_seconds(sec):
+    if sec is None:
+        return "unknown"
+    if sec < 90:
+        return f"{sec}s"
+    if sec < 5400:
+        return f"{sec // 60}m"
+    return f"{sec // 3600}h {(sec % 3600) // 60}m"
+
+
+def build_request_audit(request, token=None):
+    ua = request.META.get("HTTP_USER_AGENT", "") or ""
+    open_secs = None
+    try:
+        open_secs = max(0, int(time.time()) - int(request.POST.get("form_opened_at")))
+    except (TypeError, ValueError):
+        pass
+    sid = request.session.session_key or ""
+    return {
+        "ip": _client_ip(request),
+        "device": _short_device(ua),
+        "user_agent": ua[:200],
+        "referer": (request.META.get("HTTP_REFERER") or "")[:200],
+        "origin": (request.META.get("HTTP_ORIGIN") or "")[:100],
+        "session": hashlib.sha1(sid.encode()).hexdigest()[:8] if sid else "",
+        "token": str(token) if token else "",
+        "form_open_seconds": open_secs,
+        "submitted_at": timezone.now().isoformat(),
+    }
+
+
+def audit_summary(audit):
+    from urllib.parse import urlparse
+    ref_path = urlparse(audit.get("referer") or "").path or "-"
+    token = (audit.get("token") or "")[:8] or "-"
+    return (
+        f"Saved from form #{token} (new page load) | form was open {_fmt_seconds(audit.get('form_open_seconds'))} | "
+        f"opened from {ref_path} | {audit.get('device')} | IP {audit.get('ip')}"
     )
 
 
@@ -322,7 +388,13 @@ class AddOrderView(LoginRequiredMixin, View):
                         default_discount_price = product.discount_price
 
                     manually_edited = bool(item.get("price_manually_edited"))
-                    if manually_edited and item.get("unit_price") is not None:
+                    is_new_gift = bool(item.get("is_gift"))
+                    if is_new_gift:
+                        manually_edited = False
+                        price = Decimal("0")
+                        discount_price = Decimal("0")
+                        final_price = Decimal("0")
+                    elif manually_edited and item.get("unit_price") is not None:
                         manual_unit_price = parse_decimal(item.get("unit_price"))
                         price = manual_unit_price
                         discount_price = manual_unit_price
@@ -342,7 +414,14 @@ class AddOrderView(LoginRequiredMixin, View):
                         price=price,
                         discount_price=discount_price,
                         price_manually_edited=manually_edited,
-                        customization_note=(str(item.get("customization_note") or "").strip()[:1000] or None),
+                        customization_note=(
+                            None if is_new_gift
+                            else (str(item.get("customization_note") or "").strip()[:1000] or None)
+                        ),
+                        snapshot=(
+                            {"is_gift": True, "gift_type": "FREE", "gift_value": 0, "source": "manual"}
+                            if is_new_gift else {}
+                        ),
                     )
 
                     grand_total += line_total
@@ -789,10 +868,18 @@ class OrderUpdateView(LoginRequiredMixin, View):
                         old_item = None
 
                     old_snapshot = (old_item.snapshot if old_item else None) or {}
+                    is_new_gift = old_item is None and bool(item.get("is_gift"))
+                    if is_new_gift:
+                        old_snapshot = {"is_gift": True, "gift_type": "FREE", "gift_value": 0, "source": "manual"}
                     is_gift_line = bool(old_snapshot.get("is_gift"))
 
                     manually_edited = bool(item.get("price_manually_edited"))
-                    if manually_edited and item.get("unit_price") is not None:
+                    if is_new_gift:
+                        manually_edited = False
+                        price = Decimal("0")
+                        discount_price = Decimal("0")
+                        final_price = Decimal("0")
+                    elif manually_edited and item.get("unit_price") is not None:
                         manual_unit_price = parse_decimal(item.get("unit_price"))
                         price = manual_unit_price
                         discount_price = manual_unit_price
@@ -1063,7 +1150,10 @@ class AddOrderRequestView(LoginRequiredMixin, View):
             "source_choices": ORDER_SOURCE.choices,
             # new token on every load of the add form (not used when editing)
             "submit_token": "" if order_request else str(uuid.uuid4()),
+            "form_opened_at": int(time.time()),
         }
+        if getattr(request, "htmx", False):
+            return render(request, "db_order_request/partial/add_order_request_content.html", context)
         return render(request, self.template_name, context)
 
     def post(self, request, pk=None):
@@ -1218,6 +1308,10 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                         created_by=request.user,
                         updated_by=request.user,
                     )
+                    order_request.metadata = {
+                        **(order_request.metadata or {}),
+                        "created_audit": build_request_audit(request, submit_token),
+                    }
 
                 grand_total = shipping_total
 
@@ -1253,6 +1347,14 @@ class AddOrderRequestView(LoginRequiredMixin, View):
                     order_request=order_request,
                     user=request.user,
                 )
+                if not pk:
+                    created_audit = (order_request.metadata or {}).get("created_audit")
+                    if created_audit:
+                        OrderActivityLog.log(
+                            action=audit_summary(created_audit),
+                            order_request=order_request,
+                            user=request.user,
+                        )
 
                 if pk:
                     messages.success(request, f"Order Request #{order_request.id} updated successfully.")
@@ -1608,6 +1710,25 @@ class UpdateOrderRequestWorkStatusView(LoginRequiredMixin, View):
         return redirect("order_request_detail", id=pk)
 
 
+class OrderRequestDeleteView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk):
+        order_request = OrderRequest.objects.filter(pk=pk).first()
+        if order_request is None:
+            messages.error(request, "Order request does not exist.")
+        else:
+            try:
+                order_request.delete()
+                messages.success(request, f"Order request #{pk} deleted.")
+            except Exception as exc:
+                messages.error(request, f"Could not delete request: {exc}")
+        nxt = request.POST.get("next", "")
+        if nxt and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()}):
+            return redirect(nxt)
+        return redirect("order_request_list")
+
+
 class OrderRequestStatusUpdateView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
@@ -1820,13 +1941,16 @@ class OrderDeleteView(LoginRequiredMixin, DeleteView):
     login_url = "admin_login"
 
     def post(self, request, *args: str, **kwargs) -> HttpResponse:
-        try:
-            order = get_object_or_404(Order, pk=kwargs.get("pk"))
-            order.delete()
-            messages.success(request, "Order deleted successfully!")
-        except:
+        order = Order.objects.filter(pk=kwargs.get("pk")).first()
+        if order is None:
             messages.error(request, "Order does not exist.")
-        return redirect(request.META["HTTP_REFERER"])
+        else:
+            try:
+                order.delete()
+                messages.success(request, "Order deleted successfully!")
+            except Exception as exc:
+                messages.error(request, f"Could not delete order: {exc}")
+        return redirect(request.META.get("HTTP_REFERER") or reverse_lazy("order_list"))
         # return redirect(self.success_url)
 
 
@@ -1884,7 +2008,7 @@ class OrderDeliveryOptionSubmitView(LoginRequiredMixin, View):
             variant = ", ".join(str(v) for v in attrs.values() if v)
             if variant:
                 name = f"{name} ({variant})"
-            return f"{name} x{i.quantity}"
+            return f"{name} x{i.quantity}" + (" (FREE GIFT)" if i.is_gift else "")
         item_description = ", ".join(_line(i) for i in items)
         note_parts = [order.note or ""] + [
             f"{i.product_name or 'Item'}: {i.customization_note}" for i in items if i.customization_note
@@ -1935,6 +2059,7 @@ class OrderDeliveryOptionSubmitView(LoginRequiredMixin, View):
         ).all()
         item_description = ", ".join(
             f"{item.product.name} - {item.variant_label if item.variant else 'No Variant'} (Qty: {item.quantity})"
+            + (" (FREE GIFT)" if item.is_gift else "")
             for item in order_items
         )
                 

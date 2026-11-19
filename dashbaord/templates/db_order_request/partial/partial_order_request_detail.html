@@ -94,6 +94,11 @@
             
                 
 
+    <button type="button" class="btn btn-outline-danger delete-order-request-btn" data-id="{{ order_request.pk }}"
+        data-bs-toggle="modal" data-bs-target="#deleteOrderRequestModal">
+        <i class="bi bi-trash me-2"></i> Delete Request
+    </button>
+
     {% if order_request.status == "pending" or order_request.status == "approved" %}
     <a href="{% url 'edit_order_request' order_request.pk %}" class="btn btn-outline-primary"
         hx-get="{% url 'edit_order_request' order_request.pk %}" hx-target="#content-area" hx-push-url="true">
@@ -1017,3 +1022,5 @@
     </div>
     
 </div>
+
+{% include './delete_order_request_modal.html' %}

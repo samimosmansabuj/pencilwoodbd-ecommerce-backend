@@ -225,3 +225,12 @@ class CUSTOMIZATION_MODE(models.TextChoices):
     OFF = "off", "Off"
     OPTIONAL = "optional", "Optional (customer picks Standard / Customized)"
     MANDATORY = "mandatory", "Mandatory (always customized, asked at checkout)"
+
+class OFFER_GIFT_MODE(models.TextChoices):
+    CHOOSE = "choose", "Customer chooses free items from the gift pool"
+    AUTO = "auto", "Default gifts are added automatically"
+
+class OFFER_COUNT_MODE(models.TextChoices):
+    ALL = "all", "Any qualifying product counts together"
+    PRODUCT = "product", "Same product - different variants count together"
+    VARIANT = "variant", "Exact same variant only"

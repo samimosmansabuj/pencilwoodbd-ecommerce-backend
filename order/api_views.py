@@ -13,10 +13,13 @@ from authentication.account_merge import (
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
 from product.models import Product, AddToCart
+from offers import engine as offers_engine
+from offers.engine import OfferError
 from pencilwoodbd.choices import PRODUCT_GIFT_TYPE, PAYMENT_STATUS, PAYMENT_TYPE, STATUS, CATEGORY_PRODUCT_STATUS
 from django.db import transaction
 from order.models import Order, OrderItem, Shipment, Address, Payment, PaymentMethod, OrderAttempt, OrderActivityLog
 from .utils import OrderConfirmatinoEmailSend, safe_order_bill
+from site_app.order_otp import order_otp_gate
 from site_app.models import DeliveryOption, OTPVerification, WebhookLog, LandingPageProduct
 from .serializers import DeliveryOptionSerializer, ShipmentSerializer
 from product.models import Product, ProductVariant, clean_customization_note, resolve_is_customized, customization_extra
@@ -323,6 +326,8 @@ class CheckoutSummaryAPIView(APIView):
                 charged_product_ids = set()
                 for item in cart_items:
                     product = item.product
+                    if product.is_gift_only:
+                        continue
                     product_delivery_charge = DeliveryChargeResolver.get_charge(product, selected_district)
                     if product.id not in charged_product_ids:
                         total_delivery_charge += product_delivery_charge
@@ -330,6 +335,7 @@ class CheckoutSummaryAPIView(APIView):
                     items_data.append({
                         "cart_id": item.id,
                         "product_id": product.id,
+                        "slug": product.slug,
                         "variant_id": item.variant.id if item.variant else None,
                         "product": product.name,
                         "variant": item.variant.attributes if item.variant else None,
@@ -358,7 +364,7 @@ class CheckoutSummaryAPIView(APIView):
                 charged_product_ids = set()
                 for line_index, row in enumerate(guest_items):
                     product = Product.objects.filter(id=row.get("product_id")).first()
-                    if not product:
+                    if not product or product.is_gift_only:
                         continue
                     variant = None
                     if row.get("variant_id"):
@@ -379,6 +385,7 @@ class CheckoutSummaryAPIView(APIView):
                     items_data.append({
                         "cart_id": None,
                         "product_id": product.id,
+                        "slug": product.slug,
                         "variant_id": variant.id if variant else None,
                         "product": product.name,
                         "variant": variant.attributes if variant else None,
@@ -398,12 +405,68 @@ class CheckoutSummaryAPIView(APIView):
                         items_data.append(gift_line)
                         subtotal += gift_line["total"]
 
+            # ---------- Delivery: before a district is chosen show the LOWEST charge ----------
+            delivery_info = {"district_selected": bool(selected_district)}
+            if not selected_district and items_data:
+                pids = {it["product_id"] for it in items_data if not it.get("is_gift")}
+                prods = list(Product.objects.select_related("delivery_charge").filter(id__in=pids))
+                rng = DeliveryChargeResolver.cart_range(prods)
+                if rng:
+                    total_delivery_charge = rng["min"]
+                    for it in items_data:
+                        if not it.get("is_gift"):
+                            it["delivery_charge"] = float(rng["per_product_at_min"].get(it["product_id"], 0))
+                    delivery_info.update({
+                        "min": float(rng["min"]), "max": float(rng["max"]), "varies": rng["varies"],
+                        "min_district": rng["min_district"],
+                        "groups": [{"charge": float(g["charge"]), "districts": g["districts"]} for g in rng["groups"]],
+                    })
+
+            # ---------- Offers (buy X get Y free) ----------
+            offers_ui = []
+            try:
+                import json as _json
+                raw_picks = request.query_params.get("offer_picks")
+                offer_picks = _json.loads(raw_picks) if raw_picks else {}
+            except ValueError:
+                offer_picks = {}
+            paid_lines = [
+                {"product_id": it["product_id"], "variant_id": it.get("variant_id"), "quantity": it["quantity"]}
+                for it in items_data if not it.get("is_gift")
+            ]
+            offer_result = offers_engine.evaluate(
+                paid_lines, picks=offer_picks, strict=False, abs_url=request.build_absolute_uri
+            )
+            offers_ui = offer_result["offers"]
+            for gl in offer_result["gift_lines"]:
+                gp = gl["product"]
+                img = gp.primary_image
+                items_data.append({
+                    "cart_id": None,
+                    "product_id": gp.id,
+                    "variant_id": gl["variant"].id if gl["variant"] else None,
+                    "product": gp.name,
+                    "variant": gl["variant"].attributes if gl["variant"] else None,
+                    "quantity": gl["quantity"],
+                    "price": 0,
+                    "total": 0,
+                    "delivery_charge": 0,
+                    "is_gift": True,
+                    "gift_type": "FREE",
+                    "gift_value": 0,
+                    "offer_id": gl["offer"].id,
+                    "offer_name": gl["offer"].name,
+                    "image": request.build_absolute_uri(img) if img else "",
+                })
+
             grand_total = subtotal + total_delivery_charge
 
             return Response({
                 "status": True,
                 "data": {
                     "items": items_data,
+                    "offers": offers_ui,
+                    "delivery_info": delivery_info,
                     "subtotal": subtotal,
                     "delivery_charge": total_delivery_charge,
                     "grand_total": grand_total
@@ -448,6 +511,10 @@ class PlaceOrderAPIView(APIView):
                             },
                             status=403,
                         )
+
+            _otp_resp = order_otp_gate(request, phone, "ecom", "status")
+            if _otp_resp is not None:
+                return _otp_resp
 
             with transaction.atomic():
                 name = request.data.get("name")
@@ -595,6 +662,13 @@ class PlaceOrderAPIView(APIView):
                         return Response({"status": False, "message": "Cart empty"}, status=400)
                     should_delete_cart = None
 
+                gift_only_names = [l["product"].name for l in line_items if l["product"].is_gift_only]
+                if gift_only_names:
+                    return Response(
+                        {"status": False, "message": f"{', '.join(gift_only_names)} is a gift item and cannot be ordered on its own"},
+                        status=400,
+                    )
+
                 for line in line_items:
                     if line.get("is_customized") and not (line.get("customization_note") or "").strip():
                         return Response(
@@ -667,6 +741,17 @@ class PlaceOrderAPIView(APIView):
                     )
                     if coupon_error:
                         return Response({"status": False, "message": coupon_error}, status=400)
+
+                # ---------- Offers: strict validation before anything is written ----------
+                try:
+                    offer_result = offers_engine.evaluate(
+                        [{"product_id": l["product"].id, "variant_id": l["variant"].id if l["variant"] else None,
+                          "quantity": l["quantity"]} for l in line_items],
+                        picks=request.data.get("offer_picks") or {},
+                        strict=True,
+                    )
+                except OfferError as oe:
+                    return Response({"status": False, "message": str(oe)}, status=400)
 
                 order = Order.objects.create(
                     customer=customer,
@@ -804,6 +889,58 @@ class PlaceOrderAPIView(APIView):
                         )
                         total += gift_unit_price * quantity
 
+                # ---------- Offers: add free items (price 0), deduct stock ----------
+                applied_offers = {}
+                for gl in offer_result["gift_lines"]:
+                    gqty = gl["quantity"]
+                    gp = Product.objects.select_for_update().get(id=gl["product"].id)
+                    gv = None
+                    if gp.has_variants:
+                        gv = (
+                            ProductVariant.objects.select_for_update().filter(id=gl["variant"].id).first()
+                            if gl["variant"] else None
+                        )
+                        if not gv or gv.inventory_quantity < gqty:
+                            transaction.set_rollback(True)
+                            return Response({"status": False, "message": f"{gp.name} out of stock"}, status=400)
+                        gv.inventory_quantity -= gqty
+                        gv.save()
+                        gp.inventory_quantity = sum(v.inventory_quantity for v in gp.variants.filter(is_active=True))
+                        gp.save(update_fields=["inventory_quantity"])
+                    elif gp.inventory_type == "in_stock":
+                        if gp.inventory_quantity < gqty:
+                            transaction.set_rollback(True)
+                            return Response({"status": False, "message": f"{gp.name} out of stock"}, status=400)
+                        gp.inventory_quantity -= gqty
+                        gp.save(update_fields=["inventory_quantity"])
+                    elif not gp.is_in_stock:
+                        transaction.set_rollback(True)
+                        return Response({"status": False, "message": f"{gp.name} out of stock"}, status=400)
+
+                    OrderItem.objects.create(
+                        order=order, product=gp, variant=gv, product_name=gp.name,
+                        quantity=gqty, price=Decimal("0"), discount_price=Decimal("0"),
+                        snapshot={
+                            "is_gift": True,
+                            "gift_type": "FREE",
+                            "gift_value": 0,
+                            "source": "offer",
+                            "offer_id": gl["offer"].id,
+                            "offer_name": gl["offer"].name,
+                            "tier_buy_qty": gl["tier"].buy_qty,
+                        },
+                    )
+                    rec = applied_offers.setdefault(gl["offer"].id, {
+                        "offer_id": gl["offer"].id, "name": gl["offer"].name,
+                        "tier_buy_qty": gl["tier"].buy_qty, "gifts": [],
+                    })
+                    rec["gifts"].append({"product_id": gp.id, "name": gp.name, "quantity": gqty})
+
+                if applied_offers:
+                    promos = order.promotions_applied if isinstance(order.promotions_applied, dict) else {}
+                    promos["offers"] = list(applied_offers.values())
+                    order.promotions_applied = promos
+
                 order.total_cost = total + total_delivery_charge - discount_amount
                 order.shipping_total = total_delivery_charge
                 order.coupon_discount = discount_amount
@@ -878,6 +1015,7 @@ class OrderListAPIView(APIView):
                     "variant": item.variant.attributes if item.variant else None,
                     "customization_note": item.customization_note or "",
                     "customization_price": float(item.customization_unit_price),
+                    "is_gift": item.is_gift,
                 })
 
             data.append({
@@ -966,6 +1104,7 @@ class OrderDetailAPIView(APIView):
                     "base_price": float(item.base_unit_price),
                     "customization_price": float(item.customization_unit_price),
                     "customization_total": float(item.customization_total_price),
+                    "is_gift": item.is_gift,
                 })
 
             data = {

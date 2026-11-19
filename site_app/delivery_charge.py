@@ -141,3 +141,31 @@ class DeliveryChargeResolver:
             else:
                 breakdown[district] = {"charge": Decimal(str(SYSTEM_DEFAULT_DELIVERY_CHARGE)), "source": "system_default"}
         return breakdown
+
+    @classmethod
+    def cart_range(cls, products):
+        from site_app.bd_districts import BD_DISTRICTS
+
+        global_map = cls._get_global_area_and_charge()
+        per_product_maps = {}
+        for p in products:
+            obj = getattr(p, "delivery_charge", None)
+            per_product_maps[p.id] = (obj.area_and_charge if obj is not None else None)
+
+        totals, details = {}, {}
+        for d in BD_DISTRICTS:
+            row = {pid: cls.resolve(m, d, global_area_and_charge=global_map) for pid, m in per_product_maps.items()}
+            details[d] = row
+            totals[d] = sum(row.values(), Decimal("0"))
+
+        if not totals:
+            return None
+        min_d = min(totals, key=lambda k: (totals[k], k))
+        grouped = {}
+        for d, t in totals.items():
+            grouped.setdefault(t, []).append(d)
+        groups = [{"charge": c, "districts": sorted(ds)} for c, ds in sorted(grouped.items(), key=lambda kv: kv[0])]
+        return {
+            "min": totals[min_d], "max": max(totals.values()), "varies": len(grouped) > 1,
+            "min_district": min_d, "per_product_at_min": details[min_d], "groups": groups,
+        }

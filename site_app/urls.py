@@ -85,6 +85,7 @@ urlpatterns = [
     path('finance/daily-profit/', DailyProfitListView.as_view(), name='daily_profit_list'),
 
     # ----------------- Invoice Color -----------------
+    path('settings/order-otp/', OrderOTPSettingsView.as_view(), name='order_otp_settings'),
     path('settings/invoice-color/', InvoiceColorSettingsView.as_view(), name='invoice_color_settings'),
     path('settings/site-pages/', SitePagesView.as_view(), name='site_pages'),
 

@@ -1,0 +1,173 @@
+{% load static %}
+{# Offer list: same pattern as db_product/partial/partial_product_list.html (tabs, search, card table, pagination) #}
+
+<div class="product-count d-flex align-items-center gap-3 gap-lg-4 mb-4 fw-medium flex-wrap font-text1">
+    {% for key, label in status_tabs %}
+    <a href="javascript:;"
+       hx-get="{% url 'offer_settings' %}?status={{ key }}&q={{ current_search }}&per_page={{ current_per_page }}"
+       hx-target="#offer-table-wrapper" hx-swap="innerHTML" hx-push-url="true">
+        <span class="me-1 {% if current_status == key %}text-primary{% endif %}">{{ label }}</span>
+        <span class="ofx-count">({% if key == 'all' %}{{ offer_counts.all }}{% elif key == 'running' %}{{ offer_counts.running }}{% elif key == 'scheduled' %}{{ offer_counts.scheduled }}{% elif key == 'ended' %}{{ offer_counts.ended }}{% else %}{{ offer_counts.inactive }}{% endif %})</span>
+    </a>
+    {% endfor %}
+</div>
+
+<div class="row g-3">
+    <div class="col-auto">
+        <div class="position-relative">
+            <input class="form-control px-5" type="search" name="q" placeholder="Search Offers"
+                   value="{{ current_search }}"
+                   hx-get="{% url 'offer_settings' %}" hx-trigger="keyup changed delay:400ms, search"
+                   hx-target="#offer-table-wrapper" hx-swap="innerHTML"
+                   hx-vals='{"status": "{{ current_status }}", "per_page": "{{ current_per_page }}"}'
+                   hx-push-url="true">
+            <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">search</span>
+        </div>
+    </div>
+
+    <div class="col-auto flex-grow-1"></div>
+
+    <div class="col-auto">
+        <div class="d-flex align-items-center gap-2 justify-content-lg-end">
+            <div class="btn-group" role="group" aria-label="Language">
+                <button type="button" class="btn btn-filter ofx-lang-btn" data-lang="bn">বাংলা</button>
+                <button type="button" class="btn btn-filter ofx-lang-btn" data-lang="en">English</button>
+            </div>
+            <button type="button" class="btn btn-primary px-4" onclick="OfferUI.create()">
+                <i class="bi bi-plus-lg me-2"></i>Create Offer
+            </button>
+        </div>
+    </div>
+</div>
+
+<p class="ofx-help mt-3 mb-0" data-i18n="list_help"></p>
+
+<div class="card mt-3">
+    <div class="card-body">
+        <div class="product-table">
+            <div class="table-responsive white-space-nowrap">
+                <table class="table align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Offer</th>
+                            <th>Applies To</th>
+                            <th>Rule</th>
+                            <th>Free Items</th>
+                            <th>Schedule</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td>#{{ r.o.id }}</td>
+                            <td>
+                                <a href="javascript:;" class="product-title fw-semibold" onclick="OfferUI.edit({{ r.o.id }})">{{ r.o.name|truncatechars:34 }}</a>
+                                <div class="d-flex gap-1 mt-1 flex-wrap">
+                                    <span class="badge bg-info text-dark">
+                                        {% if r.o.count_mode == 'variant' %}Exact variant{% elif r.o.count_mode == 'product' %}Same product{% else %}Any product{% endif %}
+                                    </span>
+                                    <span class="badge bg-secondary">
+                                        {% if r.o.gift_mode == 'auto' %}Auto gift{% else %}Customer picks{% endif %}
+                                    </span>
+                                </div>
+                            </td>
+                            <td>
+                                {% if r.o.apply_to_all %}
+                                    <span class="badge bg-primary">All products</span>
+                                {% else %}
+                                    <div class="d-flex align-items-center gap-1">
+                                        {% for p in r.products %}
+                                            {% if p.image %}<img src="{{ p.image }}" width="40" height="40" class="rounded-2 object-fit-cover" title="{{ p.name }}" alt="{{ p.name }}">{% else %}<span class="badge bg-secondary" title="{{ p.name }}">{{ p.name|truncatechars:12 }}</span>{% endif %}
+                                        {% endfor %}
+                                        {% if r.products_more %}<span class="fw-semibold">+{{ r.products_more }}</span>{% endif %}
+                                    </div>
+                                    {% for c in r.categories %}<span class="badge bg-dark border mt-1">{{ c }}</span>{% endfor %}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% for t in r.tiers %}
+                                    <div class="fw-semibold">Buy {{ t.buy }} &rarr; Free {{ t.free }}</div>
+                                {% endfor %}
+                                {% if r.o.repeat %}<span class="badge bg-warning text-dark mt-1">Repeats</span>{% endif %}
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center gap-1">
+                                    {% for g in r.gifts %}
+                                        {% if g.image %}<img src="{{ g.image }}" width="40" height="40" class="rounded-2 object-fit-cover" title="{{ g.name }}{% if g.variant %} ({{ g.variant }}){% endif %}" alt="{{ g.name }}">{% else %}<span class="badge bg-secondary">{{ g.name|truncatechars:12 }}</span>{% endif %}
+                                    {% endfor %}
+                                    {% if r.gifts_more %}<span class="fw-semibold">+{{ r.gifts_more }}</span>{% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <div>{% if r.o.start_at %}{{ r.o.start_at|date:"M d, Y H:i" }}{% else %}Starts now{% endif %}</div>
+                                <div>{% if r.o.end_at %}{{ r.o.end_at|date:"M d, Y H:i" }}{% else %}No end date{% endif %}</div>
+                            </td>
+                            <td>
+                                <span class="badge {% if r.status == 'running' %}bg-success{% elif r.status == 'scheduled' %}bg-info text-dark{% elif r.status == 'ended' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                    {{ r.status|capfirst }}
+                                </span>
+                                <div class="form-check form-switch mt-1">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="ofx-sw-{{ r.o.id }}"
+                                           {% if r.o.is_active %}checked{% endif %} onchange="OfferUI.toggle({{ r.o.id }})">
+                                    <label class="form-check-label" for="ofx-sw-{{ r.o.id }}">Active</label>
+                                </div>
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-primary" title="Edit" aria-label="Edit offer" onclick="OfferUI.edit({{ r.o.id }})"><i class="bi bi-pencil"></i></button>
+                                <button type="button" class="btn btn-sm btn-danger ms-1" title="Delete" aria-label="Delete offer" onclick="OfferUI.remove({{ r.o.id }})"><i class="bi bi-trash"></i></button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center py-4">No offers found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="btn btn-grd position-fixed bottom-0 end-0 m-3 d-flex align-items-center gap-2 shadow-lg"
+     style="z-index: 1050; margin: auto 22px 45px 0px !important; padding: 0px !important;">
+    <div class="card-body" style="padding: 0px;">
+        <nav aria-label="Page navigation">
+            <ul class="pagination" style="margin: auto;">
+                <li class="page-item {% if not offers.has_previous %}disabled{% endif %}">
+                    <a class="page-link"
+                       hx-get="{% url 'offer_settings' %}{% if offers.has_previous %}?page={{ offers.previous_page_number }}&status={{ current_status }}&q={{ current_search }}&per_page={{ current_per_page }}{% endif %}"
+                       hx-target="#offer-table-wrapper" hx-swap="innerHTML" hx-push-url="true">&laquo;</a>
+                </li>
+                {% for num in paginator.page_range %}
+                    {% if num >= offers.number|add:-2 and num <= offers.number|add:2 %}
+                    <li class="page-item {% if offers.number == num %}active{% endif %}">
+                        <a class="page-link"
+                           hx-get="{% url 'offer_settings' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&per_page={{ current_per_page }}"
+                           hx-target="#offer-table-wrapper" hx-swap="innerHTML" hx-push-url="true">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not offers.has_next %}disabled{% endif %}">
+                    <a class="page-link"
+                       hx-get="{% url 'offer_settings' %}{% if offers.has_next %}?page={{ offers.next_page_number }}&status={{ current_status }}&q={{ current_search }}&per_page={{ current_per_page }}{% endif %}"
+                       hx-target="#offer-table-wrapper" hx-swap="innerHTML" hx-push-url="true">&raquo;</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    <div class="col-auto">
+        <select class="form-select" name="per_page"
+                hx-get="{% url 'offer_settings' %}?status={{ current_status }}&q={{ current_search }}"
+                hx-trigger="change" hx-target="#offer-table-wrapper" hx-swap="innerHTML" hx-push-url="true">
+            <option value="6" {% if current_per_page == "6" %}selected{% endif %}>6</option>
+            <option value="10" {% if current_per_page == "10" %}selected{% endif %}>10</option>
+            <option value="25" {% if current_per_page == "25" %}selected{% endif %}>25</option>
+            <option value="50" {% if current_per_page == "50" %}selected{% endif %}>50</option>
+            <option value="100" {% if current_per_page == "100" %}selected{% endif %}>100</option>
+        </select>
+    </div>
+</div>

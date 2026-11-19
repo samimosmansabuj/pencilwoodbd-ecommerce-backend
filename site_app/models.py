@@ -675,3 +675,31 @@ class ShowcaseMedia(models.Model):
 
     def __str__(self):
         return f'{self.title} ({self.get_media_type_display()}) | {self.pk}'
+
+class OrderOTPSetting(models.Model):
+    otp_all = models.BooleanField(default=False, help_text="ON = E-com + Landing + External landing sobgulate OTP lagbe.")
+    otp_ecom = models.BooleanField(default=False)
+    otp_landing = models.BooleanField(default=False, help_text="Internal landings (e-com/lan/...)")
+    otp_external = models.BooleanField(default=False, help_text="Onno domain er single landing")
+    internal_hosts = models.TextField(
+        default="pencilwoodbd.com,www.pencilwoodbd.com",
+        blank=True,
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        if self.otp_all:
+            self.otp_ecom = self.otp_landing = self.otp_external = True
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def is_required(self, source):
+        return bool(self.otp_all or getattr(self, f"otp_{source}", False))
+
+    def __str__(self):
+        return "Order OTP Settings"

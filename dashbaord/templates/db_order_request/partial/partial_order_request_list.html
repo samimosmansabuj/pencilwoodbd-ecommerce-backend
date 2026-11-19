@@ -438,6 +438,11 @@
 
                                     </a>
 
+                                    <button type="button" class="btn btn-sm btn-danger delete-order-request-btn ms-1"
+                                        data-id="{{ request.id }}" data-bs-toggle="modal" data-bs-target="#deleteOrderRequestModal">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+
                                 </td>
 
                             </tr>
@@ -534,3 +539,5 @@ hx-push-url="true">
 </div>
 
 </div>
+
+{% include './delete_order_request_modal.html' %}
