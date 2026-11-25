@@ -399,7 +399,8 @@ class CheckoutSummaryAPIView(APIView):
 
                 resolved = campaign_checkout.resolve_lines([
                     {"product": pr[2], "variant": pr[3], "quantity": pr[4], "is_customized": pr[5],
-                     "campaign_slug": (str(pr[1].get("campaign") or "").strip() or None), "line_id": pr[0]}
+                     "campaign_slug": (str(pr[1].get("campaign") or "").strip() or None), "line_id": pr[0],
+                     "surface": pr[1].get("surface")}
                     for pr in prepared
                 ])
                 # The summary never fails because a campaign ended / ran out: those lines fall back to the
@@ -727,6 +728,7 @@ class PlaceOrderAPIView(APIView):
                             "product": product, "variant": variant,
                             "quantity": int(row.get("quantity", 1)),
                             "campaign_slug": (str(row.get("campaign") or "").strip() or None), "line_id": row_index,
+                            "surface": row.get("surface"),
                             "is_customized": row_is_customized,
                             "customization_note": clean_customization_note(
                                 product,

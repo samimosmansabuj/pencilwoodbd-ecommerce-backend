@@ -335,22 +335,22 @@ class SendOTPAPIView(APIView):
         try:
             with transaction.atomic():
                 # ===== REAL SMS SEND (temporarily disabled for local testing) =====
-                # response = self.send_message(phone, otp)
-                # if (
-                #     response.get("ErrorCode") == 0 and
-                #     response.get("Data") and
-                #     response["Data"][0].get("MessageErrorCode") == 0 and
-                #     response["Data"][0].get("MessageErrorDescription") == "Success"
-                # ):
-                #     OTPVerification.objects.create(phone=phone, otp=otp)
-                #     return Response({"success": True, "message": "OTP Sent"})
-                # else:
-                #     return Response({"success": False, "message": "OTP Sending Failed", "response": response})
+                response = self.send_message(phone, otp)
+                if (
+                    response.get("ErrorCode") == 0 and
+                    response.get("Data") and
+                    response["Data"][0].get("MessageErrorCode") == 0 and
+                    response["Data"][0].get("MessageErrorDescription") == "Success"
+                ):
+                    OTPVerification.objects.create(phone=phone, otp=otp)
+                    return Response({"success": True, "message": "OTP Sent"})
+                else:
+                    return Response({"success": False, "message": "OTP Sending Failed", "response": response})
 
                 # ===== CONSOLE-ONLY MODE (local testing) =====
-                OTPVerification.objects.create(phone=phone, otp=otp)
-                print(f"\n{'='*40}\n[TEST MODE] OTP for {phone}: {otp}\n{'='*40}\n")
-                return Response({"success": True, "message": "OTP Sent (check console)"})
+                # OTPVerification.objects.create(phone=phone, otp=otp)
+                # print(f"\n{'='*40}\n[TEST MODE] OTP for {phone}: {otp}\n{'='*40}\n")
+                # return Response({"success": True, "message": "OTP Sent (check console)"})
         except Exception as e:
             return Response({"success": False, "message": safe_error_message(e)})
         
@@ -529,6 +529,9 @@ class ProductListAPIView(APIView):
         paginator = ProductPagination()
         page = paginator.paginate_queryset(qs, request)
 
+        from campaigns.context import listing_campaign_fields
+        campaign_rows = listing_campaign_fields(page, "ECOM")
+
         return paginator.get_paginated_response({
             "status": True,
             "data": [
@@ -544,6 +547,7 @@ class ProductListAPIView(APIView):
                     "name": p.category.name if p.category else ""
                 },
                 "last_update_at": p.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+                **({"campaign_listing": campaign_rows[p.id]} if p.id in campaign_rows else {}),
             }
                 for p in page
             ]
@@ -679,7 +683,10 @@ class ProductDetailAPIView(APIView):
             campaign_slug = request.query_params.get("campaign")
             if campaign_slug:
                 from campaigns.context import apply_campaign_to_product_payload
-                apply_campaign_to_product_payload(request, p, payload["data"], campaign_slug)
+                apply_campaign_to_product_payload(request, p, payload["data"], campaign_slug, request.query_params.get("surface"))
+            else:
+                from campaigns.context import apply_auto_campaign_to_product_payload
+                apply_auto_campaign_to_product_payload(request, p, payload["data"], "ECOM")
 
             return Response(payload)
 
@@ -726,9 +733,7 @@ class AddToCartAPIView(APIView):
                     if product.inventory_type == "in_stock" and product.inventory_quantity < quantity:
                         return Response({"status": False, "message": "Product out of stock"}, status=400)
 
-                # Campaign context (optional): a line added from a campaign page carries the campaign slug and is a
-                # separate cart line from the same product added normally. A campaign that does not apply is
-                # refused - the item is never added at a different price than the customer saw.
+                
                 campaign = None
                 campaign_slug = str(request.data.get("campaign") or "").strip() or None
                 if campaign_slug:
@@ -741,6 +746,7 @@ class AddToCartAPIView(APIView):
                     check = resolve_lines([{
                         "product": product, "variant": variant, "quantity": quantity + already,
                         "campaign_slug": campaign_slug, "is_customized": is_customized,
+                        "surface": request.data.get("surface"),
                     }])[0]
                     if not check.valid:
                         return Response({

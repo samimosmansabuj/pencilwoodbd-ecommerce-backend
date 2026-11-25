@@ -60,27 +60,41 @@
   .cpx-result img, .cpx-pimg { width: 48px; height: 48px; flex: none; object-fit: cover; border-radius: 8px; background: var(--panel2); }
   .cpx-bulk { border: 1px dashed var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
   .cpx-count { font-weight: 700; }
-  /* product cards: tidy responsive grid (1 col on phones, 2 on laptops, 3 on very wide screens) */
-  #cpxProducts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr)); gap: 14px; align-items: start; }
-  .cpx-prow { border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 0; background: var(--panel2); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-  .cpx-prow-head { padding-bottom: 10px; border-bottom: 1px solid var(--line); }
-  .cpx-prow .cpx-pimg { width: 60px; height: 60px; }
-  .cpx-prow .cpx-tools { flex: none; flex-wrap: nowrap; }
-  .cpx-prow .cpx-more { margin-top: 0; border-top: 1px dashed var(--line); padding-top: 4px; }
-  .cpx-prow .cpx-result-box { margin: 0; }
-  .cpx-prow .cpx-variants { margin: 0; overflow-x: auto; }
-  .cpx-prow-head { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px; }
-  .cpx-prow-head .grow { flex: 1; min-width: 0; }
-  .cpx-prow-head .name { font-weight: 700; overflow-wrap: anywhere; }
-  .cpx-main { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; align-items: end; }
-  .cpx-main label, .cpx-more label { font-size: .85rem; font-weight: 600; margin-bottom: 2px; display: block; }
-  .cpx-result-box { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; border: 2px solid var(--gb); background: var(--gt); border-radius: 10px; padding: 8px 12px; min-height: 44px; }
-  .cpx-price { font-size: 1.25rem; font-weight: 800; }
+  /* product rows: one compact row per product on wide screens, two short rows below 1300px */
+  #cpxProducts { display: flex; flex-direction: column; gap: 8px; }
+  .cpx-prow { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 10px 12px; display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; gap: 8px 14px; min-width: 0; transition: border-color .15s; }
+  .cpx-prow:hover { border-color: var(--gb); }
+  .cpx-prow-head { display: contents; }
+  .cpx-prow .cpx-pimg { grid-column: 1; grid-row: 1; width: 48px; height: 48px; border-radius: 8px; }
+  .cpx-prow-head .grow { grid-column: 2; grid-row: 1; min-width: 0; }
+  .cpx-prow-head .name { font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+  .cpx-prow .cpx-tools { grid-column: 3; grid-row: 1; flex-wrap: nowrap; }
+  .cpx-prow .cpx-tools .btn { min-height: 34px; padding: 0 10px; }
+  .cpx-main { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; align-items: end; }
+  .cpx-main label, .cpx-more label { font-size: .82rem; font-weight: 600; margin-bottom: 2px; display: block; }
+  .cpx-prow [data-live] { grid-column: 1 / -1; grid-row: 3; margin: 0 !important; min-width: 0; }
+  .cpx-prow [data-live] .fst-italic { display: none; }
+  .cpx-prow .cpx-variants, .cpx-prow .cpx-more { grid-column: 1 / -1; margin: 0 !important; }
+  .cpx-prow .cpx-result-box { margin: 0; padding: 6px 10px; min-height: 0; border-width: 1px; border-radius: 10px; }
+  @media (min-width: 1300px) {
+    .cpx-prow { grid-template-columns: 48px minmax(150px, 1fr) minmax(300px, 1.5fr) minmax(250px, 1.3fr) auto; }
+    .cpx-main { grid-column: 3; grid-row: 1; }
+    .cpx-prow [data-live] { grid-column: 4; grid-row: 1; }
+    .cpx-prow .cpx-tools { grid-column: 5; }
+  }
+  .cpx-result-box { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; border: 1px solid var(--gb); background: var(--gt); }
+  .cpx-price { font-size: 1.1rem; font-weight: 800; }
   .cpx-strike { text-decoration: line-through; }
   .cpx-warn { color: var(--warn); font-size: .88rem; margin-top: 6px; }
-  .cpx-more { margin-top: 10px; }
-  .cpx-more > summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; gap: 6px; }
-  .cpx-more-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; padding-top: 8px; }
+  .cpx-prow .cpx-variants { overflow-x: auto; }
+  .cpx-more > summary { cursor: pointer; font-weight: 600; min-height: 40px; display: flex; align-items: center; gap: 8px; border: 1px dashed var(--line); border-radius: 10px; padding: 0 12px; list-style: none; }
+  .cpx-more > summary::-webkit-details-marker { display: none; }
+  .cpx-more[open] > summary { border-style: solid; border-color: var(--gb); background: var(--gt); }
+  .cpx-more-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; padding-top: 12px; }
+  .cpx-chip.own { border-color: var(--g); }
+  .cpx-rules { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: var(--panel); }
+  .cpx-rules-title { display: flex; align-items: center; gap: 8px; font-weight: 700; margin-bottom: 10px; }
+  .cpx-rules .cpx-opt { align-items: center; padding: 10px 12px; }
   .cpx-variants table { width: 100%; font-size: .9rem; }
   .cpx-variants th { font-weight: 700; padding: 4px 10px 4px 0; white-space: nowrap; }
   .cpx-variants td { padding: 4px 10px 4px 0; vertical-align: middle; }
@@ -96,11 +110,8 @@
 
   /* ---- 1024px and below: tighter cards, review list stacks ---- */
   @media (max-width: 991px) { .cpx-review dl { grid-template-columns: 130px 1fr; } .cpx-card .card-body { padding: 14px; } }
-  /* ---- 768px and below: variant table becomes one card per variant; product head wraps ---- */
+  /* ---- 768px and below: variant table becomes one card per variant; ---- */
   @media (max-width: 767px) {
-    .cpx-prow-head { flex-wrap: wrap; }
-    .cpx-prow-head .cpx-tools { width: 100%; }
-    .cpx-prow-head .cpx-tools .btn { flex: 1; }
     .cpx-variants table, .cpx-variants thead, .cpx-variants tbody, .cpx-variants tr, .cpx-variants td { display: block; width: 100%; }
     .cpx-variants thead { display: none; }
     .cpx-variants tr { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; background: var(--panel); }

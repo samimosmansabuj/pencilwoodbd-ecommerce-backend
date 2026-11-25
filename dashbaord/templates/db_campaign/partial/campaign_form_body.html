@@ -139,7 +139,9 @@
             <div class="card-body">
                 <div class="cpx-h"><span class="num">2</span> Products &amp; discounts</div>
 
-                <div class="row g-3 mb-3">
+                <div class="cpx-rules mb-3">
+                <div class="cpx-rules-title"><i class="bi bi-percent"></i>Price rules for all products</div>
+                <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label" for="cpx-base">Take the discount from</label>
                         <select class="form-select" id="cpx-base" name="discount_base"></select>
@@ -150,6 +152,19 @@
                         <select class="form-select" id="cpx-strike" name="strike_price_display"></select>
                         <div class="cpx-help"><i class="bi bi-info-circle"></i>The old price crossed out next to the campaign price. Example: <span class="cpx-strike">&#2547;900</span> &#2547;720</div>
                     </div>
+                </div>
+                <div class="cpx-rules-title mt-3"><i class="bi bi-shop"></i>Show the campaign price on</div>
+                <div class="row g-2">
+                    <div class="col-12 col-md-4">
+                        <label class="cpx-opt"><input class="form-check-input" type="checkbox" name="surface_ecom"><span><b><i class="bi bi-bag me-1"></i>E-commerce store</b></span></label>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="cpx-opt"><input class="form-check-input" type="checkbox" name="surface_landing"><span><b><i class="bi bi-window me-1"></i>Single landing page</b></span></label>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="cpx-opt"><input class="form-check-input" type="checkbox" name="surface_campaign_page"><span><b><i class="bi bi-megaphone me-1"></i>Campaign page</b></span></label>
+                    </div>
+                </div>
                 </div>
 
                 <label class="form-label" for="cpxSearch">Add products to this campaign</label>

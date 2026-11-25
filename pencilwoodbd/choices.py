@@ -276,6 +276,11 @@ class CAMPAIGN_PRICE_SOURCE(models.TextChoices):
     REGULAR = "REGULAR", "Regular price"
     CURRENT = "CURRENT", "Current price (product's own discount price if any)"
 
+class CAMPAIGN_SURFACE(models.TextChoices):
+    ECOM = "ECOM", "E-commerce store"
+    LANDING = "LANDING", "Single product landing page"
+    CAMPAIGN_PAGE = "CAMPAIGN_PAGE", "Campaign page"
+
 class CAMPAIGN_BADGE_MODE(models.TextChoices):
     DISCOUNT_ONLY = "DISCOUNT_ONLY", "Discount only (e.g. 20% OFF)"
     NAME_AND_DISCOUNT = "NAME_AND_DISCOUNT", "Campaign name + discount (e.g. Black Friday · 20% OFF)"

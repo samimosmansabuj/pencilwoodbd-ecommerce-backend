@@ -215,8 +215,14 @@
     }
     return { type: item.row.discount_type, value: item.row.discount_value };
   }
+  function itemCfg(item) {
+    var cfg = cfgNow();
+    if (item.row.discount_base) cfg.discount_base = item.row.discount_base;
+    if (item.row.strike_price_display) cfg.strike_price_display = item.row.strike_price_display;
+    return cfg;
+  }
   function displayLine(item) {
-    var c = item.card, cfg = cfgNow();
+    var c = item.card, cfg = itemCfg(item);
     if (c.has_variants) {
       var v = defaultVariant(c);
       return resolveLine(cfg, v.price, v.discount_price, variantDiscount(item, v),
@@ -248,6 +254,7 @@
       out.push('<span class="cpx-chip offer' + (offerOn ? '' : ' off') + '" title="' + (offerOn ? 'Counts toward this offer' : 'Does NOT count toward this offer') + '">In offer: ' + esc(n) + (offerOn ? '' : '<span class="tag">off</span>') + '</span>');
     });
     if (c.has_variants) out.push('<span class="cpx-chip">' + plural(c.variants.length, 'variant', 'variants') + '</span>');
+    if (item.row.discount_base || item.row.strike_price_display) out.push('<span class="cpx-chip own">Own price rules</span>');
     return out.join('');
   }
 
@@ -267,6 +274,7 @@
       '<table><thead><tr><th>Variant</th><th>Main price</th><th>Discount price</th><th>Type</th><th>Discount</th><th>Campaign price</th><th>Savings</th><th>Red tag</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></details>';
   }
 
+  var OWN_PRICE_OPTIONS = [{ value: '', label: 'Use campaign setting' }].concat(PRICE_OPTIONS);
   function selectHtml(k, options, current, label) {
     return '<div><label>' + label + '</label><select class="form-select form-select-sm" data-k="' + k + '">' +
       options.map(function (o) { return '<option value="' + o.value + '"' + (current === o.value ? ' selected' : '') + '>' + o.label + '</option>'; }).join('') + '</select></div>';
@@ -297,6 +305,8 @@
       '<details class="cpx-more"><summary><i class="bi bi-three-dots"></i>More options for this product</summary>' +
         '<div class="cpx-more-grid">' +
           '<div><label>Limit how many can be sold at the campaign price</label><input class="form-control form-control-sm" type="number" min="1" step="1" data-k="stock_limit" placeholder="No limit" value="' + esc(r.stock_limit) + '"><div class="cpx-help">Example: 50. Empty means no limit.</div></div>' +
+          selectHtml('discount_base', OWN_PRICE_OPTIONS, r.discount_base || '', 'Take the discount from') +
+          selectHtml('strike_price_display', OWN_PRICE_OPTIONS, r.strike_price_display || '', 'Show as struck-through price') +
           selectHtml('gift_mode', SWITCH_OPTIONS, r.gift_mode, 'Free gift on campaign purchases') +
           selectHtml('offer_mode', SWITCH_OPTIONS, r.offer_mode, '\u201CBuy X, get Y free\u201D offers') +
           '<div data-delivery-cell><label>Delivery charge for this product (&#2547;)</label><input class="form-control form-control-sm" type="number" min="0" step="1" data-k="delivery_all" placeholder="Use the campaign charge" value="' + esc((r.delivery_config || {}).all === undefined ? '' : r.delivery_config.all) + '"><div class="cpx-help">Example: 100. Empty uses the campaign charge.</div></div>' +
@@ -306,7 +316,7 @@
   }
 
   function itemWarnings(item) {         // every warning of the live preview, with the variant name when there are several
-    var cfg = cfgNow(), c = item.card, out = [];
+    var cfg = itemCfg(item), c = item.card, out = [];
     if (c.has_variants) {
       c.variants.forEach(function (v) {
         resolveLine(cfg, v.price, v.discount_price, variantDiscount(item, v), item.row.variant_mode === 'PER_VARIANT' ? 'variant_missing' : 'no_value').warnings.forEach(function (w) {
@@ -325,7 +335,7 @@
     $('[data-live]', el).innerHTML = previewHtml(displayLine(item), item.card.has_variants ? 'Default variant (as on product cards). ' : '');
     $('[data-chips]', el).innerHTML = chipsHtml(item);
     $('[data-delivery-cell]', el).hidden = !deliveryPerProduct();
-    var cfg = cfgNow();
+    var cfg = itemCfg(item);
     $all('tr[data-vid]', el).forEach(function (tr) {
       var v = item.card.variants.filter(function (x) { return x.id === Number(tr.dataset.vid); })[0];
       var r = resolveLine(cfg, v.price, v.discount_price, variantDiscount(item, v), 'variant_missing');
@@ -349,6 +359,13 @@
     });
     return Object.keys(groups).map(function (k) { return k + ' (' + plural(groups[k], 'product', 'products') + ')'; }).join(', ');
   }
+  function surfaceText() {
+    var on = [];
+    if (F.surface_ecom.checked) on.push('E-commerce store');
+    if (F.surface_landing.checked) on.push('Single landing page');
+    if (F.surface_campaign_page.checked) on.push('Campaign page');
+    return on.length ? on.join(', ') : 'Nowhere (normal prices everywhere)';
+  }
   function renderReview() {
     var title = F.title.value.trim(), a = F.start_at.value, b = F.end_at.value, problems = [];
     if (!title) problems.push('The campaign name is empty.');
@@ -364,6 +381,7 @@
       '<dt>Dates</dt><dd>' + dates + '</dd>' +
       '<dt>Products</dt><dd>' + plural(S.items.length, 'product', 'products') + '</dd>' +
       '<dt>Discounts</dt><dd>' + esc(discountSummary()) + '</dd>' +
+      '<dt>Price shown on</dt><dd>' + esc(surfaceText()) + '</dd>' +
       '<dt>Delivery</dt><dd>' + esc('Delivery: ' + deliveryText()) + '</dd>' +
       '<dt>Extra settings</dt><dd>' + esc(extraSummaryText()) + '</dd></dl>' +
       (problems.length
@@ -421,7 +439,7 @@
   function addProduct(card) {
     if (itemById(card.id)) return;
     S.items.push({ card: card, row: { discount_type: 'PERCENT', discount_value: '', variant_mode: 'ALL_SAME', stock_limit: '',
-                                      gift_mode: 'INHERIT', offer_mode: 'INHERIT', delivery_config: {}, variants: {} } });
+                                      gift_mode: 'INHERIT', offer_mode: 'INHERIT', discount_base: '', strike_price_display: '', delivery_config: {}, variants: {} } });
     renderProducts();
   }
 
@@ -489,7 +507,8 @@
       var dc = r.delivery_config && Object.keys(r.delivery_config).length ? r.delivery_config : null;
       return { product_id: c.id, sort_order: index, is_active: true, discount_type: r.discount_type, discount_value: r.discount_value,
                variant_mode: c.has_variants ? r.variant_mode : 'ALL_SAME', stock_limit: r.stock_limit, gift_mode: r.gift_mode,
-               offer_mode: r.offer_mode, delivery_config: dc, variants: variants };
+               offer_mode: r.offer_mode, discount_base: r.discount_base || '', strike_price_display: r.strike_price_display || '',
+               delivery_config: dc, variants: variants };
     });
   }
   function clearErrors() {
@@ -534,7 +553,8 @@
     ['title', 'slug', 'short_description', 'hero_title', 'hero_subtitle', 'hero_button_text', 'sort_order', 'start_at', 'end_at',
      'discount_base', 'strike_price_display', 'badge_mode', 'badge_label', 'delivery_mode', 'delivery_amount_source',
      'delivery_basis', 'mixed_cart_delivery'].forEach(function (n) { fd.append(n, val(n)); });
-    ['show_on_home', 'show_in_slider', 'allow_coupon', 'include_product_gifts', 'include_offers', 'allow_overlap'].forEach(function (n) {
+    ['show_on_home', 'show_in_slider', 'allow_coupon', 'include_product_gifts', 'include_offers', 'allow_overlap',
+     'surface_ecom', 'surface_landing', 'surface_campaign_page'].forEach(function (n) {
       fd.append(n, F[n].checked ? '1' : '0');
     });
     fd.append('delivery_config', JSON.stringify(buildDeliveryConfig()));
@@ -599,6 +619,10 @@
   F.include_product_gifts.checked = !!DATA.include_product_gifts;
   F.include_offers.checked = !!DATA.include_offers;
   F.allow_overlap.checked = !!DATA.allow_overlap;
+  F.surface_ecom.checked = DATA.price_surfaces.indexOf('ECOM') !== -1;
+  F.surface_landing.checked = DATA.price_surfaces.indexOf('LANDING') !== -1;
+  F.surface_campaign_page.checked = DATA.price_surfaces.indexOf('CAMPAIGN_PAGE') !== -1;
+  syncOptionCards();
   ['thumbnail', 'banner_desktop', 'banner_mobile'].forEach(function (f) { showImage(f, DATA.images[f], DATA.images[f] ? 'Current image' : ''); });
 
   var dc = DATA.delivery_config || {};
@@ -622,6 +646,7 @@
                       'delivery_mode', 'delivery_amount_source'];
   function onFormChange(e) {
     var n = e.target && e.target.name;
+    if (n && n.indexOf('surface_') === 0) syncOptionCards();
     if (n === 'delivery_mode' || n === 'delivery_amount_source') applyDeliveryVisibility();
     if (n === 'badge_mode' || n === 'badge_label') applyBadgeWrap();
     if (n && PRICE_FIELDS.indexOf(n) !== -1) refreshAll(); else { refreshSummaries(); renderReview(); }

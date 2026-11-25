@@ -23,6 +23,7 @@ from pencilwoodbd.choices import (
     CAMPAIGN_MIXED_CART_DELIVERY,
     CAMPAIGN_PRICE_SOURCE,
     CAMPAIGN_STATUS,
+    CAMPAIGN_SURFACE,
     CAMPAIGN_SWITCH_MODE,
     CAMPAIGN_VARIANT_MODE,
     CATEGORY_PRODUCT_STATUS,
@@ -158,6 +159,8 @@ def _row_data(cp):
         "stock_limit": cp.stock_limit if cp.stock_limit is not None else "",
         "gift_mode": cp.gift_mode,
         "offer_mode": cp.offer_mode,
+        "discount_base": cp.discount_base_override,
+        "strike_price_display": cp.strike_price_override,
         "delivery_config": cp.delivery_config or {},
         "variants": {
             str(vd.variant_id): {"discount_type": vd.discount_type, "discount_value": num(vd.discount_value)}
@@ -205,6 +208,7 @@ def campaign_form_data(campaign=None):
         "status": get_campaign_status(campaign, now) if campaign.pk else CAMPAIGN_STATUS.DRAFT,
         "discount_base": campaign.discount_base,
         "strike_price_display": campaign.strike_price_display,
+        "price_surfaces": list(campaign.price_surfaces or []) if campaign.pk else list(CAMPAIGN_SURFACE.values),
         "badge_mode": campaign.badge_mode,
         "badge_label": campaign.badge_label if campaign.pk else "",
         "allow_coupon": campaign.allow_coupon,
@@ -362,6 +366,8 @@ def _validate_product_rows(raw_rows, errors):
             "variant_mode": variant_mode, "stock_limit": stock_limit,
             "gift_mode": _choice(raw.get("gift_mode"), CAMPAIGN_SWITCH_MODE, CAMPAIGN_SWITCH_MODE.INHERIT),
             "offer_mode": _choice(raw.get("offer_mode"), CAMPAIGN_SWITCH_MODE, CAMPAIGN_SWITCH_MODE.INHERIT),
+            "discount_base_override": _choice(raw.get("discount_base"), CAMPAIGN_PRICE_SOURCE, ""),
+            "strike_price_override": _choice(raw.get("strike_price_display"), CAMPAIGN_PRICE_SOURCE, ""),
             "delivery_config": delivery_config or None,
             "variant_rows": variant_rows,
         })
@@ -471,6 +477,7 @@ def save_campaign(data, files, user, campaign=None):
     c.is_active = publish
     c.discount_base = _choice(data.get("discount_base"), CAMPAIGN_PRICE_SOURCE, CAMPAIGN_PRICE_SOURCE.CURRENT)
     c.strike_price_display = _choice(data.get("strike_price_display"), CAMPAIGN_PRICE_SOURCE, CAMPAIGN_PRICE_SOURCE.CURRENT)
+    c.price_surfaces = [s for s in CAMPAIGN_SURFACE.values if _bool(data.get("surface_" + s.lower()))]
     c.badge_mode = _choice(data.get("badge_mode"), CAMPAIGN_BADGE_MODE, CAMPAIGN_BADGE_MODE.DISCOUNT_ONLY)
     c.badge_label = badge_label or title[:BADGE_LABEL_MAX_LENGTH]
     c.allow_overlap = _bool(data.get("allow_overlap"))
@@ -516,7 +523,7 @@ def save_campaign(data, files, user, campaign=None):
         for r in rows:
             cp = existing.get(r["product"].id) or CampaignProduct(campaign=c, product=r["product"])
             for attr in ("sort_order", "is_active", "discount_type", "discount_value", "variant_mode", "stock_limit",
-                         "gift_mode", "offer_mode", "delivery_config"):
+                         "gift_mode", "offer_mode", "discount_base_override", "strike_price_override", "delivery_config"):
                 setattr(cp, attr, r[attr])
             cp.save()
             keep.add(cp.id)

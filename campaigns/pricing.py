@@ -184,6 +184,13 @@ class LinePrice:
         }
 
 
+def effective_price_sources(campaign, campaign_product):
+    return (
+        campaign_product.discount_base_override or campaign.discount_base,
+        campaign_product.strike_price_override or campaign.strike_price_display,
+    )
+
+
 def _discount_for_line(campaign_product, variant):
     if campaign_product.variant_mode == CAMPAIGN_VARIANT_MODE.PER_VARIANT and variant is not None:
         for row in campaign_product.variant_discounts.all():
@@ -217,7 +224,8 @@ def resolve_line_price(campaign, campaign_product, product, variant=None):
     regular = to_decimal(source.price)
     own_discount = to_decimal(source.discount_price)
     current = own_discount if own_discount > ZERO else regular
-    base = regular if campaign.discount_base == CAMPAIGN_PRICE_SOURCE.REGULAR else current
+    discount_base, strike_display = effective_price_sources(campaign, campaign_product)
+    base = regular if discount_base == CAMPAIGN_PRICE_SOURCE.REGULAR else current
 
     warnings = []
     discount = _discount_for_line(campaign_product, variant)
@@ -236,7 +244,7 @@ def resolve_line_price(campaign, campaign_product, product, variant=None):
             raw = base - discount_value
         campaign_price = max(round_half_up(raw), ZERO)
 
-    strike_basis = regular if campaign.strike_price_display == CAMPAIGN_PRICE_SOURCE.REGULAR else current
+    strike_basis = regular if strike_display == CAMPAIGN_PRICE_SOURCE.REGULAR else current
     visible = discount is not None and strike_basis > ZERO and campaign_price < strike_basis
 
     strike = savings_amount = None

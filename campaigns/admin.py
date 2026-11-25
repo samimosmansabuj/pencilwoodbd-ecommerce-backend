@@ -30,7 +30,7 @@ class CampaignAdmin(admin.ModelAdmin):
         ("Schedule (Asia/Dhaka)", {"fields": ("start_at", "end_at")}),
         ("Look", {"fields": ("thumbnail", "banner_desktop", "banner_mobile",
                              "hero_title", "hero_subtitle", "hero_button_text")}),
-        ("Pricing", {"fields": ("discount_base", "strike_price_display", "badge_mode", "badge_label")}),
+        ("Pricing", {"fields": ("discount_base", "strike_price_display", "badge_mode", "badge_label", "price_surfaces")}),
         ("Rules", {"fields": ("allow_overlap", "allow_coupon")}),
         ("Gifts & offers", {
             "fields": ("include_product_gifts", "include_offers"),
