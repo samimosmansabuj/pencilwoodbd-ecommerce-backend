@@ -1,3 +1,4 @@
+{% load courier_tags %}
 <div class="main-content">
 
     <!-- Breadcrumb -->
@@ -57,8 +58,8 @@
         {% comment %} Tabs come from the view (status_tabs): one tab per STATUS choice, with counts that
         follow the current search / product / date / user filters. A new status shows up here by itself. {% endcomment %}
         {% for tab in status_tabs %}
-        <a href="{% url 'order_list' %}?status={{ tab.value }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-get="{% url 'order_list' %}?status={{ tab.value }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+        <a href="{% url 'order_list' %}?status={{ tab.value }}&q={{ current_search }}&product={{ current_product_slug }}&campaign={{ current_campaign }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-get="{% url 'order_list' %}?status={{ tab.value }}&q={{ current_search }}&product={{ current_product_slug }}&campaign={{ current_campaign }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
            hx-target="#content-area"
            hx-push-url="true"
            class="{% if current_status == tab.value and request.GET.urgent != '1' %}active{% endif %}">
@@ -68,14 +69,29 @@
         {% endfor %}
 
         <!-- Urgent -->
-        <a href="{% url 'order_list' %}?status=all&urgent=1&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
-           hx-get="{% url 'order_list' %}?status=all&urgent=1&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+        <a href="{% url 'order_list' %}?status=all&urgent=1&q={{ current_search }}&product={{ current_product_slug }}&campaign={{ current_campaign }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-get="{% url 'order_list' %}?status=all&urgent=1&q={{ current_search }}&product={{ current_product_slug }}&campaign={{ current_campaign }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
            hx-target="#content-area"
            hx-push-url="true"
            class="{% if request.GET.urgent == '1' %}active{% endif %} text-danger">
             <span class="me-1">URGENT</span>
             <span class="text-danger">({{ urgent_tab_count }})</span>
         </a>
+
+        {% restricted_attempt_count as restricted_n %}
+        {% if restricted_n %}
+        <!-- Courier restricted attempts (only while there is something new) -->
+        <a href="{% url 'order_attempt_list' %}?restricted=1"
+           hx-get="{% url 'order_attempt_list' %}?restricted=1"
+           hx-target="#content-area"
+           hx-push-url="true"
+           class="text-danger courier-restricted-chip">
+            <span class="me-1">RESTRICTED ATTEMPTS</span>
+            <span class="text-danger">({{ restricted_n }})</span>
+            <span class="courier-restricted-clear ms-1" role="button" title="Clear count (the attempts stay in the list)">&times;</span>
+        </a>
+        {% include 'db_courier_check/partial/partial_restricted_clear_script.html' %}
+        {% endif %}
 
     </div>
     <!-- End Status Tabs -->
@@ -95,7 +111,7 @@
                     name="q"
                     placeholder="Search Orders"
                     value="{{ current_search }}"
-                    hx-get="{% url 'order_list' %}?status={{ current_status }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
+                    hx-get="{% url 'order_list' %}?status={{ current_status }}&product={{ current_product_slug }}&campaign={{ current_campaign }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
                     hx-trigger="keyup changed delay:400ms"
                     hx-target="#content-area"
                     hx-push-url="true">
@@ -115,7 +131,7 @@
                     class="form-control"
                     name="product"
                     id="product_slug"
-                    hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
+                    hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&campaign={{ current_campaign }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
                     hx-target="#content-area"
                     hx-push-url="true">
 
@@ -134,6 +150,29 @@
             </div>
         </div>
 
+        <!-- Campaign Filter -->
+        <div class="col-auto">
+            <div class="btn-group position-static">
+
+                <select
+                    class="form-control"
+                    name="campaign"
+                    id="campaign_filter"
+                    aria-label="Filter by campaign"
+                    hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
+                    hx-target="#content-area"
+                    hx-push-url="true">
+
+                    <option value="">All Campaigns</option>
+                    {% for c in campaign_options %}
+                        <option value="{{ c.id }}" {% if c.id|stringformat:"s" == current_campaign %}selected{% endif %}>{{ c.title }}</option>
+                    {% endfor %}
+
+                </select>
+
+            </div>
+        </div>
+
         <!-- Updated By Filter -->
         <div class="col-auto">
             <div class="btn-group position-static">
@@ -142,7 +181,7 @@
                     class="form-control"
                     name="updated_by"
                     id="updated_by_filter"
-                    hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
+                    hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&campaign={{ current_campaign }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
                     hx-target="#content-area"
                     hx-push-url="true">
 
@@ -233,7 +272,7 @@
                     type="button"
                     class="btn btn-outline-secondary mt-4"
                     data-no-merge="start_date,end_date"
-                    hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}"
+                    hx-get="{% url 'order_list' %}?status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&campaign={{ current_campaign }}"
                     hx-target="#content-area"
                     hx-push-url="true"
                     onclick="this.closest('div').querySelectorAll('input[type=date]').forEach(input => input.value='')">
@@ -799,8 +838,8 @@
 
                         <a
                             class="page-link"
-                            href="{% url 'order_list' %}?page={{ orders.previous_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
-                            hx-get="{% url 'order_list' %}?page={{ orders.previous_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
+                            href="{% url 'order_list' %}?page={{ orders.previous_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&campaign={{ current_campaign }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
+                            hx-get="{% url 'order_list' %}?page={{ orders.previous_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&campaign={{ current_campaign }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
                             hx-target="#content-area"
                             hx-push-url="true">
                             «
@@ -826,8 +865,8 @@
 
                             <a
                                 class="page-link"
-                                href="{% url 'order_list' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
-                                hx-get="{% url 'order_list' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
+                                href="{% url 'order_list' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&campaign={{ current_campaign }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
+                                hx-get="{% url 'order_list' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&campaign={{ current_campaign }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
                                 hx-target="#content-area"
                                 hx-push-url="true">
                                 {{ num }}
@@ -847,8 +886,8 @@
 
                         <a
                             class="page-link"
-                            href="{% url 'order_list' %}?page={{ orders.next_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
-                            hx-get="{% url 'order_list' %}?page={{ orders.next_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
+                            href="{% url 'order_list' %}?page={{ orders.next_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&campaign={{ current_campaign }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
+                            hx-get="{% url 'order_list' %}?page={{ orders.next_page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&campaign={{ current_campaign }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
                             hx-target="#content-area"
                             hx-push-url="true">
                             »
@@ -876,7 +915,7 @@
 
         <select
             class="form-select"
-            hx-get="{% url 'order_list' %}?page={{ page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
+            hx-get="{% url 'order_list' %}?page={{ page_number }}&status={{ current_status }}&q={{ current_search }}&product={{ current_product_slug }}&campaign={{ current_campaign }}&per_page={{ per_page }}{% if confirmed_today %}&confirmed_today=1{% endif %}{% if pending_booking %}&pending=1{% endif %}"
             hx-trigger="change"
             hx-target="#content-area"
             hx-push-url="true"

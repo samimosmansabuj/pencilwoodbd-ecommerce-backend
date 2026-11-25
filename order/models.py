@@ -4,7 +4,7 @@ from site_app.order_prefix import get_order_id_prefix
 from django.forms import ValidationError
 from authentication.models import Customer
 from product.models import Product, ProductVariant
-from pencilwoodbd.choices import ORDER_SOURCE, PAYMENT_STATUS, PAYMENT_TYPE, STATUS, REVIEW_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, ORDER_REQUEST_WORK_STATUS
+from pencilwoodbd.choices import ORDER_SOURCE, PAYMENT_STATUS, PAYMENT_TYPE, STATUS, REVIEW_STATUS, DELIVERY_TYPE, ORDER_REQUEST_STATUS, ORDER_REQUEST_WORK_STATUS, ORDER_ATTEMPT_STATUS
 from .choice import WebhookLogTypeChoice
 from datetime import datetime
 from site_app.models import DeliveryOption
@@ -76,6 +76,9 @@ class Order(models.Model):
     coupon_discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     metadata = models.JSONField(default=dict, blank=True)
+
+    has_campaign = models.BooleanField(default=False, db_index=True)
+    delivery_breakdown = models.JSONField(default=dict, blank=True)
     
     # --- Traffic source attribution (marketing) ---
     utm_source = models.CharField(max_length=100, blank=True, null=True)
@@ -174,6 +177,15 @@ class OrderItem(models.Model):
     # discount_total_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     price_manually_edited = models.BooleanField(default=False)
     customization_note = models.TextField(blank=True, null=True, help_text="What the customer asked to customize on this item")
+    campaign = models.ForeignKey('campaigns.Campaign', null=True, blank=True, on_delete=models.SET_NULL, related_name='order_items')
+    campaign_name = models.CharField(max_length=255, null=True, blank=True)
+    regular_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    product_sale_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="The product's own discount_price at order time")
+    base_price_used = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    campaign_discount_type = models.CharField(max_length=10, null=True, blank=True)
+    campaign_discount_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    campaign_savings_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    campaign_savings_percent = models.IntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -605,8 +617,40 @@ class OrderAttempt(models.Model):
     utm_medium = models.CharField(max_length=100, blank=True, null=True)
     utm_campaign = models.CharField(max_length=255, blank=True, null=True)
 
+    STATUS_CHOICES = ORDER_ATTEMPT_STATUS.choices
+    STATUS_BADGES = {
+        ORDER_ATTEMPT_STATUS.PENDING: "bg-warning text-dark",
+        ORDER_ATTEMPT_STATUS.PROGRESS: "bg-info text-dark",
+        ORDER_ATTEMPT_STATUS.PARTIAL_SUCCESS: "bg-primary",
+        ORDER_ATTEMPT_STATUS.CONVERTED: "bg-success",
+        ORDER_ATTEMPT_STATUS.FAILED: "bg-danger",
+    }
+    status = models.CharField(max_length=20, choices=ORDER_ATTEMPT_STATUS.choices, default=ORDER_ATTEMPT_STATUS.PENDING, db_index=True)
+    note = models.TextField(blank=True, default="")
+    status_history = models.JSONField(default=list, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def status_badge_class(self):
+        return self.STATUS_BADGES.get(self.status, "bg-secondary")
+
+    def set_status(self, status=None, note=None, user=None):
+        from django.utils import timezone as _tz
+        if status and status in dict(self.STATUS_CHOICES):
+            self.status = status
+        if note is not None:
+            self.note = note
+        history = list(self.status_history or [])
+        history.append({
+            "status": self.status,
+            "note": note or "",
+            "by": (getattr(user, "get_full_name", lambda: "")() or str(user)) if user else "System",
+            "at": _tz.now().isoformat(),
+        })
+        self.status_history = history
+        self.save()
 
     def product_ids(self):
         ids = set()

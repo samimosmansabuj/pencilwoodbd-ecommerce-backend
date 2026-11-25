@@ -19,6 +19,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
+from datetime import datetime
 from django.utils import timezone
 from django.utils.text import slugify
 from django.urls import reverse_lazy, reverse
@@ -33,7 +34,8 @@ from pencilwoodbd.choices import (
 # Models
 from .models import Order, OrderRequest, OrderItem, OrderRequestItem, Shipment, TelegramBotConfig, OrderAttempt, OrderActivityLog, OrderAutoAssignSetting
 from product.models import Product, ProductVariant, Category
-from authentication.models import CustomUser, Customer, OrderTrackRecord
+from authentication.courier_restricted import clear_restricted_count, restricted_new_count, restricted_watermark
+from authentication.models import CourierCheckSettings, CourierRestrictedAttempt, CustomUser, Customer, OrderTrackRecord
 from site_app.models import DeliveryOption
 
 # Utilities
@@ -42,6 +44,9 @@ from .utils import PathaoParcelAPI, SteadFastParcelAPI, confirmed_today_filter, 
 from dashbaord.views import DashboardView
 
 from site_app.bd_districts import BD_DISTRICTS
+from campaigns.order_display import attach_campaign_summary
+from campaigns.models import Campaign
+from campaigns.order_display import campaign_item_rows, delivery_rule_view, delivery_view
 
 def build_variants_by_product(products):
     data = {}
@@ -528,6 +533,10 @@ class OrderView(LoginRequiredMixin, View):
                 | Q(order_items__variant__product__slug=product_slug)
             ).distinct()
 
+        campaign_id = (request.GET.get("campaign") or "").strip()
+        if campaign_id.isdigit():
+            orders = orders.filter(order_items__campaign_id=int(campaign_id)).distinct()
+
         if start_date and end_date:
             orders = orders.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
         elif start_date:
@@ -639,6 +648,8 @@ class OrderView(LoginRequiredMixin, View):
             products,
         ) = self.get_order_queryset(request)
 
+        attach_campaign_summary(orders)
+
         default_assign_cfg = OrderAutoAssignSetting.objects.select_related("default_assignee").first()
         status_values = [value for value, _ in STATUS.choices]
         saved_statuses = [s for s in (default_assign_cfg.statuses if default_assign_cfg else []) if s in status_values]
@@ -658,6 +669,8 @@ class OrderView(LoginRequiredMixin, View):
             "pending_booking": request.GET.get("pending") == "1",
             "current_search": request.GET.get("q", ""),
             "current_product_slug": request.GET.get("product", ""),
+            "current_campaign": request.GET.get("campaign", ""),
+            "campaign_options": Campaign.objects.order_by("-id").values("id", "title"),
             "start_date": request.GET.get("start_date", ""),
             "end_date": request.GET.get("end_date", ""),
             "current_updated_by": request.GET.get("updated_by", ""),
@@ -738,8 +751,12 @@ class OrderDetailView(LoginRequiredMixin, View):
         orders = Order.objects.all().order_by("-created_at")
         dashboard_view = DashboardView()
 
+
         context = {
             "order": order,
+            "campaign_items": campaign_item_rows(order),
+            "campaign_delivery": delivery_view(order),
+            "delivery_rule": delivery_rule_view(order),
             "is_update": True,
             "bd_districts": BD_DISTRICTS,
             "products": products,
@@ -868,6 +885,13 @@ class OrderUpdateView(LoginRequiredMixin, View):
                         old_item = None
 
                     old_snapshot = (old_item.snapshot if old_item else None) or {}
+                    old_campaign_fields = {
+                        f: getattr(old_item, f) for f in (
+                            "campaign_id", "campaign_name", "regular_price", "product_sale_price", "base_price_used",
+                            "campaign_discount_type", "campaign_discount_value", "campaign_savings_amount",
+                            "campaign_savings_percent",
+                        )
+                    } if old_item else {}
                     is_new_gift = old_item is None and bool(item.get("is_gift"))
                     if is_new_gift:
                         old_snapshot = {"is_gift": True, "gift_type": "FREE", "gift_value": 0, "source": "manual"}
@@ -913,9 +937,12 @@ class OrderUpdateView(LoginRequiredMixin, View):
                             else (old_item.customization_note if old_item else None)
                         ),
                         snapshot=old_snapshot,
+                        **old_campaign_fields,
                     )
 
                     grand_total += line_total
+
+                order.has_campaign = order.order_items.filter(campaign_id__isnull=False).exists()
 
                 grand_total -= (order.coupon_discount or Decimal("0"))
                 grand_total -= order.extra_discount
@@ -2416,7 +2443,6 @@ class OrderPathaoParcelSubmitView(LoginRequiredMixin, View):
             }, status=502)
 
 
-
 class OrderBulkActionView(LoginRequiredMixin, View):
     login_url = "admin_login"
 
@@ -2579,7 +2605,7 @@ class OrderUrgentToggleView(LoginRequiredMixin, View):
                 is_staff = request.user.user_type == USER_TYPE.STAFF
 
                 context = {
-                    "orders": orders_qs[:10],
+                    "orders": attach_campaign_summary(list(orders_qs.prefetch_related("order_items")[:10])),
                     "today_order_count": dashboard_view.get_today_order_count(orders_qs),
                     "new_orders_count": dashboard_view.new_orders_count(orders_qs),
                     "status_amounts": dashboard_view.get_status_amounts(orders_qs),
@@ -2631,7 +2657,14 @@ class OrderAttemptListView(LoginRequiredMixin, View):
 
     def get_attempt_queryset(self, request):
         search = request.GET.get("q", "").strip()
-        attempts = OrderAttempt.objects.all().order_by("-updated_at")
+        attempts = OrderAttempt.objects.all().select_related("courier_restriction").order_by("-updated_at")
+
+        if request.GET.get("restricted") == "1":
+            attempts = attempts.filter(courier_restriction__isnull=False)
+
+        status_filter = request.GET.get("status", "")
+        if status_filter in dict(OrderAttempt.STATUS_CHOICES):
+            attempts = attempts.filter(status=status_filter)
 
         if search:
             attempts = attempts.filter(
@@ -2669,7 +2702,21 @@ class OrderAttemptListView(LoginRequiredMixin, View):
             "current_search": request.GET.get("q", ""),
             "start_date": request.GET.get("start_date", ""),
             "end_date": request.GET.get("end_date", ""),
+            "status_filter": request.GET.get("status", ""),
+            "status_choices": OrderAttempt.STATUS_CHOICES,
         }
+
+        courier_cfg = CourierCheckSettings.get_solo()
+        restricted_filter = "1" if request.GET.get("restricted") == "1" else ""
+        context.update({
+            "restricted_filter": restricted_filter,
+            "restricted_total": CourierRestrictedAttempt.objects.count(),
+            "restricted_new": restricted_new_count(courier_cfg),
+            "restricted_mark": restricted_watermark(courier_cfg) or timezone.make_aware(datetime(1970, 1, 1)),
+            "restricted_clear_mode": courier_cfg.restricted_clear_mode,
+        })
+        if restricted_filter and courier_cfg.restricted_clear_mode == "on_open":
+            clear_restricted_count()
 
         if request.htmx:
             return render(request, "db_order_attempt/partial/partial_order_attempt_list.html", context)
@@ -2680,11 +2727,31 @@ class OrderAttemptDetailView(LoginRequiredMixin, View):
 
     def get(self, request, id):
         attempt = get_object_or_404(OrderAttempt, id=id)
-        context = {"attempt": attempt, "display_products": attempt.get_display_products()}
+        context = {"attempt": attempt, "display_products": attempt.get_display_products(),
+                   "status_choices": OrderAttempt.STATUS_CHOICES,
+                   "history": list(reversed(attempt.status_history or []))}
 
         if request.htmx:
             return render(request, "db_order_attempt/partial/partial_order_attempt_detail.html", context)
         return render(request, "db_order_attempt/order_attempt_detail.html", context)
+
+
+class OrderAttemptStatusUpdateView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request, pk):
+        attempt = get_object_or_404(OrderAttempt, pk=pk)
+        status = request.POST.get("status", "").strip()
+        note = request.POST.get("note")
+        note = note.strip() if note is not None else None
+        if status and status not in dict(OrderAttempt.STATUS_CHOICES):
+            messages.error(request, "Invalid status.")
+        elif (not status or status == attempt.status) and not note:
+            messages.info(request, "Nothing to update.")
+        else:
+            attempt.set_status(status=status or None, note=note, user=request.user)
+            messages.success(request, f"Attempt #{attempt.id} updated.")
+        return redirect(request.META.get("HTTP_REFERER") or "order_attempt_list")
 
 
 class OrderAttemptDeleteView(LoginRequiredMixin, DeleteView):

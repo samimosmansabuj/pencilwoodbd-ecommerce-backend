@@ -1,0 +1,28 @@
+{# Django template. Turn OFF "format on save" for this file. #}
+<script>
+(function () {
+    if (window.__courierRestrictedClearInit) return;
+    window.__courierRestrictedClearInit = true;
+    function csrf() {
+        try {
+            var v = JSON.parse(document.querySelector('[hx-headers]').getAttribute('hx-headers'))['x-csrftoken'];
+            if (v) return v;
+        } catch (e) {}
+        var m = document.cookie.match(/csrftoken=([^;]+)/);
+        return m ? m[1] : '';
+    }
+    document.addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('.courier-restricted-clear') : null;
+        if (!b) return;
+        e.preventDefault();
+        e.stopPropagation();
+        fetch("{% url 'courier_restricted_clear' %}", {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(function (r) { return r.json(); }).then(function (d) {
+            if (!d.success) return;
+            document.querySelectorAll('.courier-restricted-chip, .courier-restricted-banner').forEach(function (el) { el.remove(); });
+        });
+    }, true);
+})();
+</script>

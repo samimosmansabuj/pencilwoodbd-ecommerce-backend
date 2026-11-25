@@ -11,6 +11,7 @@ from .models import CustomUser, Customer, GoogleIdentity, Role
 from .utils import normalize_bd_phone, phone_lookup_variants
 from pencilwoodbd.extra_module import safe_error_message
 from pencilwoodbd.throttles import OTPVerifyRateThrottle, GoogleAuthRateThrottle
+from campaigns.models import Campaign
 
 class PhoneCheckAPIView(APIView):
     permission_classes = [AllowAny]
@@ -374,14 +375,21 @@ def _merge_guest_cart_and_wishlist(customer, data):
         if row.get("variant_id"):
             variant = ProductVariant.objects.filter(id=row["variant_id"], product=product).first()
 
-        existing = AddToCart.objects.filter(customer=customer, product=product, variant=variant).first()
+        campaign = None
+        campaign_slug = str(row.get("campaign") or "").strip()
+        if campaign_slug:
+            campaign = Campaign.objects.filter(slug=campaign_slug).first()
+            if campaign is None:
+                continue
+
+        existing = AddToCart.objects.filter(customer=customer, product=product, variant=variant, campaign=campaign).first()
         qty = int(row.get("quantity", 1))
 
         if existing:
             existing.quantity += qty
             existing.save()
         else:
-            AddToCart.objects.create(customer=customer, product=product, variant=variant, quantity=qty)
+            AddToCart.objects.create(customer=customer, product=product, variant=variant, quantity=qty, campaign=campaign)
 
     for product_id in guest_wishlist:
         try:

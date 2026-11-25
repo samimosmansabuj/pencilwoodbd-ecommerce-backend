@@ -7,20 +7,27 @@ from site_app.models import LandingPageProduct
 from product.models import Product
 
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Count, Max, Min, Q
 from order.models import Order
-from .models import CustomUser, Customer, BlockedIdentity, TrackSettings, OrderTrackRecord
+from .courier_badge import render_courier_badge
+from .courier_check import describe_keep, fetch_courier_stats, purge_expired_logs, retention_label
+from .courier_restricted import clear_restricted_count, restricted_new_count
+from .models import CustomUser, Customer, BlockedIdentity, TrackSettings, OrderTrackRecord, CourierCheckLog, CourierCheckSettings, CourierNumberRetention
+from .utils import normalize_bd_phone
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
+from urllib.parse import urlencode
 from http import HTTPStatus
 
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.hashers import make_password
 from django.db import transaction
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.urls import reverse_lazy
 from django.conf import settings
 
 from pencilwoodbd.extra_module import parse_int
-from pencilwoodbd.choices import USER_TYPE
+from pencilwoodbd.choices import USER_TYPE, CourierCheckProviderChoices, CourierLowRatioActionChoices, CourierNoticeClearModeChoices, CourierRetentionUnitChoices
 
 from dashbaord.views import DashboardView
 
@@ -635,4 +642,327 @@ class StaffUpdateView(LoginRequiredMixin, View):
             messages.error(request, f"Failed to update user: {e}")
 
         return redirect(redirect_url)
-    
+
+
+COURIER_ROLES = (USER_TYPE.STAFF, USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN)
+
+
+class CourierCheckSettingsView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+    template_name = "db_courier_check/courier_check.html"
+
+    def get(self, request):
+        cfg = CourierCheckSettings.get_solo()
+
+        latest_ids = CourierCheckLog.objects.values("phone").annotate(last_id=Max("id")).values("last_id")
+        logs = CourierCheckLog.objects.filter(id__in=latest_ids)
+        g = request.GET
+        q = g.get("q", "").strip()
+        if q:
+            logs = logs.filter(phone__icontains=q)
+
+        def _date(key):
+            try:
+                return datetime.strptime(g.get(key, ""), "%Y-%m-%d").date()
+            except ValueError:
+                return None
+
+        def _percent(key):
+            try:
+                v = Decimal(g.get(key, ""))
+            except (InvalidOperation, TypeError):
+                return None
+            return v if Decimal("0") <= v <= Decimal("100") else None
+
+        start_date, end_date = _date("start_date"), _date("end_date")
+        min_ratio, max_ratio = _percent("min_ratio"), _percent("max_ratio")
+        source = g.get("source", "").strip()
+        result_filter = g.get("result", "").strip()
+        if start_date:
+            logs = logs.filter(created_at__date__gte=start_date)
+        if end_date:
+            logs = logs.filter(created_at__date__lte=end_date)
+        if min_ratio is not None:
+            logs = logs.filter(success_ratio__gte=min_ratio)
+        if max_ratio is not None:
+            logs = logs.filter(success_ratio__lte=max_ratio)
+        if source:
+            logs = logs.filter(source=source)
+        if result_filter == "ok":
+            logs = logs.filter(is_error=False)
+        elif result_filter == "failed":
+            logs = logs.filter(is_error=True)
+
+        try:
+            per_page = int(g.get("per_page", 20))
+        except ValueError:
+            per_page = 20
+        if per_page not in (10, 20, 50, 100):
+            per_page = 20
+        page = Paginator(logs.order_by("-created_at"), per_page).get_page(g.get("page", 1))
+
+        qs = urlencode({k: v for k, v in (
+            ("q", q), ("start_date", g.get("start_date", "") if start_date else ""), ("end_date", g.get("end_date", "") if end_date else ""),
+            ("min_ratio", g.get("min_ratio", "") if min_ratio is not None else ""), ("max_ratio", g.get("max_ratio", "") if max_ratio is not None else ""),
+            ("source", source), ("result", result_filter), ("per_page", per_page),
+        ) if v != ""})
+
+        phones = [log.phone for log in page]
+        counts = dict(CourierCheckLog.objects.filter(phone__in=phones).values_list("phone").annotate(n=Count("id")))
+        rules = {r.phone: r for r in CourierNumberRetention.objects.filter(phone__in=phones)}
+        for log in page:
+            log.check_count = counts.get(log.phone, 0)
+            log.keep = describe_keep(cfg, rules.get(log.phone))
+
+        recent_only = g.get("part") == "recent"
+        stats = {}
+        if not recent_only:
+            stats = CourierCheckLog.objects.aggregate(total=Count("id"), oldest=Min("created_at"))
+            stats["numbers"] = CourierCheckLog.objects.values("phone").distinct().count()
+            stats["expired"] = purge_expired_logs(cfg, dry_run=True)
+
+        context = {
+            "per_page": per_page,
+            "per_page_choices": (10, 20, 50, 100),
+            "qs": qs,
+            "f_start_date": g.get("start_date", "") if start_date else "",
+            "f_end_date": g.get("end_date", "") if end_date else "",
+            "f_min_ratio": g.get("min_ratio", "") if min_ratio is not None else "",
+            "f_max_ratio": g.get("max_ratio", "") if max_ratio is not None else "",
+            "f_source": source,
+            "f_result": result_filter,
+            "source_choices": list(CourierCheckLog.objects.exclude(source="").values_list("source", flat=True).distinct().order_by("source")),
+            "filters_active": bool(q or start_date or end_date or min_ratio is not None or max_ratio is not None or source or result_filter),
+            "cfg": cfg,
+            "action_choices": CourierLowRatioActionChoices.choices,
+            "provider_choices": CourierCheckProviderChoices.choices,
+            "unit_choices": CourierRetentionUnitChoices.choices,
+            "clear_mode_choices": CourierNoticeClearModeChoices.choices,
+            "restricted_new": restricted_new_count(cfg),
+            "logs": page,
+            "stats": stats,
+            "keep_text": retention_label(cfg.retention_forever, cfg.retention_value, cfg.retention_unit),
+            "current_search": q,
+            "can_edit": request.user.user_type in COURIER_ROLES,
+        }
+        if recent_only:
+            return render(request, "db_courier_check/partial/partial_courier_recent_checks.html", context)
+        if request.htmx:
+            return render(request, "db_courier_check/partial/partial_courier_check_settings.html", context)
+        return render(request, self.template_name, context)
+
+    def post(self, request):
+        if request.user.user_type not in COURIER_ROLES:
+            messages.error(request, "You do not have permission to change these settings.")
+            return redirect("courier_check_settings")
+
+        cfg = CourierCheckSettings.get_solo()
+        p = request.POST
+
+        cfg.is_enabled = p.get("is_enabled") == "on"
+        cfg.apply_on_ecom = p.get("apply_on_ecom") == "on"
+        cfg.apply_on_landing = p.get("apply_on_landing") == "on"
+        cfg.fail_open = p.get("fail_open") == "on"
+        cfg.show_badges = p.get("show_badges") == "on"
+        cfg.auto_check_new_numbers = p.get("auto_check_new_numbers") == "on"
+
+        if p.get("provider") in dict(CourierCheckProviderChoices.choices):
+            cfg.provider = p["provider"]
+        if p.get("low_ratio_action") in dict(CourierLowRatioActionChoices.choices):
+            cfg.low_ratio_action = p["low_ratio_action"]
+
+        base = (p.get("api_base_url") or "").strip()
+        if base.startswith(("http://", "https://")):
+            cfg.api_base_url = base.rstrip("/")
+        endpoint = (p.get("api_endpoint") or "").strip()
+        if endpoint:
+            cfg.api_endpoint = "/" + endpoint.lstrip("/")
+
+        new_key = (p.get("api_key") or "").strip()
+        if new_key:
+            cfg.api_key = new_key
+        elif p.get("clear_api_key") == "on":
+            cfg.api_key = ""
+
+        try:
+            ratio = Decimal(p.get("min_success_ratio", "")).quantize(Decimal("0.01"))
+            if Decimal("0") <= ratio <= Decimal("100"):
+                cfg.min_success_ratio = ratio
+            else:
+                messages.warning(request, "Success ratio must be between 0 and 100. Old value kept.")
+        except (InvalidOperation, TypeError):
+            pass
+
+        try:
+            margin = Decimal(p.get("warn_margin", "")).quantize(Decimal("0.01"))
+            if Decimal("0") <= margin <= Decimal("100"):
+                cfg.warn_margin = margin
+        except (InvalidOperation, TypeError):
+            pass
+
+        for field, lo, hi in (("min_parcels_to_evaluate", 1, 1000), ("cache_hours", 0, 720), ("timeout_seconds", 1, 30), ("api_retries", 0, 3), ("auto_check_hourly_limit", 0, 100000)):
+            try:
+                val = int(p.get(field, ""))
+                if lo <= val <= hi:
+                    setattr(cfg, field, val)
+            except (TypeError, ValueError):
+                pass
+
+        cfg.whatsapp_number = (p.get("whatsapp_number") or "").strip()[:20]
+        cfg.whatsapp_prefill_text = (p.get("whatsapp_prefill_text") or "").strip()[:255]
+        cfg.ignored_couriers = (p.get("ignored_couriers") or "").strip()[:255]
+        if (p.get("otp_message") or "").strip():
+            cfg.otp_message = p["otp_message"].strip()
+        if (p.get("whatsapp_message") or "").strip():
+            cfg.whatsapp_message = p["whatsapp_message"].strip()
+
+        cfg.hard_block_enabled = p.get("hard_block_enabled") == "on"
+        try:
+            hard = Decimal(p.get("hard_block_ratio", "")).quantize(Decimal("0.01"))
+            if Decimal("0") <= hard <= Decimal("100"):
+                cfg.hard_block_ratio = hard
+        except (InvalidOperation, TypeError):
+            pass
+        if (p.get("hard_block_message") or "").strip():
+            cfg.hard_block_message = p["hard_block_message"].strip()
+        cfg.hard_block_contact = (p.get("hard_block_contact") or "").strip()[:60]
+        if p.get("restricted_clear_mode") in dict(CourierNoticeClearModeChoices.choices):
+            cfg.restricted_clear_mode = p["restricted_clear_mode"]
+        cfg.restricted_expire_forever = p.get("restricted_expire_mode", "limited") == "forever"
+        if p.get("restricted_expire_unit") in dict(CourierRetentionUnitChoices.choices):
+            cfg.restricted_expire_unit = p["restricted_expire_unit"]
+        try:
+            expire_value = int(p.get("restricted_expire_value", ""))
+            if 1 <= expire_value <= 1000:
+                cfg.restricted_expire_value = expire_value
+        except (TypeError, ValueError):
+            pass
+
+        cfg.retention_forever = p.get("retention_mode", "forever") != "limited"
+        if p.get("retention_unit") in dict(CourierRetentionUnitChoices.choices):
+            cfg.retention_unit = p["retention_unit"]
+        try:
+            keep_value = int(p.get("retention_value", ""))
+            if 1 <= keep_value <= 1000:
+                cfg.retention_value = keep_value
+        except (TypeError, ValueError):
+            pass
+
+        cfg.save()
+        messages.success(request, "Courier check settings saved.")
+        return redirect("courier_check_settings")
+
+
+class CourierBadgeCheckView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request):
+        if request.user.user_type not in COURIER_ROLES:
+            return JsonResponse({"success": False, "message": "Permission denied."}, status=403)
+
+        phone = normalize_bd_phone(request.POST.get("phone", ""))
+        if not phone:
+            return JsonResponse({"success": False, "message": "Invalid phone number."}, status=400)
+
+        cfg = CourierCheckSettings.get_solo()
+        if not (cfg.api_key or "").strip():
+            return JsonResponse({"success": False, "message": "Save the API key in Courier Check settings first."}, status=400)
+
+        result = fetch_courier_stats(phone, cfg=cfg, source="dashboard")
+        if not result.ok:
+            return JsonResponse({"success": False, "message": result.error or "Courier API error."}, status=502)
+
+        return JsonResponse({"success": True, "html": render_courier_badge(phone, cfg=cfg)})
+
+
+def render_courier_history(request, phone_raw, saved_message=""):
+    phone = normalize_bd_phone(phone_raw)
+    if not phone:
+        return HttpResponse("Invalid phone number.", status=400)
+
+    cfg = CourierCheckSettings.get_solo()
+    limit = 200
+    all_logs = CourierCheckLog.objects.filter(phone=phone).order_by("-created_at")
+    rule = CourierNumberRetention.objects.filter(phone=phone).first()
+    if rule is None:
+        form_mode = "default"
+    else:
+        form_mode = "forever" if rule.keep_forever else "limited"
+    return render(request, "db_courier_check/partial/partial_courier_check_history.html", {
+        "cfg": cfg,
+        "phone": phone,
+        "logs": all_logs[:limit],
+        "total": all_logs.count(),
+        "limit": limit,
+        "rule": rule,
+        "form_mode": form_mode,
+        "form_value": rule.value if rule else 30,
+        "form_unit": rule.unit if rule else "day",
+        "keep": describe_keep(cfg, rule),
+        "system_keep": retention_label(cfg.retention_forever, cfg.retention_value, cfg.retention_unit),
+        "unit_choices": CourierRetentionUnitChoices.choices,
+        "saved_message": saved_message,
+        "can_edit": request.user.user_type in COURIER_ROLES,
+    })
+
+
+class CourierCheckHistoryView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def get(self, request):
+        return render_courier_history(request, request.GET.get("phone", ""))
+
+
+class CourierNumberRetentionView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request):
+        if request.user.user_type not in COURIER_ROLES:
+            return HttpResponse("You do not have permission to change this.", status=403)
+
+        phone = normalize_bd_phone(request.POST.get("phone", ""))
+        if not phone:
+            return HttpResponse("Invalid phone number.", status=400)
+
+        mode = request.POST.get("mode", "default")
+        if mode == "forever":
+            CourierNumberRetention.objects.update_or_create(phone=phone, defaults={"keep_forever": True})
+            message = "Saved: this number's history is kept forever."
+        elif mode == "limited":
+            unit = request.POST.get("unit")
+            try:
+                value = int(request.POST.get("value", ""))
+            except (TypeError, ValueError):
+                value = 0
+            if unit not in dict(CourierRetentionUnitChoices.choices) or not 1 <= value <= 1000:
+                return render_courier_history(request, phone, "Enter a number between 1 and 1000 and pick a unit. Nothing was changed.")
+            CourierNumberRetention.objects.update_or_create(
+                phone=phone, defaults={"keep_forever": False, "value": value, "unit": unit}
+            )
+            message = f"Saved: older checks of this number are deleted after {retention_label(False, value, unit)}."
+        else:
+            CourierNumberRetention.objects.filter(phone=phone).delete()
+            message = "Saved: this number now follows the system setting."
+        return render_courier_history(request, phone, message)
+
+
+class CourierCheckCleanupView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request):
+        if request.user.user_type not in COURIER_ROLES:
+            messages.error(request, "You do not have permission to do this.")
+            return redirect("courier_check_settings")
+        deleted = purge_expired_logs()
+        messages.success(request, f"Deleted {deleted} expired courier check record(s).")
+        return redirect("courier_check_settings")
+
+
+class CourierRestrictedClearView(LoginRequiredMixin, View):
+    login_url = "admin_login"
+
+    def post(self, request):
+        if request.user.user_type not in COURIER_ROLES:
+            return JsonResponse({"success": False, "message": "Permission denied."}, status=403)
+        clear_restricted_count()
+        return JsonResponse({"success": True})

@@ -1,3 +1,4 @@
+{% load courier_tags %}
 <div class="customer-table">
     <div class="table-responsive white-space-nowrap" id="order-table-wrapper">
         <table class="table align-middle">
@@ -39,6 +40,19 @@
                                 title="Copy Order ID">
                             <i class="bi bi-copy"></i>
                         </button>
+                        {% if order.campaign_chips %}
+                        <div class="mt-1">
+                            {% for chip in order.campaign_chips %}
+                            <a href="{% url 'order_list' %}?campaign={{ chip.id|default:'' }}"
+   class="badge text-white text-decoration-none"
+   style="background-color: #F59E0B"
+   data-campaign-chip
+   title="Campaign order{% if chip.id %} - click to filter by this campaign{% endif %}">
+    <i class="bi bi-megaphone me-1"></i>{{ chip.name|truncatechars:22 }}
+</a>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
                         <script>
                         function copyOrderId(orderId, button) {
                             navigator.clipboard.writeText(orderId).then(() => {
@@ -124,6 +138,7 @@
                             title="Click to copy">
                             {{ order.customer.phone }}
                         </span>
+                        {% courier_badge order.customer.phone %}
                         <script>
                             function copyPhoneNumber(phone, element) {
                                 let copyNumber = phone.startsWith('88')
@@ -551,6 +566,7 @@
                             ${item.is_gift ? '<span class="badge bg-warning text-dark ms-1">Gift</span>' : ''}
                             ${item.is_customized ? '<span class="badge bg-info text-dark ms-1"><i class="bi bi-palette-fill me-1"></i>Custom</span>' : ''}
                             ${copyBtn(copyLine)}
+                            ${item.campaign_name ? `<div class="small"><span class="badge bg-primary"><i class="bi bi-megaphone me-1"></i>${escH(item.campaign_name)}</span></div>` : ''}
                             ${item.customization_price ? `<div class="small text-muted">Base ${fmtMoney(item.discount_price - item.customization_price)} + Customization ${fmtMoney(item.customization_price)}${item.qty > 1 ? ' (each)' : ''}</div>` : ''}
                         </td>
                         <td><code class="small">${escH(item.sku)}</code></td>
@@ -578,6 +594,19 @@
                         <td class="text-end fw-semibold">${fmtMoney(item.item_total)}</td>
                     </tr>`;
             });
+
+            // ── Campaign summary (SPEC 9) ───────────────────────────────
+            let campaignHtml = '';
+            if (o.has_campaign) {
+                campaignHtml = `
+                <div class="mt-3">
+                    <h6 class="fw-semibold small text-uppercase mb-2"><i class="bi bi-megaphone me-1"></i>Campaign</h6>
+                    <div class="d-flex flex-wrap gap-3 small">
+                        <span><strong>Campaign:</strong> ${(o.campaign_names || []).map(escH).join(', ')}</span>
+                        <span><strong>Campaign discount total:</strong> ${fmtMoney(o.campaign_discount_total)}</span>
+                    </div>
+                </div>`;
+            }
 
             // ── Shipment row ────────────────────────────────────────────
             let shipmentHtml = '';
@@ -621,6 +650,7 @@
                             ${customer_phone ? `<div class="small mb-1">
                                 <i class="bi bi-telephone me-1"></i>${escH(customer_phone)}
                                 ${copyBtn(customer_phone)}
+                                ${o.customer_courier_badge || ''}
                             </div>` : ''}
                             ${o.customer_email ? `<div class="small">${escH(o.customer_email)}</div>` : ''}
                         </div>
@@ -732,6 +762,7 @@
                     </div>
                 </div>
 
+                ${campaignHtml}
                 ${shipmentHtml}
 
                 <!-- BD Courier Check -->
@@ -744,7 +775,7 @@
                                     Courier History & Risk Check
                                 </h6>
 
-                                <button type="button" id="bdCourierRefreshBtn" class="btn btn-sm btn-outline-primary" onclick="loadBdCourierCheck()">
+                                <button type="button" id="bdCourierRefreshBtn" class="btn btn-sm btn-outline-primary">
                                     <i class="bi bi-arrow-clockwise me-1"></i>
                                     Refresh
                                 </button>
@@ -759,27 +790,14 @@
 
             </div>`;
 
-            loadBdCourierCheck();
+            loadBdCourierCheck(false);
         }
 
-        async function loadBdCourierCheck() {
+        async function loadBdCourierCheck(force = false) {
             const container = document.getElementById('bdCourierResult');
             const button = document.getElementById('bdCourierRefreshBtn');
 
             if (!container) return;
-
-            if (button) {
-                button.disabled = true;
-                button.innerHTML = `
-                    <span class="spinner-border spinner-border-sm me-1"></span>
-                    Refreshing...
-                `;
-                button.style.display = 'none';
-            }
-
-            const phone = document.querySelector(
-                '#shortDetailBody .bi-telephone'
-            );
 
             const customerPhone = window.currentShortDetailPhone;
 
@@ -788,6 +806,15 @@
                     '<div class="alert alert-warning mb-0">' +
                     'Customer phone number unavailable.</div>';
                 return;
+            }
+
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = `
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                    Refreshing...
+                `;
+                button.style.display = 'none';
             }
 
             container.innerHTML = `
@@ -802,6 +829,7 @@
                     window.location.origin
                 );
                 url.searchParams.set('phone', customerPhone);
+                if (force) url.searchParams.set('refresh', '1');
 
                 const response = await fetch(url, {
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -816,6 +844,7 @@
                 }
 
                 const data = result.data || {};
+                const meta = result.meta || {};
                 const summary = data.summary || {};
                 const couriers = Object.entries(data).filter(
                     ([key, value]) =>
@@ -831,9 +860,12 @@
                     Math.max(0, Math.min(100, number(value)));
 
                 const summaryRatio = percent(summary.success_ratio);
+                // colours follow Dashboard > Courier Check (limit and yellow margin)
+                const limit = Number(meta.limit ?? 70);
+                const margin = Number(meta.warn_margin ?? 10);
                 const ratioColor = ratio =>
-                    ratio >= 80 ? 'bg-success' :
-                    ratio >= 50 ? 'bg-warning' : 'bg-danger';
+                    ratio < limit ? 'bg-danger' :
+                    ratio < limit + margin ? 'bg-warning' : 'bg-success';
 
                 const summaryHtml = `
                     <div class="row g-2 mb-4">
@@ -871,6 +903,11 @@
                                     <div class="progress-bar ${ratioColor(summaryRatio)}"
                                         style="width:${summaryRatio}%"></div>
                                 </div>
+                                <div class="text small mt-1">Limit ${limit}%</div>
+                                ${(meta.rate_only || []).length ? `
+                                <div class="text small mt-1">
+                                    Includes ${(meta.rate_only || []).map(c => safe(c.name) + ' (rate only, ~' + c.est_total + '+ parcels)').join(', ')}
+                                </div>` : ''}
                             </div>
                         </div>
                     </div>`;
@@ -909,6 +946,15 @@
                                             aria-valuemax="100"></div>
                                     </div>
 
+                                    ${courier.rate_only ? `
+                                    <div class="d-flex justify-content-between mb-2" title="${safe(courier.notice || '')}">
+                                        <span class="text">Parcel counts</span>
+                                        <strong>Rate only</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text">Parcel range</span>
+                                        <strong>${safe(courier.parcel_range || 'n/a')}</strong>
+                                    </div>` : `
                                     <div class="d-flex justify-content-between mb-2">
                                         <span class="text">Total parcels</span>
                                         <strong>${number(courier.total_parcel)}</strong>
@@ -924,14 +970,15 @@
                                         <strong class="text-danger">
                                             ${number(courier.cancelled_parcel)}
                                         </strong>
-                                    </div>
+                                    </div>`}
                                 </div>
                             </div>`;
                         }).join('')}
                     </div>`
                     : '<div class="text">No courier statistics found.</div>';
 
-                const reports = Array.isArray(data.reports) ? data.reports : [];
+                const reports = Array.isArray(result.reports) ? result.reports
+                    : (Array.isArray(data.reports) ? data.reports : []);
 
                 const reportsHtml = reports.length ? `
                     <div class="mt-4">
@@ -956,7 +1003,28 @@
                         </div>
                     </div>` : '';
 
-                container.innerHTML = summaryHtml + courierHtml + reportsHtml;
+                const checkedHtml = meta.checked_at_text ? `
+                    <div class="text small mb-2">
+                        Checked: ${safe(meta.checked_at_text)}
+                        ${meta.cached ? ' · saved result, press Refresh for live data' : ' · live'}
+                        ${(meta.ignored || []).length ? ' · ignored in ratio: ' + safe(meta.ignored.join(', ')) : ''}
+                    </div>` : '';
+
+                // BDCourier's own verdict (Safe / Warning ...), shown as information
+                const risk = result.risk_verdict && typeof result.risk_verdict === 'object' ? result.risk_verdict : null;
+                const riskClass = {
+                    green: 'bg-success', yellow: 'bg-warning text-dark',
+                    orange: 'bg-warning text-dark', red: 'bg-danger'
+                }[String((risk && risk.color) || '').toLowerCase()] || 'bg-secondary';
+                const riskReasons = risk && Array.isArray(risk.reasons) ? risk.reasons.join('; ') : '';
+                const riskHtml = risk ? `
+                    <div class="mb-2">
+                        <span class="text small">BDCourier verdict:</span>
+                        <span class="badge ${riskClass}">${safe(risk.label || risk.level || '')}</span>
+                        <span class="text small">${safe(risk.action || '')}${riskReasons ? ' · ' + safe(riskReasons) : ''}</span>
+                    </div>` : '';
+
+                container.innerHTML = checkedHtml + riskHtml + summaryHtml + courierHtml + reportsHtml;
 
             } catch (error) {
                 container.innerHTML = `
@@ -982,7 +1050,8 @@
             if (!button) return;
 
             event.preventDefault();
-            loadBdCourierCheck();
+            if (button.disabled) return;
+            loadBdCourierCheck(true);
         });
     }
 </script>

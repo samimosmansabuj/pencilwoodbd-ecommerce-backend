@@ -1,3 +1,4 @@
+{% load courier_tags %}
 {% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
 
 <div class="main-content">
@@ -17,6 +18,16 @@
         </div>
     </div>
 
+    {% if attempt.courier_restriction %}
+    <div class="alert alert-danger">
+        <strong>Refused because of the courier success ratio.</strong>
+        This customer's ratio is <strong>{{ attempt.courier_restriction.ratio }}%</strong>, below the limit of
+        <strong>{{ attempt.courier_restriction.limit }}%</strong>. No order was created.
+        Tried {{ attempt.courier_restriction.times }} time{{ attempt.courier_restriction.times|pluralize }}
+        (first {{ attempt.courier_restriction.first_at|date:"d M Y, h:i A" }}, last {{ attempt.courier_restriction.last_at|date:"d M Y, h:i A" }}).
+    </div>
+    {% endif %}
+
     <div class="card mb-4">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
@@ -28,11 +39,13 @@
                     </div>
                 </div>
                 <div class="text-end">
-                    <span class="badge bg-warning text-dark px-3 py-2">Not Purchased Yet</span>
+                    <span class="badge {{ attempt.status_badge_class }} px-3 py-2">{{ attempt.get_status_display }}</span>
                 </div>
             </div>
             <hr>
             <div class="d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#attemptStatusD{{ attempt.id }}"><i class="bi bi-pencil-square me-2"></i> Status / Note</button>
+                {% include 'db_order_attempt/partial/partial_attempt_status_modal.html' with attempt=attempt modal_id='attemptStatusD' %}
                 <form method="post" action="{% url 'order_attempt_delete' attempt.pk %}"
                       onsubmit="return confirm('Delete this order attempt?');">
                     {% csrf_token %}
@@ -48,7 +61,7 @@
                 <div class="card-body">
                     <h5 class="fw-bold mb-3">Customer Info</h5>
                     <p class="mb-1"><strong>Name:</strong> {{ attempt.name|default:"—" }}</p>
-                    <p class="mb-1"><strong>Phone:</strong> {{ attempt.phone }}</p>
+                    <p class="mb-1"><strong>Phone:</strong> {{ attempt.phone }} {% courier_badge attempt.phone %}</p>
                     <p class="mb-1"><strong>Address:</strong> {{ attempt.address|default:"—" }}</p>
                     <p class="mb-1"><strong>District:</strong> {{ attempt.district|default:"—" }}</p>
                 </div>
@@ -67,7 +80,9 @@
         </div>
     </div>
 
-    <div class="card">
+    {% if attempt.note %}<div class="alert alert-secondary"><strong>Note:</strong> {{ attempt.note|linebreaksbr }}</div>{% endif %}
+
+    <div class="card mb-4">
         <div class="card-body">
             <h5 class="fw-bold mb-3">Products in Cart at the Time</h5>
             <div class="table-responsive">
@@ -82,6 +97,18 @@
                     </tbody>
                 </table>
             </div>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5 class="fw-bold mb-3">Status History</h5>
+            <ul class="list-group list-group-flush">
+            {% for h in history %}
+                <li class="list-group-item px-0"><strong>{{ h.status }}</strong>{% if h.note %} &mdash; {{ h.note }}{% endif %}
+                    <div class="small text">{{ h.by }} &middot; {{ h.at|slice:":16"|cut:"T" }}</div></li>
+            {% empty %}<li class="list-group-item px-0">No history yet</li>{% endfor %}
+            </ul>
         </div>
     </div>
 </div>

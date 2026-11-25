@@ -26,6 +26,14 @@
     </div>
     {% endif %}
 
+    {% if campaign_items %}
+    {% regroup campaign_items by campaign_name as campaign_badges %}
+    <div class="mb-3" id="order-campaign-badge">
+        {% for g in campaign_badges %}<span class="badge bg-danger fs-6 me-2"><i class="bi bi-megaphone me-1"></i>Campaign order: {{ g.grouper }}</span>{% endfor %}
+        <a href="#order-campaign-block" class="small ms-1">See campaign details below</a>
+    </div>
+    {% endif %}
+
     {% include "db_order/partial/order_form_body.html" with show_detail_actions=True %}
 
     <div class="modal fade" id="activityLogModal" tabindex="-1" aria-hidden="true">

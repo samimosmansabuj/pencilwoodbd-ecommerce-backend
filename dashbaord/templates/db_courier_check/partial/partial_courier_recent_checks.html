@@ -1,0 +1,146 @@
+{% load courier_tags %}
+{# Django template. Turn OFF "format on save" for this file: formatters break {% tags %} that span two lines. #}
+<div id="courierRecentChecks">
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h5 class="mb-0">Recent Checks</h5>
+            <span class="text small">
+                Latest check per number · <strong>{{ logs.paginator.count }}</strong> numbers{% if filters_active %} (filtered){% endif %}
+            </span>
+        </div>
+        <div class="card-body">
+
+            <form id="courierRecentFilters" class="row g-2 align-items-end mb-3"
+                  hx-get="{% url 'courier_check_settings' %}" hx-target="#courierRecentChecks" hx-swap="outerHTML">
+                <input type="hidden" name="part" value="recent">
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label small mb-1">Phone</label>
+                    <input type="search" name="q" value="{{ current_search }}" class="form-control form-control-sm" placeholder="Search number"
+                           hx-get="{% url 'courier_check_settings' %}" hx-include="#courierRecentFilters" hx-target="#courierRecentChecks" hx-swap="outerHTML"
+                           hx-trigger="keyup changed delay:500ms, search">
+                </div>
+                <div class="col-6 col-md-2 col-xl-2">
+                    <label class="form-label small mb-1">From date</label>
+                    <input type="date" name="start_date" value="{{ f_start_date }}" class="form-control form-control-sm"
+                           hx-get="{% url 'courier_check_settings' %}" hx-include="#courierRecentFilters" hx-target="#courierRecentChecks" hx-swap="outerHTML" hx-trigger="change">
+                </div>
+                <div class="col-6 col-md-2 col-xl-2">
+                    <label class="form-label small mb-1">To date</label>
+                    <input type="date" name="end_date" value="{{ f_end_date }}" class="form-control form-control-sm"
+                           hx-get="{% url 'courier_check_settings' %}" hx-include="#courierRecentFilters" hx-target="#courierRecentChecks" hx-swap="outerHTML" hx-trigger="change">
+                </div>
+                <div class="col-3 col-md-1 col-xl-1">
+                    <label class="form-label small mb-1">Success % from</label>
+                    <input type="number" min="0" max="100" step="0.01" name="min_ratio" value="{{ f_min_ratio }}" class="form-control form-control-sm" placeholder="0"
+                           hx-get="{% url 'courier_check_settings' %}" hx-include="#courierRecentFilters" hx-target="#courierRecentChecks" hx-swap="outerHTML"
+                           hx-trigger="keyup changed delay:600ms, change">
+                </div>
+                <div class="col-3 col-md-1 col-xl-1">
+                    <label class="form-label small mb-1">to %</label>
+                    <input type="number" min="0" max="100" step="0.01" name="max_ratio" value="{{ f_max_ratio }}" class="form-control form-control-sm" placeholder="100"
+                           hx-get="{% url 'courier_check_settings' %}" hx-include="#courierRecentFilters" hx-target="#courierRecentChecks" hx-swap="outerHTML"
+                           hx-trigger="keyup changed delay:600ms, change">
+                </div>
+                <div class="col-6 col-md-2 col-xl-2">
+                    <label class="form-label small mb-1">Source</label>
+                    <select name="source" class="form-select form-select-sm"
+                            hx-get="{% url 'courier_check_settings' %}" hx-include="#courierRecentFilters" hx-target="#courierRecentChecks" hx-swap="outerHTML" hx-trigger="change">
+                        <option value="">All</option>
+                        {% for s in source_choices %}
+                            <option value="{{ s }}" {% if f_source == s %}selected{% endif %}>{{ s }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-6 col-md-2 col-xl-1">
+                    <label class="form-label small mb-1">Result</label>
+                    <select name="result" class="form-select form-select-sm"
+                            hx-get="{% url 'courier_check_settings' %}" hx-include="#courierRecentFilters" hx-target="#courierRecentChecks" hx-swap="outerHTML" hx-trigger="change">
+                        <option value="">All</option>
+                        <option value="ok" {% if f_result == "ok" %}selected{% endif %}>Success</option>
+                        <option value="failed" {% if f_result == "failed" %}selected{% endif %}>Failed</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    {% if filters_active %}
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            hx-get="{% url 'courier_check_settings' %}?part=recent&per_page={{ per_page }}" hx-target="#courierRecentChecks" hx-swap="outerHTML">Clear filters</button>
+                    {% endif %}
+                </div>
+            </form>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr><th>Last check</th><th>Phone</th><th>Source</th><th>Total</th><th>Success</th><th>Cancelled</th><th>Ratio</th><th>Couriers</th><th>Checks</th><th>Keep</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                    {% for log in logs %}
+                        <tr>
+                            <td>{{ log.created_at|date:"d M Y, h:i A" }}</td>
+                            <td>{{ log.phone }}</td>
+                            <td>{{ log.source|default:"-" }}</td>
+                            {% if log.is_error %}
+                                <td colspan="5"><span class="badge bg-danger">Error</span> <small>{{ log.error_message }}</small></td>
+                            {% else %}
+                                <td>{{ log.total_parcels }}</td>
+                                <td>{{ log.success_parcels }}</td>
+                                <td>{{ log.cancelled_parcels }}</td>
+                                <td>{% courier_log_badge log %}</td>
+                                <td><small>{% for c in log.courier_breakdown %}{% if c.total %}{{ c.name }}: {{ c.success }}/{{ c.total }}{% if not forloop.last %}, {% endif %}{% elif c.rate_only %}{{ c.name }}: {{ c.reported_ratio }}% rate (~{{ c.est_total }}+){% if not forloop.last %}, {% endif %}{% endif %}{% endfor %}</small></td>
+                            {% endif %}
+                            <td>{{ log.check_count }}</td>
+                            <td><small>{{ log.keep.text }}{% if log.keep.custom %} <span class="badge bg-info text-dark">own</span>{% endif %}</small></td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#courierHistoryModal"
+                                        onclick="document.getElementById('courierHistoryBody').innerHTML='&lt;div class=&quot;text&quot;&gt;Loading...&lt;/div&gt;';"
+                                        hx-get="{% url 'courier_check_history' %}?phone={{ log.phone }}" hx-target="#courierHistoryBody" hx-swap="innerHTML">
+                                    History
+                                </button>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="11" class="text-center text-muted">{% if filters_active %}No checks match these filters.{% else %}No checks yet.{% endif %}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex flex-wrap justify-content-between align-items-center mt-3 gap-2">
+                <span class="text small">
+                    {% if logs.paginator.count %}Showing {{ logs.start_index }}-{{ logs.end_index }} of {{ logs.paginator.count }}{% endif %}
+                </span>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    {% if logs.has_other_pages %}
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item {% if not logs.has_previous %}disabled{% endif %}">
+                            <a class="page-link" style="cursor:pointer;" {% if logs.has_previous %}hx-get="{% url 'courier_check_settings' %}?part=recent&page=1&{{ qs }}" hx-target="#courierRecentChecks" hx-swap="outerHTML"{% endif %}>&laquo;</a>
+                        </li>
+                        <li class="page-item {% if not logs.has_previous %}disabled{% endif %}">
+                            <a class="page-link" style="cursor:pointer;" {% if logs.has_previous %}hx-get="{% url 'courier_check_settings' %}?part=recent&page={{ logs.previous_page_number }}&{{ qs }}" hx-target="#courierRecentChecks" hx-swap="outerHTML"{% endif %}>&lsaquo;</a>
+                        </li>
+                        {% for n in logs.paginator.page_range %}
+                            {% if n >= logs.number|add:"-2" and n <= logs.number|add:"2" %}
+                            <li class="page-item {% if n == logs.number %}active{% endif %}">
+                                <a class="page-link" style="cursor:pointer;" hx-get="{% url 'courier_check_settings' %}?part=recent&page={{ n }}&{{ qs }}" hx-target="#courierRecentChecks" hx-swap="outerHTML">{{ n }}</a>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+                        <li class="page-item {% if not logs.has_next %}disabled{% endif %}">
+                            <a class="page-link" style="cursor:pointer;" {% if logs.has_next %}hx-get="{% url 'courier_check_settings' %}?part=recent&page={{ logs.next_page_number }}&{{ qs }}" hx-target="#courierRecentChecks" hx-swap="outerHTML"{% endif %}>&rsaquo;</a>
+                        </li>
+                        <li class="page-item {% if not logs.has_next %}disabled{% endif %}">
+                            <a class="page-link" style="cursor:pointer;" {% if logs.has_next %}hx-get="{% url 'courier_check_settings' %}?part=recent&page={{ logs.paginator.num_pages }}&{{ qs }}" hx-target="#courierRecentChecks" hx-swap="outerHTML"{% endif %}>&raquo;</a>
+                        </li>
+                    </ul>
+                    {% endif %}
+                    <select name="per_page" form="courierRecentFilters" class="form-select form-select-sm w-auto" title="Rows per page"
+                            hx-get="{% url 'courier_check_settings' %}" hx-include="#courierRecentFilters" hx-target="#courierRecentChecks" hx-swap="outerHTML" hx-trigger="change">
+                        {% for n in per_page_choices %}
+                            <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }} / page</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

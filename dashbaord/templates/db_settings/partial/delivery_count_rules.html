@@ -1,0 +1,56 @@
+{# Global delivery counting rule (SiteDeliveryChargeConfig.count_mode / order_wise_amount_source). #}
+{# Rendered inside the global delivery form (settings page and the product list modal). Dark navy theme: no dim text. #}
+<div class="card mb-3" id="pw_dc_rules_{{ rules_id|default:'global' }}" data-rules-root>
+    <div class="card-body">
+        <h5 class="mb-3">How delivery is counted</h5>
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold" for="pw_dc_count_mode_{{ rules_id|default:'global' }}">How should delivery charge be counted?</label>
+            <select class="form-select" name="count_mode" id="pw_dc_count_mode_{{ rules_id|default:'global' }}" data-role="count-mode">
+                <option value="PRODUCT_WISE" {% if delivery_count_mode != "ORDER_WISE" %}selected{% endif %}>Per product: each different product adds its own charge. The variants and the quantity of the same product count once.</option>
+                <option value="ORDER_WISE" {% if delivery_count_mode == "ORDER_WISE" %}selected{% endif %}>Per order: one delivery charge for the whole order, however many products it has.</option>
+            </select>
+        </div>
+
+        <div class="mb-3" data-role="source-wrap" {% if delivery_count_mode != "ORDER_WISE" %}style="display:none;"{% endif %}>
+            <label class="form-label fw-semibold" for="pw_dc_source_{{ rules_id|default:'global' }}">Which charge should the order use?</label>
+            <select class="form-select" name="order_wise_amount_source" id="pw_dc_source_{{ rules_id|default:'global' }}" data-role="source">
+                <option value="GLOBAL" {% if delivery_order_wise_source != "LOWEST" and delivery_order_wise_source != "HIGHEST" %}selected{% endif %}>The global charge (ignore product-wise charges)</option>
+                <option value="LOWEST" {% if delivery_order_wise_source == "LOWEST" %}selected{% endif %}>The lowest charge among the products in the cart</option>
+                <option value="HIGHEST" {% if delivery_order_wise_source == "HIGHEST" %}selected{% endif %}>The highest charge among the products in the cart</option>
+            </select>
+        </div>
+
+        <div class="border rounded p-2" role="status" aria-live="polite">
+            <div class="fw-semibold mb-1">Example</div>
+            <div data-role="example"></div>
+        </div>
+        <div class="small mt-2">Free gifts are never counted. A product with free delivery counts as &#2547;0. Special campaign delivery rules are not changed by this setting.</div>
+    </div>
+</div>
+<script>
+(function () {
+    var root = document.getElementById("pw_dc_rules_{{ rules_id|default:'global' }}");
+    if (!root) return;
+    var mode = root.querySelector('[data-role="count-mode"]');
+    var source = root.querySelector('[data-role="source"]');
+    var wrap = root.querySelector('[data-role="source-wrap"]');
+    var out = root.querySelector('[data-role="example"]');
+    // fixed example: Cradle (two variants, charge 100) + Masala (charge 60); the global charge is 80
+    var CRADLE = 100, MASALA = 60, GLOBAL = 80, T = "\u09F3";
+    function paint() {
+        var order = mode.value === "ORDER_WISE";
+        wrap.style.display = order ? "" : "none";
+        var base = "Cradle (2 variants) " + T + CRADLE + " + Masala " + T + MASALA;
+        var text;
+        if (!order) text = base + " \u2192 delivery " + T + (CRADLE + MASALA) + " (Cradle counts once)";
+        else if (source.value === "LOWEST") text = base + " \u2192 delivery " + T + Math.min(CRADLE, MASALA);
+        else if (source.value === "HIGHEST") text = base + " \u2192 delivery " + T + Math.max(CRADLE, MASALA);
+        else text = base + ", global charge " + T + GLOBAL + " \u2192 delivery " + T + GLOBAL;
+        out.textContent = text;
+    }
+    mode.addEventListener("change", paint);
+    source.addEventListener("change", paint);
+    paint();
+})();
+</script>

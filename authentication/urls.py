@@ -28,6 +28,12 @@ urlpatterns = [
         #------------------ IP/Device Security -----------
     path('security/blocked-list/', BlockedIdentityListView.as_view(), name='blocked_identity_list'),
     path('security/blocked-list/order-mode/', BlockedOrderModeUpdateView.as_view(), name='blocked_order_mode_update'),
+    path('security/courier-check/', CourierCheckSettingsView.as_view(), name='courier_check_settings'),
+    path('security/courier-check/badge/', CourierBadgeCheckView.as_view(), name='courier_badge_check'),
+    path('security/courier-check/history/', CourierCheckHistoryView.as_view(), name='courier_check_history'),
+    path('security/courier-check/number-retention/', CourierNumberRetentionView.as_view(), name='courier_number_retention'),
+    path('security/courier-check/cleanup/', CourierCheckCleanupView.as_view(), name='courier_check_cleanup'),
+    path('security/courier-check/restricted/clear/', CourierRestrictedClearView.as_view(), name='courier_restricted_clear'),
     path('security/blocked-list/<int:pk>/unblock/', UnblockIdentityView.as_view(), name='unblock_identity'),
     path('order/<str:order_id>/block-identity/', BlockOrderIdentityView.as_view(), name='block_order_identity'),
     path('order/<str:order_id>/unblock-identity/', UnblockOrderIdentityView.as_view(), name='unblock_order_identity'),

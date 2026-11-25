@@ -1,0 +1,339 @@
+<div class="main-content cpx" id="cpxRoot">
+
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Campaigns</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="{% url 'campaign_list' %}"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item active" aria-current="page">{% if campaign %}Edit campaign{% else %}Create campaign{% endif %}</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+            <h4 class="mb-1">{% if campaign %}Edit campaign{% else %}Create campaign{% endif %}</h4>
+            <div class="cpx-intro">A campaign is a sale event, for example Black Friday. Your products keep their normal prices everywhere else.</div>
+        </div>
+        <div class="cpx-top-actions">
+            <a href="{% url 'campaign_list' %}" class="btn btn-outline-secondary px-4"><i class="bi bi-arrow-left me-2"></i>Back to list</a>
+        </div>
+    </div>
+
+    <div id="cpxAlerts"></div>
+
+    <form id="cpxForm" onsubmit="return false" novalidate>
+
+        <!-- CARD 1: BASIC INFO -->
+        <div class="card cpx-card mb-3" id="cpxCard1">
+            <div class="card-body">
+                <div class="cpx-h"><span class="num">1</span> Basic info</div>
+
+                <div class="cpx-group">Name and dates</div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="cpx-title">Campaign name *</label>
+                        <input class="form-control" id="cpx-title" name="title" maxlength="255" placeholder="Black Friday">
+                        <div class="cpx-help"><i class="bi bi-info-circle"></i>Customers see this name. Example: Black Friday</div>
+                        <div class="cpx-err" data-err="title"></div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="cpx-slug">Link name</label>
+                        <input class="form-control" id="cpx-slug" name="slug" maxlength="255" placeholder="black-friday">
+                        <div class="cpx-help"><i class="bi bi-info-circle"></i>Last part of the campaign's web link. Leave empty to make it from the name. Changing it later breaks old links.</div>
+                        <div class="cpx-err" data-err="slug"></div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="cpx-start">Starts *</label>
+                        <input class="form-control" type="datetime-local" id="cpx-start" name="start_at">
+                        <div class="cpx-help"><i class="bi bi-clock"></i>Dhaka time. Example: 24 Nov 2026, 10:00 AM</div>
+                        <div class="cpx-err" data-err="start_at"></div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="cpx-end">Ends *</label>
+                        <input class="form-control" type="datetime-local" id="cpx-end" name="end_at">
+                        <div class="cpx-help"><i class="bi bi-clock"></i>Customers can use the campaign prices only between these two times.</div>
+                        <div class="cpx-err" data-err="end_at"></div>
+                    </div>
+                </div>
+
+                <div class="cpx-group">Pictures</div>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label" for="cpx-thumb">Small picture</label>
+                        <input class="form-control cpx-file" type="file" accept="image/*" data-field="thumbnail" id="cpx-thumb">
+                        <div class="cpx-help"><i class="bi bi-image"></i>Shown on the campaign card. Example: 600 &times; 400 pixels</div>
+                        <div class="cpx-preview" data-preview="thumbnail"></div>
+                        <div class="cpx-err" data-err="thumbnail"></div>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label" for="cpx-bd">Big banner (computer)</label>
+                        <input class="form-control cpx-file" type="file" accept="image/*" data-field="banner_desktop" id="cpx-bd">
+                        <div class="cpx-help"><i class="bi bi-image"></i>Wide picture at the top of the campaign page. Example: 1600 &times; 500 pixels</div>
+                        <div class="cpx-preview" data-preview="banner_desktop"></div>
+                        <div class="cpx-err" data-err="banner_desktop"></div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="cpx-bm">Banner for phones</label>
+                        <input class="form-control cpx-file" type="file" accept="image/*" data-field="banner_mobile" id="cpx-bm">
+                        <div class="cpx-help"><i class="bi bi-image"></i>Optional. Example: 800 &times; 600 pixels</div>
+                        <div class="cpx-preview" data-preview="banner_mobile"></div>
+                        <div class="cpx-err" data-err="banner_mobile"></div>
+                    </div>
+                </div>
+
+                <div class="cpx-group">Text on the campaign page</div>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label" for="cpx-short">Short text</label>
+                        <input class="form-control" id="cpx-short" name="short_description" maxlength="500" placeholder="Up to 50% off on all chairs">
+                        <div class="cpx-help"><i class="bi bi-info-circle"></i>One line shown on the campaign card. Example: Up to 50% off on all chairs</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="cpx-hero-title">Big heading</label>
+                        <input class="form-control" id="cpx-hero-title" name="hero_title" maxlength="255" placeholder="Black Friday Sale">
+                        <div class="cpx-help"><i class="bi bi-info-circle"></i>Large text on the banner.</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="cpx-hero-sub">Line under the heading</label>
+                        <input class="form-control" id="cpx-hero-sub" name="hero_subtitle" maxlength="500" placeholder="Only for 3 days">
+                        <div class="cpx-help"><i class="bi bi-info-circle"></i>Example: Only for 3 days</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="cpx-hero-btn">Button text</label>
+                        <input class="form-control" id="cpx-hero-btn" name="hero_button_text" maxlength="100" placeholder="Shop now">
+                        <div class="cpx-help"><i class="bi bi-info-circle"></i>Example: Shop now</div>
+                    </div>
+                </div>
+
+                <div class="cpx-group">Where it appears</div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="cpx-home" name="show_on_home">
+                            <label class="form-check-label fw-semibold" for="cpx-home">Show on the home page</label>
+                        </div>
+                        <div class="cpx-help"><i class="bi bi-info-circle"></i>On: customers see this campaign on the home page while it is running.</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="cpx-slider" name="show_in_slider">
+                            <label class="form-check-label fw-semibold" for="cpx-slider">Show in the home page slider</label>
+                        </div>
+                        <div class="cpx-help"><i class="bi bi-info-circle"></i>On: the poster is added to the main slider with a countdown. Before the start it shows "Starts in ...", while running it shows "Ends in ...". It leaves the slider by itself when the campaign ends. Uses the big banner (computer) or the small picture.</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="cpx-sort">Position in the list</label>
+                        <input class="form-control" id="cpx-sort" name="sort_order" type="number" value="0">
+                        <div class="cpx-help"><i class="bi bi-info-circle"></i>A smaller number comes first. Example: 1 shows before 2.</div>
+                        <div class="cpx-err" data-err="sort_order"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CARD 2: PRODUCTS & DISCOUNTS -->
+        <div class="card cpx-card mb-3" id="cpxCard2">
+            <div class="card-body">
+                <div class="cpx-h"><span class="num">2</span> Products &amp; discounts</div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="cpx-base">Take the discount from</label>
+                        <select class="form-select" id="cpx-base" name="discount_base"></select>
+                        <div class="cpx-help"><i class="bi bi-info-circle"></i>Example: main price &#2547;1000, discount price &#2547;900, discount 20%. Main price gives &#2547;800. Discount price gives &#2547;720 (never more than customers pay today).</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="cpx-strike">Show as struck-through price</label>
+                        <select class="form-select" id="cpx-strike" name="strike_price_display"></select>
+                        <div class="cpx-help"><i class="bi bi-info-circle"></i>The old price crossed out next to the campaign price. Example: <span class="cpx-strike">&#2547;900</span> &#2547;720</div>
+                    </div>
+                </div>
+
+                <label class="form-label" for="cpxSearch">Add products to this campaign</label>
+                <div class="cpx-searchbox position-relative mb-1">
+                    <i class="bi bi-search"></i>
+                    <input class="form-control form-control-lg" id="cpxSearch" type="search" autocomplete="off" placeholder="Type a product name, SKU or category...">
+                    <div id="cpxResults" class="cpx-results" hidden></div>
+                </div>
+                <div class="cpx-help mb-3"><i class="bi bi-hand-index"></i>Tap a product in the list to add it. Tap as many as you need.</div>
+                <div class="cpx-err" data-err="products"></div>
+
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                    <div class="cpx-count" id="cpxCount">0 products selected</div>
+                </div>
+
+                <div class="cpx-bulk" id="cpxBulk" hidden>
+                    <div class="fw-semibold mb-2"><i class="bi bi-magic me-1"></i>Apply the same discount to all selected products</div>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-6 col-md-3">
+                            <label class="form-label mb-1" for="cpxBulkType">Discount type</label>
+                            <select class="form-select" id="cpxBulkType"><option value="PERCENT">% Percent</option><option value="FIXED">&#2547; Fixed amount</option></select>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label mb-1" for="cpxBulkValue">Discount</label>
+                            <input class="form-control" type="number" min="0" step="0.01" id="cpxBulkValue" placeholder="e.g. 20">
+                        </div>
+                        <div class="col-12 col-md-auto">
+                            <button type="button" class="btn btn-outline-primary px-4 w-100" id="cpxBulkApply"><i class="bi bi-check2-all me-2"></i>Apply to all</button>
+                        </div>
+                    </div>
+                    <div class="cpx-help"><i class="bi bi-info-circle"></i>Replaces the discount of every product below. You can still change one product afterwards.</div>
+                </div>
+
+                <div id="cpxProducts"></div>
+                <div id="cpxNoProducts" class="text-center py-4"><i class="bi bi-box-seam fs-3 d-block mb-1"></i>No products yet. Search above and add the products that are on sale.</div>
+            </div>
+        </div>
+
+        <!-- CARD 3: EXTRA SETTINGS (collapsed) -->
+        <div class="card cpx-card mb-3" id="cpxCard3">
+            <div class="card-body">
+                <div class="cpx-extra-head">
+                    <div class="cpx-h mb-0"><span class="num">3</span> Extra settings <span class="small fw-normal">(optional)</span></div>
+                    <button type="button" class="btn btn-outline-primary px-4" id="cpxExtraToggle" data-bs-toggle="collapse" data-bs-target="#cpxExtraBody" aria-expanded="false" aria-controls="cpxExtraBody">
+                        <i class="bi bi-sliders me-2"></i><span id="cpxExtraToggleText">Show extra settings</span>
+                    </button>
+                </div>
+                <div class="cpx-summary mt-3" id="cpxExtraSummary">Coupon off &middot; Gifts off &middot; Offers off &middot; Delivery normal</div>
+
+                <div class="collapse" id="cpxExtraBody">
+                    <div class="pt-2">
+                        <div class="cpx-help mb-1"><i class="bi bi-shield-check"></i>Safe choices are already selected. Most campaigns need no change here.</div>
+
+                        <!-- Badge -->
+                        <div class="cpx-setting">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="cpx-badge-mode">Red tag on the product</label>
+                                    <select class="form-select" id="cpx-badge-mode" name="badge_mode"></select>
+                                    <div class="cpx-help"><i class="bi bi-info-circle"></i>Example: <span class="cpx-badge" id="cpxBadgeSample">20% OFF</span></div>
+                                </div>
+                                <div class="col-md-6" id="cpxBadgeLabelWrap">
+                                    <label class="form-label" for="cpx-badge-label">Name shown in the tag</label>
+                                    <input class="form-control" id="cpx-badge-label" name="badge_label" maxlength="20" placeholder="Black Friday">
+                                    <div class="cpx-help"><i class="bi bi-info-circle"></i>Up to 20 letters. If empty, the campaign name is used.</div>
+                                    <div class="cpx-err" data-err="badge_label"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Coupon -->
+                        <div class="cpx-setting">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="cpx-coupon" name="allow_coupon">
+                                <label class="form-check-label" for="cpx-coupon">Allow coupons on campaign items</label>
+                            </div>
+                            <div class="cpx-help"><i class="bi bi-info-circle"></i>Off: a coupon works only on normal items. A cart with only campaign items cannot use a coupon.</div>
+                        </div>
+
+                        <!-- Gifts and offers -->
+                        <div class="cpx-setting">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="cpx-gifts" name="include_product_gifts">
+                                <label class="form-check-label" for="cpx-gifts">Give the product's free gift on campaign items</label>
+                            </div>
+                            <div class="cpx-help"><i class="bi bi-info-circle"></i>Off: campaign items get no free gift. Normal purchases of the same product still do.</div>
+                        </div>
+                        <div class="cpx-setting">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="cpx-offers" name="include_offers">
+                                <label class="form-check-label" for="cpx-offers">Use "Buy X, get Y free" offers on campaign items</label>
+                            </div>
+                            <div class="cpx-help"><i class="bi bi-info-circle"></i>Off: campaign items do not count toward any offer. You can change this for one product under its "More options".</div>
+                        </div>
+
+                        <!-- Overlap -->
+                        <div class="cpx-setting">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="cpx-overlap" name="allow_overlap">
+                                <label class="form-check-label" for="cpx-overlap">Allow these products in another campaign running at the same time</label>
+                            </div>
+                            <div class="cpx-help"><i class="bi bi-info-circle"></i>Off: one product cannot be in two campaigns that overlap in time. To allow it, turn this on in BOTH campaigns.</div>
+                        </div>
+
+                        <!-- Delivery -->
+                        <div class="cpx-setting">
+                            <div class="fw-semibold mb-2"><i class="bi bi-truck me-1"></i>Delivery charge for campaign items</div>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="cpx-opt" id="cpxOptNormal">
+                                        <input class="form-check-input" type="radio" name="delivery_mode" value="NORMAL" checked>
+                                        <span><b>Same as normal delivery</b><span class="d">Campaign items are charged like all other items. Nothing to set.</span></span>
+                                    </label>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="cpx-opt" id="cpxOptCustom">
+                                        <input class="form-check-input" type="radio" name="delivery_mode" value="CUSTOM">
+                                        <span><b>Special delivery for this campaign</b><span class="d">Choose your own delivery charge, for example &#2547;80 for every order.</span></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div id="cpxDeliveryCustom" class="cpx-dbox mt-3" hidden>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="cpx-dsource">Who sets the amount?</label>
+                                        <select class="form-select" id="cpx-dsource" name="delivery_amount_source"></select>
+                                        <div class="cpx-help"><i class="bi bi-info-circle" ></i><span id="cpxDeliveryHint"></span></div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="cpx-dall">Delivery charge, all districts (&#2547;)</label>
+                                        <input class="form-control" type="number" min="0" step="1" id="cpx-dall" placeholder="80">
+                                        <div class="cpx-help"><i class="bi bi-info-circle"></i>Example: 80 means &#2547;80 wherever the customer lives.</div>
+                                    </div>
+                                    <div class="col-12">
+                                        <button type="button" class="btn btn-outline-secondary px-3" id="cpxDistrictToggle" data-bs-toggle="collapse" data-bs-target="#cpxDistrictBody" aria-expanded="false" aria-controls="cpxDistrictBody">
+                                            <i class="bi bi-geo-alt me-2"></i>Different price for some districts (optional)
+                                        </button>
+                                        <div class="collapse mt-3" id="cpxDistrictBody">
+                                            <div id="cpxDistrictRows"></div>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" id="cpxAddDistrict"><i class="bi bi-plus-lg me-1"></i>Add a district</button>
+                                            <div class="cpx-help"><i class="bi bi-info-circle"></i>Example: Dhaka &#2547;60. A district price is used instead of the all-districts charge.</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="cpx-dbasis">How is the charge counted?</label>
+                                        <select class="form-select" id="cpx-dbasis" name="delivery_basis"></select>
+                                        <div class="cpx-help"><i class="bi bi-info-circle"></i>Example: 3 campaign products in one order = one charge, or three charges.</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="cpx-dmixed">Cart with campaign items and normal items</label>
+                                        <select class="form-select" id="cpx-dmixed" name="mixed_cart_delivery"></select>
+                                        <div class="cpx-help"><i class="bi bi-info-circle"></i>Choose if the normal items add their own delivery charge too.</div>
+                                    </div>
+                                </div>
+                                <div class="cpx-err" data-err="delivery_config"></div>
+                            </div>
+                            <div class="cpx-summary mt-3" id="cpxDeliverySummary">Delivery: same as normal</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CARD 4: REVIEW & SAVE -->
+        <div class="card cpx-card mb-3" id="cpxCard4">
+            <div class="card-body cpx-review">
+                <div class="cpx-h"><span class="num">4</span> Review &amp; save</div>
+                <div id="cpxReview"></div>
+                <div class="cpx-help mt-3"><i class="bi bi-info-circle"></i><b>Save as draft</b>: only staff can see it. <b>Save &amp; publish</b>: customers see it from the start time, and prices change only on the campaign page.</div>
+            </div>
+        </div>
+
+        <!-- STICKY SAVE BAR -->
+        <div class="cpx-bar" id="cpxBar">
+            <button type="button" class="btn btn-outline-primary px-4" id="cpxSaveDraft"><i class="bi bi-file-earmark me-2"></i>Save as draft</button>
+            <button type="button" class="btn btn-primary px-4" id="cpxSavePublish"><i class="bi bi-check2-circle me-2"></i>Save &amp; publish</button>
+        </div>
+    </form>
+</div>
+
+{{ form_data|json_script:"cpx-data" }}
+{{ options|json_script:"cpx-options" }}
+{{ bd_districts|json_script:"cpx-districts" }}
+<div id="cpx-config" data-csrf="{{ csrf_token }}" data-save-url="{% url 'campaign_save' %}"
+     data-search-url="{% url 'campaign_product_search' %}" data-list-url="{% url 'campaign_list' %}"
+     data-edit-url="{% url 'campaign_edit' 0 %}"></div>

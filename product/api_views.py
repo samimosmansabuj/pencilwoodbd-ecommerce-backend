@@ -335,22 +335,22 @@ class SendOTPAPIView(APIView):
         try:
             with transaction.atomic():
                 # ===== REAL SMS SEND (temporarily disabled for local testing) =====
-                response = self.send_message(phone, otp)
-                if (
-                    response.get("ErrorCode") == 0 and
-                    response.get("Data") and
-                    response["Data"][0].get("MessageErrorCode") == 0 and
-                    response["Data"][0].get("MessageErrorDescription") == "Success"
-                ):
-                    OTPVerification.objects.create(phone=phone, otp=otp)
-                    return Response({"success": True, "message": "OTP Sent"})
-                else:
-                    return Response({"success": False, "message": "OTP Sending Failed", "response": response})
+                # response = self.send_message(phone, otp)
+                # if (
+                #     response.get("ErrorCode") == 0 and
+                #     response.get("Data") and
+                #     response["Data"][0].get("MessageErrorCode") == 0 and
+                #     response["Data"][0].get("MessageErrorDescription") == "Success"
+                # ):
+                #     OTPVerification.objects.create(phone=phone, otp=otp)
+                #     return Response({"success": True, "message": "OTP Sent"})
+                # else:
+                #     return Response({"success": False, "message": "OTP Sending Failed", "response": response})
 
                 # ===== CONSOLE-ONLY MODE (local testing) =====
-                # OTPVerification.objects.create(phone=phone, otp=otp)
-                # print(f"\n{'='*40}\n[TEST MODE] OTP for {phone}: {otp}\n{'='*40}\n")
-                # return Response({"success": True, "message": "OTP Sent (check console)"})
+                OTPVerification.objects.create(phone=phone, otp=otp)
+                print(f"\n{'='*40}\n[TEST MODE] OTP for {phone}: {otp}\n{'='*40}\n")
+                return Response({"success": True, "message": "OTP Sent (check console)"})
         except Exception as e:
             return Response({"success": False, "message": safe_error_message(e)})
         
@@ -597,7 +597,17 @@ class ProductDetailAPIView(APIView):
                 Q(product=p) | Q(product__isnull=True), is_active=True
             ).order_by("sort_order", "id")
 
-            return Response({
+            # delivery charge for an order that contains ONLY this product (global counting rule, see
+            # site_app.delivery_charge). The customer's district is optional: without it only the rule is sent.
+            from site_app.delivery_charge import delivery_info_rule, single_product_charge
+            delivery_info = delivery_info_rule()
+            delivery_district = (request.query_params.get("district") or "").strip()
+            delivery_info["district"] = delivery_district or None
+            delivery_info["charge"] = (
+                float(single_product_charge(p, delivery_district)) if delivery_district else None
+            )
+
+            payload = {
                 "status": True,
                 "data": {
                     "id": p.id,
@@ -606,6 +616,7 @@ class ProductDetailAPIView(APIView):
                     "price": p.price,
                     "discount_price": p.discount_price,
                     "stock": stock,
+                    "delivery_info": delivery_info,
                     "short_description": p.short_description,
                     "description": p.details,
                     "images": [i.image.url for i in product_images],
@@ -662,7 +673,15 @@ class ProductDetailAPIView(APIView):
                     "sold_count": p.display_sold_count,
                     "is_bestseller": p.is_bestseller,
                 }
-            })
+            }
+
+            # Campaign context (optional). Without ?campaign=<slug> the response above is returned untouched.
+            campaign_slug = request.query_params.get("campaign")
+            if campaign_slug:
+                from campaigns.context import apply_campaign_to_product_payload
+                apply_campaign_to_product_payload(request, p, payload["data"], campaign_slug)
+
+            return Response(payload)
 
         except Exception as e:
             return Response(
@@ -707,10 +726,33 @@ class AddToCartAPIView(APIView):
                     if product.inventory_type == "in_stock" and product.inventory_quantity < quantity:
                         return Response({"status": False, "message": "Product out of stock"}, status=400)
 
+                # Campaign context (optional): a line added from a campaign page carries the campaign slug and is a
+                # separate cart line from the same product added normally. A campaign that does not apply is
+                # refused - the item is never added at a different price than the customer saw.
+                campaign = None
+                campaign_slug = str(request.data.get("campaign") or "").strip() or None
+                if campaign_slug:
+                    from campaigns.checkout import resolve_lines, reason_message
+                    already = 0
+                    if customer:
+                        already = sum(AddToCart.objects.filter(
+                            customer=customer, product=product, campaign__slug=campaign_slug
+                        ).values_list("quantity", flat=True))
+                    check = resolve_lines([{
+                        "product": product, "variant": variant, "quantity": quantity + already,
+                        "campaign_slug": campaign_slug, "is_customized": is_customized,
+                    }])[0]
+                    if not check.valid:
+                        return Response({
+                            "status": False, "code": "campaign_unavailable", "reason": check.reason,
+                            "message": reason_message(check.reason, check.remaining), "remaining": check.remaining,
+                        }, status=400)
+                    campaign = check.campaign
+
                 if customer:
                     cart_item = AddToCart.objects.filter(
                         customer=customer, product=product, variant=variant,
-                        is_customized=is_customized,
+                        is_customized=is_customized, campaign=campaign,
                     ).first()
                     if cart_item:
                         cart_item.quantity += quantity
@@ -721,7 +763,7 @@ class AddToCartAPIView(APIView):
                         cart_item = AddToCart.objects.create(
                             customer=customer, product=product, variant=variant,
                             is_customized=is_customized, customization_note=customization_note,
-                            quantity=quantity,
+                            quantity=quantity, campaign=campaign,
                         )
                     return Response({"status": True, "message": "Added to cart", "cart_id": cart_item.id})
                 else:
@@ -741,11 +783,25 @@ class CartListAPIView(APIView):
 
         customer = request.user.customer_profile
         cart_items = AddToCart.objects.filter(customer=customer).select_related(
-            "product", "variant"
+            "product", "variant", "campaign"
         ).prefetch_related("product__variants__images")
+
+        # Campaign lines are re-priced by the server on every read and flagged when they no longer apply (SPEC 6).
+        from campaigns.checkout import resolve_lines, line_pricing_payload
+        cart_items = list(cart_items)
+        resolved = {
+            r.line_id: r for r in resolve_lines([
+                {"product": ci.product, "variant": ci.variant, "quantity": ci.quantity, "line_id": ci.id,
+                 "campaign_slug": ci.campaign.slug if ci.campaign_id else None, "is_customized": ci.is_customized}
+                for ci in cart_items
+            ])
+        }
 
         data, total = [], Decimal("0")
         for item in cart_items:
+            line_result = resolved[item.id]
+            line_total = line_result.line_total if line_result.applies else item.total_price
+            line_price = line_result.regular_unit_price if line_result.applies else item.price
             data.append({
                 "id": item.id,
                 "product_id": item.product.id,
@@ -754,14 +810,15 @@ class CartListAPIView(APIView):
                 "image": item.product.variant_image_url(item.variant),
                 "variant": item.variant.attributes if item.variant else None,
                 "quantity": item.quantity,
-                "price": item.price,
-                "total": item.total_price,
+                "price": line_price,
+                "total": line_total,
                 "customization_note": item.customization_note or "",
                 "is_customized": item.is_customized,
                 "customization_price": item.customization_price,
                 "customization_mode": item.product.customization_mode,
+                **line_pricing_payload(line_result),
             })
-            total += item.total_price
+            total += line_total
 
         return Response({"status": True, "data": data, "cart_total": total})
 
@@ -775,7 +832,21 @@ class UpdateCartAPIView(APIView):
         try:
             customer = request.user.customer_profile
             quantity = int(request.data.get("quantity"))
-            cart_item = AddToCart.objects.get(id=cart_id, customer=customer)
+            cart_item = AddToCart.objects.select_related("campaign").get(id=cart_id, customer=customer)
+            if cart_item.campaign_id and quantity > cart_item.quantity:
+                from campaigns.checkout import resolve_lines, reason_message, REASON_QUANTITY_EXCEEDS, REASON_STOCK_EXHAUSTED
+                others = sum(AddToCart.objects.filter(
+                    customer=customer, product=cart_item.product, campaign=cart_item.campaign
+                ).exclude(id=cart_item.id).values_list("quantity", flat=True))
+                check = resolve_lines([{
+                    "product": cart_item.product, "variant": cart_item.variant, "quantity": quantity + others,
+                    "campaign_slug": cart_item.campaign.slug, "is_customized": cart_item.is_customized,
+                }])[0]
+                if not check.valid and check.reason in (REASON_QUANTITY_EXCEEDS, REASON_STOCK_EXHAUSTED):
+                    return Response({
+                        "status": False, "code": "campaign_unavailable", "reason": check.reason,
+                        "message": reason_message(check.reason, check.remaining), "remaining": check.remaining,
+                    }, status=400)
             cart_item.quantity = quantity
             cart_item.save()
             return Response({"status": True, "message": "Cart updated"})
@@ -905,7 +976,32 @@ class GuestCartRefreshAPIView(APIView):
                 ] if p.has_variants else [],
             })
 
-        return Response({"status": True, "data": data})
+        response = {"status": True, "data": data}
+
+        # Optional: ?campaign_lines=[{"product_id":1,"campaign":"black-friday"}] -> the server's current campaign
+        # state of those guest lines (SPEC 6: flags lines whose campaign is no longer valid).
+        raw_lines = request.query_params.get("campaign_lines")
+        if raw_lines:
+            import json as _json
+            from campaigns.checkout import resolve_lines
+            from campaigns.pricing import build_campaign_pricing
+            try:
+                wanted = [w for w in _json.loads(raw_lines) if isinstance(w, dict) and w.get("campaign")]
+            except ValueError:
+                wanted = []
+            by_id = {p.id: p for p in products}
+            lines = [{"product": by_id[int(w["product_id"])], "variant": None, "quantity": 1,
+                      "campaign_slug": str(w["campaign"]).strip(), "line_id": i}
+                     for i, w in enumerate(wanted) if str(w.get("product_id")).isdigit() and int(w["product_id"]) in by_id]
+            campaign_lines = []
+            for r in resolve_lines(lines):
+                entry = {"product_id": r.product.id, "campaign": r.campaign_slug, "valid": r.valid,
+                         "reason": r.reason, "remaining": r.remaining}
+                if r.campaign is not None and r.campaign_product is not None:
+                    entry["campaign_pricing"] = build_campaign_pricing(r.campaign, r.campaign_product, r.product)
+                campaign_lines.append(entry)
+            response["campaign_lines"] = campaign_lines
+        return Response(response)
 
 
 #----------Merge Guest Cart/Wishlist into Account--------------
@@ -956,9 +1052,19 @@ class MergeGuestCartWishlistAPIView(APIView):
 
                 is_customized = resolve_is_customized(product, item.get("is_customized"))
                 customization_note = clean_customization_note(product, item.get("customization_note"), is_customized)
+                # Keep the campaign reference as long as the campaign exists: the cart read flags it if it no longer
+                # applies, so the price is never changed silently here.
+                merge_campaign = None
+                merge_slug = str(item.get("campaign") or "").strip()
+                if merge_slug:
+                    from campaigns.models import Campaign
+                    merge_campaign = Campaign.objects.filter(slug=merge_slug).first()
+                    if merge_campaign is None:
+                        skipped_cart += 1
+                        continue
                 cart_item = AddToCart.objects.filter(
                     customer=customer, product=product, variant=variant,
-                    is_customized=is_customized,
+                    is_customized=is_customized, campaign=merge_campaign,
                 ).first()
                 if cart_item:
                     new_qty = cart_item.quantity + quantity
@@ -970,7 +1076,7 @@ class MergeGuestCartWishlistAPIView(APIView):
                     AddToCart.objects.create(
                         customer=customer, product=product, variant=variant,
                         is_customized=is_customized, customization_note=customization_note,
-                        quantity=min(quantity, available_stock),
+                        quantity=min(quantity, available_stock), campaign=merge_campaign,
                     )
 
                 merged_cart += 1

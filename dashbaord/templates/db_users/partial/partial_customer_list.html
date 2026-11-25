@@ -1,3 +1,4 @@
+{% load courier_tags %}
 {% load static %}
 {% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
 
@@ -71,7 +72,7 @@
                             </div>
                         </td>
                         <td>{{ customer.company|default:"—" }}</td>
-                        <td>{{ customer.phone }}</td>
+                        <td>{{ customer.phone }} {% courier_badge customer.phone %}</td>
                         <td>{{ customer.second_phone|default:"—" }}</td>
                         <td>{{ customer.email|default:"—" }}</td>
                         <td><span class="badge bg-light-secondary text-secondary">{{ customer.source|default:"Others" }}</span></td>

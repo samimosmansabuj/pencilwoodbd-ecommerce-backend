@@ -1,0 +1,67 @@
+<script>
+(function () {
+  var CFG = document.getElementById('cpx-list-config');
+  function url(key, id) { return CFG.dataset[key].replace('/0/', '/' + id + '/'); }
+  // Same notifications as the other dashboard screens (Lobibox); plain alert only as a fallback.
+  function toast(msg, ok) {
+    if (ok === false && typeof window.errorNotificationCustom === 'function') { window.errorNotificationCustom(msg); return; }
+    if (ok !== false && typeof window.successNotificationCustom === 'function') { window.successNotificationCustom(msg); return; }
+    var d = document.createElement('div');
+    d.className = 'alert ' + (ok === false ? 'alert-danger' : 'alert-success') + ' shadow cpx-toast';
+    d.textContent = msg; document.body.appendChild(d);
+    setTimeout(function () { d.remove(); }, ok === false ? 7000 : 2500);
+  }
+  function post(u) {
+    return fetch(u, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRFToken': CFG.dataset.csrf, 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json(); });
+  }
+  function failed() { toast('Could not reach the server. Please try again.', false); }
+  function refresh() {
+    htmx.ajax('GET', location.pathname + location.search, { target: '#campaign-table-wrapper', swap: 'innerHTML' });
+  }
+  function doToggle(id) {
+    post(url('toggleUrl', id)).then(function (res) {
+      toast(res.message || (res.status ? 'Done' : 'Something went wrong'), res.status);
+      refresh();
+    }).catch(failed);
+  }
+  var pendingDelete = null, pendingPause = null;
+  window.CampaignListUI = {
+    toggle: function (id, isActive, name) {
+      if (isActive) {                       // pausing hides it from customers: ask first. Resuming needs no question.
+        pendingPause = id;
+        document.getElementById('cpxPauseName').textContent = name || 'this campaign';
+        new bootstrap.Modal(document.getElementById('cpxPauseModal')).show();
+      } else { doToggle(id); }
+    },
+    duplicate: function (id) {
+      post(url('duplicateUrl', id)).then(function (res) {
+        if (res.status) { location.href = res.edit_url; } else { toast(res.message || 'Could not copy the campaign', false); }
+      }).catch(failed);
+    },
+    remove: function (id, name, ordersTotal) {
+      pendingDelete = id;
+      document.getElementById('cpxDeleteName').textContent = name;
+      document.getElementById('cpxDeleteNote').textContent = ordersTotal > 0
+        ? ordersTotal + ' order(s) used this campaign. They keep their prices and the campaign name, but will no longer link to it.'
+        : 'This cannot be undone. Customers\u2019 cart items for this campaign are removed.';
+      new bootstrap.Modal(document.getElementById('cpxDeleteModal')).show();
+    }
+  };
+  document.getElementById('cpxPauseConfirm').addEventListener('click', function () {
+    if (!pendingPause) return;
+    var id = pendingPause; pendingPause = null;
+    bootstrap.Modal.getInstance(document.getElementById('cpxPauseModal')).hide();
+    doToggle(id);
+  });
+  document.getElementById('cpxDeleteConfirm').addEventListener('click', function () {
+    if (!pendingDelete) return;
+    var id = pendingDelete; pendingDelete = null;
+    post(url('deleteUrl', id)).then(function (res) {
+      bootstrap.Modal.getInstance(document.getElementById('cpxDeleteModal')).hide();
+      toast(res.message || (res.status ? 'Deleted' : 'Something went wrong'), res.status);
+      if (res.status) refresh();
+    }).catch(failed);
+  });
+})();
+</script>

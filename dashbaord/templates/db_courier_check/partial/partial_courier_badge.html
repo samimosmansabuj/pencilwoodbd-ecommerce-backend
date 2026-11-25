@@ -1,0 +1,80 @@
+{# Django template. Turn OFF "format on save" for this file: formatters wrap long lines and break {% tags %} that span two lines. #}
+{% if include_script %}<script>
+(function () {
+    if (window.__courierBadgeInit) return;
+    window.__courierBadgeInit = true;
+
+    function csrf() {
+        try {
+            var el = document.querySelector('[hx-headers]');
+            var v = JSON.parse(el.getAttribute('hx-headers'))['x-csrftoken'];
+            if (v) return v;
+        } catch (e) {}
+        var m = document.cookie.match(/csrftoken=([^;]+)/);
+        return m ? m[1] : '';
+    }
+
+    document.addEventListener('click', function (e) {
+        var t = e.target.closest ? e.target.closest('.courier-badge, .courier-check-btn') : null;
+        if (!t) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (t.classList.contains('courier-badge')) {
+            var d = t.parentNode.querySelector('.courier-date');
+            if (d) d.classList.toggle('d-none');
+            return;
+        }
+
+        if (t.dataset.busy) return;
+        t.dataset.busy = '1';
+        var old = t.textContent;
+        t.textContent = '...';
+        var fd = new FormData();
+        fd.append('phone', t.dataset.phone);
+        fetch("{% url 'courier_badge_check' %}", {
+            method: 'POST', body: fd, credentials: 'same-origin',
+            headers: { 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (d.success) {
+                    var wrap = t.closest('.courier-wrap');
+                    if (wrap) wrap.outerHTML = d.html;
+                } else {
+                    t.textContent = 'Failed';
+                    t.title = d.message || 'Check failed';
+                    delete t.dataset.busy;
+                    setTimeout(function () { t.textContent = old; }, 3000);
+                }
+            })
+            .catch(function () {
+                t.textContent = 'Failed';
+                delete t.dataset.busy;
+                setTimeout(function () { t.textContent = old; }, 3000);
+            });
+    }, true);
+})();
+</script>{% endif %}
+{% spaceless %}
+{% if unchecked %}
+<span class="courier-wrap ms-1 text-nowrap">
+    {% if failed %}
+        {% if can_check %}
+        <span class="badge courier-check-btn" role="button" style="cursor:pointer;background:#f59e0b;color:#1f1300" data-phone="{{ phone }}" title="BDCourier check failed (network / API problem), so this customer may have ordered WITHOUT a courier check. Click to check now (uses 1 API call).">&#9888; Check failed - retry</span>
+        {% else %}
+        <span class="badge" style="background:#f59e0b;color:#1f1300" title="BDCourier check failed (network / API problem), so this customer may have ordered WITHOUT a courier check.">&#9888; Check failed</span>
+        {% endif %}
+    {% elif can_check %}
+    <span class="badge bg-secondary courier-check-btn" role="button" style="cursor:pointer" data-phone="{{ phone }}" title="Not checked yet. Click to check now (uses 1 API call)">Check</span>
+    {% else %}
+    <span class="badge bg-light text-muted border" title="Not checked yet">Not checked</span>
+    {% endif %}
+</span>
+{% else %}
+<span class="courier-wrap ms-1 text-nowrap">
+    <span class="badge courier-badge {{ css }}" role="button" style="cursor:pointer" title="{{ title }}">{{ text }}</span>
+    <small class="courier-date text-muted ms-1 d-none">{{ date_text }}</small>
+</span>
+{% endif %}
+{% endspaceless %}

@@ -221,6 +221,7 @@ class CUSTOMIZATION_FIELD_TYPES(models.TextChoices):
     SELECT = "select", "Dropdown"
     NUMBER = "number", "Number"
 
+
 class CUSTOMIZATION_MODE(models.TextChoices):
     OFF = "off", "Off"
     OPTIONAL = "optional", "Optional (customer picks Standard / Customized)"
@@ -234,3 +235,112 @@ class OFFER_COUNT_MODE(models.TextChoices):
     ALL = "all", "Any qualifying product counts together"
     PRODUCT = "product", "Same product - different variants count together"
     VARIANT = "variant", "Exact same variant only"
+
+class CourierCheckProviderChoices(models.TextChoices):
+    BDCOURIER = "bdcourier", "BDCourier"
+
+
+class CourierLowRatioActionChoices(models.TextChoices):
+    OTP = "otp", "Ask for OTP verification"
+    WHATSAPP = "whatsapp", "Ask customer to contact support on WhatsApp"
+
+
+class CourierRetentionUnitChoices(models.TextChoices):
+    DAY = "day", "Day(s)"
+    WEEK = "week", "Week(s)"
+    MONTH = "month", "Month(s)"
+    YEAR = "year", "Year(s)"
+
+
+DEFAULT_COURIER_OTP_MESSAGE = "নিরাপত্তার জন্য অর্ডার করার আগে অনুগ্রহ করে মোবাইল নম্বর OTP দিয়ে ভেরিফাই করুন।"
+DEFAULT_COURIER_WHATSAPP_MESSAGE = "দুঃখিত, এই মুহূর্তে অনলাইনে আপনার অর্ডার নেওয়া সম্ভব হচ্ছে না। অনুগ্রহ করে অর্ডার কনফার্ম করতে আমাদের WhatsApp সাপোর্টে যোগাযোগ করুন।"
+DEFAULT_COURIER_WHATSAPP_PREFILL = "Hello, I want to place an order. My number: {phone}"
+
+
+class CourierNoticeClearModeChoices(models.TextChoices):
+    MANUAL = "manual", "Only when staff presses Clear"
+    ON_OPEN = "on_open", "Automatically when the list is opened"
+
+
+DEFAULT_COURIER_HARD_BLOCK_MESSAGE = "দুঃখিত, কিছু বিশেষ কারণে এই মুহূর্তে আপনার অনলাইন অর্ডারটি গ্রহণ করা সম্ভব হচ্ছে না। বিস্তারিত জানতে অনুগ্রহ করে আমাদের সাথে যোগাযোগ করুন: {contact}"
+
+# ----- CAMPAIGN (SALE EVENT) SECTION CHOICES -----
+
+class CAMPAIGN_STATUS(models.TextChoices):
+    DRAFT = "draft", "Draft"
+    UPCOMING = "upcoming", "Upcoming"
+    LIVE = "live", "Live"
+    ENDED = "ended", "Ended"
+
+class CAMPAIGN_PRICE_SOURCE(models.TextChoices):
+    REGULAR = "REGULAR", "Regular price"
+    CURRENT = "CURRENT", "Current price (product's own discount price if any)"
+
+class CAMPAIGN_BADGE_MODE(models.TextChoices):
+    DISCOUNT_ONLY = "DISCOUNT_ONLY", "Discount only (e.g. 20% OFF)"
+    NAME_AND_DISCOUNT = "NAME_AND_DISCOUNT", "Campaign name + discount (e.g. Black Friday · 20% OFF)"
+
+class CAMPAIGN_DISCOUNT_TYPE(models.TextChoices):
+    PERCENT = "PERCENT", "Percent"
+    FIXED = "FIXED", "Fixed amount (৳)"
+
+class CAMPAIGN_VARIANT_MODE(models.TextChoices):
+    ALL_SAME = "ALL_SAME", "Same discount for all variants"
+    PER_VARIANT = "PER_VARIANT", "Different discount per variant"
+
+class CAMPAIGN_SWITCH_MODE(models.TextChoices):
+    INHERIT = "INHERIT", "Use campaign setting"
+    INCLUDE = "INCLUDE", "Include"
+    EXCLUDE = "EXCLUDE", "Exclude"
+
+class CAMPAIGN_DELIVERY_MODE(models.TextChoices):
+    NORMAL = "NORMAL", "Normal delivery rules"
+    CUSTOM = "CUSTOM", "Custom campaign delivery"
+
+class CAMPAIGN_DELIVERY_AMOUNT_SOURCE(models.TextChoices):
+    SAME_FOR_ALL = "SAME_FOR_ALL", "Same charge for all campaign products"
+    PRODUCT_WISE = "PRODUCT_WISE", "Product-wise charge"
+
+class CAMPAIGN_DELIVERY_BASIS(models.TextChoices):
+    PER_ORDER = "PER_ORDER", "One charge per order (highest)"
+    PER_PRODUCT = "PER_PRODUCT", "Charge per distinct product (sum)"
+
+class CAMPAIGN_MIXED_CART_DELIVERY(models.TextChoices):
+    COMBINED = "COMBINED", "Campaign charge only (normal items add nothing)"
+    SEPARATE = "SEPARATE", "Campaign charge + normal charge"
+
+
+class POPUP_LINK_TYPE(models.TextChoices):
+    CAMPAIGN = "CAMPAIGN", "Campaign page"
+    PRODUCT = "PRODUCT", "Product page"
+    URL = "URL", "Custom URL"
+    NONE = "NONE", "No link"
+
+class POPUP_FREQUENCY(models.TextChoices):
+    ONCE_PER_SESSION = "ONCE_PER_SESSION", "Once per browser session"
+    ONCE_PER_DAY = "ONCE_PER_DAY", "Once per day"
+    EVERY_VISIT = "EVERY_VISIT", "Every visit (every page load)"
+
+class POPUP_PAGES(models.TextChoices):
+    HOME_ONLY = "HOME_ONLY", "Home page only"
+    ALL_PAGES = "ALL_PAGES", "All pages (except cart, checkout, login)"
+
+
+class DELIVERY_COUNT_MODE(models.TextChoices):
+    PRODUCT_WISE = "PRODUCT_WISE", "Per product (each different product adds its own charge)"
+    ORDER_WISE = "ORDER_WISE", "Per order (one charge for the whole order)"
+
+
+class DELIVERY_ORDER_WISE_SOURCE(models.TextChoices):
+    GLOBAL = "GLOBAL", "The global charge (ignore product-wise charges)"
+    LOWEST = "LOWEST", "The lowest charge among the products in the cart"
+    HIGHEST = "HIGHEST", "The highest charge among the products in the cart"
+
+
+
+class ORDER_ATTEMPT_STATUS(models.TextChoices):
+    PENDING = "pending", "Pending"
+    PROGRESS = "progress", "Progress"
+    PARTIAL_SUCCESS = "partial_success", "Partial Success"
+    CONVERTED = "converted", "Convert Order"
+    FAILED = "failed", "Failed"

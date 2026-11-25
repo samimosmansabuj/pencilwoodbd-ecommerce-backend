@@ -1,3 +1,4 @@
+{% load courier_tags %}
 {% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
 <style>
     /* Dropdown keeps the normal look; the selected value is shown as a colored oval on top */
@@ -350,6 +351,7 @@
                                 <td>
 
                                     {{ request.customer.phone }}
+                                    {% courier_badge request.customer.phone %}
 
                                 </td>
 

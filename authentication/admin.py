@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Customer, CustomUser, Role, OrderTrackRecord, BlockedIdentity, TrackSettings, GoogleIdentity
+from .models import Customer, CustomUser, Role, OrderTrackRecord, BlockedIdentity, TrackSettings, GoogleIdentity, CourierCheckSettings, CourierCheckLog
 from django.contrib.sessions.models import Session
 from django.contrib.auth.admin import UserAdmin
 
@@ -72,3 +72,14 @@ class TrackSettingsAdmin(admin.ModelAdmin):
 class GoogleIdentityAdmin(admin.ModelAdmin):
     list_display = ["id", "email", "user", "created_at"]
     search_fields = ["email", "google_id"]
+
+@admin.register(CourierCheckSettings)
+class CourierCheckSettingsAdmin(admin.ModelAdmin):
+    list_display = ["is_enabled", "min_success_ratio", "low_ratio_action", "updated_at"]
+
+@admin.register(CourierCheckLog)
+class CourierCheckLogAdmin(admin.ModelAdmin):
+    list_display = ["phone", "source", "total_parcels", "success_parcels", "success_ratio", "is_error", "created_at"]
+    search_fields = ["phone"]
+    readonly_fields = [f.name for f in CourierCheckLog._meta.fields]
+

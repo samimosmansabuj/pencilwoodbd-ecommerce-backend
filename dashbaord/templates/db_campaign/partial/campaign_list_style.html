@@ -1,0 +1,17 @@
+<style>
+  .cpx-toast { position: fixed; top: 16px; right: 16px; z-index: 2000; max-width: 460px; }
+  .cpx-num a { font-weight: 600; text-decoration: underline; }
+  .cpx-tabs { overflow-x: auto; flex-wrap: nowrap !important; padding-bottom: 4px; }
+  .cpx-tabs a { white-space: nowrap; min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; border: 1px solid var(--bs-border-color, rgba(255,255,255,.2)); border-radius: 999px; }
+  .cpx-tabs a.on { border-color: #34d399; background: rgba(52,211,153,.16); }
+  .cpx-filters .form-control { min-height: 44px; }
+  .cpx-filters .btn { min-height: 44px; }
+  .cpx-status { display: inline-flex; align-items: center; gap: 5px; font-size: .85rem; padding: .45em .8em; }
+  .cpx-sub-line { font-size: .85rem; }
+  @media (max-width: 767px) {
+    .cpx-filters .col-auto { width: 100%; }
+    .cpx-filters .btn { width: 100%; }
+    .cpx-filters .flex-grow-1 { display: none; }
+    .modal-footer .btn { flex: 1 1 140px; min-height: 44px; }
+  }
+</style>

@@ -5,7 +5,8 @@ from .api_views import (
     LandingPageOrderAPI,
     OrderCreateAPIView,
     OrderAttemptAPIView,
-    ApplyCouponAPIView
+    ApplyCouponAPIView,
+    PopupAPIView,
 )
 from .views import *
 
@@ -18,6 +19,7 @@ urlpatterns = [
     path('api/create-order/', OrderCreateAPIView.as_view(), name="create-order"),
     path('api/order-attempt/', OrderAttemptAPIView.as_view(), name='order_attempt'),
     path("api/apply-coupon/", ApplyCouponAPIView.as_view(), name="apply-coupon"),
+    path("api/popup/", PopupAPIView.as_view(), name="site-popup"),
 
     # ----------------- Showcase Media ---------------------
     path('showcase-list/', ShowcaseMediaView.as_view(), name='showcase_list'),
