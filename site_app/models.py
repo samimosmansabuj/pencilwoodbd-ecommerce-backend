@@ -7,7 +7,8 @@ from product.models import Product, ProductVariant, Category
 from django.core.validators import FileExtensionValidator
 from django.utils import timezone
 from datetime import timedelta
-from pencilwoodbd.choices import BlockedOrderModeChoices
+from pencilwoodbd.choices import BlockedOrderModeChoices, POPUP_LINK_TYPE, POPUP_FREQUENCY, POPUP_PAGES
+from pencilwoodbd.choices import DELIVERY_COUNT_MODE, DELIVERY_ORDER_WISE_SOURCE
 from site_app.bd_districts import SYSTEM_DEFAULT_DELIVERY_CHARGE  
 
 #Fixed One Object Models=============================================
@@ -446,6 +447,10 @@ class OTPVerification(models.Model):
 
 class SiteDeliveryChargeConfig(models.Model):
     area_and_charge = models.JSONField(default=dict, blank=True)
+    count_mode = models.CharField(
+        max_length=20, choices=DELIVERY_COUNT_MODE.choices, default=DELIVERY_COUNT_MODE.PRODUCT_WISE)
+    order_wise_amount_source = models.CharField(
+        max_length=20, choices=DELIVERY_ORDER_WISE_SOURCE.choices, default=DELIVERY_ORDER_WISE_SOURCE.GLOBAL)
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -459,17 +464,15 @@ class SiteDeliveryChargeConfig(models.Model):
         return obj
 
     def save(self, *args, **kwargs):
-        self.pk = 1  # enforce singleton
+        self.pk = 1
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        pass  # never allow deleting the singleton row
+        pass
 
     def __str__(self):
         return "Global Delivery Charge Config"
     
-
-
 
 
 class Todo(models.Model):
@@ -703,3 +706,48 @@ class OrderOTPSetting(models.Model):
 
     def __str__(self):
         return "Order OTP Settings"
+
+
+class SitePopup(models.Model):
+    title = models.CharField(max_length=120)
+    image_desktop = models.ImageField(upload_to="popup/desktop/")
+    image_mobile = models.ImageField(upload_to="popup/mobile/", blank=True, null=True)
+
+    link_type = models.CharField(
+        max_length=10, choices=POPUP_LINK_TYPE.choices, default=POPUP_LINK_TYPE.NONE)
+    campaign = models.ForeignKey(
+        "campaigns.Campaign", null=True, blank=True, on_delete=models.SET_NULL, related_name="popups")
+    product = models.ForeignKey(
+        "product.Product", null=True, blank=True, on_delete=models.SET_NULL, related_name="popups")
+    url = models.CharField(max_length=500, blank=True, default="")
+    button_text = models.CharField(max_length=60, blank=True, default="")
+
+    is_active = models.BooleanField(default=False)
+    start_at = models.DateTimeField(null=True, blank=True)
+    end_at = models.DateTimeField(null=True, blank=True)
+    frequency = models.CharField(
+        max_length=20, choices=POPUP_FREQUENCY.choices, default=POPUP_FREQUENCY.ONCE_PER_SESSION)
+    pages = models.CharField(max_length=12, choices=POPUP_PAGES.choices, default=POPUP_PAGES.HOME_ONLY)
+    priority = models.IntegerField(default=0, help_text="Higher shows first when several popups are eligible")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-priority", "-id"]
+
+    def __str__(self):
+        return self.title
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            old = SitePopup.objects.filter(pk=self.pk).first()
+            if old:
+                previous_image_delete_os(old.image_desktop, self.image_desktop)
+                previous_image_delete_os(old.image_mobile, self.image_mobile)
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        image_delete_os(self.image_desktop)
+        image_delete_os(self.image_mobile)
+        super().delete(*args, **kwargs)

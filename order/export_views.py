@@ -1,3 +1,4 @@
+import copy
 import csv
 from collections import defaultdict
 
@@ -7,15 +8,25 @@ from datetime import datetime
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.utils.timesince import timesince
 from django.views import View
+
+from authentication.courier_check import fetch_courier_stats, is_low_ratio
+from authentication.models import CourierCheckSettings
+from authentication.utils import normalize_bd_phone
+from pencilwoodbd.choices import USER_TYPE
 
 from .models import Order
 
 import os
 import requests
 from django.contrib.auth.decorators import login_required
+
 from django.views.decorators.http import require_GET
 
+
+from campaigns.order_display import short_detail_campaign
 
 class OrderExportCSVView(LoginRequiredMixin, View):
     _BLANK_ORDER_FIELDS = 26
@@ -42,8 +53,26 @@ class OrderExportCSVView(LoginRequiredMixin, View):
             "Extra Discount",                # 21
             "Total Sales (Order Total Cost)",  # 22  ← what the customer pays
             "Product Items Cost (Sum)",      # 23
+            "Campaign Name",
+            "Campaign Items Regular Total",
+            "Campaign Discount Total",
+            "Campaign Items Final Total",
         ]
         
+    @staticmethod
+    def campaign_cells(items):
+        campaign_items = [i for i in items if i.campaign_id or i.campaign_name]
+        if not campaign_items:
+            return ["", "", "", ""]
+        names = []
+        for i in campaign_items:
+            if i.campaign_name and i.campaign_name not in names:
+                names.append(i.campaign_name)
+        regular = sum((i.regular_price if i.regular_price is not None else i.price or 0) * i.quantity for i in campaign_items)
+        discount = sum((i.campaign_savings_amount or 0) * i.quantity for i in campaign_items)
+        final = sum((i.discount_price or 0) * i.quantity for i in campaign_items)
+        return ["; ".join(names), regular, discount, final]
+
     def get_marketing_col(self):
         return [
             # ── MARKETING
@@ -165,6 +194,10 @@ class OrderExportCSVView(LoginRequiredMixin, View):
         if product_slug:
             qs = qs.filter(order_items__product__slug=product_slug).distinct()
 
+        campaign_id = request.GET.get("campaign", "").strip()
+        if campaign_id.isdigit():
+            qs = qs.filter(order_items__campaign_id=int(campaign_id)).distinct()
+
         # ── 2. Build filename ──────────────────────────────────────────────
         today    = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"orders_export_{today}.csv"
@@ -237,6 +270,8 @@ class OrderExportCSVView(LoginRequiredMixin, View):
                 order.extra_discount or 0,
                 order.total_cost or 0,
                 item_total_cost,
+
+                *self.campaign_cells(items),
                 
                 # Marketing
                 # order.utm_source or "",
@@ -409,6 +444,7 @@ class OrderShortDetailView(LoginRequiredMixin, View):
                 "is_gift":        item.is_gift,
                 "is_customized":  item.is_customized,
                 "customization_note": (item.customization_note or "").strip(),
+                "campaign_name":  item.campaign_name or "",
             })
 
         # ── Shipment ──────────────────────────────────────────────────────
@@ -427,6 +463,7 @@ class OrderShortDetailView(LoginRequiredMixin, View):
             "order": {
                 "id":               order.id,
                 "order_id":         order.order_id or "",
+                **short_detail_campaign(order),
                 "status":           order.status,
                 "source":           order.source or "",
                 "is_urgent":        order.is_urgent,
@@ -471,44 +508,69 @@ class OrderRefreshView(LoginRequiredMixin, View):
             "message": f"Order {order.order_id} refreshed successfully.",
         })
 
-@login_required
 @require_GET
 def BDCourierCheck(request):
-    phone = request.GET.get("phone", "").strip()
-    phone = "".join(ch for ch in phone if ch.isdigit())
+    if not request.user.is_authenticated:
+        return JsonResponse({"status": "error", "message": "Session expired. Please log in again."}, status=401)
 
-    if phone.startswith("880"):
-        phone = "0" + phone[3:]
+    if request.user.user_type not in (USER_TYPE.STAFF, USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN):
+        return JsonResponse({"status": "error", "message": "Permission denied"}, status=403)
 
-    if len(phone) != 11 or not phone.startswith("01"):
+    phone = normalize_bd_phone(request.GET.get("phone", ""))
+    if not phone:
+        return JsonResponse({"status": "error", "message": "Invalid phone number"}, status=400)
+
+    cfg = CourierCheckSettings.get_solo()
+    if not (cfg.api_key or "").strip():
         return JsonResponse(
-            {"status": "error", "message": "Invalid phone number"},
-            status=400,
+            {"status": "error", "message": "Courier API is not configured. Add the API key in Dashboard > Courier Check."},
+            status=503,
         )
 
-    api_key = os.getenv("BDCOURIER_API_KEY")
-    courier_check_url = os.getenv("BDCOURIER_COURIER_CHECK_URL", "https://api.bdcourier.com/courier-check")
-    if not api_key:
-        return JsonResponse(
-            {"status": "error", "message": "Courier API is not configured"},
-            status=500,
-        )
+    force = request.GET.get("refresh") == "1"
+    result = fetch_courier_stats(phone, cfg=cfg, source="dashboard", use_cache=not force)
+    if result.ok and result.from_cache and not result.raw:
+        result = fetch_courier_stats(phone, cfg=cfg, source="dashboard", use_cache=False)
+    if not result.ok:
+        return JsonResponse({"status": "error", "message": result.error or "Courier service unavailable"}, status=502)
 
-    try:
-        response = requests.post(
-            courier_check_url,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={"phone": phone},
-            timeout=15,
-        )
-        response.raise_for_status()
-        return JsonResponse(response.json())
-    except requests.RequestException:
-        return JsonResponse(
-            {"status": "error", "message": "Courier service unavailable"},
-            status=502,
-        )
+    raw = copy.deepcopy(result.raw or {})
+    data = raw.get("data") if isinstance(raw.get("data"), dict) else {}
+    reports = raw.get("reports") if isinstance(raw.get("reports"), list) else data.get("reports", [])
+    if not isinstance(reports, list):
+        reports = []
 
+    ratio = result.ratio
+    data["summary"] = {
+        "total_parcel": result.total,
+        "success_parcel": result.success,
+        "cancelled_parcel": result.cancelled,
+        "success_ratio": float(ratio) if ratio is not None else 0,
+    }
+
+    checked_at_text = ""
+    if result.checked_at:
+        when = timezone.localtime(result.checked_at)
+        checked_at_text = f"{when:%d %b %Y, %I:%M %p} ({timesince(result.checked_at)} ago)"
+        if result.stale:
+            checked_at_text += " · নতুন ডেটা আনা যায়নি (BDCourier-এ সংযোগ হয়নি), আগের সেভ করা ডেটা দেখাচ্ছে"
+
+    return JsonResponse({
+        "status": "success",
+        "data": data,
+        "reports": reports,
+        "risk_verdict": raw.get("risk_verdict") if isinstance(raw.get("risk_verdict"), dict) else None,
+        "meta": {
+            "rate_only": [
+                {"name": c.name, "reported_ratio": float(c.reported_ratio), "est_total": c.est_total}
+                for c in result.couriers if c.rate_only
+            ],
+            "limit": float(cfg.min_success_ratio),
+            "warn_margin": float(cfg.warn_margin),
+            "min_parcels": cfg.min_parcels_to_evaluate,
+            "ignored": cfg.ignored_courier_list(),
+            "cached": result.from_cache,
+            "checked_at_text": checked_at_text,
+            "restricted": is_low_ratio(result, cfg),
+        },
+    })

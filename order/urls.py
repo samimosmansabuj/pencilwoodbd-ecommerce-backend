@@ -26,7 +26,7 @@ from .views import (
     TelegramBotSettingsView, delete_telegram_bot_config, toggle_telegram_bot_active,
     OrderTokenPrintView, OrderBulkInvoicePrintView, OrderBulkTokenPrintView, OrderPathaoParcelSubmitView,
     OrderUrgentToggleView, ConfirmOrderRequestView,OrderAttemptListView, 
-    OrderAttemptDetailView, OrderAttemptDeleteView,
+    OrderAttemptDetailView, OrderAttemptDeleteView, OrderAttemptStatusUpdateView,
 )
 
 urlpatterns = [
@@ -72,6 +72,7 @@ urlpatterns = [
     # ----------------- Dashboard: Order Attempts -----------------
     path("order-attempts/", OrderAttemptListView.as_view(), name="order_attempt_list"),
     path("order-attempts/<int:id>/", OrderAttemptDetailView.as_view(), name="order_attempt_detail"),
+    path("order-attempts/<int:pk>/status/", OrderAttemptStatusUpdateView.as_view(), name="order_attempt_status_update"),
     path("order-attempts/<int:pk>/delete/", OrderAttemptDeleteView.as_view(), name="order_attempt_delete"),
 
     # ----------------- Dashboard: Telegram Bot Settings -----------------

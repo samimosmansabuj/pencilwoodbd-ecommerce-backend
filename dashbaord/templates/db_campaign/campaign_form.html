@@ -1,0 +1,12 @@
+{% extends 'dashboard.html' %}
+{% load static %}
+
+{% block page_title %}
+<title>{% if campaign %}Edit{% else %}New{% endif %} Campaign | {{ brand_name }}</title>
+{% endblock page_title %}
+
+{% block dashboard_body_content %}
+{% include './partial/campaign_form_style.html' %}
+{% include './partial/campaign_form_body.html' %}
+{% include './partial/campaign_form_script.html' %}
+{% endblock dashboard_body_content %}

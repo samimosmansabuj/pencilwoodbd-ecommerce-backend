@@ -6,6 +6,7 @@ from pencilwoodbd.choices import CATEGORY_PRODUCT_STATUS
 from product.models import Product
 from .engine import offers_for_product
 from .models import ProductComboPair
+from campaigns.context import offers_suppressed
 
 
 class ProductOffersAPIView(APIView):
@@ -16,7 +17,10 @@ class ProductOffersAPIView(APIView):
         if not product:
             return Response({"status": True, "data": {"offers": [], "combos": []}})
 
-        offers = offers_for_product(product, abs_url=request.build_absolute_uri)
+        if offers_suppressed(request.query_params.get("campaign"), product):
+            offers = []
+        else:
+            offers = offers_for_product(product, abs_url=request.build_absolute_uri)
 
         partner_ids = set()
         for a, b in ProductComboPair.objects.filter(product_a=product).values_list("product_a_id", "product_b_id"):

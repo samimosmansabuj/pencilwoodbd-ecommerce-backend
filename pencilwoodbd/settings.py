@@ -35,7 +35,7 @@ INSTALLED_APPS = [
     'channels','rest_framework.authtoken',
     
     #Custom Apps
-    'authentication', 'order', 'product','live_chat', 'site_app', 'dashbaord', 'marketing', 'offers',"django_json_widget", 'tracking',
+    'authentication', 'order', 'product','live_chat', 'site_app', 'dashbaord', 'marketing', 'offers',"django_json_widget", 'tracking', 'campaigns',
 ]
 
 

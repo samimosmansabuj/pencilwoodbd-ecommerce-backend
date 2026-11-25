@@ -1,0 +1,13 @@
+{% extends 'dashboard.html' %}
+{% load static %}
+
+{% block page_title %}
+<title>Popups | {{ brand_name }}</title>
+{% endblock page_title %}
+
+{% block dashboard_body_content %}
+{% include 'db_campaign/partial/stack_table_style.html' %}
+{% include './partial/popup_list_style.html' %}
+{% include './partial/popup_list_page.html' %}
+{% include './partial/popup_modal.html' %}
+{% endblock dashboard_body_content %}

@@ -1,0 +1,22 @@
+<div class="main-content">
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Campaigns</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item active" aria-current="page">All campaigns</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+    <div class="container-fluid px-0">
+        <div id="campaign-table-wrapper">
+            {% include 'db_campaign/partial/partial_campaign_list.html' %}
+        </div>
+    </div>
+</div>
+
+<div id="cpx-list-config" data-csrf="{{ csrf_token }}"
+     data-toggle-url="{% url 'campaign_toggle' 0 %}" data-duplicate-url="{% url 'campaign_duplicate' 0 %}"
+     data-delete-url="{% url 'campaign_delete' 0 %}" data-list-url="{% url 'campaign_list' %}"></div>

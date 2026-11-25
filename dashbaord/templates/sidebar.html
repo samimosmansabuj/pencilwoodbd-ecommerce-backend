@@ -131,6 +131,28 @@
         </ul>
       </li>
 
+      <!-- Campaigns & Popups------- -->
+      <li>
+        <a href="javascript:;" class="has-arrow">
+          <div class="parent-icon">
+            <i class="material-icons-outlined">local_offer</i>
+          </div>
+          <div class="menu-title">Campaigns</div>
+        </a>
+        <ul>
+          <li>
+            <a href="{% url 'campaign_list' %}">
+              <i class="material-icons-outlined">arrow_right</i>Campaigns
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'popup_list' %}">
+              <i class="material-icons-outlined">arrow_right</i>Popups
+            </a>
+          </li>
+        </ul>
+      </li>
+
       <!-- Variant Section------- -->
       <li>
         <a href="javascript:;" class="has-arrow">
@@ -253,6 +275,14 @@
             <a href="{% url 'blocked_identity_list' %}">
               <i class="material-icons-outlined">arrow_right</i>
               Blocked IPs / Devices
+            </a>
+          </li>
+
+          <!-- Courier Success Ratio -->
+          <li>
+            <a href="{% url 'courier_check_settings' %}">
+              <i class="material-icons-outlined">arrow_right</i>
+              Courier Check
             </a>
           </li>
 

@@ -10,7 +10,8 @@ from django.db import models
 
 @admin.register(OrderAttempt)
 class OrderAttemptAdmin(admin.ModelAdmin):
-    list_display = ("phone", "name", "district", "created_at", "updated_at")
+    list_display = ("phone", "name", "district", "status", "created_at", "updated_at")
+    list_filter = ("status",)
     search_fields = ("phone", "name")
     ordering = ("-updated_at",)
 

@@ -1,0 +1,82 @@
+{# Campaign block of the order details page (SPEC 9). Read-only: everything comes from the order's own snapshot. #}
+{# No dimmed text: secondary info uses a smaller size or italic. On phones the tables turn into one card per row (cpx-stack). #}
+{% if campaign_items or campaign_delivery %}
+{% include 'db_campaign/partial/stack_table_style.html' %}
+<style>
+    /* header rows follow the dark navy theme (the default light header looked white) */
+    #order-campaign-block .table > thead > tr > th {
+        background: rgba(255, 255, 255, .08);
+        color: inherit;
+        border-color: var(--bs-border-color, rgba(255, 255, 255, .2));
+    }
+</style>
+<div class="card mb-3 border-0 shadow-sm" id="order-campaign-block">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-megaphone"></i>
+        <strong>Campaign</strong>
+    </div>
+    <div class="card-body">
+        {% if campaign_items %}
+        <div class="product-table">
+            <div class="table-responsive white-space-nowrap">
+                <table class="table align-middle mb-0 cpx-stack">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Campaign</th>
+                            <th class="text-end">Main price</th>
+                            <th class="text-end">Product's own discount price</th>
+                            <th class="text-end">Campaign discount</th>
+                            <th class="text-end">Price after campaign</th>
+                            <th class="text-end">Savings</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in campaign_items %}
+                        <tr>
+                            <td data-label="Item">
+                                {{ r.item.display_name }} <span class="small fst-italic">&times; {{ r.item.quantity }}</span>
+                                {% if r.manually_edited %}<div class="small text-info"><i class="bi bi-pencil me-1"></i>Price edited manually by staff</div>{% endif %}
+                                {% if r.gift_offer_note %}<div class="small text-warning" data-testid="gift-offer-note"><i class="bi bi-info-circle me-1"></i>{{ r.gift_offer_note }}</div>{% endif %}
+                            </td>
+                            <td data-label="Campaign"><span class="badge bg-primary">{{ r.campaign_name }}</span></td>
+                            <td class="text-end" data-label="Main price">{% if r.regular_price is not None %}&#2547;{{ r.regular_price|floatformat:"-2" }}{% else %}&ndash;{% endif %}</td>
+                            <td class="text-end" data-label="Product's own discount price">{% if r.product_sale_price %}&#2547;{{ r.product_sale_price|floatformat:"-2" }}{% else %}<span class="small fst-italic">No discount price</span>{% endif %}</td>
+                            <td class="text-end" data-label="Campaign discount">{{ r.discount_text|default:"&ndash;" }}{% if r.discount_type %} <span class="small fst-italic">{% if r.discount_type == 'PERCENT' %}(percent off){% else %}(fixed amount off){% endif %}</span>{% endif %}</td>
+                            <td class="text-end fw-semibold" data-label="Price after campaign">&#2547;{{ r.price_after|floatformat:"-2" }}</td>
+                            <td class="text-end" data-label="Savings">{% if r.savings_amount %}&#2547;{{ r.savings_amount|floatformat:"-2" }} ({{ r.savings_percent }}%){% else %}&ndash;{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if campaign_delivery %}
+        <h6 class="fw-semibold mt-4 mb-2"><i class="bi bi-truck me-1"></i>Delivery rule used{% if campaign_delivery.district %} ({{ campaign_delivery.district }}){% endif %}</h6>
+        <div class="product-table">
+            <div class="table-responsive">
+                <table class="table align-middle mb-0 cpx-stack">
+                    <thead><tr><th>Group</th><th>Rule</th><th class="text-end">Charge</th></tr></thead>
+                    <tbody>
+                        {% for g in campaign_delivery.groups %}
+                        <tr>
+                            <td data-label="Group">{{ g.label }}</td>
+                            <td data-label="Rule"><span class="small">{{ g.rule_text }}{% if g.config_text %} &middot; {{ g.config_text }}{% endif %}{% if g.waived and g.normal_amount %} <span class="fst-italic">(would have been &#2547;{{ g.normal_amount }})</span>{% endif %}</span></td>
+                            <td class="text-end" data-label="Charge">&#2547;{{ g.amount|default:0 }}</td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="fw-semibold"><td colspan="2" class="text-end" data-label="Delivery total">Delivery total</td><td class="text-end" data-label="Total">&#2547;{{ campaign_delivery.total|default:0 }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if campaign_delivery.coupon_note %}
+        <div class="small text-warning mt-3"><i class="bi bi-ticket-perforated me-1"></i>{{ campaign_delivery.coupon_note.note }}{% if campaign_delivery.coupon_note.campaigns %} ({{ campaign_delivery.coupon_note.campaigns|join:", " }}){% endif %}.</div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}

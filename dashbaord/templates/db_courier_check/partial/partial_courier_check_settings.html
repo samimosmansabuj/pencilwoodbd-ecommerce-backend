@@ -1,0 +1,405 @@
+{% load courier_tags %}
+<div class="main-content">
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Security</div>
+        <div class="ps-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}"><i class="bx bx-home-alt"></i></a></li>
+                    <li class="breadcrumb-item active">Courier Check (Success Ratio)</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    {% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
+
+    <form method="post" action="{% url 'courier_check_settings' %}">
+        {% csrf_token %}
+
+        <style>
+            .cc-tip { position: relative; display: inline-block; cursor: help; }
+            .cc-tip::after {
+                content: attr(data-tip); position: absolute; left: 0; top: calc(100% + 6px); z-index: 1060;
+                width: max-content; max-width: 280px; padding: 8px 10px; border-radius: 6px;
+                background: #111827; color: #f3f4f6; border: 1px solid rgba(255,255,255,.18);
+                box-shadow: 0 6px 18px rgba(0,0,0,.45); font-size: 12px; line-height: 1.45; font-weight: 400;
+                white-space: normal; opacity: 0; visibility: hidden; transform: translateY(-3px);
+                transition: opacity .15s ease, transform .15s ease; pointer-events: none;
+            }
+            .row > .col:last-child .cc-tip::after { left: auto; right: 0; }
+            .cc-tip:hover::after, .cc-tip:focus-within::after, .cc-tip:focus::after { opacity: 1; visibility: visible; transform: none; }
+        </style>
+        <div class="card mb-4" id="courier_toggle_strip" {% if not cfg.is_enabled %}style="display:none"{% endif %}>
+            <div class="card-body">
+                <div class="row row-cols-1 row-cols-md-3 row-cols-xl-5 g-3">
+                <div class="col">
+                    <div class="form-check form-switch cc-tip" data-tip="ON: ওয়েবসাইট checkout-এ চেক চলবে।" tabindex="0">
+                        <input class="form-check-input" type="checkbox" name="apply_on_ecom" id="apply_on_ecom" {% if cfg.apply_on_ecom %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+                        <label class="form-check-label fw-semibold" for="apply_on_ecom">Ecom checkout</label>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-check form-switch cc-tip" data-tip="ON: ল্যান্ডিং পেজের অর্ডারেও চেক চলবে।" tabindex="0">
+                        <input class="form-check-input" type="checkbox" name="apply_on_landing" id="apply_on_landing" {% if cfg.apply_on_landing %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+                        <label class="form-check-label fw-semibold" for="apply_on_landing">Landing page</label>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-check form-switch cc-tip" data-tip="ON: BDCourier কাজ না করলেও অর্ডার যাবে, ফোনের পাশে কমলা ⚠ Check failed চিহ্ন আসবে, হাতে চেক করে নিন। OFF: অর্ডার আটকাবে। শুরুতে ON রাখুন।" tabindex="0">
+                        <input class="form-check-input" type="checkbox" name="fail_open" id="fail_open" {% if cfg.fail_open %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+                        <label class="form-check-label fw-semibold" for="fail_open">Allow order if API fails</label>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-check form-switch cc-tip" data-tip="ON: ফোন নম্বরের পাশে সফলতার % ব্যাজ দেখাবে।" tabindex="0">
+                        <input class="form-check-input" type="checkbox" name="show_badges" id="show_badges" {% if cfg.show_badges %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+                        <label class="form-check-label fw-semibold" for="show_badges">Show % badge</label>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-check form-switch cc-tip" data-tip="ON: নতুন নম্বর নিজে থেকে চেক হবে; API ফেল হলে ২.৫ মিনিট পর আবার চেষ্টা করবে।" tabindex="0">
+                        <input class="form-check-input" type="checkbox" name="auto_check_new_numbers" id="auto_check_new_numbers" {% if cfg.auto_check_new_numbers %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+                        <label class="form-check-label fw-semibold" for="auto_check_new_numbers">Auto-check new numbers</label>
+                    </div>
+                </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Success Ratio Rule</h5>
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="fw-semibold">Courier Check (ON/OFF)</span>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" role="switch" name="is_enabled" id="is_enabled"
+                                       {% if cfg.is_enabled %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Minimum Success Ratio (%)</label>
+                                <input type="number" step="0.01" min="0" max="100" name="min_success_ratio" class="form-control"
+                                       value="{{ cfg.min_success_ratio|stringformat:'s' }}" {% if not can_edit %}disabled{% endif %}>
+                                <small class="text">এর নিচে হলে OTP/WhatsApp চালু হবে। <strong>সুপারিশ: 70</strong> (60-80)</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Minimum Parcels to Evaluate</label>
+                                <input type="number" min="1" name="min_parcels_to_evaluate" class="form-control"
+                                       value="{{ cfg.min_parcels_to_evaluate }}" {% if not can_edit %}disabled{% endif %}>
+                                <small class="text">কমপক্ষে কয়টি পার্সেল থাকলে হিসাব ধরবে। <strong>সুপারিশ: 1</strong></small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">If ratio is low, then</label>
+                                <select name="low_ratio_action" class="form-select" id="low_ratio_action" {% if not can_edit %}disabled{% endif %}>
+                                    {% for value, label in action_choices %}
+                                        <option value="{{ value }}" {% if cfg.low_ratio_action == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text">OTP = ভেরিফাই করে অর্ডার; WhatsApp = অর্ডার না নিয়ে আপনাদের WhatsApp-এ যোগাযোগ।</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Yellow warning margin (%)</label>
+                                <input type="number" step="0.01" min="0" max="100" name="warn_margin" class="form-control"
+                                       value="{{ cfg.warn_margin|stringformat:'s' }}" {% if not can_edit %}disabled{% endif %}>
+                                <small class="text">লিমিটের উপরে এই % এর মধ্যে হলুদ ব্যাজ। <strong>সুপারিশ: 10</strong></small>
+                            </div>
+
+                            <div class="col-12" id="otp_box">
+                                <label class="form-label">OTP message</label>
+                                <textarea name="otp_message" rows="3" class="form-control" {% if not can_edit %}disabled{% endif %}>{{ cfg.otp_message }}</textarea>
+                                <small class="text">OTP চাওয়ার সময় কাস্টমার এটি দেখবে। সাধারণত যেমন আছে রাখুন।</small>
+                            </div>
+                            <div class="col-12" id="wa_box">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">WhatsApp message</label>
+                                        <textarea name="whatsapp_message" rows="4" class="form-control" {% if not can_edit %}disabled{% endif %}>{{ cfg.whatsapp_message }}</textarea>
+                                        <small class="text">কাস্টমার পপআপে এই বার্তা ও WhatsApp বাটন দেখবে।</small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Support WhatsApp number</label>
+                                        <input type="text" name="whatsapp_number" class="form-control" placeholder="01XXXXXXXXX"
+                                               value="{{ cfg.whatsapp_number }}" {% if not can_edit %}disabled{% endif %}>
+                                        <small class="text d-block mb-2">ফাঁকা রাখলে Contact Information-এর WhatsApp নম্বর ব্যবহার হবে।</small>
+                                        <label class="form-label">WhatsApp pre-filled text</label>
+                                        <input type="text" name="whatsapp_prefill_text" class="form-control" maxlength="255"
+                                               value="{{ cfg.whatsapp_prefill_text }}" {% if not can_edit %}disabled{% endif %}>
+                                        <small class="text">WhatsApp খুললে বক্সে আগে থেকে এই লেখা থাকবে। <code>{phone}</code> = কাস্টমারের নম্বর।</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Hard Block (Restricted Orders)</h5>
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="fw-semibold">Hard Block (ON/OFF)</span>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" role="switch" name="hard_block_enabled" id="hard_block_enabled"
+                                       {% if cfg.hard_block_enabled %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="text small mb-3">Blocks customers below this ratio completely (no OTP or WhatsApp option). Needs the main Courier Check switch ON.</div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Refuse orders below (%)</label>
+                                <input type="number" step="0.01" min="0" max="100" name="hard_block_ratio" class="form-control"
+                                       value="{{ cfg.hard_block_ratio|stringformat:'s' }}" {% if not can_edit %}disabled{% endif %}>
+                                <small class="text">এর নিচে হলে অর্ডারই নেবে না। <strong>সুপারিশ: 30</strong> (Min Success Ratio-এর চেয়ে কম হতে হবে)</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Contact number shown to customer</label>
+                                <input type="text" name="hard_block_contact" class="form-control" placeholder="01XXXXXXXXX" maxlength="60"
+                                       value="{{ cfg.hard_block_contact }}" {% if not can_edit %}disabled{% endif %}>
+                                <small class="text">সাপোর্টের নম্বর দিন (কল ও WhatsApp দুটোতেই ব্যবহার হবে)। ফাঁকা = WhatsApp/Contact নম্বর।</small>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Message shown to customer</label>
+                                <textarea name="hard_block_message" rows="4" class="form-control" {% if not can_edit %}disabled{% endif %}>{{ cfg.hard_block_message }}</textarea>
+                                <small class="text"><code>{limit}</code> = ওপরের %, <code>{contact}</code> = যোগাযোগ নম্বর। সাধারণত যেমন আছে রাখুন।</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header"><h5 class="mb-0">Dashboard notification for refused attempts</h5></div>
+                    <div class="card-body">
+                        <div class="text small mb-3">Count of orders refused by Hard Block, shown on Dashboard. Clearing resets the count only; attempts stay in Order Attempts.</div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Clear the count</label>
+                                <select name="restricted_clear_mode" class="form-select" {% if not can_edit %}disabled{% endif %}>
+                                    {% for value, label in clear_mode_choices %}
+                                        <option value="{{ value }}" {% if cfg.restricted_clear_mode == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text">স্টাফ নিজে Clear চাপলে কাউন্ট ০ হবে। <strong>সুপারিশ: Only when staff presses Clear</strong></small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Count stays for</label>
+                                <select name="restricted_expire_mode" id="restricted_expire_mode" class="form-select" {% if not can_edit %}disabled{% endif %}>
+                                    <option value="limited" {% if not cfg.restricted_expire_forever %}selected{% endif %}>Limited time</option>
+                                    <option value="forever" {% if cfg.restricted_expire_forever %}selected{% endif %}>Until cleared</option>
+                                </select>
+                                <small class="text">সময় পার হলে কাউন্ট নিজে চলে যায়। <strong>সুপারিশ: Limited time, 7 Day(s)</strong></small>
+                            </div>
+                            <div class="col-md-6 restricted-limited">
+                                <label class="form-label">Value</label>
+                                <input type="number" min="1" max="1000" name="restricted_expire_value" class="form-control" value="{{ cfg.restricted_expire_value }}" {% if not can_edit %}disabled{% endif %}>
+                                <small class="text">সুপারিশ: 7</small>
+                            </div>
+                            <div class="col-md-6 restricted-limited">
+                                <label class="form-label">Unit</label>
+                                <select name="restricted_expire_unit" class="form-select" {% if not can_edit %}disabled{% endif %}>
+                                    {% for value, label in unit_choices %}
+                                        <option value="{{ value }}" {% if cfg.restricted_expire_unit == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text">সুপারিশ: Day(s)</small>
+                            </div>
+                            <div class="col-12 text small">
+                                New refused attempts: <strong>{{ restricted_new }}</strong>
+                                {% if restricted_new and can_edit %}
+                                <button type="button" class="btn btn-sm btn-outline-secondary ms-2 courier-restricted-clear">Clear count now</button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% include 'db_courier_check/partial/partial_restricted_clear_script.html' %}
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">History Retention</h5>
+                        <span class="text small">
+                            Stored: {{ stats.total }} checks, {{ stats.numbers }} numbers{% if stats.oldest %}, oldest {{ stats.oldest|date:"d M Y" }}{% endif %}
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="text small mb-3">How long saved check records are kept. Deleted records show "Check" on the badge again (1 API call when clicked).</div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Keep check history</label>
+                                <select name="retention_mode" id="retention_mode" class="form-select" {% if not can_edit %}disabled{% endif %}>
+                                    <option value="forever" {% if cfg.retention_forever %}selected{% endif %}>Lifetime (never delete)</option>
+                                    <option value="limited" {% if not cfg.retention_forever %}selected{% endif %}>Delete older than...</option>
+                                </select>
+                                <small class="text">শুরুতে Lifetime রাখুন; ডাটা বড় হলে Delete older than ব্যবহার করুন।</small>
+                            </div>
+                            <div class="col-md-6 retention-limited">
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <label class="form-label">Value</label>
+                                        <input type="number" min="1" max="1000" name="retention_value" class="form-control" value="{{ cfg.retention_value }}" {% if not can_edit %}disabled{% endif %}>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label">Unit</label>
+                                        <select name="retention_unit" class="form-select" {% if not can_edit %}disabled{% endif %}>
+                                            {% for value, label in unit_choices %}
+                                                <option value="{{ value }}" {% if cfg.retention_unit == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <small class="text">সুপারিশ: 90 Day(s)। (১ মাস = ৩০ দিন)</small>
+                            </div>
+                            <div class="col-12 text small">
+                                Current: <strong>{{ keep_text }}</strong>. Expired records are removed automatically after new checks are saved. A per-number setting under <em>Recent Checks &gt; History</em> overrides this.
+                            </div>
+                            {% if can_edit %}
+                            <div class="col-12">
+                                <button type="submit" formaction="{% url 'courier_check_cleanup' %}" formnovalidate class="btn btn-outline-danger btn-sm"
+                                        onclick="return confirm('Delete all expired courier check records now? This cannot be undone.');"
+                                        {% if not stats.expired %}disabled{% endif %}>
+                                    Delete expired records now ({{ stats.expired }})
+                                </button>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><h5 class="mb-0">BDCourier API Setup</h5></div>
+            <div class="card-body">
+                <div class="text small mb-3">Connection settings for BDCourier. Apart from the API Key, the default values are fine for most cases.</div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Provider</label>
+                        <select name="provider" class="form-select" {% if not can_edit %}disabled{% endif %}>
+                            {% for value, label in provider_choices %}
+                                <option value="{{ value }}" {% if cfg.provider == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text">এখন শুধু BDCourier আছে। যেমন আছে রাখুন।</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Base URL</label>
+                        <input type="text" name="api_base_url" class="form-control" value="{{ cfg.api_base_url }}" {% if not can_edit %}disabled{% endif %}>
+                        <small class="text"><strong>দেওয়া মান: https://api.bdcourier.com</strong> — বদলাবেন না।</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Endpoint</label>
+                        <input type="text" name="api_endpoint" class="form-control" value="{{ cfg.api_endpoint }}" {% if not can_edit %}disabled{% endif %}>
+                        <small class="text"><strong>দেওয়া মান: /courier-check</strong> — বদলাবেন না।</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">API Key</label>
+                        <input type="password" name="api_key" class="form-control" autocomplete="new-password"
+                               placeholder="{% if cfg.api_key %}Saved: {{ cfg.masked_api_key }} (leave blank to keep){% else %}Paste BDCourier API key here{% endif %}"
+                               {% if not can_edit %}disabled{% endif %}>
+                        {% if cfg.api_key %}
+                        <div class="form-check mt-1">
+                            <input class="form-check-input" type="checkbox" name="clear_api_key" id="clear_api_key" {% if not can_edit %}disabled{% endif %}>
+                            <label class="form-check-label small" for="clear_api_key">Remove saved key (courier check stops working without a key)</label>
+                        </div>
+                        {% endif %}
+                        <small class="text">BDCourier একাউন্টের গোপন key পেস্ট করুন। ফাঁকা রাখলে আগেরটাই থাকবে। কাউকে দেবেন না।</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Timeout (sec)</label>
+                        <input type="number" min="1" max="30" name="timeout_seconds" class="form-control" value="{{ cfg.timeout_seconds }}" {% if not can_edit %}disabled{% endif %}>
+                        <small class="text">কত সেকেন্ড অপেক্ষা করবে। <strong>সুপারিশ: 8</strong></small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Retries</label>
+                        <input type="number" min="0" max="3" name="api_retries" class="form-control" value="{{ cfg.api_retries }}" {% if not can_edit %}disabled{% endif %}>
+                        <small class="text">ফেল হলে কতবার আবার চেষ্টা করবে (সর্বোচ্চ 3)। <strong>সুপারিশ: 2</strong></small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Cache (hours)</label>
+                        <input type="number" min="0" max="720" name="cache_hours" class="form-control" value="{{ cfg.cache_hours }}" {% if not can_edit %}disabled{% endif %}>
+                        <small class="text">কত ঘণ্টা সেভ করা ডেটা ব্যবহার হবে (এর মধ্যে নতুন API কল হয় না)। সময় শেষে নিজে আপডেট হয় না; কেউ Short View খুললে বা নতুন অর্ডার এলে একবার নতুন ডেটা আসে। <strong>সুপারিশ: 6</strong>, 0 দেবেন না।</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Auto-check limit / hour</label>
+                        <input type="number" min="0" max="100000" name="auto_check_hourly_limit" class="form-control" value="{{ cfg.auto_check_hourly_limit }}" {% if not can_edit %}disabled{% endif %}>
+                        <small class="text">ঘণ্টায় সর্বোচ্চ কয়টি নতুন নম্বর অটো-চেক হবে (ভুয়া নম্বরে প্ল্যান শেষ ঠেকাতে)। <strong>সুপারিশ: 100</strong>, 0 = সীমাহীন (রাখবেন না)</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Ignored couriers</label>
+                        <input type="text" name="ignored_couriers" class="form-control" placeholder="e.g. paperfly,redx" value="{{ cfg.ignored_couriers }}" {% if not can_edit %}disabled{% endif %}>
+                        <small class="text">যে কুরিয়ার হিসাবে ধরবেন না, কমা দিয়ে লিখুন। সাধারণত ফাঁকা রাখুন।</small>
+                    </div>
+                    {% if can_edit %}
+                    <div class="col-md-6 d-flex align-items-end justify-content-md-end">
+                        <button type="submit" class="btn btn-primary px-5">Save Settings</button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </form>
+
+    {% include 'db_courier_check/partial/partial_courier_recent_checks.html' %}
+
+    <div class="modal fade" id="courierHistoryModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Check History</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="courierHistoryBody"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var master = document.getElementById('is_enabled');
+    var strip = document.getElementById('courier_toggle_strip');
+    function toggleStrip() { if (strip && master) strip.style.display = master.checked ? '' : 'none'; }
+    if (master) { master.addEventListener('change', toggleStrip); toggleStrip(); }
+
+    var expireMode = document.getElementById('restricted_expire_mode');
+    function toggleExpire() {
+        document.querySelectorAll('.restricted-limited').forEach(function (e) {
+            e.style.display = expireMode && expireMode.value === 'limited' ? '' : 'none';
+        });
+    }
+    if (expireMode) { expireMode.addEventListener('change', toggleExpire); toggleExpire(); }
+
+    var mode = document.getElementById('retention_mode');
+    function toggleRetention() {
+        document.querySelectorAll('.retention-limited').forEach(function (e) {
+            e.style.display = mode && mode.value === 'limited' ? '' : 'none';
+        });
+    }
+    if (mode) { mode.addEventListener('change', toggleRetention); toggleRetention(); }
+
+    var sel = document.getElementById('low_ratio_action');
+    function toggle() {
+        var wa = sel && sel.value === 'whatsapp';
+        document.getElementById('otp_box').style.display = wa ? 'none' : '';
+        document.getElementById('wa_box').style.display = wa ? '' : 'none';
+    }
+    if (sel) { sel.addEventListener('change', toggle); toggle(); }
+})();
+</script>

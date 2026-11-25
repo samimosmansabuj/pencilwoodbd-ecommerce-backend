@@ -1,0 +1,151 @@
+{% include './popup_modal_style.html' %}
+<div class="modal fade" id="popupModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down pux-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="puxTitle">Create popup</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="puxAlert"></div>
+                <div class="row g-4 pux-layout">
+                    <div class="col-lg-7 col-xl-8">
+                        <form id="puxForm" onsubmit="return false" novalidate>
+                            <input type="hidden" name="id">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label" for="pux-title">Popup title *</label>
+                                    <input class="form-control" id="pux-title" name="title" maxlength="120" placeholder="Black Friday poster">
+                                    <div class="pux-help"><i class="bi bi-info-circle"></i>A name for this poster. Example: Black Friday poster</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="pux-img-d">Desktop image (for computers) *</label>
+                                    <input class="form-control" type="file" accept="image/*" id="pux-img-d">
+                                    <div class="pux-help"><i class="bi bi-image"></i>The poster picture. Example: 800 &times; 800 pixels</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="pux-img-m">Mobile image (for phones)</label>
+                                    <input class="form-control" type="file" accept="image/*" id="pux-img-m">
+                                    <div class="pux-help"><i class="bi bi-image"></i>Optional. If empty, the desktop image is used on phones.</div>
+                                    <div class="form-check mt-1" id="pux-clear-m-wrap" hidden>
+                                        <input class="form-check-input" type="checkbox" id="pux-clear-m"><label class="form-check-label" for="pux-clear-m">Remove the current mobile image</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="pux-link">When someone clicks the poster, open</label>
+                                    <select class="form-select" id="pux-link" name="link_type">
+                                        {% for t in link_types %}<option value="{{ t.value }}">{% if t.value == 'URL' %}Any web address{% else %}{{ t.label }}{% endif %}</option>{% endfor %}
+                                    </select>
+                                    <div class="pux-help"><i class="bi bi-info-circle"></i><span id="pux-link-help"></span></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="pux-btn-text">Button text</label>
+                                    <input class="form-control" id="pux-btn-text" name="button_text" maxlength="60" placeholder="Shop now">
+                                    <div class="pux-help"><i class="bi bi-info-circle"></i>The button on the poster. Example: Shop now</div>
+                                </div>
+                                <div class="col-12" id="pux-campaign-wrap" hidden>
+                                    <label class="form-label" for="pux-campaign" id="pux-campaign-label">Campaign</label>
+                                    <select class="form-select" id="pux-campaign" name="campaign">
+                                        <option value="">Choose a campaign...</option>
+                                        {% for c in campaign_options %}<option value="{{ c.id }}">{{ c.title }} ({{ c.status|capfirst }})</option>{% endfor %}
+                                    </select>
+                                    <div class="pux-err" data-perr="campaign"></div>
+                                </div>
+                                <div class="col-12" id="pux-product-wrap" hidden>
+                                    <label class="form-label" for="pux-product-q">Product</label>
+                                    <div class="pux-search">
+                                        <input class="form-control" id="pux-product-q" type="search" autocomplete="off" placeholder="Type a product name, SKU or category...">
+                                        <div class="pux-results" id="pux-product-results" hidden></div>
+                                    </div>
+                                    <input type="hidden" name="product" id="pux-product">
+                                    <div class="mt-1 pux-chosen" id="pux-product-chosen"></div>
+                                    <div class="pux-err" data-perr="product"></div>
+                                </div>
+                                <div class="col-12" id="pux-url-wrap" hidden>
+                                    <label class="form-label" for="pux-url">Web address</label>
+                                    <input class="form-control" id="pux-url" name="url" maxlength="500" placeholder="https://... or /page.html">
+                                    <div class="pux-help"><i class="bi bi-info-circle"></i>Start with https:// for another website, or / for a page of this store. Example: /sale.html</div>
+                                    <div class="pux-err" data-perr="url"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="pux-start">Starts <span class="fw-normal">(optional)</span></label>
+                                    <input class="form-control" type="datetime-local" id="pux-start" name="start_at">
+                                    <div class="pux-help"><i class="bi bi-clock"></i>Dhaka time. Empty means it starts now.</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="pux-end">Ends <span class="fw-normal">(optional)</span></label>
+                                    <input class="form-control" type="datetime-local" id="pux-end" name="end_at">
+                                    <div class="pux-help"><i class="bi bi-clock"></i>Empty means it has no end date.</div>
+                                    <div class="pux-err" data-perr="end_at"></div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="pux-freq">How often it shows</label>
+                                    <select class="form-select" id="pux-freq" name="frequency">
+                                        {% for t in frequencies %}<option value="{{ t.value }}">{{ t.label }}</option>{% endfor %}
+                                    </select>
+                                    <div class="pux-help"><i class="bi bi-info-circle"></i>Once per browser session = one time until the visitor closes the browser.</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="pux-pages">Where it shows</label>
+                                    <select class="form-select" id="pux-pages" name="pages">
+                                        {% for t in page_choices %}<option value="{{ t.value }}">{{ t.label }}</option>{% endfor %}
+                                    </select>
+                                    <div class="pux-help"><i class="bi bi-info-circle"></i>Pick the pages where customers can see it.</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="pux-priority">Priority</label>
+                                    <input class="form-control" type="number" id="pux-priority" name="priority" value="0">
+                                    <div class="pux-help"><i class="bi bi-info-circle"></i>If two popups are active, the higher number shows. Example: 5 beats 1.</div>
+                                    <div class="pux-err" data-perr="priority"></div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="pux-active" name="is_active">
+                                        <label class="form-check-label fw-semibold" for="pux-active">Active</label>
+                                    </div>
+                                    <div class="pux-help"><i class="bi bi-info-circle"></i>Off: the popup is saved but customers never see it.</div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="col-lg-5 col-xl-4">
+                        <div class="pux-prev pux-sticky">
+                            <div class="fw-bold mb-2"><i class="bi bi-eye me-1"></i>Preview</div>
+                            <div class="btn-group btn-group-sm mb-2">
+                                <button type="button" class="btn btn-outline-secondary active" id="pux-dev-d"><i class="bi bi-display me-1"></i>Desktop</button>
+                                <button type="button" class="btn btn-outline-secondary" id="pux-dev-m"><i class="bi bi-phone me-1"></i>Mobile</button>
+                            </div>
+                            <div><div class="pux-frame desktop" id="pux-frame"><img id="pux-prev-img" alt="" hidden><span class="pux-x">&times;</span><span class="pux-btn" id="pux-prev-btn" hidden></span></div></div>
+                            <div class="small mt-2" id="pux-prev-note">Choose a desktop image to see the preview.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer flex-wrap gap-2">
+                <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary px-4" id="puxSave"><i class="bi bi-check2-circle me-2"></i>Save popup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="puxDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-trash me-2"></i>Delete popup</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body"><p class="mb-0">Delete this popup? This cannot be undone.</p></div>
+            <div class="modal-footer flex-wrap gap-2">
+                <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger px-4" id="puxDeleteConfirm"><i class="bi bi-trash me-2"></i>Yes, delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="pux-config" data-csrf="{{ csrf_token }}" data-save-url="{% url 'popup_save' %}" data-data-url="{% url 'popup_data' 0 %}"
+     data-toggle-url="{% url 'popup_toggle' 0 %}" data-delete-url="{% url 'popup_delete' 0 %}"
+     data-search-url="{% url 'campaign_product_search' %}"></div>
+{% include './popup_modal_script.html' %}

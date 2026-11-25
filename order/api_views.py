@@ -29,12 +29,19 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from pencilwoodbd.choices import USER_TYPE, ORDER_SOURCE
 from authentication.utils import normalize_bd_phone, get_client_identity, check_is_blocked, record_order_track, get_or_verify_otp_override, get_blocked_order_policy
-from site_app.delivery_charge import DeliveryChargeResolver
+from authentication.courier_check import courier_gate
+from authentication.courier_restricted import record_restricted_attempt
+from authentication.courier_badge import render_courier_badge
+from site_app.delivery_charge import (
+    DeliveryChargeResolver, compute_regular_charge, get_delivery_rule, line_delivery_charges,
+)
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from marketing.models import Coupon, CouponUsage
 from pencilwoodbd.extra_module import safe_error_message
 from site_app.bd_districts import normalize_district
+from campaigns import checkout as campaign_checkout, delivery as campaign_delivery
+from campaigns.models import Campaign
 
 class DeliveryOptionListAPIView(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -310,29 +317,36 @@ class CheckoutSummaryAPIView(APIView):
         try:
             selected_district = request.query_params.get("district")
             items_data = []
+            results = []
             subtotal = Decimal("0")
             total_delivery_charge = Decimal("0")
 
             if request.user.is_authenticated and getattr(request.user, "customer_profile", None):
                 customer = request.user.customer_profile
                 cart_ids = request.query_params.getlist("cart_ids")
-                cart_items = AddToCart.objects.select_related("product", "variant").filter(customer=customer)
+                cart_items = AddToCart.objects.select_related("product", "variant", "campaign").filter(customer=customer)
                 if cart_ids:
                     cart_items = cart_items.filter(id__in=cart_ids)
 
                 if not cart_items.exists():
                     return Response({"status": False, "message": "Cart empty"}, status=400)
 
-                charged_product_ids = set()
-                for item in cart_items:
+                cart_rows = [ci for ci in cart_items if not ci.product.is_gift_only]
+                resolved = campaign_checkout.resolve_lines([
+                    {"product": ci.product, "variant": ci.variant, "quantity": ci.quantity,
+                     "campaign_slug": ci.campaign.slug if ci.campaign_id else None,
+                     "line_id": ci.id, "is_customized": ci.is_customized}
+                    for ci in cart_rows
+                ])
+                # The summary never fails because a campaign ended / ran out: those lines fall back to the
+                # regular price and are flagged (campaign_valid=false) so the checkout page can show the
+                # "price changed" panel. Only Place Order answers 409 price_changed.
+                results.extend(resolved)
+
+                for item, line_result in zip(cart_rows, resolved):
                     product = item.product
-                    if product.is_gift_only:
-                        continue
-                    product_delivery_charge = DeliveryChargeResolver.get_charge(product, selected_district)
-                    if product.id not in charged_product_ids:
-                        total_delivery_charge += product_delivery_charge
-                        charged_product_ids.add(product.id)
-                    items_data.append({
+                    # the delivery charge is decided once for the whole cart below (compute_regular_charge)
+                    row = {
                         "cart_id": item.id,
                         "product_id": product.id,
                         "slug": product.slug,
@@ -344,15 +358,23 @@ class CheckoutSummaryAPIView(APIView):
                         "quantity": item.quantity,
                         "price": item.price,
                         "total": item.total_price,
-                        "delivery_charge": float(product_delivery_charge),
+                        "delivery_charge": 0,
                         "is_gift": False,
-                    })
-                    subtotal += item.total_price
+                    }
+                    if line_result.applies:
+                        row["price"] = line_result.regular_unit_price
+                        row["total"] = line_result.line_total
+                        row.update(campaign_checkout.line_pricing_payload(line_result))
+                    elif line_result.is_campaign_line:
+                        row.update(campaign_checkout.line_pricing_payload(line_result))
+                    items_data.append(row)
+                    subtotal += row["total"]
 
-                    gift_lines = build_gift_line_items(product, item.quantity, selected_district)
-                    for gift_line in gift_lines:
-                        items_data.append(gift_line)
-                        subtotal += gift_line["total"]
+                    if line_result.gifts_included:
+                        gift_lines = build_gift_line_items(product, item.quantity, selected_district)
+                        for gift_line in gift_lines:
+                            items_data.append(gift_line)
+                            subtotal += gift_line["total"]
             else:
                 import json as pyjson
                 raw_items = request.query_params.get("items")
@@ -361,7 +383,7 @@ class CheckoutSummaryAPIView(APIView):
                 if not guest_items:
                     return Response({"status": False, "message": "Cart empty"}, status=400)
 
-                charged_product_ids = set()
+                prepared = []
                 for line_index, row in enumerate(guest_items):
                     product = Product.objects.filter(id=row.get("product_id")).first()
                     if not product or product.is_gift_only:
@@ -369,18 +391,30 @@ class CheckoutSummaryAPIView(APIView):
                     variant = None
                     if row.get("variant_id"):
                         variant = ProductVariant.objects.filter(id=row["variant_id"], product=product).first()
+                    prepared.append((
+                        line_index, row, product, variant,
+                        int(row.get("quantity", 1)),
+                        resolve_is_customized(product, row.get("is_customized")),
+                    ))
 
-                    quantity = int(row.get("quantity", 1))
-                    row_is_customized = resolve_is_customized(product, row.get("is_customized"))
+                resolved = campaign_checkout.resolve_lines([
+                    {"product": pr[2], "variant": pr[3], "quantity": pr[4], "is_customized": pr[5],
+                     "campaign_slug": (str(pr[1].get("campaign") or "").strip() or None), "line_id": pr[0]}
+                    for pr in prepared
+                ])
+                # The summary never fails because a campaign ended / ran out: those lines fall back to the
+                # regular price and are flagged (campaign_valid=false) so the checkout page can show the
+                # "price changed" panel. Only Place Order answers 409 price_changed.
+                results.extend(resolved)
+
+                for (line_index, row, product, variant, quantity, row_is_customized), line_result in zip(prepared, resolved):
                     extra = customization_extra(product, row_is_customized, variant)
                     price = variant.price if variant else product.price
                     discount_price = ((variant.discount_price if variant else product.discount_price) or price) + extra
                     line_total = discount_price * quantity
-
-                    product_delivery_charge = DeliveryChargeResolver.get_charge(product, selected_district)
-                    if product.id not in charged_product_ids:
-                        total_delivery_charge += product_delivery_charge
-                        charged_product_ids.add(product.id)
+                    if line_result.applies:
+                        discount_price = line_result.final_unit_price
+                        line_total = line_result.line_total
 
                     items_data.append({
                         "cart_id": None,
@@ -395,32 +429,66 @@ class CheckoutSummaryAPIView(APIView):
                         "quantity": quantity,
                         "price": discount_price,
                         "total": line_total,
-                        "delivery_charge": float(product_delivery_charge),
+                        "delivery_charge": 0,
                         "is_gift": False,
+                        **(campaign_checkout.line_pricing_payload(line_result) if line_result.is_campaign_line else {}),
                     })
                     subtotal += line_total
 
-                    gift_lines = build_gift_line_items(product, quantity, selected_district)
-                    for gift_line in gift_lines:
-                        items_data.append(gift_line)
-                        subtotal += gift_line["total"]
+                    if line_result.gifts_included:
+                        gift_lines = build_gift_line_items(product, quantity, selected_district)
+                        for gift_line in gift_lines:
+                            items_data.append(gift_line)
+                            subtotal += gift_line["total"]
 
             # ---------- Delivery: before a district is chosen show the LOWEST charge ----------
-            delivery_info = {"district_selected": bool(selected_district)}
-            if not selected_district and items_data:
-                pids = {it["product_id"] for it in items_data if not it.get("is_gift")}
-                prods = list(Product.objects.select_related("delivery_charge").filter(id__in=pids))
-                rng = DeliveryChargeResolver.cart_range(prods)
-                if rng:
-                    total_delivery_charge = rng["min"]
-                    for it in items_data:
-                        if not it.get("is_gift"):
-                            it["delivery_charge"] = float(rng["per_product_at_min"].get(it["product_id"], 0))
+            delivery_rule = get_delivery_rule()
+            delivery_info = {
+                "district_selected": bool(selected_district),
+                "count_mode": delivery_rule[0],
+                "order_wise_amount_source": delivery_rule[1],
+            }
+            regular_charge = None
+            if campaign_delivery.has_custom_delivery(results):
+                custom = campaign_delivery.compute_delivery(results, selected_district)
+                total_delivery_charge = custom["total"]
+                delivery_breakdown = custom["breakdown"]
+                for it in items_data:
+                    if not it.get("is_gift"):
+                        it["delivery_charge"] = 0
+                if custom["range"]:
+                    rng = custom["range"]
                     delivery_info.update({
                         "min": float(rng["min"]), "max": float(rng["max"]), "varies": rng["varies"],
                         "min_district": rng["min_district"],
                         "groups": [{"charge": float(g["charge"]), "districts": g["districts"]} for g in rng["groups"]],
                     })
+            elif not selected_district and items_data:
+                # estimate: the cheapest district's order charge (the server's rule decides, not the browser)
+                pids = {it["product_id"] for it in items_data if not it.get("is_gift")}
+                prods = list(Product.objects.select_related("delivery_charge").filter(id__in=pids))
+                rng = DeliveryChargeResolver.cart_range(prods)
+                if rng:
+                    total_delivery_charge = rng["min"]
+                    regular_charge = compute_regular_charge(prods, rng["min_district"], rule=delivery_rule)
+                    paid_rows = [it for it in items_data if not it.get("is_gift")]
+                    for it, amount in zip(paid_rows, line_delivery_charges([it["product_id"] for it in paid_rows], regular_charge)):
+                        it["delivery_charge"] = float(amount)
+                    delivery_info.update({
+                        "min": float(rng["min"]), "max": float(rng["max"]), "varies": rng["varies"],
+                        "min_district": rng["min_district"],
+                        "groups": [{"charge": float(g["charge"]), "districts": g["districts"]} for g in rng["groups"]],
+                    })
+            elif selected_district and items_data:
+                regular_charge = compute_regular_charge(
+                    [r.product for r in results], selected_district, rule=delivery_rule)
+                total_delivery_charge = regular_charge["amount"]
+                paid_rows = [it for it in items_data if not it.get("is_gift")]
+                for it, amount in zip(paid_rows, line_delivery_charges([it["product_id"] for it in paid_rows], regular_charge)):
+                    it["delivery_charge"] = float(amount)
+            if not campaign_delivery.has_custom_delivery(results):
+                delivery_breakdown = campaign_delivery.plain_breakdown(
+                    results, selected_district, total_delivery_charge, charge=regular_charge)
 
             # ---------- Offers (buy X get Y free) ----------
             offers_ui = []
@@ -430,10 +498,9 @@ class CheckoutSummaryAPIView(APIView):
                 offer_picks = _json.loads(raw_picks) if raw_picks else {}
             except ValueError:
                 offer_picks = {}
-            paid_lines = [
-                {"product_id": it["product_id"], "variant_id": it.get("variant_id"), "quantity": it["quantity"]}
-                for it in items_data if not it.get("is_gift")
-            ]
+            paid_lines = campaign_checkout.offer_engine_lines(
+                [it for it in items_data if not it.get("is_gift")]
+            )
             offer_result = offers_engine.evaluate(
                 paid_lines, picks=offer_picks, strict=False, abs_url=request.build_absolute_uri
             )
@@ -467,6 +534,8 @@ class CheckoutSummaryAPIView(APIView):
                     "items": items_data,
                     "offers": offers_ui,
                     "delivery_info": delivery_info,
+                    "delivery_breakdown": delivery_breakdown,
+                    "has_campaign": any(r.applies for r in results),
                     "subtotal": subtotal,
                     "delivery_charge": total_delivery_charge,
                     "grand_total": grand_total
@@ -512,6 +581,12 @@ class PlaceOrderAPIView(APIView):
                             status=403,
                         )
 
+            gate = courier_gate(phone, "ecom", otp_code=request.data.get("otp_code"))
+            if gate.response:
+                if gate.restricted:
+                    record_restricted_attempt(request, phone, gate, "ecom")
+                return Response({"status": False, **gate.response}, status=gate.status_code)
+            otp_override_verified = otp_override_verified or gate.otp_verified
             _otp_resp = order_otp_gate(request, phone, "ecom", "status")
             if _otp_resp is not None:
                 return _otp_resp
@@ -603,7 +678,7 @@ class PlaceOrderAPIView(APIView):
                     if not cart_ids:
                         return Response({"status": False, "message": "No cart items selected"}, status=400)
 
-                    cart_items = AddToCart.objects.select_related("product", "variant").filter(
+                    cart_items = AddToCart.objects.select_related("product", "variant", "campaign").filter(
                         customer=cart_owner, id__in=cart_ids
                     )
                     if not cart_items.exists():
@@ -620,6 +695,7 @@ class PlaceOrderAPIView(APIView):
                         override = customization_notes.get(str(ci.id))
                         line_items.append({
                             "product": ci.product, "variant": ci.variant, "quantity": ci.quantity,
+                            "campaign_slug": ci.campaign.slug if ci.campaign_id else None, "line_id": ci.id,
                             "is_customized": resolve_is_customized(ci.product, ci.is_customized),
                             "customization_note": clean_customization_note(
                                 ci.product,
@@ -650,6 +726,7 @@ class PlaceOrderAPIView(APIView):
                         line_items.append({
                             "product": product, "variant": variant,
                             "quantity": int(row.get("quantity", 1)),
+                            "campaign_slug": (str(row.get("campaign") or "").strip() or None), "line_id": row_index,
                             "is_customized": row_is_customized,
                             "customization_note": clean_customization_note(
                                 product,
@@ -680,12 +757,18 @@ class PlaceOrderAPIView(APIView):
                     customer, request.data.get("address_id"), address_text, district, upazila
                 )
 
+                _slug_ids = {
+                    c.slug: c.id for c in Campaign.objects.filter(
+                        slug__in={l["campaign_slug"] for l in line_items if l.get("campaign_slug")}
+                    )
+                }
                 requested_signature = sorted(
                     (
                         line["product"].id,
                         line["variant"].id if line["variant"] else None,
                         line["quantity"],
                         line.get("customization_note") or "",
+                        _slug_ids.get(line.get("campaign_slug")) or 0,
                     )
                     for line in line_items
                 )
@@ -698,7 +781,7 @@ class PlaceOrderAPIView(APIView):
 
                 for candidate in recent_candidates:
                     candidate_signature = sorted(
-                        (oi.product_id, oi.variant_id, oi.quantity, oi.customization_note or "")
+                        (oi.product_id, oi.variant_id, oi.quantity, oi.customization_note or "", oi.campaign_id or 0)
                         for oi in candidate.order_items.all()
                         if not (oi.snapshot or {}).get("is_gift")
                     )
@@ -713,17 +796,21 @@ class PlaceOrderAPIView(APIView):
                             status=201,
                         )
 
+                campaign_results = campaign_checkout.resolve_lines(line_items, lock=True)
+                changed = campaign_checkout.price_changed_payload(campaign_results)
+                if changed:
+                    return Response(changed, status=409)
+                has_campaign = any(r.applies for r in campaign_results)
+
                 coupon_code = request.data.get("coupon_code")
                 discount_amount = Decimal("0")
                 applied_coupon = None
+                coupon_note = None
 
+                coupon_lines, coupon_excluded = campaign_checkout.coupon_split(campaign_results)
                 cart_subtotal = Decimal("0")
-                for line in line_items:
-                    _product = line["product"]
-                    _variant = line["variant"]
-                    _price = (_variant.discount_price or _variant.price) if _variant else (_product.discount_price or _product.price)
-                    _price = Decimal(str(_price)) + customization_extra(_product, line.get("is_customized"), _variant)
-                    cart_subtotal += _price * line["quantity"]
+                for r in coupon_lines:
+                    cart_subtotal += r.final_unit_price * r.quantity
 
                 if coupon_code:
                     applied_coupon = Coupon.objects.select_for_update().filter(
@@ -731,8 +818,16 @@ class PlaceOrderAPIView(APIView):
                     ).first()
                     if not applied_coupon:
                         return Response({"status": False, "message": "Invalid coupon code."}, status=400)
+                    if coupon_excluded and not coupon_lines:
+                        return Response(
+                            {"status": False, "code": "coupon_not_applicable_to_campaign",
+                             "message": campaign_checkout.COUPON_CAMPAIGN_MESSAGE},
+                            status=400,
+                        )
+                    if coupon_excluded:
+                        coupon_note = campaign_checkout.coupon_exclusion_note(coupon_excluded)
 
-                    product_ids_in_cart = [line["product"].id for line in line_items]
+                    product_ids_in_cart = [r.product.id for r in coupon_lines]
                     discount_amount, coupon_error, _tier = applied_coupon.evaluate(
                         phone=customer.phone,
                         subtotal=cart_subtotal,
@@ -745,8 +840,11 @@ class PlaceOrderAPIView(APIView):
                 # ---------- Offers: strict validation before anything is written ----------
                 try:
                     offer_result = offers_engine.evaluate(
-                        [{"product_id": l["product"].id, "variant_id": l["variant"].id if l["variant"] else None,
-                          "quantity": l["quantity"]} for l in line_items],
+                        campaign_checkout.offer_engine_lines([
+                            {"product_id": r.product.id, "variant_id": r.variant.id if r.variant else None,
+                             "quantity": r.quantity, "offers_included": r.offers_included}
+                            for r in campaign_results
+                        ]),
                         picks=request.data.get("offer_picks") or {},
                         strict=True,
                     )
@@ -767,6 +865,7 @@ class PlaceOrderAPIView(APIView):
                     referrer=request.data.get("referrer"),
                     landing_url=request.data.get("landing_url"),
                     placed_while_blocked=otp_override_verified,
+                    has_campaign=has_campaign,
                 )
 
                 if applied_coupon:
@@ -778,21 +877,17 @@ class PlaceOrderAPIView(APIView):
                     )
 
                 total = Decimal("0")
-                total_delivery_charge = Decimal("0")
-                charged_product_ids = set()
+                # regular delivery charge: the same central function as the checkout summary
+                regular_charge = compute_regular_charge([l["product"] for l in line_items], district)
+                total_delivery_charge = regular_charge["amount"]
 
-                for line in line_items:
+                for line, line_result in zip(line_items, campaign_results):
                     product = Product.objects.select_for_update().get(id=line["product"].id)
                     variant = (
                         ProductVariant.objects.select_for_update().get(id=line["variant"].id)
                         if line["variant"] else None
                     )
                     quantity = line["quantity"]
-
-                    product_delivery_charge = DeliveryChargeResolver.get_charge(product, district)
-                    if product.id not in charged_product_ids:
-                        total_delivery_charge += product_delivery_charge
-                        charged_product_ids.add(product.id)
 
                     if variant:
                         if variant.inventory_quantity < quantity:
@@ -825,19 +920,24 @@ class PlaceOrderAPIView(APIView):
                     extra = customization_extra(product, line_is_customized, variant)
                     price = price + extra
                     discount_price = discount_price + extra
+                    item_snapshot = {
+                        "is_gift": False,
+                        "customized": line_is_customized,
+                        "customization_price": float(extra),
+                    }
+                    if line_result.applies:
+                        discount_price = line_result.final_unit_price
+                        item_snapshot.update(campaign_checkout.campaign_snapshot(line_result))
                     OrderItem.objects.create(
                         order=order, product=product, variant=variant, product_name=product.name,
                         quantity=quantity, price=price, discount_price=discount_price,
                         customization_note=item_note or None,
-                        snapshot={
-                            "is_gift": False,
-                            "customized": line_is_customized,
-                            "customization_price": float(extra),
-                        },
+                        snapshot=item_snapshot,
+                        **campaign_checkout.order_item_campaign_fields(line_result),
                     )
                     total += discount_price * quantity
 
-                    gift_rows = product.gift_product.select_related("gift_product").all()
+                    gift_rows = product.gift_product.select_related("gift_product").all() if line_result.gifts_included else []
                     for gift in gift_rows:
                         gift_product = gift.gift_product
                         if not gift_product:
@@ -941,6 +1041,20 @@ class PlaceOrderAPIView(APIView):
                     promos["offers"] = list(applied_offers.values())
                     order.promotions_applied = promos
 
+                if campaign_delivery.has_custom_delivery(campaign_results):
+                    custom_delivery = campaign_delivery.compute_delivery(campaign_results, district)
+                    total_delivery_charge = custom_delivery["total"]
+                    order.delivery_breakdown = custom_delivery["breakdown"]
+                else:
+                    # every order stores the rule used, so staff can see how the charge was calculated
+                    order.delivery_breakdown = campaign_delivery.plain_breakdown(
+                        campaign_results, district, total_delivery_charge, charge=regular_charge)
+
+                if coupon_note:
+                    promos = order.promotions_applied if isinstance(order.promotions_applied, dict) else {}
+                    promos["coupon_excluded_campaign_items"] = coupon_note
+                    order.promotions_applied = promos
+
                 order.total_cost = total + total_delivery_charge - discount_amount
                 order.shipping_total = total_delivery_charge
                 order.coupon_discount = discount_amount
@@ -952,8 +1066,8 @@ class PlaceOrderAPIView(APIView):
                 # ----- Clean up matching order-attempt(s) for this phone -----
                 order_product_ids = set(order.order_items.values_list("product_id", flat=True))
                 for attempt in OrderAttempt.objects.filter(phone=customer.phone):
-                    if attempt.is_subset_of(order_product_ids):
-                        attempt.delete()
+                    if attempt.status != "converted" and attempt.is_subset_of(order_product_ids):
+                        attempt.set_status("converted", "Auto: customer placed order #%s" % order.pk)
 
                 OrderActivityLog.log(
                     action="Order placed by customer (self-checkout)",
@@ -1033,7 +1147,6 @@ class OrderListAPIView(APIView):
             "status": True,
             "data": data
         })   
-
 
 
 class OrderDetailAPIView(APIView):
@@ -1135,6 +1248,12 @@ class OrderDetailAPIView(APIView):
 
                 "customer_phone": (
                     customer.phone
+                    if customer
+                    else ""
+                ),
+
+                "customer_courier_badge": (
+                    render_courier_badge(customer.phone)
                     if customer
                     else ""
                 ),
@@ -1299,9 +1418,6 @@ class VerifyPaymentAPIView(APIView):
                 {"status": False, "message": safe_error_message(e)},
                 status=500
             )
-
-
-
 
 
 # class EcomOrderCreateAPIView(APIView):

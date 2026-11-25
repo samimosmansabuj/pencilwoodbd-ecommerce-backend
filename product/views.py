@@ -159,6 +159,9 @@ class ProductListView(LoginRequiredMixin, View):
             "bd_districts": BD_DISTRICTS,
             "existing_delivery_charge_json": pyjson.dumps(SiteDeliveryChargeConfig.get_solo().area_and_charge or {}),
             "system_default_charge": SYSTEM_DEFAULT_DELIVERY_CHARGE,
+           
+            "delivery_count_mode": SiteDeliveryChargeConfig.get_solo().count_mode,
+            "delivery_order_wise_source": SiteDeliveryChargeConfig.get_solo().order_wise_amount_source,
         }
 
         if request.htmx:

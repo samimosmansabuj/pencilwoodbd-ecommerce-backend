@@ -1,24 +1,33 @@
+import csv
+from io import BytesIO
 from decimal import Decimal
 
 from django.contrib import messages
-from django.shortcuts import render
-from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q, Sum, F, Value, DecimalField
 from django.db.models.functions import Coalesce
+from django.http import HttpResponse, HttpResponseForbidden
+from django.shortcuts import render
 from django.utils import timezone
+from django.views import View
 
-from pencilwoodbd.choices import STATUS, ORDER_REQUEST_STATUS, INVENTORY_TYPE, USER_TYPE
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 
-# Models
-from order.models import Order, OrderRequest, OrderItem
-from product.models import Product
 from authentication.models import CustomUser
-
+from campaigns.models import Campaign
+from campaigns.order_display import attach_campaign_summary
+from campaigns.pricing import get_campaign_status
+from order.models import Order, OrderRequest, OrderItem
+from order.utils import confirmed_today_filter
+from pencilwoodbd.choices import (
+    CAMPAIGN_STATUS, STATUS, ORDER_REQUEST_STATUS, INVENTORY_TYPE, USER_TYPE,
+)
+from product.models import Product
 # Reuse the stock-alert threshold defined alongside the product stock views
 from product.views import STOCK_ALERT_THRESHOLD
 
-from order.utils import confirmed_today_filter
 from .reports import (
     today_orders, pending_orders, product_wise_quantity, build_report, resolve_range,
     today_orders_by_kind, price_breakdown, grand_total_sum, order_figures,
@@ -107,6 +116,22 @@ class DashboardView(LoginRequiredMixin, View):
             | Q(inventory_type=INVENTORY_TYPE.IN_STOCK, inventory_quantity__lte=0)
         ).count()
 
+    def get_running_campaigns(self):
+        """Campaigns that are live right now, each with the number of orders that contain its items.
+        (With several live campaigns every one gets its own card.)"""
+        now = timezone.now()
+        rows = []
+        for c in Campaign.objects.filter(is_active=True, start_at__lte=now, end_at__gt=now):
+            if get_campaign_status(c, now) != CAMPAIGN_STATUS.LIVE:
+                continue
+            rows.append({
+                "id": c.id,
+                "title": c.title,
+                "end_at": c.end_at,
+                "order_count": Order.objects.filter(order_items__campaign=c).distinct().count(),
+            })
+        return rows
+
     def get_total_customer_count(self):
         return CustomUser.objects.filter(user_type=USER_TYPE.CUSTOMER).count()
 
@@ -117,7 +142,7 @@ class DashboardView(LoginRequiredMixin, View):
         is_admin = request.user.user_type in [USER_TYPE.ADMIN, USER_TYPE.SUPER_ADMIN]
 
         context = {
-            "orders": orders[:10],
+            "orders": attach_campaign_summary(list(orders.prefetch_related("order_items")[:10])),
             "today_order_count": self.get_today_order_count(orders),
             "pending_order_count": pending_orders().count(),
             "pending_product_qty": self.get_pending_product_qty(),
@@ -132,6 +157,7 @@ class DashboardView(LoginRequiredMixin, View):
             "out_of_stock_count": self.get_out_of_stock_count(),
             "total_customer_count": self.get_total_customer_count(),
             "status_choices": STATUS.choices,
+            "running_campaigns": self.get_running_campaigns(),
         }
 
         if not is_staff:
@@ -327,8 +353,7 @@ def _csv_safe(value):
 
 class SalesReportExportView(SalesReportView):
     def get(self, request):
-        import csv
-        from django.http import HttpResponse, HttpResponseForbidden
+
 
         if not self.is_allowed(request.user):
             return HttpResponseForbidden("Reports are only available for admin.")
@@ -399,12 +424,6 @@ class SalesReportExcelView(SalesReportView):
     DATE = 'dd mmm yyyy'
 
     def get(self, request):
-        from io import BytesIO
-        from decimal import Decimal
-        from django.http import HttpResponse, HttpResponseForbidden
-        from openpyxl import Workbook
-        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-        from openpyxl.utils import get_column_letter
 
         if not self.is_allowed(request.user):
             return HttpResponseForbidden("Reports are only available for admin.")

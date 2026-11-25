@@ -92,7 +92,6 @@ def customization_extra(product, is_customized, variant=None):
     return Decimal(str(getattr(product, "customization_price", 0) or 0))
 
 
-
 class Category(models.Model):
     name = models.CharField(max_length=255)
     slug = models.SlugField(max_length=255, unique=True, blank=True, null=True)
@@ -530,6 +529,7 @@ class AddToCart(models.Model):
     customization_note = models.TextField(blank=True, default="")
     is_customized = models.BooleanField(default=False)
     customization_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    campaign = models.ForeignKey('campaigns.Campaign', null=True, blank=True, on_delete=models.CASCADE, related_name='cart_lines')
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -567,6 +567,13 @@ class AddToCart(models.Model):
                 (self.product.discount_price or self.product.price) + extra
             )
 
+        if self.campaign_id:
+            from campaigns.checkout import campaign_unit_price_for_cart_line
+            campaign_price = campaign_unit_price_for_cart_line(self.campaign, self.product, self.variant)
+            if campaign_price is not None:
+                self.discount_price = campaign_price + extra
+                self.total_price = self.quantity * (campaign_price + extra)
+
         super().save(*args, **kwargs)
         
     def __str__(self):
@@ -592,9 +599,6 @@ class Wishlist(models.Model):
 
     def __str__(self):
         return f"{self.customer} - {self.product} - {self.variant or 'no variant'}"
-
-
-
 
 
 class ProductLandingPage(models.Model):

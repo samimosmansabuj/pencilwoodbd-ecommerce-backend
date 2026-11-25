@@ -12,6 +12,7 @@
                 </p>
                 <form method="post" action="{% url 'delivery_charge_settings' %}">
                     {% csrf_token %}
+                    {% include "db_settings/partial/delivery_count_rules.html" with rules_id="modal" %}
                     {% include "db_product/partial/delivery_charge_widget.html" with widget_id="global" bd_districts=bd_districts existing_json=existing_delivery_charge_json system_default=system_default_charge %}
 
                     <button type="submit" class="btn btn-primary mt-2">

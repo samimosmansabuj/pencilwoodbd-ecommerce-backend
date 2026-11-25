@@ -17,7 +17,7 @@ from django.db.models.functions import Coalesce, TruncDate
 from django.conf import settings
 
 from pencilwoodbd.extra_module import resize_to_fixed, parse_int, parse_delivery_charge_payload
-from pencilwoodbd.choices import USER_TYPE, STATUS
+from pencilwoodbd.choices import USER_TYPE, STATUS, DELIVERY_COUNT_MODE, DELIVERY_ORDER_WISE_SOURCE
 
 from .bd_districts import BD_DISTRICTS, SYSTEM_DEFAULT_DELIVERY_CHARGE
 from .models import (
@@ -569,6 +569,13 @@ def toggle_slider_active(request, id):
 # ------------------Product--------
 
 
+def delivery_rule_context(config):
+    return {
+        "delivery_count_mode": config.count_mode,
+        "delivery_order_wise_source": config.order_wise_amount_source,
+    }
+
+
 class DeliveryChargeSettingsView(LoginRequiredMixin, View):
     login_url = "admin_login"
  
@@ -582,6 +589,7 @@ class DeliveryChargeSettingsView(LoginRequiredMixin, View):
             "bd_districts": BD_DISTRICTS,
             "existing_delivery_charge_json": pyjson.dumps(config.area_and_charge or {}),
             "system_default_charge": SYSTEM_DEFAULT_DELIVERY_CHARGE,
+            **delivery_rule_context(config),
         }
  
         return render(request, "db_settings/delivery_charge_settings.html", context)
@@ -594,6 +602,19 @@ class DeliveryChargeSettingsView(LoginRequiredMixin, View):
         area_and_charge, has_charge, _delivery_charge_cost = parse_delivery_charge_payload(request)
 
         config = SiteDeliveryChargeConfig.get_solo()
+        count_mode = request.POST.get("count_mode")
+        source = request.POST.get("order_wise_amount_source")
+        if count_mode is not None and count_mode not in DELIVERY_COUNT_MODE.values:
+            messages.error(request, "Please choose how delivery charge should be counted.")
+            return redirect("delivery_charge_settings")
+        if source is not None and source not in DELIVERY_ORDER_WISE_SOURCE.values:
+            messages.error(request, "Please choose which charge the order should use.")
+            return redirect("delivery_charge_settings")
+        if count_mode is not None:
+            config.count_mode = count_mode
+        if source is not None:
+            config.order_wise_amount_source = source
+
         config.area_and_charge = area_and_charge or {}
         config.save()
  

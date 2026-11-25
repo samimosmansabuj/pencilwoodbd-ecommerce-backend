@@ -18,6 +18,7 @@ urlpatterns = [
     path('site/', include('site_app.urls')),
     path('', include('marketing.urls')),
     path('', include('offers.urls')),
+    path('', include('campaigns.urls')),
     
     path('', include('dashbaord.urls')),
     path('', include('tracking.urls')),

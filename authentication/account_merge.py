@@ -60,6 +60,7 @@ def _move_cart_and_wishlist(keep, drop, protect_cart_ids):
     keep_rows = list(AddToCart.objects.filter(customer=keep))
     for row in AddToCart.objects.filter(customer=drop):
         same = next((r for r in keep_rows if r.product_id == row.product_id and r.variant_id == row.variant_id
+                     and r.campaign_id == row.campaign_id
                      and (r.customization_note or "") == (row.customization_note or "")), None)
         if same and str(row.pk) in protect:
             keep_rows.remove(same)

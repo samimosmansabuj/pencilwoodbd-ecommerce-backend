@@ -1,0 +1,14 @@
+{% extends 'dashboard.html' %}
+{% load static %}
+
+{% block page_title %}
+<title>Campaigns | {{ brand_name }}</title>
+{% endblock page_title %}
+
+{% block dashboard_body_content %}
+{% include './partial/stack_table_style.html' %}
+{% include './partial/campaign_list_style.html' %}
+{% include './partial/campaign_list_page.html' %}
+{% include './partial/campaign_list_modals.html' %}
+{% include './partial/campaign_list_script.html' %}
+{% endblock dashboard_body_content %}

@@ -1,3 +1,4 @@
+{% load courier_tags %}
 {% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
 
 <div class="main-content">
@@ -18,12 +19,47 @@
         </div>
     </div>
 
+    {% if restricted_total or restricted_filter %}
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <a class="btn btn-sm {% if not restricted_filter %}btn-primary{% else %}btn-outline-secondary{% endif %}" data-no-merge="*"
+           hx-get="{% url 'order_attempt_list' %}" hx-target="#content-area" hx-push-url="true" style="cursor:pointer;">All attempts</a>
+        <a class="btn btn-sm {% if restricted_filter %}btn-danger{% else %}btn-outline-danger{% endif %}" data-no-merge="*"
+           hx-get="{% url 'order_attempt_list' %}?restricted=1" hx-target="#content-area" hx-push-url="true" style="cursor:pointer;">
+            Courier restricted <span class="badge bg-light text-dark">{{ restricted_total }}</span>
+        </a>
+    </div>
+    {% endif %}
+
+    {% if restricted_filter and restricted_new %}
+    <div class="alert alert-danger d-flex justify-content-between align-items-center courier-restricted-banner">
+        <span>
+            <strong>{{ restricted_new }}</strong> new refused attempt{{ restricted_new|pluralize }}
+            {% if restricted_clear_mode == "on_open" %}<span class="text small">(the dashboard count was cleared automatically)</span>{% endif %}
+        </span>
+        {% if restricted_clear_mode != "on_open" %}
+        <button type="button" class="btn btn-sm btn-light courier-restricted-clear">Clear count</button>
+        {% endif %}
+    </div>
+    {% include 'db_courier_check/partial/partial_restricted_clear_script.html' %}
+    {% endif %}
+
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <a class="btn btn-sm {% if not status_filter %}btn-primary{% else %}btn-outline-secondary{% endif %}" data-no-merge="*" style="cursor:pointer;"
+           hx-get="{% url 'order_attempt_list' %}?restricted={{ restricted_filter }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-target="#content-area" hx-push-url="true">All Status</a>
+        {% for val, label in status_choices %}
+        <a class="btn btn-sm {% if status_filter == val %}btn-primary{% else %}btn-outline-secondary{% endif %}" data-no-merge="*" style="cursor:pointer;"
+           hx-get="{% url 'order_attempt_list' %}?status={{ val }}&restricted={{ restricted_filter }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+           hx-target="#content-area" hx-push-url="true">{{ label }}</a>
+        {% endfor %}
+    </div>
+
     <div class="row g-3 align-items-end mb-3">
         <div class="col-auto">
             <div class="position-relative">
                 <input class="form-control px-5" type="search" name="q"
                     placeholder="Search by name / phone" value="{{ current_search }}"
-                    hx-get="{% url 'order_attempt_list' %}?start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+                    hx-get="{% url 'order_attempt_list' %}?status={{ status_filter }}&restricted={{ restricted_filter }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
                     hx-trigger="keyup changed delay:400ms" hx-target="#content-area" hx-push-url="true">
                 <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">search</span>
             </div>
@@ -33,13 +69,13 @@
             <div>
                 <label class="form-label mb-1">Start Date</label>
                 <input type="date" class="form-control" name="start_date" value="{{ start_date }}"
-                    hx-get="{% url 'order_attempt_list' %}?per_page={{ per_page }}" hx-trigger="change"
+                    hx-get="{% url 'order_attempt_list' %}?status={{ status_filter }}&restricted={{ restricted_filter }}&per_page={{ per_page }}" hx-trigger="change"
                     hx-target="#content-area" hx-include="[name='end_date'],[name='q']" hx-push-url="true">
             </div>
             <div>
                 <label class="form-label mb-1">End Date</label>
                 <input type="date" class="form-control" name="end_date" value="{{ end_date }}"
-                    hx-get="{% url 'order_attempt_list' %}?per_page={{ per_page }}" hx-trigger="change"
+                    hx-get="{% url 'order_attempt_list' %}?status={{ status_filter }}&restricted={{ restricted_filter }}&per_page={{ per_page }}" hx-trigger="change"
                     hx-target="#content-area" hx-include="[name='start_date'],[name='q']" hx-push-url="true">
             </div>
             <div>
@@ -57,7 +93,7 @@
                         <thead class="table-light">
                             <tr>
                                 <th>ID</th><th>Name</th><th>Phone</th><th>District</th>
-                                <th>Items</th><th>Last Updated</th><th>Action</th>
+                                <th>Items</th><th>Status</th><th>Note</th><th>Last Updated</th><th>Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -69,9 +105,22 @@
                                        hx-target="#content-area" hx-push-url="true">#{{ attempt.id }}</a>
                                 </td>
                                 <td>{{ attempt.name|default:"—" }}</td>
-                                <td>{{ attempt.phone }}</td>
+                                <td>
+                                    {{ attempt.phone }} {% courier_badge attempt.phone %}
+                                    {% if attempt.courier_restriction %}
+                                    <span class="badge bg-danger ms-1" title="Refused: courier success {{ attempt.courier_restriction.ratio }}% is below the limit {{ attempt.courier_restriction.limit }}%. Tried {{ attempt.courier_restriction.times }} time{{ attempt.courier_restriction.times|pluralize }}, last {{ attempt.courier_restriction.last_at|date:'d M Y, h:i A' }}">
+                                        Courier restricted{% if attempt.courier_restriction.times > 1 %} &times;{{ attempt.courier_restriction.times }}{% endif %}
+                                    </span>
+                                    {% if attempt.courier_restriction.last_at > restricted_mark %}<span class="badge bg-warning text-dark">NEW</span>{% endif %}
+                                    {% endif %}
+                                </td>
                                 <td>{{ attempt.district|default:"—" }}</td>
                                 <td>{{ attempt.total_items }}</td>
+                                <td>
+                                    <button type="button" class="badge border-0 {{ attempt.status_badge_class }}" data-bs-toggle="modal"
+                                        data-bs-target="#attemptStatus{{ attempt.id }}">{{ attempt.get_status_display }} <i class="bi bi-pencil"></i></button>
+                                </td>
+                                <td style="max-width:200px;white-space:normal;">{{ attempt.note|default:"—"|truncatechars:60 }}</td>
                                 <td>{{ attempt.updated_at|date:"d M Y, h:i A" }}</td>
                                 <td>
                                     <a href="{% url 'order_attempt_detail' attempt.id %}" class="btn btn-filter btn-sm"
@@ -82,10 +131,11 @@
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
                                     </form>
+                                    {% include 'db_order_attempt/partial/partial_attempt_status_modal.html' with attempt=attempt modal_id='attemptStatus' %}
                                 </td>
                             </tr>
                         {% empty %}
-                            <tr><td colspan="7" class="text-center py-5">No Order Attempts Found</td></tr>
+                            <tr><td colspan="9" class="text-center py-5">No Order Attempts Found</td></tr>
                         {% endfor %}
                         </tbody>
                     </table>
@@ -100,23 +150,23 @@ style="z-index:1050;margin:auto 22px 45px 0!important;padding:0!important;">
 <div class="card-body p-0">
 <nav><ul class="pagination mb-0">
 <li class="page-item {% if not attempts.has_previous %}disabled{% endif %}">
-<a class="page-link" hx-get="{% if attempts.has_previous %}{% url 'order_attempt_list' %}?page={{ attempts.previous_page_number }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% endif %}"
+<a class="page-link" hx-get="{% if attempts.has_previous %}{% url 'order_attempt_list' %}?status={{ status_filter }}&restricted={{ restricted_filter }}&page={{ attempts.previous_page_number }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% endif %}"
 hx-target="#content-area" hx-push-url="true">«</a></li>
 {% for num in paginator.page_range %}
 {% if num >= attempts.number|add:-2 and num <= attempts.number|add:2 %}
 <li class="page-item {% if attempts.number == num %}active{% endif %}">
-<a class="page-link" hx-get="{% url 'order_attempt_list' %}?page={{ num }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
+<a class="page-link" hx-get="{% url 'order_attempt_list' %}?status={{ status_filter }}&restricted={{ restricted_filter }}&page={{ num }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}"
 hx-target="#content-area" hx-push-url="true">{{ num }}</a></li>
 {% endif %}
 {% endfor %}
 <li class="page-item {% if not attempts.has_next %}disabled{% endif %}">
-<a class="page-link" hx-get="{% if attempts.has_next %}{% url 'order_attempt_list' %}?page={{ attempts.next_page_number }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% endif %}"
+<a class="page-link" hx-get="{% if attempts.has_next %}{% url 'order_attempt_list' %}?status={{ status_filter }}&restricted={{ restricted_filter }}&page={{ attempts.next_page_number }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}&per_page={{ per_page }}{% endif %}"
 hx-target="#content-area" hx-push-url="true">»</a></li>
 </ul></nav>
 </div>
 <div class="col-auto">
 <select class="form-select" name="per_page"
-hx-get="{% url 'order_attempt_list' %}?q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}"
+hx-get="{% url 'order_attempt_list' %}?status={{ status_filter }}&restricted={{ restricted_filter }}&q={{ current_search }}&start_date={{ start_date }}&end_date={{ end_date }}"
 hx-trigger="change" hx-target="#content-area" hx-push-url="true">
 <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
 <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>

@@ -1,0 +1,37 @@
+<div class="modal fade" id="cpxDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-trash me-2"></i>Delete campaign</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Delete <strong id="cpxDeleteName"></strong>?</p>
+                <p class="mb-0" id="cpxDeleteNote"></p>
+            </div>
+            <div class="modal-footer flex-wrap gap-2">
+                <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger px-4" id="cpxDeleteConfirm"><i class="bi bi-trash me-2"></i>Yes, delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="cpxPauseModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pause-circle me-2"></i>Pause campaign</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Pause <strong id="cpxPauseName"></strong>?</p>
+                <p class="mb-0">Customers stop seeing it right away and it goes back to a draft. You can resume it later.</p>
+            </div>
+            <div class="modal-footer flex-wrap gap-2">
+                <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning px-4" id="cpxPauseConfirm"><i class="bi bi-pause-fill me-2"></i>Yes, pause</button>
+            </div>
+        </div>
+    </div>
+</div>

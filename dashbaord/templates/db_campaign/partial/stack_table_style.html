@@ -1,0 +1,20 @@
+{% comment %} Shared: turns a normal dashboard table (class "cpx-stack") into one card per row on phones (767px and below).
+   Every <td> needs data-label="...". The table markup itself stays the standard product-table / table-responsive one. No dimmed text. {% endcomment %}
+<style>
+  @media (max-width: 767px) {
+    .product-table .table-responsive.white-space-nowrap { white-space: normal; overflow-x: visible; }
+    table.cpx-stack, table.cpx-stack tbody, table.cpx-stack tr, table.cpx-stack td { display: block; width: 100%; }
+    table.cpx-stack thead { display: none; }
+    table.cpx-stack tr { border: 1px solid var(--bs-border-color, rgba(255,255,255,.2)); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; }
+    table.cpx-stack td { display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 0; padding: 6px 0; text-align: right !important; }
+    table.cpx-stack td::before { content: attr(data-label); font-weight: 700; text-align: left; flex: none; }
+    table.cpx-stack td[data-label="Campaign"], table.cpx-stack td[data-label="Popup"], table.cpx-stack td[data-label="Item"] { display: block; text-align: left !important; }
+    table.cpx-stack td[data-label="Campaign"]::before, table.cpx-stack td[data-label="Popup"]::before, table.cpx-stack td[data-label="Item"]::before { display: none; }
+    table.cpx-stack td[data-label="Actions"] { display: flex; flex-wrap: wrap; justify-content: stretch; gap: 8px; padding-top: 10px; }
+    table.cpx-stack td[data-label="Actions"]::before { display: none; }
+    table.cpx-stack td[data-label="Actions"] .btn { flex: 1 1 120px; min-height: 44px; margin: 0 !important; }
+    table.cpx-stack tr.cpx-empty td { display: block; text-align: center !important; }
+    table.cpx-stack tr.cpx-empty td::before { display: none; }
+  }
+  .cpx-actions .btn { min-height: 38px; display: inline-flex; align-items: center; gap: 4px; }
+</style>

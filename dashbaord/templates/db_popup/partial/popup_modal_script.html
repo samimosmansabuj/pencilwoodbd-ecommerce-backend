@@ -1,0 +1,154 @@
+<script>
+(function () {
+  var CFG = document.getElementById('pux-config').dataset;
+  var form = document.getElementById('puxForm'), F = form.elements;
+  var modal = null, device = 'desktop', pendingDelete = null;
+  var cur = { desktop: '', mobile: '' };          // preview image urls
+  function $(id) { return document.getElementById(id); }
+  function url(key, id) { return CFG[key].replace('/0/', '/' + id + '/'); }
+  // Same notifications as the other dashboard screens (Lobibox); plain alert only as a fallback.
+  function toast(msg, ok) {
+    if (ok === false && typeof window.errorNotificationCustom === 'function') { window.errorNotificationCustom(msg); return; }
+    if (ok !== false && typeof window.successNotificationCustom === 'function') { window.successNotificationCustom(msg); return; }
+    var d = document.createElement('div');
+    d.className = 'alert ' + (ok === false ? 'alert-danger' : 'alert-success') + ' shadow pux-toast';
+    d.textContent = msg; document.body.appendChild(d);
+    setTimeout(function () { d.remove(); }, ok === false ? 6000 : 2200);
+  }
+  function failed() { toast('Could not reach the server. Please try again.', false); }
+  function refreshList() { htmx.ajax('GET', location.pathname + location.search, { target: '#popup-table-wrapper', swap: 'innerHTML' }); }
+  function esc(s) { return String(s || '').replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+  var LINK_HELP = {
+    CAMPAIGN: 'The poster opens the campaign page you choose below.',
+    PRODUCT: 'The poster opens one product page. You can also show it with the prices of a campaign.',
+    URL: 'The poster opens any web address you type below.',
+    NONE: 'Nothing opens. The poster only closes. The button is not shown.'
+  };
+  function applyLinkType() {
+    var t = F.link_type.value;
+    $('pux-campaign-wrap').hidden = !(t === 'CAMPAIGN' || t === 'PRODUCT');
+    $('pux-campaign-label').textContent = t === 'PRODUCT' ? 'Show the product with the prices of this campaign (optional)' : 'Campaign';
+    $('pux-product-wrap').hidden = t !== 'PRODUCT';
+    $('pux-url-wrap').hidden = t !== 'URL';
+    $('pux-link-help').textContent = LINK_HELP[t] || '';
+  }
+  function renderPreview() {
+    var img = $('pux-prev-img'), src = device === 'mobile' ? (cur.mobile || cur.desktop) : cur.desktop;
+    $('pux-frame').className = 'pux-frame ' + device;
+    img.hidden = !src; if (src) img.src = src;
+    var text = F.button_text.value.trim();
+    $('pux-prev-btn').hidden = !(src && text && F.link_type.value !== 'NONE'); $('pux-prev-btn').textContent = text;
+    $('pux-prev-note').textContent = src ? (device === 'mobile' && !cur.mobile ? 'No mobile image: the desktop image is used on phones.' : 'The X button, the ESC key and a click outside the poster close it.') : 'Choose a desktop image to see the preview.';
+  }
+  $('pux-dev-d').onclick = function () { device = 'desktop'; $('pux-dev-d').classList.add('active'); $('pux-dev-m').classList.remove('active'); renderPreview(); };
+  $('pux-dev-m').onclick = function () { device = 'mobile'; $('pux-dev-m').classList.add('active'); $('pux-dev-d').classList.remove('active'); renderPreview(); };
+  $('pux-img-d').addEventListener('change', function () { var f = this.files[0]; if (f) { cur.desktop = URL.createObjectURL(f); renderPreview(); } });
+  $('pux-img-m').addEventListener('change', function () { var f = this.files[0]; if (f) { cur.mobile = URL.createObjectURL(f); renderPreview(); } });
+  F.link_type.addEventListener('change', function () { applyLinkType(); renderPreview(); });
+  F.button_text.addEventListener('input', renderPreview);
+
+  // product picker
+  var timer = null;
+  $('pux-product-q').addEventListener('input', function () {
+    clearTimeout(timer); var q = this.value.trim();
+    timer = setTimeout(function () {
+      fetch(CFG.searchUrl + '?q=' + encodeURIComponent(q), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (res) {
+        var box = $('pux-product-results'); box.hidden = false;
+        box._list = res.products || [];
+        box.innerHTML = box._list.length ? box._list.map(function (p, i) { return '<div data-i="' + i + '" role="button" tabindex="0"><b>' + esc(p.name) + '</b> <span class="small">' + esc(p.sku) + '</span></div>'; }).join('') : '<div>No product found. Try another word.</div>';
+      }).catch(failed);
+    }, 300);
+  });
+  $('pux-product-results').addEventListener('click', function (e) {
+    var d = e.target.closest('[data-i]'); if (!d) return;
+    var p = this._list[Number(d.dataset.i)];
+    F.product.value = p.id; $('pux-product-chosen').innerHTML = '<i class="bi bi-check-circle me-1"></i>Chosen: ' + esc(p.name); this.hidden = true; $('pux-product-q').value = '';
+  });
+
+  function clearErrors() {
+    $('puxAlert').innerHTML = '';
+    Array.prototype.forEach.call(document.querySelectorAll('[data-perr]'), function (el) { el.textContent = ''; });
+    Array.prototype.forEach.call(document.querySelectorAll('#popupModal .is-invalid'), function (el) { el.classList.remove('is-invalid'); });
+  }
+  // The server sends one message. Show it at the top AND next to the field it is about.
+  function fieldFor(msg) {
+    var m = msg.toLowerCase();
+    if (m.indexOf('title') !== -1) return { input: $('pux-title') };
+    if (m.indexOf('desktop image') !== -1 || m.indexOf('image') !== -1) return { input: $('pux-img-d') };
+    if (m.indexOf('web address') !== -1) return { input: $('pux-url'), err: 'url' };
+    if (m.indexOf('campaign') !== -1) return { input: $('pux-campaign'), err: 'campaign' };
+    if (m.indexOf('product') !== -1) return { input: $('pux-product-q'), err: 'product' };
+    if (m.indexOf('end time') !== -1) return { input: $('pux-end'), err: 'end_at' };
+    if (m.indexOf('priority') !== -1) return { input: $('pux-priority'), err: 'priority' };
+    return null;
+  }
+  function showError(msg) {
+    $('puxAlert').innerHTML = '<div class="alert alert-danger" role="alert"><b>Not saved.</b> Nothing you typed is lost. ' + esc(msg) + '</div>';
+    var f = fieldFor(msg);
+    if (f) {
+      f.input.classList.add('is-invalid');
+      if (f.err) { var el = document.querySelector('[data-perr="' + f.err + '"]'); if (el) el.textContent = msg; }
+      f.input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      try { f.input.focus({ preventScroll: true }); } catch (e) { f.input.focus(); }
+    }
+  }
+
+  function reset() {
+    form.reset(); F.id.value = ''; F.product.value = ''; $('pux-product-chosen').textContent = '';
+    $('pux-img-d').value = ''; $('pux-img-m').value = ''; $('pux-clear-m').checked = false; $('pux-clear-m-wrap').hidden = true;
+    cur = { desktop: '', mobile: '' }; clearErrors(); applyLinkType(); renderPreview();
+  }
+  function open() { modal = modal || new bootstrap.Modal($('popupModal')); modal.show(); }
+  window.PopupUI = {
+    create: function () { reset(); $('puxTitle').textContent = 'Create popup'; open(); },
+    edit: function (id) {
+      fetch(url('dataUrl', id), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (res) {
+        if (!res.status) { toast('Could not open this popup', false); return; }
+        var p = res.popup; reset(); $('puxTitle').textContent = 'Edit popup';
+        F.id.value = p.id; F.title.value = p.title; F.link_type.value = p.link_type; F.button_text.value = p.button_text;
+        F.campaign.value = p.campaign || ''; F.product.value = p.product || ''; $('pux-product-chosen').innerHTML = p.product_name ? '<i class="bi bi-check-circle me-1"></i>Chosen: ' + esc(p.product_name) : '';
+        F.url.value = p.url; F.start_at.value = p.start_at; F.end_at.value = p.end_at; F.frequency.value = p.frequency;
+        F.pages.value = p.pages; F.priority.value = p.priority; F.is_active.checked = !!p.is_active;
+        cur = { desktop: p.image_desktop, mobile: p.image_mobile }; $('pux-clear-m-wrap').hidden = !p.image_mobile;
+        applyLinkType(); renderPreview(); open();
+      }).catch(failed);
+    },
+    toggle: function (id) {
+      fetch(url('toggleUrl', id), { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRFToken': CFG.csrf } })
+        .then(function (r) { return r.json(); }).then(function (res) {
+          toast(res.is_active ? 'Popup is active' : 'Popup is switched off'); refreshList();
+        }).catch(failed);
+    },
+    remove: function (id) {
+      pendingDelete = id;
+      new bootstrap.Modal($('puxDeleteModal')).show();
+    }
+  };
+  $('puxDeleteConfirm').addEventListener('click', function () {
+    if (!pendingDelete) return;
+    var id = pendingDelete; pendingDelete = null;
+    bootstrap.Modal.getInstance($('puxDeleteModal')).hide();
+    fetch(url('deleteUrl', id), { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRFToken': CFG.csrf } })
+      .then(function (r) { return r.json(); }).then(function (res) { toast(res.message || 'Deleted', res.status); refreshList(); }).catch(failed);
+  });
+
+  $('puxSave').addEventListener('click', function () {
+    var btn = this; btn.disabled = true; clearErrors();
+    var fd = new FormData(form);
+    fd.set('is_active', F.is_active.checked ? '1' : '0');
+    var d = $('pux-img-d').files[0], m = $('pux-img-m').files[0];
+    if (d) fd.set('image_desktop', d);
+    if (m) fd.set('image_mobile', m);
+    if ($('pux-clear-m').checked) fd.set('clear_image_mobile', '1');
+    fetch(CFG.saveUrl, { method: 'POST', credentials: 'same-origin', body: fd, headers: { 'X-CSRFToken': CFG.csrf, 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res.status) { toast(res.message || 'Saved'); modal.hide(); refreshList(); }
+        else { toast('Not saved. Please read the red message.', false); showError(res.message || 'Please check the form.'); }
+      })
+      .catch(function () { toast('Could not reach the server. Nothing was saved.', false); })
+      .then(function () { btn.disabled = false; });
+  });
+})();
+</script>

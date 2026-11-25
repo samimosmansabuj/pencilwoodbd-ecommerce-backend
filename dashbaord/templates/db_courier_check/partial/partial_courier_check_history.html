@@ -1,0 +1,77 @@
+{% load courier_tags %}
+{# Django template. Turn OFF "format on save" for this file: formatters break {% tags %} that span two lines. #}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+    <div>
+        <h5 class="mb-0">{{ phone }}</h5>
+        <span class="text small">{{ total }} saved check{{ total|pluralize }}{% if total > limit %}, showing the latest {{ limit }}{% endif %}</span>
+    </div>
+    <div class="text small">
+        Kept: <strong>{{ keep.text }}</strong>
+        {% if keep.custom %}<span class="badge bg-info text-dark">this number's own setting</span>{% else %}<span class="badge bg-secondary">system setting</span>{% endif %}
+    </div>
+</div>
+
+{% if saved_message %}
+<div class="alert alert-success py-2">{{ saved_message }}</div>
+{% endif %}
+
+{% if can_edit %}
+<form class="row g-2 align-items-end mb-3" hx-post="{% url 'courier_number_retention' %}" hx-target="#courierHistoryBody" hx-swap="innerHTML">
+    {% csrf_token %}
+    <input type="hidden" name="phone" value="{{ phone }}">
+    <div class="col-md-4">
+        <label class="form-label small mb-1">Keep this number's history</label>
+        <select name="mode" class="form-select form-select-sm"
+                onchange="var l=this.value==='limited'; this.form.querySelectorAll('.cc-limited').forEach(function(e){e.style.display=l?'':'none'});">
+            <option value="default" {% if form_mode == "default" %}selected{% endif %}>Use system setting ({{ system_keep }})</option>
+            <option value="forever" {% if form_mode == "forever" %}selected{% endif %}>Forever</option>
+            <option value="limited" {% if form_mode == "limited" %}selected{% endif %}>Delete older than...</option>
+        </select>
+    </div>
+    <div class="col-md-2 cc-limited" {% if form_mode != "limited" %}style="display:none"{% endif %}>
+        <label class="form-label small mb-1">Value</label>
+        <input type="number" min="1" max="1000" name="value" value="{{ form_value }}" class="form-control form-control-sm">
+    </div>
+    <div class="col-md-2 cc-limited" {% if form_mode != "limited" %}style="display:none"{% endif %}>
+        <label class="form-label small mb-1">Unit</label>
+        <select name="unit" class="form-select form-select-sm">
+            {% for value, label in unit_choices %}
+                <option value="{{ value }}" {% if form_unit == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-sm btn-primary">Save</button>
+    </div>
+    <div class="col-12 text small">
+        Older checks of this number are removed automatically after the period (1 month = 30 days, 1 year = 365 days). Nothing is deleted at the moment you press Save.
+    </div>
+</form>
+{% endif %}
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead>
+            <tr><th>Time</th><th>Source</th><th>Total</th><th>Success</th><th>Cancelled</th><th>Ratio</th><th>Couriers</th></tr>
+        </thead>
+        <tbody>
+        {% for log in logs %}
+            <tr>
+                <td>{{ log.created_at|date:"d M Y, h:i A" }}</td>
+                <td>{{ log.source|default:"-" }}</td>
+                {% if log.is_error %}
+                    <td colspan="5"><span class="badge bg-danger">Error</span> <small>{{ log.error_message }}</small></td>
+                {% else %}
+                    <td>{{ log.total_parcels }}</td>
+                    <td>{{ log.success_parcels }}</td>
+                    <td>{{ log.cancelled_parcels }}</td>
+                    <td>{% courier_log_badge log %}</td>
+                    <td><small>{% for c in log.courier_breakdown %}{% if c.total %}{{ c.name }}: {{ c.success }}/{{ c.total }}{% if not forloop.last %}, {% endif %}{% elif c.rate_only %}{{ c.name }}: {{ c.reported_ratio }}% rate (~{{ c.est_total }}+){% if not forloop.last %}, {% endif %}{% endif %}{% endfor %}</small></td>
+                {% endif %}
+            </tr>
+        {% empty %}
+            <tr><td colspan="7" class="text-center text-muted">No saved checks for this number (they may have been deleted by the retention rule).</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>

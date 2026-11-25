@@ -1,0 +1,113 @@
+{% load static %}
+{# Popup list: same pattern as db_slider / db_offers (tabs, search, table, pagination) #}
+
+<div class="product-count pux-tabs d-flex align-items-center gap-2 mb-3 fw-medium flex-wrap font-text1" aria-label="Filter by status">
+    {% for key, label in status_tabs %}
+    <a href="javascript:;" class="{% if current_status == key %}on{% endif %}"
+       hx-get="{% url 'popup_list' %}?status={{ key }}&q={{ current_search }}&per_page={{ current_per_page }}"
+       hx-target="#popup-table-wrapper" hx-swap="innerHTML" hx-push-url="true">
+        <span class="me-1 {% if current_status == key %}text-primary{% endif %}">{{ label }}</span>
+        <span>({% if key == 'all' %}{{ counts.all }}{% elif key == 'active' %}{{ counts.active }}{% else %}{{ counts.inactive }}{% endif %})</span>
+    </a>
+    {% endfor %}
+</div>
+
+<div class="row g-3 pux-filters">
+    <div class="col-auto">
+        <div class="position-relative">
+            <input class="form-control px-5" type="search" name="q" placeholder="Search popups by title" value="{{ current_search }}" aria-label="Search popups"
+                   hx-get="{% url 'popup_list' %}" hx-trigger="keyup changed delay:400ms, search"
+                   hx-target="#popup-table-wrapper" hx-swap="innerHTML"
+                   hx-vals='{"status": "{{ current_status }}", "per_page": "{{ current_per_page }}"}' hx-push-url="true">
+            <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">search</span>
+        </div>
+    </div>
+    <div class="col-auto flex-grow-1"></div>
+    <div class="col-auto">
+        <button type="button" class="btn btn-primary px-4" onclick="PopupUI.create()"><i class="bi bi-plus-lg me-2"></i>Create Popup</button>
+    </div>
+</div>
+
+<p class="pux-help mt-3 mb-0"><i class="bi bi-info-circle me-1"></i>Customers see one popup at a time: the active popup that is inside its dates and has the highest priority number. A popup for a draft or ended campaign is skipped.</p>
+<p class="mt-3 mb-0 fw-semibold">Showing {{ popups.start_index }}&ndash;{{ popups.end_index }} of {{ paginator.count }} popup{{ paginator.count|pluralize }}</p>
+
+<div class="card mt-2">
+    <div class="card-body">
+        <div class="product-table">
+            <div class="table-responsive white-space-nowrap">
+                <table class="table align-middle cpx-stack">
+                    <thead class="table-light">
+                        <tr><th>Popup</th><th>Opens when clicked</th><th>Schedule (Dhaka time)</th><th>How it shows</th><th>Priority</th><th>Status</th><th>Actions</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td data-label="Popup">
+                                <div class="d-flex align-items-center gap-2">
+                                    {% if r.p.image_desktop %}<img src="{{ r.p.image_desktop.url }}" width="56" height="42" class="rounded-2 object-fit-cover" alt="">{% endif %}
+                                    <a href="javascript:;" class="product-title fw-semibold" onclick="PopupUI.edit({{ r.p.id }})">{{ r.p.title|truncatechars:34 }}</a>
+                                </div>
+                            </td>
+                            <td data-label="Opens when clicked">
+                                {% if r.p.link_type == 'CAMPAIGN' %}Campaign: {{ r.p.campaign.title|default:"-" }}
+                                {% elif r.p.link_type == 'PRODUCT' %}Product: {{ r.p.product.name|default:"-"|truncatechars:28 }}{% if r.p.campaign %}<div class="small fst-italic">with the prices of {{ r.p.campaign.title }}</div>{% endif %}
+                                {% elif r.p.link_type == 'URL' %}{{ r.p.url|truncatechars:30 }}
+                                {% else %}<span class="small fst-italic">No link</span>{% endif %}
+                            </td>
+                            <td data-label="Schedule">
+                                <div><span class="fw-semibold">From</span> {% if r.p.start_at %}{{ r.p.start_at|date:"M d, Y H:i" }}{% else %}now{% endif %}</div>
+                                <div><span class="fw-semibold">To</span> {% if r.p.end_at %}{{ r.p.end_at|date:"M d, Y H:i" }}{% else %}no end date{% endif %}</div>
+                            </td>
+                            <td data-label="How it shows">{{ r.p.get_frequency_display }}<div class="small fst-italic">{{ r.p.get_pages_display }}</div></td>
+                            <td data-label="Priority">{{ r.p.priority }}</td>
+                            <td data-label="Status">
+                                <span class="badge pux-state {% if r.state == 'showing' %}bg-success{% elif r.state == 'scheduled' %}bg-info text-dark{% elif r.state == 'skipped' %}bg-warning text-dark{% elif r.state == 'ended' %}bg-danger{% else %}bg-secondary{% endif %}"
+                                      {% if r.state == 'skipped' %}title="Its campaign is draft or ended"{% endif %}>
+                                    <i class="bi {% if r.state == 'showing' %}bi-eye{% elif r.state == 'scheduled' %}bi-hourglass-split{% elif r.state == 'skipped' %}bi-skip-forward{% elif r.state == 'ended' %}bi-flag{% else %}bi-eye-slash{% endif %}"></i>{{ r.state|capfirst }}
+                                </span>
+                                {% if r.state == 'skipped' %}<div class="small fst-italic">Its campaign is draft or ended</div>{% endif %}
+                                <div class="form-check form-switch mt-1">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="pux-sw-{{ r.p.id }}" {% if r.p.is_active %}checked{% endif %} onchange="PopupUI.toggle({{ r.p.id }})">
+                                    <label class="form-check-label" for="pux-sw-{{ r.p.id }}">Active</label>
+                                </div>
+                            </td>
+                            <td class="white-space-nowrap cpx-actions" data-label="Actions">
+                                <button type="button" class="btn btn-sm btn-primary" aria-label="Edit popup" onclick="PopupUI.edit({{ r.p.id }})"><i class="bi bi-pencil"></i>Edit</button>
+                                <button type="button" class="btn btn-sm btn-danger ms-1" aria-label="Delete popup" onclick="PopupUI.remove({{ r.p.id }})"><i class="bi bi-trash"></i>Delete</button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr class="cpx-empty"><td colspan="7" class="text-center py-4"><i class="bi bi-window-stack fs-3 d-block mb-1"></i>No popups yet. Press <strong>Create Popup</strong> to add one.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div style="height: 70px;" aria-hidden="true"></div>
+
+<div class="btn btn-grd position-fixed bottom-0 end-0 m-3 d-flex align-items-center gap-2 shadow-lg"
+     style="z-index: 1050; margin: auto 22px 45px 0px !important; padding: 0px !important;">
+    <div class="card-body" style="padding: 0px;">
+        <ul class="pagination" style="margin: auto;">
+            <li class="page-item {% if not popups.has_previous %}disabled{% endif %}">
+                <a class="page-link" hx-get="{% url 'popup_list' %}{% if popups.has_previous %}?page={{ popups.previous_page_number }}&status={{ current_status }}&q={{ current_search }}&per_page={{ current_per_page }}{% endif %}"
+                   hx-target="#popup-table-wrapper" hx-swap="innerHTML" hx-push-url="true">&laquo;</a>
+            </li>
+            {% for num in paginator.page_range %}
+                {% if num >= popups.number|add:-2 and num <= popups.number|add:2 %}
+                <li class="page-item {% if popups.number == num %}active{% endif %}">
+                    <a class="page-link" hx-get="{% url 'popup_list' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&per_page={{ current_per_page }}"
+                       hx-target="#popup-table-wrapper" hx-swap="innerHTML" hx-push-url="true">{{ num }}</a>
+                </li>
+                {% endif %}
+            {% endfor %}
+            <li class="page-item {% if not popups.has_next %}disabled{% endif %}">
+                <a class="page-link" hx-get="{% url 'popup_list' %}{% if popups.has_next %}?page={{ popups.next_page_number }}&status={{ current_status }}&q={{ current_search }}&per_page={{ current_per_page }}{% endif %}"
+                   hx-target="#popup-table-wrapper" hx-swap="innerHTML" hx-push-url="true">&raquo;</a>
+            </li>
+        </ul>
+    </div>
+</div>

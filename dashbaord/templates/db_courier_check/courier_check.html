@@ -1,0 +1,9 @@
+{% extends 'dashboard.html' %}
+
+{% block page_title %}
+<title>Courier Check | {{ brand_name }}</title>
+{% endblock page_title %}
+
+{% block dashboard_body_content %}
+    {% include 'db_courier_check/partial/partial_courier_check_settings.html' %}
+{% endblock dashboard_body_content %}

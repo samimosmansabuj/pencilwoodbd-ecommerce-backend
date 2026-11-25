@@ -1,0 +1,12 @@
+{# How the delivery charge of this order was calculated (read-only snapshot of order.delivery_breakdown). No dim text. #}
+{% if delivery_rule %}
+<div class="card mt-3" id="order-delivery-rule">
+    <div class="card-body">
+        <h6 class="fw-semibold mb-2"><i class="bi bi-truck me-1"></i>How the delivery charge was calculated{% if delivery_rule.district %} ({{ delivery_rule.district }}){% endif %}</h6>
+        <div class="mb-1"><span class="fw-semibold">Counting rule:</span> {{ delivery_rule.mode_text }}{% if delivery_rule.source_text %}, using {{ delivery_rule.source_text }}{% endif %}</div>
+        <div class="mb-1">{{ delivery_rule.explanation }}</div>
+        {% if delivery_rule.waived %}<div class="mb-1 fst-italic">Not charged, because the campaign delivery charge covers the whole order.</div>{% endif %}
+        <div class="fw-semibold">Regular items delivery: &#2547;{{ delivery_rule.regular_amount|default:0 }}</div>
+    </div>
+</div>
+{% endif %}

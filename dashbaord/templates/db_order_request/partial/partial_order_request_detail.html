@@ -1,3 +1,4 @@
+{% load courier_tags %}
 {% if request.htmx %}{% include 'messages_block.html' %}{% endif %}
 
 <div class="main-content">
@@ -636,6 +637,7 @@
                         <div class="fw-bold mt-1">
 
                             {{ order_request.customer.phone }}
+                            {% courier_badge order_request.customer.phone %}
 
                         </div>
 

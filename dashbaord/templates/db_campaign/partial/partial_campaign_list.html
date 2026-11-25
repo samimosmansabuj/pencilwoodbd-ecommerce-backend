@@ -1,0 +1,147 @@
+{% load static %}
+{# Campaign list: same pattern as db_offers/partial/partial_offer_list.html (status tabs, search, card table, pagination) #}
+
+<div class="product-count cpx-tabs d-flex align-items-center gap-2 mb-3 fw-medium flex-wrap font-text1" role="tablist" aria-label="Filter by status">
+    {% for key, label in status_tabs %}
+    <a href="javascript:;" class="{% if current_status == key %}on{% endif %}"
+       hx-get="{% url 'campaign_list' %}?status={{ key }}&q={{ current_search }}&per_page={{ current_per_page }}"
+       hx-target="#campaign-table-wrapper" hx-swap="innerHTML" hx-push-url="true">
+        <span class="me-1 {% if current_status == key %}text-primary{% endif %}">{{ label }}</span>
+        <span>({% if key == 'all' %}{{ counts.all }}{% elif key == 'live' %}{{ counts.live }}{% elif key == 'upcoming' %}{{ counts.upcoming }}{% elif key == 'ended' %}{{ counts.ended }}{% else %}{{ counts.draft }}{% endif %})</span>
+    </a>
+    {% endfor %}
+</div>
+
+<div class="row g-3 cpx-filters">
+    <div class="col-auto">
+        <div class="position-relative">
+            <input class="form-control px-5" type="search" name="q" placeholder="Search by campaign name"
+                   value="{{ current_search }}" aria-label="Search campaigns"
+                   hx-get="{% url 'campaign_list' %}" hx-trigger="keyup changed delay:400ms, search"
+                   hx-target="#campaign-table-wrapper" hx-swap="innerHTML"
+                   hx-vals='{"status": "{{ current_status }}", "per_page": "{{ current_per_page }}"}'
+                   hx-push-url="true">
+            <span class="material-icons-outlined position-absolute ms-3 translate-middle-y start-0 top-50 fs-5">search</span>
+        </div>
+    </div>
+    <div class="col-auto flex-grow-1"></div>
+    <div class="col-auto">
+        <a href="{% url 'campaign_add' %}" class="btn btn-primary px-4"><i class="bi bi-plus-lg me-2"></i>Create Campaign</a>
+    </div>
+</div>
+
+<p class="mt-3 mb-0 fw-semibold">Showing {{ campaigns.start_index }}&ndash;{{ campaigns.end_index }} of {{ paginator.count }} campaign{{ paginator.count|pluralize }}</p>
+
+<div class="card mt-2">
+    <div class="card-body">
+        <div class="product-table">
+            <div class="table-responsive white-space-nowrap">
+                <table class="table align-middle cpx-stack">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Campaign</th>
+                            <th>Status</th>
+                            <th>Schedule (Dhaka time)</th>
+                            <th class="text-center">Products</th>
+                            <th class="text-center">Orders</th>
+                            <th class="text-center">Units sold</th>
+                            <th class="text-end">Revenue</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td data-label="Campaign">
+                                <div class="d-flex align-items-center gap-2">
+                                    {% if r.c.thumbnail %}<img src="{{ r.c.thumbnail.url }}" width="44" height="44" class="rounded-2 object-fit-cover" alt="">{% endif %}
+                                    <div>
+                                        <a href="{% url 'campaign_edit' r.c.id %}" class="product-title fw-semibold">{{ r.c.title|truncatechars:38 }}</a>
+                                        <div class="cpx-sub-line">/{{ r.c.slug }}{% if r.c.show_on_home %} &middot; <i class="bi bi-house-door"></i> on home page{% endif %}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td data-label="Status">
+                                <span class="badge cpx-status {% if r.status == 'live' %}bg-success{% elif r.status == 'upcoming' %}bg-info text-dark{% elif r.status == 'ended' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                    <i class="bi {% if r.status == 'live' %}bi-broadcast{% elif r.status == 'upcoming' %}bi-hourglass-split{% elif r.status == 'ended' %}bi-flag{% else %}bi-file-earmark{% endif %}"></i>{{ r.status|capfirst }}
+                                </span>
+                            </td>
+                            <td data-label="Schedule">
+                                <div><span class="fw-semibold">From</span> {{ r.c.start_at|date:"M d, Y H:i" }}</div>
+                                <div><span class="fw-semibold">To</span> {{ r.c.end_at|date:"M d, Y H:i" }}</div>
+                            </td>
+                            <td class="text-center" data-label="Products">{{ r.product_count }}</td>
+                            <td class="text-center cpx-num" data-label="Orders">
+                                {% if r.orders %}<a href="{{ r.orders_url }}" title="Open these orders">{{ r.orders }}</a>{% else %}0{% endif %}
+                            </td>
+                            <td class="text-center" data-label="Units sold">{{ r.units }}</td>
+                            <td class="text-end" data-label="Revenue">&#2547;{{ r.revenue|floatformat:0 }}</td>
+                            <td class="white-space-nowrap cpx-actions" data-label="Actions">
+                                <a href="{% url 'campaign_edit' r.c.id %}" class="btn btn-sm btn-primary" aria-label="Edit campaign"><i class="bi bi-pencil"></i>Edit</a>
+                                <button type="button" class="btn btn-sm btn-outline-secondary ms-1" aria-label="Duplicate campaign" onclick="CampaignListUI.duplicate({{ r.c.id }})"><i class="bi bi-files"></i>Duplicate</button>
+                                {% if r.status == 'ended' %}
+                                {# Ended = already stopped by itself: no Pause. To run it again, change the dates and publish. #}
+                                <a href="{% url 'campaign_edit' r.c.id %}" class="btn btn-sm btn-success ms-1" aria-label="Run this campaign again" title="Choose a new end time, then Save &amp; publish"><i class="bi bi-arrow-repeat"></i>Run again</a>
+                                {% else %}
+                                <button type="button" class="btn btn-sm {% if r.c.is_active %}btn-warning{% else %}btn-success{% endif %} ms-1"
+                                        data-name="{{ r.c.title }}"
+                                        aria-label="{% if r.c.is_active %}Pause campaign{% else %}Resume campaign{% endif %}"
+                                        onclick="CampaignListUI.toggle({{ r.c.id }}, {% if r.c.is_active %}true{% else %}false{% endif %}, this.dataset.name)">
+                                    <i class="bi {% if r.c.is_active %}bi-pause-fill{% else %}bi-play-fill{% endif %}"></i>{% if r.c.is_active %}Pause{% else %}Resume{% endif %}
+                                </button>
+                                {% endif %}
+                                <button type="button" class="btn btn-sm btn-danger ms-1" aria-label="Delete campaign"
+                                        data-name="{{ r.c.title }}" onclick="CampaignListUI.remove({{ r.c.id }}, this.dataset.name, {{ r.orders_total }})"><i class="bi bi-trash"></i>Delete</button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr class="cpx-empty"><td colspan="8" class="text-center py-4"><i class="bi bi-megaphone fs-3 d-block mb-1"></i>No campaigns found. Try another search or status, or press <strong>Create Campaign</strong>.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div style="height: 70px;" aria-hidden="true"></div>
+
+<div class="btn btn-grd position-fixed bottom-0 end-0 m-3 d-flex align-items-center gap-2 shadow-lg"
+     style="z-index: 1050; margin: auto 22px 45px 0px !important; padding: 0px !important;">
+    <div class="card-body" style="padding: 0px;">
+        <nav aria-label="Page navigation">
+            <ul class="pagination" style="margin: auto;">
+                <li class="page-item {% if not campaigns.has_previous %}disabled{% endif %}">
+                    <a class="page-link"
+                       hx-get="{% url 'campaign_list' %}{% if campaigns.has_previous %}?page={{ campaigns.previous_page_number }}&status={{ current_status }}&q={{ current_search }}&per_page={{ current_per_page }}{% endif %}"
+                       hx-target="#campaign-table-wrapper" hx-swap="innerHTML" hx-push-url="true">&laquo;</a>
+                </li>
+                {% for num in paginator.page_range %}
+                    {% if num >= campaigns.number|add:-2 and num <= campaigns.number|add:2 %}
+                    <li class="page-item {% if campaigns.number == num %}active{% endif %}">
+                        <a class="page-link"
+                           hx-get="{% url 'campaign_list' %}?page={{ num }}&status={{ current_status }}&q={{ current_search }}&per_page={{ current_per_page }}"
+                           hx-target="#campaign-table-wrapper" hx-swap="innerHTML" hx-push-url="true">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not campaigns.has_next %}disabled{% endif %}">
+                    <a class="page-link"
+                       hx-get="{% url 'campaign_list' %}{% if campaigns.has_next %}?page={{ campaigns.next_page_number }}&status={{ current_status }}&q={{ current_search }}&per_page={{ current_per_page }}{% endif %}"
+                       hx-target="#campaign-table-wrapper" hx-swap="innerHTML" hx-push-url="true">&raquo;</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    <div class="col-auto">
+        <select class="form-select" name="per_page"
+                hx-get="{% url 'campaign_list' %}?status={{ current_status }}&q={{ current_search }}"
+                hx-trigger="change" hx-target="#campaign-table-wrapper" hx-swap="innerHTML" hx-push-url="true">
+            <option value="6" {% if current_per_page == "6" %}selected{% endif %}>6</option>
+            <option value="10" {% if current_per_page == "10" %}selected{% endif %}>10</option>
+            <option value="25" {% if current_per_page == "25" %}selected{% endif %}>25</option>
+            <option value="50" {% if current_per_page == "50" %}selected{% endif %}>50</option>
+            <option value="100" {% if current_per_page == "100" %}selected{% endif %}>100</option>
+        </select>
+    </div>
+</div>

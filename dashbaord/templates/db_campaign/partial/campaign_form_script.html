@@ -1,0 +1,632 @@
+<script>
+(function () {
+  'use strict';
+
+  var CFG = document.getElementById('cpx-config').dataset;
+  var DATA = JSON.parse(document.getElementById('cpx-data').textContent);
+  var OPT = JSON.parse(document.getElementById('cpx-options').textContent);
+  var DISTRICTS = JSON.parse(document.getElementById('cpx-districts').textContent);
+  var form = document.getElementById('cpxForm');
+  var F = form.elements;      // NOTE: F.title would be the tooltip attribute, so always read inputs through form.elements
+  var S = { id: DATA.id || null, items: [] };      // items: [{card, row}]
+
+  /* ======================================================================
+     PRICE FORMULAS - the same as campaigns/pricing.py resolve_line_price (SPEC 3).
+     Verified against the Python function by campaigns/tests (see test_dashboard.py).
+     ====================================================================== */
+  /* PRICE-FORMULAS-START */
+  function roundHalfUp(x) { return Math.floor(x + 0.5 + 1e-9); }
+
+  // cfg: {discount_base, strike_price_display, badge_mode, badge_label, title}
+  // discount: null (not set) or {type: 'PERCENT'|'FIXED', value: number|string}
+  function resolveLine(cfg, regular, ownDiscount, discount, blankCode) {
+    regular = Number(regular) || 0;
+    ownDiscount = Number(ownDiscount) || 0;
+    var current = ownDiscount > 0 ? ownDiscount : regular;
+    var base = cfg.discount_base === 'REGULAR' ? regular : current;
+    var out = { regular: regular, current: current, base: base, price: current, strike: null, savings: 0,
+                percent: 0, badge: null, visible: false, warnings: [] };
+
+    var blank = !discount || discount.value === '' || discount.value === null || discount.value === undefined
+                || isNaN(Number(discount.value));
+    if (blank) { out.warnings.push(blankCode || 'no_value'); return out; }
+
+    var v = Number(discount.value);
+    var valid = discount.type === 'PERCENT' ? (v > 0 && v < 100) : (v > 0);
+    if (!valid) out.warnings.push('invalid');
+
+    var raw = discount.type === 'PERCENT' ? base * (100 - v) / 100 : base - v;
+    var rounded = roundHalfUp(raw);
+    out.price = Math.max(rounded, 0);
+    if (rounded <= 0) out.warnings.push('zero');
+
+    var strikeBasis = cfg.strike_price_display === 'REGULAR' ? regular : current;
+    out.visible = strikeBasis > 0 && out.price < strikeBasis;
+    if (out.visible) {
+      out.strike = strikeBasis;
+      out.savings = roundHalfUp(strikeBasis - out.price);
+      out.percent = roundHalfUp(out.savings / strikeBasis * 100);
+      var text = discount.type === 'PERCENT' ? (out.percent + '% OFF') : ('\u09F3' + out.savings + ' OFF');
+      if (cfg.badge_mode === 'NAME_AND_DISCOUNT') {
+        var label = (cfg.badge_label || cfg.title || '').trim();
+        if (label) text = label + ' \u00B7 ' + text;
+      }
+      out.badge = text;
+    } else {
+      out.warnings.push('no_visible');
+    }
+    if (out.price > current) out.warnings.push('above_current');
+    return out;
+  }
+  /* PRICE-FORMULAS-END */
+
+  /* Plain-word messages (shown next to the price preview and in the review card). */
+  var WARN = {
+    no_value: 'Enter the discount.',
+    invalid: 'This discount is not valid. Percent must be more than 0 and less than 100. A fixed amount must be more than 0.',
+    zero: 'The discount is as big as the price, so the campaign price becomes \u09F30.',
+    no_visible: 'The campaign price is not lower than the struck-through price, so no crossed-out price and no red tag will be shown.',
+    above_current: 'Customers would pay MORE than they pay today. Take the discount from the current discount price, or raise the discount.',
+    variant_missing: 'No discount for this variant, so it keeps its normal price in the campaign.'
+  };
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  /* ---------------------------------------------------------------- helpers */
+  function $(sel, root) { return (root || document).querySelector(sel); }
+  function $all(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function money(n) { return '\u09F3' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 }); }
+  function val(name) { return F[name].value; }      // works for inputs, selects and radio groups
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function fillSelect(el, options, value) {
+    el.innerHTML = options.map(function (o) { return '<option value="' + esc(o.value) + '">' + esc(o.label) + '</option>'; }).join('');
+    el.value = value;
+  }
+  // Same notifications as the other dashboard screens (Lobibox, defined in dashboard.html); plain alert as a fallback.
+  function toast(msg, ok) {
+    if (ok === false && typeof window.errorNotificationCustom === 'function') { window.errorNotificationCustom(msg); return; }
+    if (ok !== false && typeof window.successNotificationCustom === 'function') { window.successNotificationCustom(msg); return; }
+    var d = document.createElement('div');
+    d.className = 'alert ' + (ok === false ? 'alert-danger' : 'alert-success') + ' shadow cpx-toast';
+    d.textContent = msg; document.body.appendChild(d);
+    setTimeout(function () { d.remove(); }, ok === false ? 7000 : 2500);
+  }
+  function fmtDT(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s || ''); if (!m) return '';
+    var h = Number(m[4]), ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+    return Number(m[3]) + ' ' + MONTHS[Number(m[2]) - 1] + ' ' + m[1] + ', ' + h + ':' + m[5] + ' ' + ap;
+  }
+  function durationText(a, b) {
+    var ms = new Date(b) - new Date(a); if (isNaN(ms) || ms <= 0) return '';
+    var mins = Math.round(ms / 60000), d = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60);
+    return (d ? plural(d, 'day', 'days') : '') + (d && h ? ' ' : '') + (h ? plural(h, 'hour', 'hours') : '') || '';
+  }
+
+  var PRICE_LABELS = { REGULAR: 'Main price', CURRENT: 'Product\u2019s current discount price' };
+  var PRICE_OPTIONS = OPT.price_source.map(function (o) { return { value: o.value, label: PRICE_LABELS[o.value] || o.label }; });
+  var BADGE_OPTIONS = OPT.badge_mode.map(function (o) {
+    return { value: o.value, label: o.value === 'DISCOUNT_ONLY' ? 'Discount only (20% OFF)' : 'Campaign name + discount (Black Friday \u00B7 20% OFF)' };
+  });
+  var SOURCE_OPTIONS = OPT.amount_source.map(function (o) { return { value: o.value, label: o.value === 'SAME_FOR_ALL' ? 'Same amount for every product' : 'Each product can have its own amount' }; });
+  var BASIS_OPTIONS = OPT.basis.map(function (o) { return { value: o.value, label: o.value === 'PER_ORDER' ? 'One charge for the whole order' : 'One charge for each different product' }; });
+  var MIXED_OPTIONS = OPT.mixed.map(function (o) { return { value: o.value, label: o.value === 'COMBINED' ? 'Only the campaign charge (normal items add nothing)' : 'Campaign charge + normal charge' }; });
+  var SWITCH_OPTIONS = OPT.switch_mode.map(function (o) {
+    return { value: o.value, label: o.value === 'INHERIT' ? 'Use campaign setting' : (o.value === 'INCLUDE' ? 'Include' : 'Exclude') };
+  });
+
+  /* ---------------------------------------------------------------- campaign-level settings */
+  function cfgNow() {
+    return { title: F.title.value, discount_base: val('discount_base'), strike_price_display: val('strike_price_display'),
+             badge_mode: val('badge_mode'), badge_label: F.badge_label.value };
+  }
+  function effective(mode, campaignOn) { return mode === 'INCLUDE' ? true : (mode === 'EXCLUDE' ? false : !!campaignOn); }
+  function deliveryPerProduct() { return val('delivery_mode') === 'CUSTOM' && val('delivery_amount_source') === 'PRODUCT_WISE'; }
+
+  /* ---------------------------------------------------------------- images */
+  function showImage(field, url, label) {
+    var box = $('[data-preview="' + field + '"]');
+    box.innerHTML = url ? '<img src="' + esc(url) + '" alt=""><label>' + esc(label || '') +
+      (label === 'Current image' ? ' &middot; <input type="checkbox" data-clear="' + field + '"> remove it' : '') + '</label>' : '';
+  }
+  $all('.cpx-file').forEach(function (input) {
+    input.addEventListener('change', function () {
+      var f = input.files && input.files[0];
+      if (f) showImage(input.dataset.field, URL.createObjectURL(f), 'New image (saved when you save)');
+    });
+  });
+
+  /* ---------------------------------------------------------------- delivery editor */
+  function districtRow(name, amount) {
+    var div = document.createElement('div');
+    div.className = 'cpx-drow';
+    div.innerHTML = '<select class="form-select" aria-label="District" data-d="name"><option value="">Choose a district...</option>' +
+      DISTRICTS.map(function (d) { return '<option' + (d === name ? ' selected' : '') + '>' + esc(d) + '</option>'; }).join('') + '</select>' +
+      '<input class="form-control" type="number" min="0" step="1" aria-label="Delivery charge" data-d="amount" placeholder="&#2547; charge" value="' + esc(amount === undefined ? '' : amount) + '">' +
+      '<button type="button" class="btn btn-sm btn-outline-danger" data-d="remove"><i class="bi bi-x-lg me-1"></i>Remove</button>';
+    return div;
+  }
+  function buildDeliveryConfig() {
+    var cfg = {};
+    var all = $('#cpx-dall').value.trim();
+    if (all !== '' && !isNaN(Number(all))) cfg.all = Number(all);
+    $all('#cpxDistrictRows .cpx-drow').forEach(function (row) {
+      var name = $('[data-d="name"]', row).value, amount = $('[data-d="amount"]', row).value.trim();
+      if (name && amount !== '' && !isNaN(Number(amount))) cfg[name] = Number(amount);
+    });
+    return cfg;
+  }
+  function deliveryText() {
+    if (val('delivery_mode') !== 'CUSTOM') return 'same as normal delivery';
+    var cfg = buildDeliveryConfig(), others = Object.keys(cfg).filter(function (k) { return k !== 'all'; });
+    var basis = val('delivery_basis') === 'PER_PRODUCT' ? 'per product' : 'per order';
+    var s = cfg.all !== undefined ? money(cfg.all) + ' ' + basis + ', all districts' : (others.length ? 'set by district, ' + basis : 'amount not set yet');
+    if (others.length && cfg.all !== undefined) s += ' (' + plural(others.length, 'district has', 'districts have') + ' a different price)';
+    if (val('delivery_amount_source') === 'PRODUCT_WISE') s += '; each product can have its own amount';
+    return s;
+  }
+  function deliveryShort() {
+    if (val('delivery_mode') !== 'CUSTOM') return 'normal';
+    var cfg = buildDeliveryConfig();
+    return cfg.all !== undefined ? money(cfg.all) + (val('delivery_basis') === 'PER_PRODUCT' ? ' per product' : ' per order') : 'special';
+  }
+  function setOpen(id, open) {          // expand / collapse a Bootstrap collapse without needing a click
+    var el = $('#' + id); if (!el) return;
+    if (window.bootstrap && bootstrap.Collapse) { var inst = bootstrap.Collapse.getOrCreateInstance(el, { toggle: false }); open ? inst.show() : inst.hide(); }
+    else { el.classList.toggle('show', open); }
+  }
+  function syncOptionCards() {
+    $all('.cpx-opt').forEach(function (l) { var i = $('input', l); l.classList.toggle('on', !!(i && i.checked)); });
+  }
+  function applyDeliveryVisibility() {
+    $('#cpxDeliveryCustom').hidden = val('delivery_mode') !== 'CUSTOM';
+    $('#cpxDeliveryHint').textContent = val('delivery_amount_source') === 'PRODUCT_WISE'
+      ? 'The amount below is used for products with no amount of their own. Set a product\u2019s own amount under \u201CMore options\u201D in the product list.'
+      : 'The amount below is used for every campaign product.';
+    syncOptionCards();
+  }
+  function applyBadgeWrap() {
+    $('#cpxBadgeLabelWrap').hidden = !(val('badge_mode') === 'NAME_AND_DISCOUNT' || F.badge_label.value.length > 20);
+  }
+  function extraSummaryText() {
+    var parts = ['Coupon ' + (F.allow_coupon.checked ? 'on' : 'off'), 'Gifts ' + (F.include_product_gifts.checked ? 'on' : 'off'),
+                 'Offers ' + (F.include_offers.checked ? 'on' : 'off'), 'Delivery ' + deliveryShort()];
+    if (F.allow_overlap.checked) parts.push('Overlap allowed');
+    return parts.join(' \u00B7 ');
+  }
+  function refreshSummaries() {
+    $('#cpxExtraSummary').textContent = extraSummaryText();
+    $('#cpxDeliverySummary').textContent = 'Delivery: ' + deliveryText();
+  }
+  $('#cpxAddDistrict').addEventListener('click', function () { $('#cpxDistrictRows').appendChild(districtRow('', '')); refreshSummaries(); });
+  $('#cpxDistrictRows').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-d="remove"]'); if (b) { b.closest('.cpx-drow').remove(); refreshSummaries(); renderReview(); }
+  });
+  $('#cpxExtraBody').addEventListener('show.bs.collapse', function () { $('#cpxExtraToggleText').textContent = 'Hide extra settings'; });
+  $('#cpxExtraBody').addEventListener('hide.bs.collapse', function () { $('#cpxExtraToggleText').textContent = 'Show extra settings'; });
+
+  /* ---------------------------------------------------------------- product rows */
+  function itemById(pid) { return S.items.filter(function (it) { return it.card.id === pid; })[0]; }
+  function defaultVariant(c) { return c.variants.filter(function (x) { return x.id === c.display_variant_id; })[0] || c.variants[0]; }
+
+  function variantDiscount(item, v) {
+    if (item.row.variant_mode === 'PER_VARIANT') {
+      var vr = item.row.variants[String(v.id)] || {};
+      return { type: vr.discount_type || 'PERCENT', value: vr.discount_value === undefined ? '' : vr.discount_value };
+    }
+    return { type: item.row.discount_type, value: item.row.discount_value };
+  }
+  function displayLine(item) {
+    var c = item.card, cfg = cfgNow();
+    if (c.has_variants) {
+      var v = defaultVariant(c);
+      return resolveLine(cfg, v.price, v.discount_price, variantDiscount(item, v),
+                         item.row.variant_mode === 'PER_VARIANT' ? 'variant_missing' : 'no_value');
+    }
+    return resolveLine(cfg, c.price, c.discount_price, { type: item.row.discount_type, value: item.row.discount_value }, 'no_value');
+  }
+  function warnHtml(codes) {
+    return codes.map(function (w) { return '<div class="cpx-warn"><i class="bi bi-exclamation-triangle me-1"></i>' + esc(WARN[w] || w) + '</div>'; }).join('');
+  }
+  // The result of the discount, as clearly visible as possible: campaign price badge first, details after.
+  function previewHtml(r, label) {
+    var head = '<span class="cpx-price" title="Campaign price">Campaign price ' + money(r.price) + '</span>' +
+      (r.strike !== null ? '<span class="cpx-strike" title="Struck-through price">' + money(r.strike) + '</span>' : '') +
+      (r.badge ? '<span class="cpx-badge">' + esc(r.badge) + '</span>' : '') +
+      (r.visible ? '<span class="small">Customer saves ' + money(r.savings) + ' (' + r.percent + '%)</span>' : '<span class="small">No crossed-out price and no red tag</span>');
+    var calc = '<div class="small fst-italic mt-1">' + esc(label || '') + 'Main price ' + money(r.regular) +
+      (r.current !== r.regular ? ' \u00B7 Current discount price ' + money(r.current) : ' \u00B7 No discount price') +
+      ' \u00B7 Discount taken from ' + money(r.base) + '</div>';
+    return '<div class="cpx-result-box">' + head + '</div>' + calc + warnHtml(r.warnings);
+  }
+
+  function chipsHtml(item) {
+    var c = item.card, out = [];
+    var giftOn = effective(item.row.gift_mode, F.include_product_gifts.checked);
+    var offerOn = effective(item.row.offer_mode, F.include_offers.checked);
+    if (c.has_gift) out.push('<span class="cpx-chip gift' + (giftOn ? '' : ' off') + '" title="' + (giftOn ? 'The gift is given on campaign purchases' : 'The gift is NOT given on campaign purchases') + '">Has free gift' + (giftOn ? '' : '<span class="tag">off</span>') + '</span>');
+    (c.offers || []).forEach(function (n) {
+      out.push('<span class="cpx-chip offer' + (offerOn ? '' : ' off') + '" title="' + (offerOn ? 'Counts toward this offer' : 'Does NOT count toward this offer') + '">In offer: ' + esc(n) + (offerOn ? '' : '<span class="tag">off</span>') + '</span>');
+    });
+    if (c.has_variants) out.push('<span class="cpx-chip">' + plural(c.variants.length, 'variant', 'variants') + '</span>');
+    return out.join('');
+  }
+
+  function variantTableHtml(item) {
+    var c = item.card, per = item.row.variant_mode === 'PER_VARIANT';
+    var rows = c.variants.map(function (v) {
+      var d = variantDiscount(item, v);
+      return '<tr data-vid="' + v.id + '"><td data-label="Variant">' + esc(v.label) + '</td><td data-label="Main price">' + money(v.price) + '</td>' +
+        '<td data-label="Discount price">' + (v.discount_price ? money(v.discount_price) : 'none') + '</td>' +
+        '<td data-label="Type"><select class="form-select form-select-sm" aria-label="Discount type" data-vk="discount_type"' + (per ? '' : ' disabled') + '>' +
+        '<option value="PERCENT"' + (d.type === 'PERCENT' ? ' selected' : '') + '>% Percent</option><option value="FIXED"' + (d.type === 'FIXED' ? ' selected' : '') + '>&#2547; Fixed</option></select></td>' +
+        '<td data-label="Discount"><input class="form-control form-control-sm" style="width:100px" type="number" min="0" step="0.01" aria-label="Discount" data-vk="discount_value"' + (per ? '' : ' disabled') + ' value="' + esc(d.value) + '"></td>' +
+        '<td data-label="Campaign price" data-vc="price"></td><td data-label="Savings" data-vc="save"></td><td data-label="Red tag" data-vc="badge"></td><td data-label="" data-vc="warn"></td></tr>';
+    }).join('');
+    return '<details' + (per ? ' open' : '') + '><summary class="cpx-more-sum fw-semibold" style="min-height:44px;cursor:pointer">' + plural(c.variants.length, 'variant', 'variants') +
+      (per ? ' \u2013 set a discount for each variant (leave one empty to keep its normal price)' : ' \u2013 the same discount is used for all') + '</summary>' +
+      '<table><thead><tr><th>Variant</th><th>Main price</th><th>Discount price</th><th>Type</th><th>Discount</th><th>Campaign price</th><th>Savings</th><th>Red tag</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></details>';
+  }
+
+  function selectHtml(k, options, current, label) {
+    return '<div><label>' + label + '</label><select class="form-select form-select-sm" data-k="' + k + '">' +
+      options.map(function (o) { return '<option value="' + o.value + '"' + (current === o.value ? ' selected' : '') + '>' + o.label + '</option>'; }).join('') + '</select></div>';
+  }
+
+  function rowHtml(item) {
+    var c = item.card, r = item.row;
+    var shown = c.has_variants ? defaultVariant(c) : c;
+    var dtype = [{ value: 'PERCENT', label: '% Percent' }, { value: 'FIXED', label: '&#2547; Fixed amount' }];
+    return '<div class="cpx-prow" data-pid="' + c.id + '">' +
+      '<div class="cpx-prow-head">' +
+        (c.image ? '<img class="cpx-pimg" src="' + esc(c.image) + '" alt="">' : '<div class="cpx-pimg"></div>') +
+        '<div class="grow"><div class="name">' + esc(c.name) + '</div>' +
+        '<div class="small">' + esc(c.sku) + (c.category ? ' &middot; ' + esc(c.category) : '') + '</div><div data-chips>' + chipsHtml(item) + '</div></div>' +
+        '<div class="btn-group cpx-tools"><button type="button" class="btn btn-sm btn-outline-secondary" data-act="up" title="Move up" aria-label="Move up"><i class="bi bi-arrow-up"></i></button>' +
+        '<button type="button" class="btn btn-sm btn-outline-secondary" data-act="down" title="Move down" aria-label="Move down"><i class="bi bi-arrow-down"></i></button>' +
+        '<button type="button" class="btn btn-sm btn-outline-danger" data-act="remove"><i class="bi bi-trash me-1"></i>Remove</button></div>' +
+      '</div>' +
+      '<div class="cpx-main">' +
+        '<div><label>Main price' + (c.has_variants ? ' (default variant)' : '') + '</label><div class="fw-bold fs-5">' + money(shown.price) + '</div>' +
+          (shown.discount_price ? '<div class="small">Discount price ' + money(shown.discount_price) + '</div>' : '') + '</div>' +
+        selectHtml('discount_type', dtype, r.discount_type, 'Discount type') +
+        '<div><label>Discount</label><input class="form-control form-control-sm" type="number" min="0" step="0.01" data-k="discount_value" placeholder="e.g. 20" value="' + esc(r.discount_value) + '"></div>' +
+        (c.has_variants ? selectHtml('variant_mode', [{ value: 'ALL_SAME', label: 'Same discount for all variants' }, { value: 'PER_VARIANT', label: 'Different per variant' }], r.variant_mode, 'Variants') : '') +
+      '</div>' +
+      '<div class="mt-2" data-live></div>' +
+      (c.has_variants ? '<div class="cpx-variants mt-2" data-variants>' + variantTableHtml(item) + '</div>' : '') +
+      '<details class="cpx-more"><summary><i class="bi bi-three-dots"></i>More options for this product</summary>' +
+        '<div class="cpx-more-grid">' +
+          '<div><label>Limit how many can be sold at the campaign price</label><input class="form-control form-control-sm" type="number" min="1" step="1" data-k="stock_limit" placeholder="No limit" value="' + esc(r.stock_limit) + '"><div class="cpx-help">Example: 50. Empty means no limit.</div></div>' +
+          selectHtml('gift_mode', SWITCH_OPTIONS, r.gift_mode, 'Free gift on campaign purchases') +
+          selectHtml('offer_mode', SWITCH_OPTIONS, r.offer_mode, '\u201CBuy X, get Y free\u201D offers') +
+          '<div data-delivery-cell><label>Delivery charge for this product (&#2547;)</label><input class="form-control form-control-sm" type="number" min="0" step="1" data-k="delivery_all" placeholder="Use the campaign charge" value="' + esc((r.delivery_config || {}).all === undefined ? '' : r.delivery_config.all) + '"><div class="cpx-help">Example: 100. Empty uses the campaign charge.</div></div>' +
+        '</div>' +
+      '</details>' +
+    '</div>';
+  }
+
+  function itemWarnings(item) {         // every warning of the live preview, with the variant name when there are several
+    var cfg = cfgNow(), c = item.card, out = [];
+    if (c.has_variants) {
+      c.variants.forEach(function (v) {
+        resolveLine(cfg, v.price, v.discount_price, variantDiscount(item, v), item.row.variant_mode === 'PER_VARIANT' ? 'variant_missing' : 'no_value').warnings.forEach(function (w) {
+          out.push((c.variants.length > 1 ? v.label + ': ' : '') + (WARN[w] || w));
+        });
+      });
+    } else {
+      displayLine(item).warnings.forEach(function (w) { out.push(WARN[w] || w); });
+    }
+    return out.filter(function (t, i) { return out.indexOf(t) === i; });
+  }
+
+  function refreshItem(item) {
+    var el = $('.cpx-prow[data-pid="' + item.card.id + '"]');
+    if (!el) return;
+    $('[data-live]', el).innerHTML = previewHtml(displayLine(item), item.card.has_variants ? 'Default variant (as on product cards). ' : '');
+    $('[data-chips]', el).innerHTML = chipsHtml(item);
+    $('[data-delivery-cell]', el).hidden = !deliveryPerProduct();
+    var cfg = cfgNow();
+    $all('tr[data-vid]', el).forEach(function (tr) {
+      var v = item.card.variants.filter(function (x) { return x.id === Number(tr.dataset.vid); })[0];
+      var r = resolveLine(cfg, v.price, v.discount_price, variantDiscount(item, v), 'variant_missing');
+      $('[data-vc="price"]', tr).innerHTML = '<b>' + money(r.price) + '</b>' + (r.strike !== null ? ' <span class="cpx-strike">' + money(r.strike) + '</span>' : '');
+      $('[data-vc="save"]', tr).textContent = r.visible ? (r.percent + '% / ' + money(r.savings)) : '\u2013';
+      $('[data-vc="badge"]', tr).innerHTML = r.badge ? '<span class="cpx-badge">' + esc(r.badge) + '</span>' : '\u2013';
+      $('[data-vc="warn"]', tr).innerHTML = r.warnings.length ? '<span class="cpx-warn" title="' + esc(r.warnings.map(function (w) { return WARN[w] || w; }).join(' ')) + '"><i class="bi bi-exclamation-triangle"></i></span>' : '';
+    });
+  }
+
+  /* ---------------------------------------------------------------- review card (card 4) */
+  function discountSummary() {
+    if (!S.items.length) return 'No products yet';
+    var groups = {};
+    S.items.forEach(function (it) {
+      var r = it.row, key;
+      if (it.card.has_variants && r.variant_mode === 'PER_VARIANT') key = 'different for each variant';
+      else if (r.discount_value === '' || isNaN(Number(r.discount_value))) key = 'not set yet';
+      else key = r.discount_type === 'PERCENT' ? Number(r.discount_value) + '% off' : money(Number(r.discount_value)) + ' off';
+      groups[key] = (groups[key] || 0) + 1;
+    });
+    return Object.keys(groups).map(function (k) { return k + ' (' + plural(groups[k], 'product', 'products') + ')'; }).join(', ');
+  }
+  function renderReview() {
+    var title = F.title.value.trim(), a = F.start_at.value, b = F.end_at.value, problems = [];
+    if (!title) problems.push('The campaign name is empty.');
+    if (!a || !b) problems.push('Start and end time are needed.');
+    else if (new Date(b) <= new Date(a)) problems.push('The end time must be after the start time.');
+    if (!S.items.length) problems.push('No products added yet. You can save a draft without products, but you need at least one to publish.');
+    S.items.forEach(function (it) {
+      itemWarnings(it).forEach(function (t) { problems.push('<b>' + esc(it.card.name) + '</b>: ' + esc(t)); });
+    });
+    var dates = (a && b) ? esc(fmtDT(a)) + ' &rarr; ' + esc(fmtDT(b)) + (durationText(a, b) ? ' (' + esc(durationText(a, b)) + ')' : '') + ' &middot; Dhaka time' : 'Not set yet';
+    $('#cpxReview').innerHTML =
+      '<dl><dt>Campaign</dt><dd>' + (title ? esc(title) : 'No name yet') + '</dd>' +
+      '<dt>Dates</dt><dd>' + dates + '</dd>' +
+      '<dt>Products</dt><dd>' + plural(S.items.length, 'product', 'products') + '</dd>' +
+      '<dt>Discounts</dt><dd>' + esc(discountSummary()) + '</dd>' +
+      '<dt>Delivery</dt><dd>' + esc('Delivery: ' + deliveryText()) + '</dd>' +
+      '<dt>Extra settings</dt><dd>' + esc(extraSummaryText()) + '</dd></dl>' +
+      (problems.length
+        ? '<div class="cpx-rwarn"><div class="fw-bold"><i class="bi bi-exclamation-triangle me-1"></i>Please check before you save (' + problems.length + ')</div><ul>' +
+          problems.map(function (p) { return '<li>' + (p.indexOf('<b>') === 0 ? p : esc(p)) + '</li>'; }).join('') + '</ul></div>'
+        : '<div class="cpx-rok"><i class="bi bi-check-circle me-1"></i>Everything looks good. No warnings.</div>');
+  }
+
+  function refreshAll() {
+    S.items.forEach(refreshItem);
+    var s = resolveLine(cfgNow(), 1000, 0, { type: 'PERCENT', value: 20 });
+    $('#cpxBadgeSample').textContent = s.badge || '20% OFF';
+    refreshSummaries();
+    renderReview();
+  }
+  function renderProducts() {
+    $('#cpxProducts').innerHTML = S.items.map(rowHtml).join('');
+    $('#cpxNoProducts').hidden = S.items.length > 0;
+    $('#cpxCount').textContent = plural(S.items.length, 'product', 'products') + ' selected';
+    $('#cpxBulk').hidden = S.items.length < 2;
+    refreshAll();
+  }
+
+  var productsBox = $('#cpxProducts');
+  function onRowInput(e) {
+    var rowEl = e.target.closest('.cpx-prow'); if (!rowEl) return;
+    var item = itemById(Number(rowEl.dataset.pid)); if (!item) return;
+    var k = e.target.dataset.k, vk = e.target.dataset.vk;
+    if (k === 'delivery_all') {
+      var cfg = item.row.delivery_config || {};
+      if (e.target.value === '') delete cfg.all; else cfg.all = Number(e.target.value);
+      item.row.delivery_config = cfg;
+    } else if (k) {
+      item.row[k] = e.target.value;
+      if (k === 'variant_mode') { $('[data-variants]', rowEl).innerHTML = variantTableHtml(item); }
+    } else if (vk) {
+      var vid = e.target.closest('tr').dataset.vid;
+      item.row.variants[vid] = item.row.variants[vid] || { discount_type: 'PERCENT', discount_value: '' };
+      item.row.variants[vid][vk] = e.target.value;
+    }
+    refreshItem(item);
+  }
+  productsBox.addEventListener('input', onRowInput);
+  productsBox.addEventListener('change', onRowInput);
+  productsBox.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-act]'); if (!btn) return;
+    var pid = Number(btn.closest('.cpx-prow').dataset.pid);
+    var i = S.items.findIndex(function (it) { return it.card.id === pid; });
+    if (btn.dataset.act === 'remove') S.items.splice(i, 1);
+    if (btn.dataset.act === 'up' && i > 0) { var t = S.items[i - 1]; S.items[i - 1] = S.items[i]; S.items[i] = t; }
+    if (btn.dataset.act === 'down' && i < S.items.length - 1) { var u = S.items[i + 1]; S.items[i + 1] = S.items[i]; S.items[i] = u; }
+    renderProducts();
+  });
+
+  function addProduct(card) {
+    if (itemById(card.id)) return;
+    S.items.push({ card: card, row: { discount_type: 'PERCENT', discount_value: '', variant_mode: 'ALL_SAME', stock_limit: '',
+                                      gift_mode: 'INHERIT', offer_mode: 'INHERIT', delivery_config: {}, variants: {} } });
+    renderProducts();
+  }
+
+  // "Apply the same discount to all selected products"
+  $('#cpxBulkApply').addEventListener('click', function () {
+    var type = $('#cpxBulkType').value, raw = $('#cpxBulkValue').value.trim();
+    if (raw === '' || isNaN(Number(raw)) || Number(raw) <= 0) { toast('Type the discount first, for example 20.', false); $('#cpxBulkValue').focus(); return; }
+    S.items.forEach(function (it) {
+      it.row.discount_type = type; it.row.discount_value = raw;
+      if (it.card.has_variants && it.row.variant_mode === 'PER_VARIANT') {
+        it.card.variants.forEach(function (v) { it.row.variants[String(v.id)] = { discount_type: type, discount_value: raw }; });
+      }
+    });
+    renderProducts();
+    toast('Discount applied to ' + plural(S.items.length, 'product', 'products') + '.');
+  });
+
+  /* ---------------------------------------------------------------- product search */
+  var searchTimer = null, searchBox = $('#cpxSearch'), results = $('#cpxResults');
+  function runSearch() {
+    var q = searchBox.value.trim();
+    var exclude = S.items.map(function (it) { return it.card.id; }).join(',');
+    results.hidden = false;
+    results.innerHTML = '<div class="p-3"><i class="bi bi-hourglass-split me-1"></i>Searching...</div>';
+    fetch(CFG.searchUrl + '?q=' + encodeURIComponent(q) + '&exclude=' + exclude, { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        var list = res.products || [];
+        results.hidden = false;
+        results.innerHTML = list.length ? list.map(function (c, i) {
+          return '<div class="cpx-result" data-i="' + i + '" role="button" tabindex="0">' + (c.image ? '<img src="' + esc(c.image) + '" alt="">' : '<div class="cpx-pimg"></div>') +
+            '<div class="flex-grow-1"><div class="fw-semibold">' + esc(c.name) + '</div><div class="small">' + esc(c.sku) + (c.category ? ' &middot; ' + esc(c.category) : '') +
+            ' &middot; ' + money(c.discount_price || c.price) + (c.has_variants ? ' &middot; ' + plural(c.variants.length, 'variant', 'variants') : '') + '</div></div>' +
+            '<span class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Add</span></div>';
+        }).join('') : '<div class="p-3"><i class="bi bi-search me-1"></i>No product found. Try another word.</div>';
+        results._list = list;
+      })
+      .catch(function () { results.innerHTML = '<div class="p-3">Could not search right now. Check your connection and try again.</div>'; });
+  }
+  searchBox.addEventListener('input', function () { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 300); });
+  searchBox.addEventListener('focus', function () { if (!results._list) runSearch(); else results.hidden = false; });
+  function pickResult(row) {
+    if (!row) return;
+    addProduct(results._list[Number(row.dataset.i)]);
+    results._list.splice(Number(row.dataset.i), 1);
+    row.remove();
+    $all('.cpx-result', results).forEach(function (r, i) { r.dataset.i = i; });
+    if (!results._list.length) results.innerHTML = '<div class="p-3"><i class="bi bi-check-circle me-1"></i>All results added. Search again to add more.</div>';
+  }
+  results.addEventListener('click', function (e) { pickResult(e.target.closest('.cpx-result')); });
+  results.addEventListener('keydown', function (e) { if (e.key === 'Enter') { var r = e.target.closest('.cpx-result'); if (r) { e.preventDefault(); pickResult(r); } } });
+  document.addEventListener('click', function (e) { if (!e.target.closest('#cpxSearch') && !e.target.closest('#cpxResults')) results.hidden = true; });
+
+  /* ---------------------------------------------------------------- save */
+  function productsPayload() {
+    return S.items.map(function (it, index) {
+      var r = it.row, c = it.card;
+      var variants = [];
+      if (c.has_variants && r.variant_mode === 'PER_VARIANT') {
+        c.variants.forEach(function (v) {
+          var vr = r.variants[String(v.id)] || {};
+          variants.push({ variant_id: v.id, discount_type: vr.discount_type || 'PERCENT', discount_value: vr.discount_value === undefined ? '' : vr.discount_value });
+        });
+      }
+      var dc = r.delivery_config && Object.keys(r.delivery_config).length ? r.delivery_config : null;
+      return { product_id: c.id, sort_order: index, is_active: true, discount_type: r.discount_type, discount_value: r.discount_value,
+               variant_mode: c.has_variants ? r.variant_mode : 'ALL_SAME', stock_limit: r.stock_limit, gift_mode: r.gift_mode,
+               offer_mode: r.offer_mode, delivery_config: dc, variants: variants };
+    });
+  }
+  function clearErrors() {
+    $all('[data-err]').forEach(function (el) { el.textContent = ''; });
+    $all('.is-invalid').forEach(function (el) { el.classList.remove('is-invalid'); el.removeAttribute('aria-invalid'); });
+    $('#cpxAlerts').innerHTML = '';
+  }
+  function showAlert(kind, html, stayHere) {
+    $('#cpxAlerts').innerHTML = '<div class="alert alert-' + kind + '" role="alert">' + html + '</div>';
+    if (!stayHere) window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  var INSIDE_EXTRA = ['badge_label', 'delivery_config'];        // errors that belong to fields inside card 3
+  function inputFor(key) {
+    if (key === 'products') return $('#cpxSearch');
+    if (key === 'delivery_config') return $('#cpx-dall');
+    if (['thumbnail', 'banner_desktop', 'banner_mobile'].indexOf(key) !== -1) return $('[data-field="' + key + '"]');
+    return form.elements[key] && form.elements[key].nodeType === 1 ? form.elements[key] : null;
+  }
+  function showFieldErrors(errs) {
+    var keys = Object.keys(errs), opened = false;
+    if (keys.some(function (k) { return INSIDE_EXTRA.indexOf(k) !== -1; })) { setOpen('cpxExtraBody', true); opened = true; }
+    keys.forEach(function (k) {
+      var el = $('[data-err="' + k + '"]'); if (el) el.textContent = errs[k].join('\n');
+      var inp = inputFor(k); if (inp) { inp.classList.add('is-invalid'); inp.setAttribute('aria-invalid', 'true'); }
+    });
+    applyBadgeWrap();
+    // scroll to the FIRST error in page order (cards 1, 2, 3)
+    var first = $all('[data-err]').filter(function (el) { return el.textContent.trim() !== ''; })[0];
+    if (first) {
+      setTimeout(function () {
+        first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        var key = first.getAttribute('data-err'), inp = inputFor(key);
+        if (inp && typeof inp.focus === 'function') { try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); } }
+      }, opened ? 380 : 30);
+    }
+  }
+  var saving = false;
+  function save(publish) {
+    if (saving) return;
+    clearErrors();
+    var fd = new FormData();
+    ['title', 'slug', 'short_description', 'hero_title', 'hero_subtitle', 'hero_button_text', 'sort_order', 'start_at', 'end_at',
+     'discount_base', 'strike_price_display', 'badge_mode', 'badge_label', 'delivery_mode', 'delivery_amount_source',
+     'delivery_basis', 'mixed_cart_delivery'].forEach(function (n) { fd.append(n, val(n)); });
+    ['show_on_home', 'show_in_slider', 'allow_coupon', 'include_product_gifts', 'include_offers', 'allow_overlap'].forEach(function (n) {
+      fd.append(n, F[n].checked ? '1' : '0');
+    });
+    fd.append('delivery_config', JSON.stringify(buildDeliveryConfig()));
+    fd.append('products', JSON.stringify(productsPayload()));
+    fd.append('publish', publish ? '1' : '0');
+    if (S.id) fd.append('id', S.id);
+    $all('.cpx-file').forEach(function (input) {
+      var f = input.files && input.files[0]; if (f) fd.append(input.dataset.field, f);
+    });
+    $all('[data-clear]').forEach(function (cb) { if (cb.checked) fd.append('clear_' + cb.dataset.clear, '1'); });
+
+    saving = true;
+    $all('#cpxSaveDraft,#cpxSavePublish').forEach(function (b) { b.disabled = true; });
+    fetch(CFG.saveUrl, { method: 'POST', credentials: 'same-origin', body: fd,
+                         headers: { 'X-CSRFToken': CFG.csrf, 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        var b = res.body;
+        if (!res.ok || !b.status) {
+          var errs = b.errors || {}, lines = [];
+          Object.keys(errs).forEach(function (k) { lines = lines.concat(errs[k]); });
+          showAlert('danger', '<b>Not saved.</b> Nothing you typed is lost. Please fix this:<ul class="mb-0">' + (lines.length ? lines : [b.message || 'Please check the form.']).map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>', true);
+          toast('Not saved. Please fix the red messages.', false);
+          showFieldErrors(errs);
+          if (!Object.keys(errs).length) window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+        S.id = b.id;
+        history.replaceState(null, '', CFG.editUrl.replace('/0/', '/' + b.id + '/'));
+        if (b.warnings && b.warnings.length) {
+          toast(b.message);
+          showAlert('warning', '<b>' + esc(b.message) + '.</b> Please check these products:<ul class="mb-2">' + b.warnings.map(function (w) {
+            return '<li><b>' + esc(w.product) + ':</b> ' + esc(w.problems.join('; ')) + '</li>'; }).join('') + '</ul><a class="btn btn-sm btn-primary px-3" href="' + esc(b.redirect) + '"><i class="bi bi-list-ul me-1"></i>Go to the campaign list</a>');
+        } else {
+          toast(b.message);
+          setTimeout(function () { location.href = b.redirect; }, 900);
+        }
+      })
+      .catch(function () { toast('Could not reach the server. Nothing was saved.', false); showAlert('danger', 'Could not reach the server. Nothing was saved, and nothing you typed is lost. Check your connection and press save again.'); })
+      .then(function () {
+        saving = false;
+        $all('#cpxSaveDraft,#cpxSavePublish').forEach(function (b) { b.disabled = false; });
+      });
+  }
+  $('#cpxSaveDraft').addEventListener('click', function () { save(false); });
+  $('#cpxSavePublish').addEventListener('click', function () { save(true); });
+
+  /* ---------------------------------------------------------------- init */
+  fillSelect(F.discount_base, PRICE_OPTIONS, DATA.discount_base);
+  fillSelect(F.strike_price_display, PRICE_OPTIONS, DATA.strike_price_display);
+  fillSelect(F.badge_mode, BADGE_OPTIONS, DATA.badge_mode);
+  fillSelect(F.delivery_amount_source, SOURCE_OPTIONS, DATA.delivery_amount_source);
+  fillSelect(F.delivery_basis, BASIS_OPTIONS, DATA.delivery_basis);
+  fillSelect(F.mixed_cart_delivery, MIXED_OPTIONS, DATA.mixed_cart_delivery);
+  F.delivery_mode.value = DATA.delivery_mode;            // radio group: checks the matching option
+
+  ['title', 'slug', 'short_description', 'hero_title', 'hero_subtitle', 'hero_button_text', 'sort_order', 'start_at', 'end_at', 'badge_label']
+    .forEach(function (n) { F[n].value = DATA[n] === null || DATA[n] === undefined ? '' : DATA[n]; });
+  F.show_on_home.checked = !!DATA.show_on_home;
+  F.show_in_slider.checked = !!DATA.show_in_slider;
+  F.allow_coupon.checked = !!DATA.allow_coupon;
+  F.include_product_gifts.checked = !!DATA.include_product_gifts;
+  F.include_offers.checked = !!DATA.include_offers;
+  F.allow_overlap.checked = !!DATA.allow_overlap;
+  ['thumbnail', 'banner_desktop', 'banner_mobile'].forEach(function (f) { showImage(f, DATA.images[f], DATA.images[f] ? 'Current image' : ''); });
+
+  var dc = DATA.delivery_config || {};
+  $('#cpx-dall').value = dc.all === undefined ? '' : dc.all;
+  Object.keys(dc).forEach(function (k) { if (k !== 'all') $('#cpxDistrictRows').appendChild(districtRow(k, dc[k])); });
+  if (Object.keys(dc).some(function (k) { return k !== 'all'; })) {        // district prices exist: show them
+    $('#cpxDistrictBody').classList.add('show'); $('#cpxDistrictToggle').setAttribute('aria-expanded', 'true');
+  }
+  applyDeliveryVisibility();
+  applyBadgeWrap();
+
+  S.items = (DATA.products || []).map(function (p) {
+    var row = p.row; var card = Object.assign({}, p); delete card.row;
+    row.delivery_config = row.delivery_config || {};
+    return { card: card, row: row };
+  });
+  renderProducts();
+
+  // one listener for the whole form: any change refreshes the summaries and the review card
+  var PRICE_FIELDS = ['title', 'discount_base', 'strike_price_display', 'badge_mode', 'badge_label', 'include_product_gifts', 'include_offers',
+                      'delivery_mode', 'delivery_amount_source'];
+  function onFormChange(e) {
+    var n = e.target && e.target.name;
+    if (n === 'delivery_mode' || n === 'delivery_amount_source') applyDeliveryVisibility();
+    if (n === 'badge_mode' || n === 'badge_label') applyBadgeWrap();
+    if (n && PRICE_FIELDS.indexOf(n) !== -1) refreshAll(); else { refreshSummaries(); renderReview(); }
+  }
+  form.addEventListener('input', onFormChange);
+  form.addEventListener('change', onFormChange);
+})();
+</script>

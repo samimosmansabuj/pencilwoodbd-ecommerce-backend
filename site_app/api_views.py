@@ -25,11 +25,16 @@ from site_app.models import OTPVerification
 from site_app.order_otp import order_otp_gate
 from order.utils import OrderConfirmatinoEmailSend, safe_order_bill
 from authentication.utils import normalize_bd_phone, get_client_identity, check_is_blocked, record_order_track, get_or_verify_otp_override, get_blocked_order_policy
+from authentication.courier_check import courier_gate
+from authentication.courier_restricted import record_restricted_attempt
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from marketing.models import Coupon, CouponUsage
 from pencilwoodbd.extra_module import safe_error_message
 from site_app.bd_districts import normalize_district
+from campaigns.checkout import resolve_lines, coupon_split
+from campaigns.checkout import COUPON_CAMPAIGN_MESSAGE
+from campaigns.popup import get_eligible_popup, popup_target_url
 
 # =========================
 # HOME PAGE
@@ -215,6 +220,12 @@ class LandingPageOrderAPI(APIView):
                             status=status.HTTP_403_FORBIDDEN,
                         )
 
+            gate = courier_gate(phone, "landing", otp_code=data.get("otp_code"))
+            if gate.response:
+                if gate.restricted:
+                    record_restricted_attempt(request, phone, gate, "landing")
+                return Response({"status": False, **gate.response}, status=gate.status_code)
+            otp_override_verified = otp_override_verified or gate.otp_verified
             _otp_resp = order_otp_gate(request, phone, "auto", "status")
             if _otp_resp is not None:
                 return _otp_resp
@@ -512,6 +523,12 @@ class OrderCreateAPIView(APIView):
                             status=status.HTTP_403_FORBIDDEN,
                         )
 
+            gate = courier_gate(phone_preview, "landing", otp_code=data.get("otp_code"))
+            if gate.response:
+                if gate.restricted:
+                    record_restricted_attempt(request, phone_preview, gate, "landing")
+                return Response({"success": False, **gate.response}, status=gate.status_code)
+            otp_override_verified = otp_override_verified or gate.otp_verified
             _otp_resp = order_otp_gate(request, phone_preview, "auto", "success")
             if _otp_resp is not None:
                 return _otp_resp
@@ -647,8 +664,8 @@ class OrderCreateAPIView(APIView):
                         continue
 
                 for attempt in OrderAttempt.objects.filter(phone=customer.phone):
-                    if attempt.is_subset_of(order_product_ids):
-                        attempt.delete()
+                    if attempt.status != "converted" and attempt.is_subset_of(order_product_ids):
+                        attempt.set_status("converted", "Auto: customer placed order #%s" % order.pk)
 
                 OrderActivityLog.log(
                     action="Order placed by customer (self-checkout)",
@@ -752,7 +769,7 @@ class OrderAttemptAPIView(APIView):
             incoming_ids = {p["id"] for p in products_snapshot}
 
             with transaction.atomic():
-                existing_attempts = OrderAttempt.objects.filter(phone=phone).order_by("-updated_at")
+                existing_attempts = OrderAttempt.objects.filter(phone=phone).exclude(status="converted").order_by("-updated_at")
 
                 attempt = None
                 for a in existing_attempts:
@@ -797,6 +814,7 @@ class ApplyCouponAPIView(APIView):
         if items:
             subtotal = Decimal("0")
             product_ids = []
+            prepared = []
             for row in items:
                 product = Product.objects.filter(id=row.get("product_id")).first()
                 if not product:
@@ -808,11 +826,14 @@ class ApplyCouponAPIView(APIView):
                     quantity = max(int(row.get("quantity", 1)), 1)
                 except (TypeError, ValueError):
                     quantity = 1
-                price = (variant.discount_price if variant else product.discount_price) or \
-                        (variant.price if variant else product.price)
-                subtotal += Decimal(str(price)) * quantity
-                if product.id not in product_ids:
-                    product_ids.append(product.id)
+                prepared.append({"product": product, "variant": variant, "quantity": quantity,
+                                 "campaign_slug": (str(row.get("campaign") or "").strip() or None)})
+            eligible, excluded = coupon_split(resolve_lines(prepared))
+            self._campaign_excluded = bool(excluded)
+            for r in eligible:
+                subtotal += Decimal(str(r.unit_price)) * r.quantity
+                if r.product.id not in product_ids:
+                    product_ids.append(r.product.id)
             return subtotal, product_ids
 
         product_ids = request.data.get("product_ids") or []
@@ -825,13 +846,22 @@ class ApplyCouponAPIView(APIView):
         if not landing_page_code and request.user.is_authenticated:
             customer = getattr(request.user, "customer_profile", None)
             if customer:
-                cart_items = AddToCart.objects.select_related("product", "variant").filter(customer=customer)
+                cart_items = list(AddToCart.objects.select_related("product", "variant", "campaign").filter(customer=customer))
                 subtotal = Decimal("0")
                 product_ids = []
-                for item in cart_items:
-                    subtotal += item.total_price
-                    if item.product_id not in product_ids:
-                        product_ids.append(item.product_id)
+                resolved = resolve_lines([
+                    {"product": ci.product, "variant": ci.variant, "quantity": ci.quantity,
+                     "campaign_slug": ci.campaign.slug if ci.campaign_id else None,
+                     "line_id": ci.id, "is_customized": ci.is_customized}
+                    for ci in cart_items
+                ])
+                eligible, excluded = coupon_split(resolved)
+                self._campaign_excluded = bool(excluded)
+                by_id = {ci.id: ci for ci in cart_items}
+                for r in eligible:
+                    subtotal += r.line_total if r.applies else by_id[r.line_id].total_price
+                    if r.product.id not in product_ids:
+                        product_ids.append(r.product.id)
                 return subtotal, product_ids
 
         return Decimal("0"), []
@@ -847,7 +877,11 @@ class ApplyCouponAPIView(APIView):
             if not phone:
                 return Response({"status": False, "message": "Enter a valid phone number first."}, status=400)
 
+            self._campaign_excluded = False
             subtotal, product_ids = self._cart_snapshot(request, landing_page_code)
+            if subtotal <= 0 and self._campaign_excluded:
+                return Response({"status": False, "code": "coupon_not_applicable_to_campaign",
+                                 "message": COUPON_CAMPAIGN_MESSAGE}, status=400)
             if subtotal <= 0:
                 return Response({"status": False, "message": "Cart is empty."}, status=400)
 
@@ -880,3 +914,34 @@ class ApplyCouponAPIView(APIView):
             })
         except Exception as e:
             return Response({"status": False, "message": safe_error_message(e)}, status=500)
+
+
+class PopupAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        now = timezone.now()
+        popup = get_eligible_popup(now)
+        if popup is None:
+            return Response({"status": True, "server_now": now.isoformat(), "data": None})
+
+        def absolute(f):
+            return request.build_absolute_uri(f.url) if f else None
+
+        return Response({
+            "status": True,
+            "server_now": now.isoformat(),
+            "data": {
+                "id": popup.id,
+                "title": popup.title,
+                "image_desktop": absolute(popup.image_desktop),
+                "image_mobile": absolute(popup.image_mobile) or absolute(popup.image_desktop),
+                "button_text": popup.button_text,
+                "link_type": popup.link_type,
+                "target_url": popup_target_url(popup, now),
+                "frequency": popup.frequency,
+                "pages": popup.pages,
+                "priority": popup.priority,
+                "updated_at": popup.updated_at.isoformat(),
+            },
+        })
