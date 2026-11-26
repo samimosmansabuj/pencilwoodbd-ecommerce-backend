@@ -238,7 +238,7 @@ class LandingPageOrderAPI(APIView):
                     record_restricted_attempt(request, phone, gate, "landing")
                 return Response({"status": False, **gate.response}, status=gate.status_code)
             otp_override_verified = otp_override_verified or gate.otp_verified
-            _otp_resp = order_otp_gate(request, phone, "auto", "status")
+            _otp_resp = order_otp_gate(request, phone, "auto", "status", landing_code=data.get("landing_page_code"))
             if _otp_resp is not None:
                 return _otp_resp
 
@@ -565,7 +565,7 @@ class OrderCreateAPIView(APIView):
                     record_restricted_attempt(request, phone_preview, gate, "landing")
                 return Response({"success": False, **gate.response}, status=gate.status_code)
             otp_override_verified = otp_override_verified or gate.otp_verified
-            _otp_resp = order_otp_gate(request, phone_preview, "auto", "success")
+            _otp_resp = order_otp_gate(request, phone_preview, "auto", "success", landing_code=data.get("landing_page_code"))
             if _otp_resp is not None:
                 return _otp_resp
 

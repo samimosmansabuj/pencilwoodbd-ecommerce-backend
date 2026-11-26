@@ -166,10 +166,74 @@
   function renderProducts() {
     $('p-grid').innerHTML = gridHtml($('p-search').value, S.products, 'toggle-prod');
     $('p-count').textContent = S.products.length ? S.products.length + ' selected' : '';
-    $('c-list').innerHTML = CATS.map(function (c) {
-      return '<span class="ofx-chip ' + (S.categories.indexOf(c.id) !== -1 ? 'on' : '') + '" data-act="toggle-cat" data-id="' + c.id + '">' + esc(c.name) + '</span>';
-    }).join('');
+    renderTree();
     $('ofx-apply-pickers').style.display = S.apply_to_all ? 'none' : '';
+  }
+
+  var nav = { root: null, path: [], anim: false };
+  function renderTree() {
+    var box = $('c-list'), menu = $('c-menu'), keep = nav.anim ? 0 : menu.scrollTop;
+    var kids = {}, cat = {}, prods = {}, total = {};
+    CATS.forEach(function (c) { cat[c.id] = c; (kids[c.parent || 0] = kids[c.parent || 0] || []).push(c); });
+    CATALOG.forEach(function (p) { if (p.category) (prods[p.category] = prods[p.category] || []).push(p); });
+    function chain(id) {
+      var out = [], c = cat[id], n = 0;
+      while (c && n++ < 12) { out.unshift(c); c = c.parent ? cat[c.parent] : null; }
+      return out;
+    }
+    function pathName(id) { return chain(id).map(function (c) { return c.name; }).join(' \u203a '); }
+    function isOn(id) { return S.categories.indexOf(id) !== -1; }
+    function covered(id) { return chain(id).slice(0, -1).some(function (c) { return isOn(c.id); }); }
+    function state(id) { return isOn(id) ? 'on' : (covered(id) ? 'inc' : ''); }
+    function count(c, d) {
+      if (total[c.id] != null) return total[c.id];
+      var n = (prods[c.id] || []).length;
+      if (d < 12) (kids[c.id] || []).forEach(function (k) { n += count(k, d + 1); });
+      return (total[c.id] = n);
+    }
+    function hasInside(c) { return (kids[c.id] || []).length || (prods[c.id] || []).length; }
+
+    var picked = S.categories.filter(function (id) { return cat[id]; });
+    box.innerHTML = (kids[0] || []).map(function (r) {
+      var sel = picked.filter(function (id) { return chain(id)[0].id === r.id; });
+      var label = !sel.length ? r.name : (sel.length === 1 ? pathName(sel[0]) : r.name + ' (' + sel.length + ')');
+      var rootOn = isOn(r.id), act = (sel.length && !rootOn && hasInside(r)) ? 'cat-open' : 'toggle-cat';
+      return '<span class="ofx-pill ' + (sel.length ? 'on' : '') + (nav.root === r.id ? ' open' : '') + '" data-pill="' + r.id + '">' +
+        '<span class="ofx-pn" data-act="' + act + '" data-id="' + r.id + '">' + esc(label) + '</span>' +
+        (hasInside(r) ? '<span class="ofx-pa" data-act="cat-open" data-id="' + r.id + '">&#9656;</span>' : '') + '</span>';
+    }).join('');
+
+    $('c-sum').innerHTML = picked.map(function (id) {
+      return '<span class="ofx-tag" data-act="toggle-cat" data-id="' + id + '" title="' + esc(pathName(id)) + '">' + esc(pathName(id)) + ' &times;</span>';
+    }).join('');
+
+    if (!nav.root || !cat[nav.root]) { nav.root = null; menu.hidden = true; menu.innerHTML = ''; return; }
+    var cur = cat[nav.path[nav.path.length - 1]] || cat[nav.root];
+    var html = '<div class="ofx-mh"><span class="ofx-bk" data-act="cat-back">&#8249;</span>' +
+      '<span class="ofx-sel ' + state(cur.id) + '" data-act="toggle-cat" data-id="' + cur.id + '"><span class="ofx-box"></span>' + esc(pathName(cur.id)) + '</span>' +
+      '<span class="ofx-x" data-act="cat-close">&times;</span></div>';
+    (kids[cur.id] || []).forEach(function (k) {
+      html += '<div class="ofx-mr"><span class="ofx-sel ' + state(k.id) + '" data-act="toggle-cat" data-id="' + k.id + '"><span class="ofx-box"></span>' + esc(k.name) + '<small>' + count(k, 0) + '</small></span>' +
+        (hasInside(k) ? '<span class="ofx-go" data-act="cat-in" data-id="' + k.id + '">&#9656;</span>' : '') + '</div>';
+    });
+    var own = prods[cur.id] || [];
+    if (own.length) {
+      html += '<div class="ofx-sub">Products</div>';
+      own.forEach(function (p) {
+        var pon = S.products.indexOf(p.id) !== -1;
+        html += '<div class="ofx-mr"><span class="ofx-sel prod ' + (pon ? 'on' : (state(cur.id) ? 'inc' : '')) + '" data-act="toggle-prod" data-id="' + p.id + '" title="' + esc(p.name) + '"><span class="ofx-box"></span>' + esc(p.name) + '</span></div>';
+      });
+    }
+    menu.innerHTML = html;
+    menu.hidden = false;
+    menu.className = 'ofx-menu' + (nav.anim ? ' step' : '');
+    var wrap = menu.parentNode, pill = box.querySelector('[data-pill="' + nav.root + '"]');
+    var w = Math.min(340, wrap.clientWidth);
+    menu.style.width = w + 'px';
+    menu.style.left = Math.max(0, Math.min(pill ? pill.offsetLeft : 0, wrap.clientWidth - w)) + 'px';
+    menu.style.top = (pill ? pill.offsetTop + pill.offsetHeight + 6 : 0) + 'px';
+    menu.scrollTop = keep;
+    nav.anim = false;
   }
 
   function renderTiers() {
@@ -284,6 +348,10 @@
     renderSummary();
   });
 
+  document.addEventListener('click', function (e) {
+    if (nav.root && e.target.closest && !e.target.closest('.ofx-cats')) { nav = { root: null, path: [], anim: false }; renderTree(); }
+  }, true);
+
   function toggle(list, id) { var ix = list.indexOf(id); if (ix === -1) list.push(id); else list.splice(ix, 1); }
 
   document.addEventListener('click', function (e) {
@@ -294,6 +362,10 @@
     if (el.id === 'ofx-save') { save(); return; }
     if (act === 'toggle-prod') { toggle(S.products, id); renderProducts(); }
     else if (act === 'toggle-cat') { toggle(S.categories, id); renderProducts(); }
+    else if (act === 'cat-open') { nav = nav.root === id ? { root: null, path: [], anim: false } : { root: id, path: [id], anim: true }; renderTree(); }
+    else if (act === 'cat-in') { nav.path.push(id); nav.anim = true; renderTree(); }
+    else if (act === 'cat-back') { nav.path.pop(); if (!nav.path.length) nav.root = null; nav.anim = true; renderTree(); }
+    else if (act === 'cat-close') { nav = { root: null, path: [], anim: false }; renderTree(); }
     else if (act === 'prod-all') {
       var term = ($('p-search').value || '').trim().toLowerCase();
       CATALOG.forEach(function (p) { if ((!term || p.name.toLowerCase().indexOf(term) !== -1) && S.products.indexOf(p.id) === -1) S.products.push(p.id); });
@@ -351,6 +423,7 @@
   /* ------------------------------------------------------------------ public */
   function open(title) {
     $('ofx-title').textContent = title;
+    nav = { root: null, path: [], anim: false };
     fillForm();
     bootstrap.Modal.getOrCreateInstance($('offerModal')).show();
   }

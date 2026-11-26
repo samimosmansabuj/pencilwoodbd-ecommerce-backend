@@ -38,25 +38,49 @@
                     </div>
                 </div>
 
-                <div class="d-flex align-items-center justify-content-between border rounded-3 p-3 mb-2">
-                    <div>
-                        <div class="fw-semibold">E-com Landing</div>
-                        <div class="small text">Site er vitor landing (e-com/lan/...)</div>
+                <div class="border rounded-3 mb-2">
+                    <div class="d-flex align-items-center justify-content-between p-3">
+                        <div>
+                            <div class="fw-semibold">E-com Landing</div>
+                            <div class="small text">Site er vitor sob landing (e-com/lan/...)</div>
+                        </div>
+                        <div class="form-check form-switch m-0 p-0">
+                            <input class="form-check-input m-0 otp-sub" type="checkbox" role="switch" id="otpLanding" data-key="otp_landing"
+                                style="width:2.6em;height:1.4em;">
+                        </div>
                     </div>
-                    <div class="form-check form-switch m-0 p-0">
-                        <input class="form-check-input m-0 otp-sub" type="checkbox" role="switch" id="otpLanding" data-key="otp_landing"
-                            style="width:2.6em;height:1.4em;">
+                    <div class="px-3 pb-3">
+                        <a class="small text-decoration-none" data-bs-toggle="collapse" href="#otpLandingPick" role="button">
+                            <i class="bi bi-list-check me-1"></i>Specific landing bachun <span id="otpLandingCount"></span>
+                        </a>
+                        <div class="collapse mt-2" id="otpLandingPick">
+                            <div class="small text mb-2">Uporer switch OFF rekhe shudhu nicher bachai kora landing e OTP ON hobe.</div>
+                            <input type="text" class="form-control form-control-sm mb-2 otp-pick-search" data-list="otpLandingList" placeholder="Search landing">
+                            <div class="otp-pick-list" id="otpLandingList" data-field="otp_landing_pages" style="max-height:180px;overflow:auto;"></div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="d-flex align-items-center justify-content-between border rounded-3 p-3 mb-3">
-                    <div>
-                        <div class="fw-semibold">External Single Landing</div>
-                        <div class="small text">Onno domain er landing</div>
+                <div class="border rounded-3 mb-3">
+                    <div class="d-flex align-items-center justify-content-between p-3">
+                        <div>
+                            <div class="fw-semibold">External Single Landing</div>
+                            <div class="small text">Onno domain er sob landing</div>
+                        </div>
+                        <div class="form-check form-switch m-0 p-0">
+                            <input class="form-check-input m-0 otp-sub" type="checkbox" role="switch" id="otpExternal" data-key="otp_external"
+                                style="width:2.6em;height:1.4em;">
+                        </div>
                     </div>
-                    <div class="form-check form-switch m-0 p-0">
-                        <input class="form-check-input m-0 otp-sub" type="checkbox" role="switch" id="otpExternal" data-key="otp_external"
-                            style="width:2.6em;height:1.4em;">
+                    <div class="px-3 pb-3">
+                        <a class="small text-decoration-none" data-bs-toggle="collapse" href="#otpExternalPick" role="button">
+                            <i class="bi bi-list-check me-1"></i>Specific landing bachun <span id="otpExternalCount"></span>
+                        </a>
+                        <div class="collapse mt-2" id="otpExternalPick">
+                            <div class="small text mb-2">Uporer switch OFF rekhe shudhu nicher bachai kora landing e OTP ON hobe.</div>
+                            <input type="text" class="form-control form-control-sm mb-2 otp-pick-search" data-list="otpExternalList" placeholder="Search landing">
+                            <div class="otp-pick-list" id="otpExternalList" data-field="otp_external_pages" style="max-height:180px;overflow:auto;"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -84,6 +108,10 @@
         var modalEl = document.getElementById("orderOtpModal");
         var allEl = document.getElementById("otpAll");
         var subs = modalEl.querySelectorAll(".otp-sub");
+        var lists = [
+            { el: document.getElementById("otpLandingList"), count: document.getElementById("otpLandingCount"), sw: document.getElementById("otpLanding"), field: "otp_landing_pages" },
+            { el: document.getElementById("otpExternalList"), count: document.getElementById("otpExternalCount"), sw: document.getElementById("otpExternal"), field: "otp_external_pages" }
+        ];
 
         function cookie(name) {
             var m = document.cookie.split(";").map(function (c) { return c.trim(); }).find(function (c) { return c.indexOf(name + "=") === 0; });
@@ -95,6 +123,33 @@
                     position: "top right", icon: type === "success" ? "bi bi-check2-circle" : "bi bi-x-circle", msg: msg });
             } else { alert(msg); }
         }
+        function filterList(L) {
+            var q = modalEl.querySelector('.otp-pick-search[data-list="' + L.el.id + '"]').value.trim().toLowerCase();
+            L.el.querySelectorAll(".form-check").forEach(function (row) {
+                row.style.display = row.textContent.toLowerCase().indexOf(q) === -1 ? "none" : "";
+            });
+        }
+        function renderList(L, d) {
+            var picked = (d[L.field] || []).map(String);
+            var locked = !!d.otp_all || !!(L.sw.checked);
+            L.el.innerHTML = "";
+            (d.landing_options || []).forEach(function (o) {
+                var id = L.el.id + "_" + o.id;
+                var row = document.createElement("div");
+                row.className = "form-check";
+                var inp = document.createElement("input");
+                inp.type = "checkbox"; inp.className = "form-check-input"; inp.id = id; inp.value = o.id;
+                inp.checked = picked.indexOf(String(o.id)) !== -1; inp.disabled = locked;
+                var lb = document.createElement("label");
+                lb.className = "form-check-label small"; lb.htmlFor = id;
+                lb.textContent = (o.title || "Untitled") + " (" + o.code + ")";
+                row.appendChild(inp); row.appendChild(lb);
+                L.el.appendChild(row);
+            });
+            if (!L.el.children.length) L.el.innerHTML = '<div class="small text">Kono landing page nai</div>';
+            L.count.textContent = picked.length ? "(" + picked.length + ")" : "";
+            filterList(L);
+        }
         function apply(d) {
             allEl.checked = !!d.otp_all;
             document.getElementById("otpEcom").checked = !!d.otp_ecom;
@@ -102,7 +157,8 @@
             document.getElementById("otpExternal").checked = !!d.otp_external;
             document.getElementById("otpHostsInput").value = d.internal_hosts || "";
             subs.forEach(function (c) { c.disabled = allEl.checked; });
-            var n = [d.otp_ecom, d.otp_landing, d.otp_external].filter(Boolean).length;
+            lists.forEach(function (L) { renderList(L, d); });
+            var n = [d.otp_ecom, d.otp_landing || (d.otp_landing_pages || []).length, d.otp_external || (d.otp_external_pages || []).length].filter(Boolean).length;
             var b = document.getElementById("orderOtpBadge");
             b.textContent = d.otp_all ? "ALL" : (n ? n + "/3" : "OFF");
             b.className = "badge ms-1 " + (n ? "bg-success" : "bg-secondary");
@@ -136,6 +192,15 @@
                 subs.forEach(function (c) { c.disabled = false; });
             }
             save(fd);
+        });
+        lists.forEach(function (L) {
+            L.el.addEventListener("change", function () {
+                var ids = Array.prototype.map.call(L.el.querySelectorAll("input:checked"), function (c) { return c.value; });
+                var fd = new FormData();
+                fd.append(L.field, ids.join(","));
+                save(fd);
+            });
+            modalEl.querySelector('.otp-pick-search[data-list="' + L.el.id + '"]').addEventListener("input", function () { filterList(L); });
         });
         document.getElementById("otpHostsSaveBtn").addEventListener("click", function () {
             var fd = new FormData();

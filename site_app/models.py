@@ -684,6 +684,8 @@ class OrderOTPSetting(models.Model):
     otp_ecom = models.BooleanField(default=False)
     otp_landing = models.BooleanField(default=False, help_text="Internal landings (e-com/lan/...)")
     otp_external = models.BooleanField(default=False, help_text="Onno domain er single landing")
+    otp_landing_pages = models.ManyToManyField("LandingPageProduct", blank=True, related_name="otp_landing_settings")
+    otp_external_pages = models.ManyToManyField("LandingPageProduct", blank=True, related_name="otp_external_settings")
     internal_hosts = models.TextField(
         default="pencilwoodbd.com,www.pencilwoodbd.com",
         blank=True,
@@ -701,8 +703,14 @@ class OrderOTPSetting(models.Model):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
 
-    def is_required(self, source):
-        return bool(self.otp_all or getattr(self, f"otp_{source}", False))
+    def is_required(self, source, landing_code=None):
+        if self.otp_all or getattr(self, f"otp_{source}", False):
+            return True
+        pages = {"landing": "otp_landing_pages", "external": "otp_external_pages"}.get(source)
+        code = str(landing_code or "").strip()
+        if pages and code:
+            return getattr(self, pages).filter(code=code).exists()
+        return False
 
     def __str__(self):
         return "Order OTP Settings"
