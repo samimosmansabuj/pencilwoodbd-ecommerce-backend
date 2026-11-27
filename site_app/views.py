@@ -1386,10 +1386,17 @@ class OrderOTPSettingsView(LoginRequiredMixin, View):
 
     @staticmethod
     def _payload(cfg):
+        from .models import LandingPageProduct
         return {
             "success": True,
             "otp_all": cfg.otp_all, "otp_ecom": cfg.otp_ecom,
             "otp_landing": cfg.otp_landing, "otp_external": cfg.otp_external,
+            "otp_landing_pages": list(cfg.otp_landing_pages.values_list("id", flat=True)),
+            "otp_external_pages": list(cfg.otp_external_pages.values_list("id", flat=True)),
+            "landing_options": [
+                {"id": p["id"], "code": p["code"] or "", "title": p["title"] or ""}
+                for p in LandingPageProduct.objects.order_by("-id").values("id", "code", "title")
+            ],
             "internal_hosts": cfg.internal_hosts,
         }
 
@@ -1414,6 +1421,11 @@ class OrderOTPSettingsView(LoginRequiredMixin, View):
         if "internal_hosts" in request.POST:
             cfg.internal_hosts = request.POST.get("internal_hosts", "").strip()
         cfg.save()
+        from .models import LandingPageProduct
+        for key in ("otp_landing_pages", "otp_external_pages"):
+            if key in request.POST:
+                ids = [int(x) for x in request.POST.get(key, "").split(",") if x.strip().isdigit()]
+                getattr(cfg, key).set(LandingPageProduct.objects.filter(id__in=ids))
         data = self._payload(cfg)
         data["message"] = "Order OTP settings saved."
         return JsonResponse(data)

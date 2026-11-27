@@ -15,6 +15,7 @@ from .pricing import (
     get_campaign_status,
     get_sold_units_map,
     num,
+    effective_price_sources,
     resolve_line_price,
     to_decimal,
 )
@@ -100,6 +101,12 @@ def resolve_lines(lines, now=None, lock=False):
     now = now or timezone.now()
     slugs = {l.get("campaign_slug") for l in lines if l.get("campaign_slug")}
     campaigns = {c.slug: c for c in Campaign.objects.filter(slug__in=slugs)} if slugs else {}
+    lines = [
+        {**l, "campaign_slug": None}
+        if l.get("campaign_slug") in campaigns and not campaigns[l["campaign_slug"]].allows_surface(l.get("surface"))
+        else l
+        for l in lines
+    ]
 
     cp_map = {}
     if campaigns:
@@ -302,8 +309,8 @@ def campaign_snapshot(r):
             "badge_text": lp.badge_text,
             "discount_type": lp.discount_type,
             "discount_value": num(lp.discount_value),
-            "discount_base": c.discount_base,
-            "strike_price_display": c.strike_price_display,
+            "discount_base": effective_price_sources(c, r.campaign_product)[0],
+            "strike_price_display": effective_price_sources(c, r.campaign_product)[1],
             "variant_id": lp.variant_id,
             "warnings": list(lp.warnings),
         },

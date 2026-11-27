@@ -141,19 +141,19 @@ def _editor_data():
     images = _image_map()
     products = list(
         Product.objects.filter(status=CATEGORY_PRODUCT_STATUS.ACTIVE)
-        .order_by("name").values("id", "name", "price", "discount_price", "is_gift_only")
+        .order_by("name").values("id", "name", "price", "discount_price", "is_gift_only", "category_id")
     )
     variants = {}
     for v in ProductVariant.objects.filter(is_active=True, product__status=CATEGORY_PRODUCT_STATUS.ACTIVE).order_by("-is_default", "id"):
         variants.setdefault(v.product_id, []).append({"id": v.id, "label": _variant_label(v), "stock": v.available_stock if v.inventory_type != "unlimited" else None})
     catalog = [{
         "id": p["id"], "name": p["name"], "image": images.get(p["id"], ""),
-        "price": float(p["discount_price"] or p["price"] or 0), "gift_only": p["is_gift_only"],
+        "price": float(p["discount_price"] or p["price"] or 0), "gift_only": p["is_gift_only"], "category": p["category_id"],
         "variants": variants.get(p["id"], []),
     } for p in products]
     return {
         "catalog": catalog,
-        "categories_data": [{"id": c.id, "name": c.name} for c in Category.objects.order_by("name")],
+        "categories_data": [{"id": c.id, "name": c.name, "parent": c.parent_id} for c in Category.objects.order_by("sort_order", "name")],
     }
 
 

@@ -33,7 +33,9 @@ from marketing.models import Coupon, CouponUsage
 from pencilwoodbd.extra_module import safe_error_message
 from site_app.bd_districts import normalize_district
 from campaigns.checkout import resolve_lines, coupon_split
-from campaigns.checkout import COUPON_CAMPAIGN_MESSAGE
+from campaigns.context import auto_campaign_map
+from campaigns.pricing import resolve_line_price
+from campaigns.checkout import COUPON_CAMPAIGN_MESSAGE, campaign_snapshot, order_item_campaign_fields
 from campaigns.popup import get_eligible_popup, popup_target_url
 
 # =========================
@@ -82,6 +84,18 @@ class LandingPageProductViews(APIView):
                 main = [landing_page.main_product] if landing_page.main_product else []
                 many = list(landing_page.product.all())
                 product = main + many
+                rows = [dict(r) for r in ProductSerializer(product, many=True, context={"request": request}).data]
+                found = auto_campaign_map([p.id for p in product], "LANDING")
+                by_id = {p.id: p for p in product}
+                for row in rows:
+                    cp = found.get(row.get("id"))
+                    if cp is None:
+                        continue
+                    line = resolve_line_price(cp.campaign, cp, by_id[row["id"]]).as_public()
+                    row["discount_price"] = line["campaign_price"]
+                    if line["strike_price"]:
+                        row["price"] = line["strike_price"]
+                    row["campaign_pricing"] = {"campaign_slug": cp.campaign.slug, **line}
                 return Response(
                     {
                         "status": True,
@@ -89,9 +103,7 @@ class LandingPageProductViews(APIView):
                             "code": landing_page.code,
                             "title": landing_page.title,
                             "description": landing_page.description,
-                            "product": ProductSerializer(
-                                product, many=True, context={"request": request}
-                            ).data,
+                            "product": rows,
                         },
                     },
                     status=status.HTTP_200_OK,
@@ -226,7 +238,7 @@ class LandingPageOrderAPI(APIView):
                     record_restricted_attempt(request, phone, gate, "landing")
                 return Response({"status": False, **gate.response}, status=gate.status_code)
             otp_override_verified = otp_override_verified or gate.otp_verified
-            _otp_resp = order_otp_gate(request, phone, "auto", "status")
+            _otp_resp = order_otp_gate(request, phone, "auto", "status", landing_code=data.get("landing_page_code"))
             if _otp_resp is not None:
                 return _otp_resp
 
@@ -400,17 +412,22 @@ class OrderCreateAPIView(APIView):
             unit_price = Decimal(str(product.get("price", 0)))
             is_gift = product.get("product_type") == "FREE"
 
+            campaign_line = None if is_gift else self.campaign_lines.get(prod.id)
+            snapshot = {
+                "product_type": product.get("product_type"),
+                "reference_product": product.get("reference_product"),
+                "is_gift": is_gift,
+            }
+            if campaign_line:
+                snapshot.update(campaign_snapshot(campaign_line))
             order_item = OrderItem.objects.create(
                 order=order,
                 product=prod,
                 quantity=quantity,
                 price=Decimal("0") if is_gift else prod.price,
                 discount_price=unit_price,
-                snapshot={
-                    "product_type": product.get("product_type"),
-                    "reference_product": product.get("reference_product"),
-                    "is_gift": is_gift,
-                },
+                snapshot=snapshot,
+                **(order_item_campaign_fields(campaign_line) if campaign_line else {}),
             )
             order_items.append(order_item)
 
@@ -447,6 +464,11 @@ class OrderCreateAPIView(APIView):
     def get_product_and_verify(self, product_data: dict) -> object:
         products = []
         self.productTotal = 0
+        self.campaign_lines = {}
+        landing_campaigns = auto_campaign_map(
+            [p.get("id") for p in product_data if str(p.get("id") or "").isdigit() and p.get("product_type") != "FREE"],
+            "LANDING",
+        )
         for prod in product_data:
             raw_id = prod.get("id", None)
             if raw_id is None or str(raw_id).strip().lower() in ("undefined", "null", ""):
@@ -469,6 +491,20 @@ class OrderCreateAPIView(APIView):
                     raise Exception("Free Product not available.")
                 products.append(product)
                 # NOTE: FREE items don't add to productTotal — price is 0
+            elif product.id in landing_campaigns:
+                result = resolve_lines([{
+                    "product": product, "variant": None, "quantity": int(prod.get("quantity", 1)),
+                    "campaign_slug": landing_campaigns[product.id].campaign.slug, "surface": "LANDING",
+                }])[0]
+                if not result.applies:
+                    raise Exception("Campaign offer is no longer available. Please reload the page.")
+                if Decimal(str(prod.get("price"))) != result.final_unit_price:
+                    raise Exception("Campaign price has changed. Please reload the page.")
+                if product.inventory_quantity < prod.get("quantity"):
+                    raise Exception("Product not available in our Inventory.")
+                self.campaign_lines[product.id] = result
+                self.productTotal += result.final_unit_price * Decimal(str(prod.get("quantity", 1)))
+                products.append(product)
             elif product.discount_price != float(prod.get("price")):
                 raise Exception("Product price and given price are not same.")
             elif product.inventory_quantity < prod.get("quantity"):
@@ -529,7 +565,7 @@ class OrderCreateAPIView(APIView):
                     record_restricted_attempt(request, phone_preview, gate, "landing")
                 return Response({"success": False, **gate.response}, status=gate.status_code)
             otp_override_verified = otp_override_verified or gate.otp_verified
-            _otp_resp = order_otp_gate(request, phone_preview, "auto", "success")
+            _otp_resp = order_otp_gate(request, phone_preview, "auto", "success", landing_code=data.get("landing_page_code"))
             if _otp_resp is not None:
                 return _otp_resp
 
@@ -562,6 +598,12 @@ class OrderCreateAPIView(APIView):
                 landing_page_code = data.get("landing_page_code")
                 discount_amount = Decimal("0")
                 applied_coupon = None
+
+                if coupon_code and any(not r.coupon_allowed for r in self.campaign_lines.values()):
+                    return Response(
+                        {"success": False, "message": COUPON_CAMPAIGN_MESSAGE},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
                 if coupon_code:
                     applied_coupon = Coupon.objects.select_for_update().filter(
@@ -631,6 +673,7 @@ class OrderCreateAPIView(APIView):
                     coupon=applied_coupon,
                     coupon_discount=discount_amount,
                     metadata=metadata_payload,
+                    has_campaign=bool(self.campaign_lines),
                     source=ORDER_SOURCE.LANDING_PAGE,
                     utm_source=data.get("utm_source"),
                     utm_medium=data.get("utm_medium"),
@@ -827,7 +870,8 @@ class ApplyCouponAPIView(APIView):
                 except (TypeError, ValueError):
                     quantity = 1
                 prepared.append({"product": product, "variant": variant, "quantity": quantity,
-                                 "campaign_slug": (str(row.get("campaign") or "").strip() or None)})
+                                 "campaign_slug": (str(row.get("campaign") or "").strip() or None),
+                                 "surface": row.get("surface")})
             eligible, excluded = coupon_split(resolve_lines(prepared))
             self._campaign_excluded = bool(excluded)
             for r in eligible:

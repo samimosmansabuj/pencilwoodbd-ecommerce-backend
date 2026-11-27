@@ -14,6 +14,7 @@ from pencilwoodbd.choices import (
     CAMPAIGN_DISCOUNT_TYPE,
     CAMPAIGN_MIXED_CART_DELIVERY,
     CAMPAIGN_PRICE_SOURCE,
+    CAMPAIGN_SURFACE,
     CAMPAIGN_SWITCH_MODE,
     CAMPAIGN_VARIANT_MODE,
 )
@@ -22,6 +23,14 @@ from .pricing import get_campaign_status
 from .pricing import find_overlap_conflicts
 
 BADGE_LABEL_MAX_LENGTH = 20
+
+
+def default_price_surfaces():
+    return list(CAMPAIGN_SURFACE.values)
+
+
+def normalize_surface(value):
+    return str(value or "").strip().upper().replace("-", "_")
 
 
 def validate_delivery_config(value):
@@ -98,6 +107,8 @@ class Campaign(models.Model):
         max_length=BADGE_LABEL_MAX_LENGTH, blank=True, default="",
         help_text="Defaults to the campaign title (first 20 characters).")
 
+    price_surfaces = models.JSONField(default=default_price_surfaces, blank=True)
+
     allow_overlap = models.BooleanField(default=False)
     allow_coupon = models.BooleanField(default=False)
     include_product_gifts = models.BooleanField(default=False, help_text="Apply product free gifts on campaign items.")
@@ -134,6 +145,11 @@ class Campaign(models.Model):
     @property
     def status(self):
         return get_campaign_status(self)
+
+    def allows_surface(self, surface):
+        if not surface:
+            return True
+        return normalize_surface(surface) in (self.price_surfaces or [])
 
     def clean(self):
         errors = {}
@@ -177,6 +193,11 @@ class CampaignProduct(models.Model):
         max_length=10, choices=CAMPAIGN_SWITCH_MODE.choices, default=CAMPAIGN_SWITCH_MODE.INHERIT)
     offer_mode = models.CharField(
         max_length=10, choices=CAMPAIGN_SWITCH_MODE.choices, default=CAMPAIGN_SWITCH_MODE.INHERIT)
+
+    discount_base_override = models.CharField(
+        max_length=10, choices=CAMPAIGN_PRICE_SOURCE.choices, blank=True, default="")
+    strike_price_override = models.CharField(
+        max_length=10, choices=CAMPAIGN_PRICE_SOURCE.choices, blank=True, default="")
 
     delivery_config = models.JSONField(null=True, blank=True, validators=[validate_delivery_config])
 

@@ -20,6 +20,7 @@ def campaign_public_dict(campaign, request, now):
         "banner_desktop": _abs(request, campaign.banner_desktop),
         "banner_mobile": _abs(request, campaign.banner_mobile),
         "show_in_slider": campaign.show_in_slider,
+        "price_surfaces": list(campaign.price_surfaces or []),
         "hero_title": campaign.hero_title,
         "hero_button_text": campaign.hero_button_text,
         "status": get_campaign_status(campaign, now),

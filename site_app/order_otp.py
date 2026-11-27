@@ -16,11 +16,11 @@ def detect_landing_source(request, cfg=None):
     return "landing" if host and host in internal else "external"
 
 
-def order_otp_gate(request, phone, source, success_key="status"):
+def order_otp_gate(request, phone, source, success_key="status", landing_code=None):
     cfg = OrderOTPSetting.get_solo()
     if source == "auto":
         source = detect_landing_source(request, cfg)
-    if not cfg.is_required(source):
+    if not cfg.is_required(source, landing_code):
         return None
 
     norm = normalize_bd_phone(phone) or phone
